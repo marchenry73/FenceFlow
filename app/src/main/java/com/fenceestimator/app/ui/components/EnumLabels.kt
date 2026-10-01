@@ -317,6 +317,7 @@ fun Permission.labelRes(): Int = when (this) {
     Permission.RECORD_REFUNDS -> R.string.enum_perm_record_refunds
     Permission.RECORD_FIELD_WORK -> R.string.enum_perm_record_field_work
     Permission.SEE_CUSTOMER_CONTACT -> R.string.enum_perm_see_customer_contact
+    Permission.CAPTURE_ENQUIRY -> R.string.enum_perm_capture_enquiry
     Permission.SEE_REPORTS -> R.string.enum_perm_see_reports
     Permission.APPROVE_TIME -> R.string.enum_perm_approve_time
     Permission.APPROVE_PLAN_CHANGES -> R.string.enum_perm_approve_plan_changes
@@ -339,6 +340,7 @@ fun Permission.descriptionRes(): Int = when (this) {
     Permission.RECORD_REFUNDS -> R.string.enum_perm_record_refunds_desc
     Permission.RECORD_FIELD_WORK -> R.string.enum_perm_record_field_work_desc
     Permission.SEE_CUSTOMER_CONTACT -> R.string.enum_perm_see_customer_contact_desc
+    Permission.CAPTURE_ENQUIRY -> R.string.enum_perm_capture_enquiry_desc
     Permission.SEE_REPORTS -> R.string.enum_perm_see_reports_desc
     Permission.APPROVE_TIME -> R.string.enum_perm_approve_time_desc
     Permission.APPROVE_PLAN_CHANGES -> R.string.enum_perm_approve_plan_changes_desc

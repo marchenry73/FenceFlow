@@ -65,6 +65,34 @@ enum class Permission(
         "See customer contact details",
         "Phone numbers and email addresses."
     ),
+    /**
+     * Capture-only: take down a neighbour's enquiry while on a job.
+     *
+     * The owner's words: "I want the crew to be able to do quotes just in case
+     * they are doing a job and the neighbour asks." Asked directly how far that
+     * should go, he chose CAPTURE ONLY, granted PER PERSON: the crew member
+     * records who, where, what kind of fence, roughly how long and a few
+     * photos; it reaches the office as a new lead; the OFFICE prices it. No
+     * price, total, rate or deposit is ever shown to the person who captured
+     * it -- not on the form, not afterwards.
+     *
+     * Held by NO role by default (OWNER only because OWNER is every
+     * permission) and granted to a named person on the Team access screen.
+     * Deliberately not part of RECORD_FIELD_WORK: that one is everything a crew
+     * member does on a job they are on, and this one starts a record for a
+     * stranger, so it has to be given on purpose.
+     *
+     * The server's has_permission() needs no change for it: it answers a
+     * "+CAPTURE_ENQUIRY" override generically and lists it under no role.
+     * (It matches overrides by substring, so no permission name may contain
+     * another -- EnquiryCaptureTest holds the names to that.)
+     */
+    CAPTURE_ENQUIRY(
+        "Capture enquiries on site",
+        "Take down a neighbour's fence enquiry on the spot: who, where, what kind of " +
+            "fence, about how long, and photos. It goes to the office, who price it. The " +
+            "person capturing it never sees a price."
+    ),
     SEE_REPORTS(
         "See reports",
         "Revenue, collected, outstanding, and the detail behind them."
@@ -110,6 +138,11 @@ enum class Permission(
  * delete on a signed change order or a paid invoice destroys the record you
  * need in a dispute, and there is no undo -- so it has to be granted to a named
  * person on purpose, never inherited by being given a job title.
+ *
+ * CAPTURE_ENQUIRY is absent from every one of these too, for the same reason:
+ * the owner chose to grant it per person. OWNER holds it only because OWNER is
+ * every permission; no other role does, and the owner and anyone who can
+ * already create jobs never see its entry point (see EnquiryCaptureAccess).
  */
 val UserRole.defaultPermissions: Set<Permission>
     get() = when (this) {

@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "engine": {
-    "version": "2026.09.3",
-    "generated_at": "2026-09-29T08:54:40.747585100Z"
+    "version": "2026.10.1",
+    "generated_at": "2026-10-01T17:57:30.573603700Z"
   },
   "case": "multi-run-mixed-types",
   "note": "Three runs of three types on one job: items concatenated in run order, sort_order restarting per run, totals summed in (sort_order, sync_id) order across runs.",
   "input": {
-    "engine_version": "2026.09.3",
+    "engine_version": "2026.10.1",
     "pixels_per_foot": 20.0,
     "job": {
       "calibration_pixels_per_foot": 20.0,
@@ -127,7 +127,7 @@
         "unit": "EA",
         "unit_price": 52.35,
         "supplier_unit_price": null,
-        "taxable": false,
+        "taxable": true,
         "covers_ft": 6.0,
         "is_active": true,
         "manufacturer_sync_id": null
@@ -232,7 +232,7 @@
         "unit": "EA",
         "unit_price": 145.05,
         "supplier_unit_price": null,
-        "taxable": false,
+        "taxable": true,
         "covers_ft": 5.0,
         "is_active": true,
         "manufacturer_sync_id": null
@@ -337,7 +337,7 @@
         "unit": "EA",
         "unit_price": 54.5,
         "supplier_unit_price": null,
-        "taxable": false,
+        "taxable": true,
         "covers_ft": 6.0,
         "is_active": true,
         "manufacturer_sync_id": null
@@ -352,7 +352,7 @@
         "unit": "EA",
         "unit_price": 54.5,
         "supplier_unit_price": null,
-        "taxable": false,
+        "taxable": true,
         "covers_ft": 6.0,
         "is_active": true,
         "manufacturer_sync_id": null
@@ -858,7 +858,7 @@
     "existing_items": []
   },
   "expected": {
-    "engine_version": "2026.09.3",
+    "engine_version": "2026.10.1",
     "linear_feet": 265.0,
     "teardown_linear_feet": 0.0,
     "billable_linear_feet": 265.0,
@@ -1546,7 +1546,7 @@
         "unit": "EA",
         "unit_price": 52.35,
         "supplier_unit_price": null,
-        "taxable": false,
+        "taxable": true,
         "role": "PANEL",
         "auto_generated": true,
         "category": null
@@ -1602,7 +1602,7 @@
         "unit": "EA",
         "unit_price": 145.05,
         "supplier_unit_price": null,
-        "taxable": false,
+        "taxable": true,
         "role": "GATE_PANEL",
         "auto_generated": true,
         "category": null
@@ -2114,8 +2114,8 @@
     ],
     "totals": {
       "materials_subtotal": 3422.22,
-      "taxable_subtotal": 2439.5699999999997,
-      "tax": 170.7699,
+      "taxable_subtotal": 3422.22,
+      "tax": 239.55540000000002,
       "labor_cost": 2032.0,
       "teardown_cost": 0.0,
       "trash_haul_fee": 0.0,
@@ -2125,8 +2125,8 @@
       "change_order_feet": 0.0,
       "markup_amount": 0.0,
       "discount_amount": 0.0,
-      "pre_markup_total": 5844.9899,
-      "grand_total": 5850.0,
+      "pre_markup_total": 5913.7754,
+      "grand_total": 5913.78,
       "billable_linear_feet": 265.0
     }
   }

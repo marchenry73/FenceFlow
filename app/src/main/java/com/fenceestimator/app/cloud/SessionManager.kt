@@ -1,6 +1,7 @@
 package com.fenceestimator.app.cloud
 
 import io.github.jan.supabase.auth.auth
+import io.github.jan.supabase.auth.status.RefreshFailureCause
 import io.github.jan.supabase.auth.status.SessionStatus
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -9,6 +10,178 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withTimeoutOrNull
+
+// ===== LOGIN-HEALTH:BEGIN =====
+// Pure decisions about the sign-in: no Context, no clock, no Supabase. The
+// caller says what it saw and, for time, how long ago. That is what lets
+// tests/a28-signedout.test.mjs read THIS text and run it, instead of a copy of
+// it. Keep it to enums, booleans, numbers and if-return lines: the test refuses
+// syntax it cannot execute, so a rewrite into something it cannot read fails
+// loudly rather than going quietly untested.
+
+/**
+ * What this phone can honestly say about its own sign-in.
+ *
+ * Three verdicts, never two: it is working, it is gone, or the phone could not
+ * find out. The third is the one that used to be collapsed into "fine" -- a
+ * question that got no answer was recorded as no problem, so a contractor
+ * about to drive to a job saw exactly what a healthy phone shows. It is split
+ * by cause so each reads as itself: [NO_SIGNAL] is the network (it clears by
+ * itself and the work is safe), [COULD_NOT_TELL] is everything else (the server
+ * did not answer, or there was no token to ask with).
+ *
+ * [CHECKING] says nothing at all, and is bounded: it is only the value before
+ * the first question has been put, and [SessionManager.refresh] replaces it
+ * on every path that gets as far as asking. (A build with no cloud configured
+ * never asks, and has no sign-in to be wrong about.)
+ */
+enum class LoginHealth { CHECKING, WORKING, SIGNED_OUT, NO_SIGNAL, COULD_NOT_TELL }
+
+/** What the auth plugin says right now, reduced to the cases that matter here. */
+enum class AuthStatusKind { INITIALIZING, NOT_AUTHENTICATED, AUTHENTICATED, REFRESH_NO_NETWORK, REFRESH_SERVER_ERROR }
+
+/** What came of asking the server who this account is. */
+enum class ProfileRead { NOT_ASKED, FOUND, NO_COMPANY, FAILED_NO_NETWORK, FAILED_OTHER }
+
+/** What a screen tells the person. Only SIGNED_OUT and COULD_NOT_TELL are loud. */
+enum class LoginNotice { NONE, SIGNED_OUT, NO_SIGNAL, COULD_NOT_TELL }
+
+/** What the job list area says: the list itself, or why it is empty. */
+enum class JobsEmpty { LIST, ORDINARY, SIGNED_OUT, NO_SIGNAL, COULD_NOT_LOAD }
+
+/**
+ * How long a question that got no answer is left alone before the person is
+ * told. A hiccup that the retry clears in a few seconds must not flash a
+ * warning at somebody who then sees it vanish; fifteen seconds is longer than
+ * the retries and short enough to beat anyone driving away.
+ */
+const val LOGIN_UNSURE_GRACE_MS = 15_000L
+
+/**
+ * The verdict, from what the auth plugin says, whether a token is in hand, and
+ * what the profile read came back as.
+ *
+ * Every line that is not plainly good news ends in COULD_NOT_TELL, and so does
+ * the fall-through: a combination nobody thought of is "could not tell", never
+ * "working".
+ */
+fun judgeLogin(status: AuthStatusKind, hasToken: Boolean, profile: ProfileRead): LoginHealth {
+    if (status == AuthStatusKind.NOT_AUTHENTICATED) return LoginHealth.SIGNED_OUT
+    if (status == AuthStatusKind.INITIALIZING) return LoginHealth.COULD_NOT_TELL
+    if (status == AuthStatusKind.REFRESH_NO_NETWORK) return LoginHealth.NO_SIGNAL
+    if (status == AuthStatusKind.REFRESH_SERVER_ERROR) return LoginHealth.COULD_NOT_TELL
+    if (!hasToken) return LoginHealth.COULD_NOT_TELL
+    if (profile == ProfileRead.FOUND) return LoginHealth.WORKING
+    if (profile == ProfileRead.NO_COMPANY) return LoginHealth.WORKING
+    if (profile == ProfileRead.FAILED_NO_NETWORK) return LoginHealth.NO_SIGNAL
+    return LoginHealth.COULD_NOT_TELL
+}
+
+/**
+ * What a profile read amounts to.
+ *
+ * PostgREST answers a request that carried no token, or one row-level security
+ * filtered down to nothing, with an empty list rather than an error. So a read
+ * that came back empty proves nothing unless this phone was still holding this
+ * person's token when it came back; a row that came back proves itself.
+ */
+fun classifyProfileRead(
+    answered: Boolean,
+    found: Boolean,
+    noNetwork: Boolean,
+    holdingTokenAfter: Boolean,
+    sameLoginAfter: Boolean
+): ProfileRead {
+    if (!answered && noNetwork) return ProfileRead.FAILED_NO_NETWORK
+    if (!answered) return ProfileRead.FAILED_OTHER
+    if (found) return ProfileRead.FOUND
+    if (!holdingTokenAfter) return ProfileRead.FAILED_OTHER
+    if (!sameLoginAfter) return ProfileRead.FAILED_OTHER
+    return ProfileRead.NO_COMPANY
+}
+
+/**
+ * Whether this phone has belonged to an account: signed in just now, holding a
+ * company's data, or remembering an address somebody signed in with. The three
+ * survive different things -- a restart, a wipe -- so any one is enough.
+ */
+fun hadAnAccount(wasSignedIn: Boolean, holdsCompanyData: Boolean, rememberedEmail: Boolean): Boolean {
+    if (wasSignedIn) return true
+    if (holdsCompanyData) return true
+    return rememberedEmail
+}
+
+/**
+ * A phone that HAD an account and no longer holds a sign-in. The only
+ * "signed out" that is a fault: a phone that never had one is a solo owner
+ * working alone on their own phone, which is a feature, and the guest demo is
+ * not anybody's account.
+ */
+fun lostSignIn(health: LoginHealth, hadAccount: Boolean, guestDemo: Boolean): Boolean {
+    if (guestDemo) return false
+    if (!hadAccount) return false
+    return health == LoginHealth.SIGNED_OUT
+}
+
+/**
+ * What to tell the person. [offline] is the phone's own word that it has no
+ * signal; [unsureForMs] is how long the verdict has been "could not tell".
+ *
+ * A phone that is merely offline is never alarmed: this app is built to work
+ * with no signal, so offline and unverified is NO_SIGNAL (quiet, the work is
+ * saved), and offline with a working sign-in is nothing at all.
+ */
+fun loginNotice(
+    health: LoginHealth,
+    offline: Boolean,
+    hadAccount: Boolean,
+    guestDemo: Boolean,
+    unsureForMs: Long
+): LoginNotice {
+    if (guestDemo) return LoginNotice.NONE
+    if (lostSignIn(health, hadAccount, guestDemo)) return LoginNotice.SIGNED_OUT
+    if (health == LoginHealth.CHECKING) return LoginNotice.NONE
+    if (health == LoginHealth.WORKING) return LoginNotice.NONE
+    if (health == LoginHealth.SIGNED_OUT) return LoginNotice.NONE
+    if (health == LoginHealth.NO_SIGNAL) return LoginNotice.NO_SIGNAL
+    if (offline) return LoginNotice.NO_SIGNAL
+    if (unsureForMs < LOGIN_UNSURE_GRACE_MS) return LoginNotice.NONE
+    return LoginNotice.COULD_NOT_TELL
+}
+
+/**
+ * The job list area. An empty list is only ever "No jobs yet" when nothing
+ * about the sign-in says otherwise: signed out, or unable to find out, an empty
+ * list means "not loaded", and says so.
+ */
+fun jobsEmptyKind(listIsEmpty: Boolean, notice: LoginNotice): JobsEmpty {
+    if (!listIsEmpty) return JobsEmpty.LIST
+    if (notice == LoginNotice.SIGNED_OUT) return JobsEmpty.SIGNED_OUT
+    if (notice == LoginNotice.COULD_NOT_TELL) return JobsEmpty.COULD_NOT_LOAD
+    if (notice == LoginNotice.NO_SIGNAL) return JobsEmpty.NO_SIGNAL
+    return JobsEmpty.ORDINARY
+}
+// ===== LOGIN-HEALTH:END =====
+
+/**
+ * The auth plugin's status as one of the cases [judgeLogin] understands.
+ *
+ * Exhaustive on purpose, with no else: the plugin's status type is sealed, so a
+ * library upgrade that adds a case breaks the build here instead of being
+ * quietly read as one of these.
+ */
+internal fun authStatusKind(status: SessionStatus): AuthStatusKind = when (status) {
+    is SessionStatus.Initializing -> AuthStatusKind.INITIALIZING
+    is SessionStatus.NotAuthenticated -> AuthStatusKind.NOT_AUTHENTICATED
+    is SessionStatus.Authenticated -> AuthStatusKind.AUTHENTICATED
+    is SessionStatus.RefreshFailure ->
+        if (status.cause is RefreshFailureCause.NetworkError) AuthStatusKind.REFRESH_NO_NETWORK
+        else AuthStatusKind.REFRESH_SERVER_ERROR
+}
+
+/** The auth plugin's status right now, as [authStatusKind] reads it. */
+internal fun currentAuthStatusKind(): AuthStatusKind =
+    authStatusKind(SupabaseModule.client.auth.sessionStatus.value)
 
 data class SessionState(
     val signedIn: Boolean = false,
@@ -73,7 +246,25 @@ data class SessionState(
      * being wrong the other way is a writable demo, which is the bug this
      * whole field exists to close.
      */
-    val guestKnown: Boolean = false
+    val guestKnown: Boolean = false,
+    /**
+     * What this phone knows about its own sign-in -- see [LoginHealth].
+     *
+     * Not derived from [signedIn]: that is only "an email is held", and the
+     * whole bug was that a held email, an expired token and a question nobody
+     * had answered all looked the same. Read it through [loginNotice], which
+     * also knows whether the phone is offline and whether it ever had an
+     * account, rather than comparing it to anything directly.
+     */
+    val login: LoginHealth = LoginHealth.CHECKING,
+    /** When [login] last changed value, in epoch milliseconds. Zero before the first answer. */
+    val loginSince: Long = 0L,
+    /**
+     * This phone has belonged to an account at some point. It is what tells a
+     * phone that has just lost its sign-in from one that never had any: both
+     * are signed out, and only the first of them is a fault.
+     */
+    val hadAccount: Boolean = false
 ) {
     /**
      * What this person can actually do, role plus their own adjustments.
@@ -249,7 +440,16 @@ class SessionManager(private val scope: CoroutineScope) {
     private var current: SessionState
         get() = _state.value
         set(value) {
-            _state.value = value.copy(guestDemo = guestDemoActive, guestKnown = guestDemoRead)
+            // The login verdict is stamped the same way, for the same reason: a
+            // freshly built state is CHECKING with no account, and a refresh
+            // landing mid-session must not wipe what the phone has found out.
+            _state.value = value.copy(
+                guestDemo = guestDemoActive,
+                guestKnown = guestDemoRead,
+                login = loginHealth,
+                loginSince = loginSince,
+                hadAccount = hadAccountNow
+            )
         }
 
     /**
@@ -280,6 +480,84 @@ class SessionManager(private val scope: CoroutineScope) {
     private var guestDemoActive = false
     private var guestDemoRead = false
     private var guestWatchStarted = false
+
+    /**
+     * The login verdict, held here for the same reason the guest flag is: every
+     * branch of [refresh] builds a fresh [SessionState], and a fresh one says
+     * [LoginHealth.CHECKING] and no account. Stamped in the [current] setter, so
+     * no branch can forget it.
+     */
+    @Volatile private var loginHealth: LoginHealth = LoginHealth.CHECKING
+    @Volatile private var loginSince = 0L
+    @Volatile private var hadAccountNow = false
+    private var authWatchStarted = false
+
+    /** Records a verdict without announcing it; the next [current] assignment does that. */
+    private fun noteLogin(health: LoginHealth) {
+        if (health == loginHealth) return
+        loginHealth = health
+        loginSince = System.currentTimeMillis()
+    }
+
+    /** Records a verdict and announces it, for the paths that publish nothing else. */
+    private fun publishLogin(health: LoginHealth) {
+        noteLogin(health)
+        _state.update { it.copy(login = loginHealth, loginSince = loginSince, hadAccount = hadAccountNow) }
+    }
+
+    /**
+     * Works out whether this phone has ever belonged to an account.
+     *
+     * Asked from three places because each survives something the others do
+     * not: the in-memory state survives nothing past this run, the company
+     * stamp survives a restart but not a sign-out wipe, and the remembered
+     * address survives both. The guest demo's stamp is not a company.
+     */
+    private suspend fun noteAccountEvidence(wasSignedIn: Boolean) {
+        if (hadAccountNow) return
+        val owner = runCatching { dataOwnership?.currentOwner() }.getOrNull()
+        val holdsCompanyData = owner != null && owner != DataOwnership.GUEST_DEMO_OWNER
+        val remembered = runCatching { settingsStoreField?.lastSignInEmail?.first() }.getOrNull()
+        hadAccountNow = hadAnAccount(wasSignedIn, holdsCompanyData, !remembered.isNullOrBlank())
+    }
+
+    /**
+     * Follows the auth plugin for the life of the process, so a sign-in that
+     * goes while somebody is looking at the app, or while it sits in a pocket,
+     * is noticed when it happens rather than at the next sync pass a minute
+     * later -- and, until now, not said anywhere once it had.
+     */
+    private fun watchAuthStatus() {
+        if (authWatchStarted) return
+        authWatchStarted = true
+        scope.launch {
+            SupabaseModule.sessionStatus.collect { status -> onAuthStatus(authStatusKind(status)) }
+        }
+    }
+
+    private fun onAuthStatus(kind: AuthStatusKind) {
+        when (kind) {
+            // The plugin has no session. refresh() takes the signed-out branch,
+            // which forgets the identity and records the verdict; it makes no
+            // network call, so this cannot loop.
+            AuthStatusKind.NOT_AUTHENTICATED -> refresh()
+            // The plugin kept the session and is retrying by itself. Only a
+            // phone that believed it was signed in has anything to downgrade.
+            AuthStatusKind.REFRESH_NO_NETWORK -> {
+                if (_state.value.signedIn) publishLogin(LoginHealth.NO_SIGNAL)
+            }
+            AuthStatusKind.REFRESH_SERVER_ERROR -> {
+                if (_state.value.signedIn) publishLogin(LoginHealth.COULD_NOT_TELL)
+            }
+            // A token again. Only worth re-checking when the verdict was
+            // something other than good: at launch it is still CHECKING and the
+            // startup refresh is already on its way.
+            AuthStatusKind.AUTHENTICATED -> {
+                if (loginHealth != LoginHealth.CHECKING && loginHealth != LoginHealth.WORKING) refresh()
+            }
+            AuthStatusKind.INITIALIZING -> Unit
+        }
+    }
 
     /**
      * Follows the guest demo flag for the life of the process.
@@ -343,6 +621,7 @@ class SessionManager(private val scope: CoroutineScope) {
 
     fun refresh() {
         if (!SupabaseModule.isConfigured) return
+        watchAuthStatus()
         scope.launch {
             // Wait for the auth plugin to finish loading from storage before
             // judging anything.
@@ -362,9 +641,14 @@ class SessionManager(private val scope: CoroutineScope) {
                 }
             }.getOrNull()
             if (settled == null) {
-                // Still loading, or the wait itself failed. Say nothing: leave
-                // whatever is on screen and let the next refresh decide. An
-                // unanswered question must not be recorded as a "no".
+                // Still loading, or the wait itself failed. Leave whatever is on
+                // screen and let the next refresh decide. An unanswered question
+                // must not be recorded as a "no" -- and it must not be recorded
+                // as nothing either. This used to return having said nothing, so
+                // a phone that could not find out whether it was signed in looked
+                // exactly like one that was. It is now a verdict of its own; the
+                // screens hold it back for LOGIN_UNSURE_GRACE_MS before saying so.
+                publishLogin(judgeLogin(AuthStatusKind.INITIALIZING, false, ProfileRead.NOT_ASKED))
                 return@launch
             }
 
@@ -376,9 +660,22 @@ class SessionManager(private val scope: CoroutineScope) {
                 appContext?.let { ctx -> runCatching { CachedIdentity.clear(ctx) } }
                 // ...and which jobs it was allowed to see, for the same reason.
                 JobAccess.forget()
+                // Whether this phone belonged to an account before this moment,
+                // asked before the state below overwrites what it knows. One that
+                // did and no longer holds a sign-in has to say so (see
+                // LoginHealth.SIGNED_OUT); one that never did is a solo owner
+                // working alone, and is left exactly as it was.
+                noteAccountEvidence(wasSignedIn = _state.value.signedIn)
+                noteLogin(judgeLogin(AuthStatusKind.NOT_AUTHENTICATED, false, ProfileRead.NOT_ASKED))
                 current = SessionState(resolved = true)
                 return@launch
             }
+            // A sign-in is here again, but nothing has checked it yet. Say so now.
+            // Leaving the old SIGNED_OUT verdict up until the profile read comes
+            // back would keep telling somebody who has just signed in that they
+            // are signed out, for as long as a slow connection takes.
+            if (loginHealth == LoginHealth.SIGNED_OUT) publishLogin(LoginHealth.CHECKING)
+
             // Fail closed, never open.
             //
             // This used to read `profile?.userRole ?: UserRole.OWNER` with the
@@ -418,6 +715,40 @@ class SessionManager(private val scope: CoroutineScope) {
             val fetched = runCatching { SupabaseModule.fetchProfile() }
             val profile = fetched.getOrNull()
 
+            // An empty answer is only an answer if this phone was still holding
+            // this person's token when it was given.
+            //
+            // fetchProfile() answers null without asking anything when the
+            // session has just gone (it has no user id to ask with), and
+            // PostgREST answers an anonymous request with an empty list rather
+            // than an error. Both used to read as "this account belongs to no
+            // company", which forgets the remembered company and runs the
+            // no-company hook -- which wipes the phone's data when nothing on it
+            // is waiting to upload -- on a phone that has simply been signed
+            // out: an empty job list with nothing on screen to say why. A row that
+            // came back proves itself; an empty one proves nothing (see
+            // classifyProfileRead).
+            val tokenAfter = SupabaseModule.hasLiveSession()
+            val sameLoginAfter = runCatching { SupabaseModule.currentUserEmail() }.getOrNull() == email
+            val read = classifyProfileRead(
+                answered = fetched.isSuccess,
+                found = profile != null,
+                noNetwork = fetched.exceptionOrNull()?.let { looksLikeNoNetwork(it) } == true,
+                holdingTokenAfter = tokenAfter,
+                sameLoginAfter = sameLoginAfter
+            )
+            if (!sameLoginAfter) {
+                // The sign-in went while the question was out. Whatever came
+                // back is not about a signed-in person; start over, and the new
+                // pass finds no email and takes the signed-out branch above.
+                refresh()
+                return@launch
+            }
+            val answered = read == ProfileRead.FOUND || read == ProfileRead.NO_COMPANY
+            val verdict = judgeLogin(currentAuthStatusKind(), tokenAfter, read)
+            noteLogin(verdict)
+            hadAccountNow = true
+
             if (fetched.isSuccess && profile?.companyId != null) {
                 // Only a real answer is written down. A failed fetch must leave
                 // the previous one alone -- recording "no company" because the
@@ -440,7 +771,7 @@ class SessionManager(private val scope: CoroutineScope) {
                     accessUnavailable = false,
                     resolved = true
                 )
-            } else if (fetched.isSuccess && profile == null) {
+            } else if (read == ProfileRead.NO_COMPANY) {
                 // A real answer, and the answer is that this account belongs to
                 // no company. Distinct from a failed read: nothing to remember,
                 // and anything remembered before is now wrong.
@@ -463,10 +794,15 @@ class SessionManager(private val scope: CoroutineScope) {
             // The remaining case -- read failed but a cache exists -- keeps the
             // cached state already published above, and retries below.
 
+            // Said out loud on every path, including the one above that
+            // publishes no state of its own.
+            publishLogin(verdict)
+
             // Keep trying. Somebody stuck with no access because their phone
             // dipped out of signal for a second must not have to restart the
-            // app to get their work back.
-            if (fetched.isFailure) scheduleAccessRetry()
+            // app to get their work back. An empty answer that could not be
+            // trusted is retried too, exactly like a failed one.
+            if (!answered) scheduleAccessRetry()
 
             // Before anything else: if this phone is holding a DIFFERENT
             // company's data, clear it. Otherwise signing in on a shared crew
@@ -482,7 +818,7 @@ class SessionManager(private val scope: CoroutineScope) {
             // treating that as "this account has no company" wiped the phone
             // on an offline launch -- the one moment the local copy is all
             // there is.
-            if (fetched.isSuccess) runCatching {
+            if (answered) runCatching {
                 val wiped = if (profile?.companyId != null) {
                     dataOwnership?.onSignedIn(profile.companyId!!)
                 } else {

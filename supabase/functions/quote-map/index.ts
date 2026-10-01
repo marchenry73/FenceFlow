@@ -68,9 +68,18 @@ function clampTile(z: number, y: number, x: number, maxZoom: number) {
   return { z: maxZoom, y: Math.floor(y / 2 ** shift), x: Math.floor(x / 2 ** shift) };
 }
 
+// Esri's World Imagery mosaic tops out at 20 here. This clamps now, where it did
+// not before: the request validator used to refuse anything above 20 outright, so
+// an over-zoomed request could never reach this function. Now that 21 is allowed
+// through for the county layer, a caller OUTSIDE the county would otherwise ask
+// Esri for a level it does not have, get nothing, and see a blank patch of ground
+// instead of the slightly soft one it had before. Clamping keeps the fallback
+// doing what a fallback is for.
+const ESRI_MAX_ZOOM = 20;
 async function esriTile(z: number, y: number, x: number): Promise<Response | null> {
+  const c = clampTile(z, y, x, ESRI_MAX_ZOOM);
   const r = await fetch(
-    `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${z}/${y}/${x}`,
+    `https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/${c.z}/${c.y}/${c.x}`,
   ).catch(() => null);
   return r && r.ok ? r : null;
 }
@@ -80,7 +89,29 @@ async function esriTile(z: number, y: number, x: number): Promise<Response | nul
 // exact same /tile/{z}/{y}/{x} shape as Esri -- just a different host and a
 // much newer flight. Only covers Hillsborough County; a tile outside its
 // extent 404s from the service itself and falls through like any other error.
-const HILLSBOROUGH_MAX_ZOOM = 20;
+//
+// 21, NOT 20, AND MEASURED RATHER THAN READ OFF THE SERVICE. This was 20, which
+// threw away a whole level of sharpness the county serves for free: anything the
+// map asked for above 20 got a zoom-20 tile stretched over it by clampTile
+// below, which is exactly what "the satellite is not clear enough" looks like.
+//
+// The service's own metadata is NOT the authority here and would have got this
+// wrong in both directions. It advertises 24 levels down to 0.019 m/px, but
+// fetching real tiles shows 21 is the last one that exists: 22 and 23 are 404
+// at Riverview, downtown Tampa and Brandon alike. So the cap is measured, and
+// Orlando -- outside the county -- 404s at every level, which is the control
+// proving the probe can tell a missing level from a missing county.
+//
+// Each z21 tile came back a DIFFERENT image at all three places, which is the
+// check that matters: three identical byte counts at z21 looked at first like a
+// placeholder being served, and a blank tile would have made this change pure
+// loss. They are real, distinct imagery.
+//
+// 21 is also where the pixels run out, so there is nothing above it to chase:
+// at this latitude z21 is about 0.066 m/px, and the flight was 3 in (0.076 m).
+// Zoom 21 therefore shows the imagery at its native resolution, finer than
+// Google Earth typically carries over a suburban lot.
+const HILLSBOROUGH_MAX_ZOOM = 21;
 async function hillsboroughTile(z: number, y: number, x: number): Promise<Response | null> {
   const c = clampTile(z, y, x, HILLSBOROUGH_MAX_ZOOM);
   const r = await fetch(
@@ -211,7 +242,7 @@ function buildProviders(paidAllowed = true): ImageryProvider[] {
   // Always present, always last -- the original free, keyless default.
   providers.push({
     name: "Esri",
-    maxZoom: 20,
+    maxZoom: ESRI_MAX_ZOOM,
     attribution: "Esri, Maxar, Earthstar Geographics, and the GIS User Community",
     note: "Esri World Imagery -- free, keyless, refreshed on Esri's own schedule.",
     fetchTile: esriTile,
@@ -368,7 +399,22 @@ Deno.serve(async (req) => {
     const z = Number(url.searchParams.get("z"));
     const y = Number(url.searchParams.get("y"));
     const x = Number(url.searchParams.get("x"));
-    if (![z, y, x].every(Number.isInteger) || z < 12 || z > 20 ||
+    // The ceiling is 21, and it has to agree with the PROVIDER caps below or it
+    // silently throws their best level away. It said 20, which made every
+    // provider's zoom 21 unreachable at the door: Hillsborough's, Google's and
+    // Mapbox's alike, so even a paid key could not have bought a sharper
+    // picture. That is what "the satellite is not clear enough" actually was.
+    //
+    // Keep this the MAXIMUM of the provider caps. A request above a particular
+    // provider's own limit is fine -- clampTile maps it down to the nearest
+    // real tile -- but a request above THIS is refused outright with a 400 and
+    // the caller gets no imagery at all, which is strictly worse than a soft
+    // one. The floor of 12 stays: below that a tile spans counties and is of no
+    // use for siting a fence.
+    const MAX_REQUESTABLE_ZOOM = Math.max(
+      HILLSBOROUGH_MAX_ZOOM, GOOGLE_MAX_ZOOM, MAPBOX_MAX_ZOOM, ESRI_MAX_ZOOM,
+    );
+    if (![z, y, x].every(Number.isInteger) || z < 12 || z > MAX_REQUESTABLE_ZOOM ||
         y < 0 || x < 0 || y >= 2 ** z || x >= 2 ** z) {
       return json({ error: "Bad tile." }, 400);
     }

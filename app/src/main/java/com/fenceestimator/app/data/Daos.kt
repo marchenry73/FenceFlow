@@ -926,3 +926,108 @@ interface JobPayShareDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsert(share: JobPayShare)
 }
+
+/**
+ * Enquiries a crew member captured on site (see [EnquiryCapture]).
+ *
+ * THERE IS NO DELETE HERE, and none may be added: no @Delete, no
+ * `DELETE FROM`. A crew member can capture and correct, never destroy, and the
+ * wipe on an account change is `clearAllTables`, not a query in this file.
+ * EnquiryCaptureTest reads this interface's source and fails on one.
+ *
+ * Every state change is a single guarded UPDATE, so the rules (a send claims a
+ * capture and nothing else may; an edit only lands on an unsent one nobody is
+ * sending) hold under two coroutines racing, not just under good manners.
+ */
+@Dao
+interface EnquiryCaptureDao {
+    @Insert
+    suspend fun insert(capture: EnquiryCapture): Long
+
+    @Insert
+    suspend fun insertPhoto(photo: EnquiryCapturePhoto): Long
+
+    @Query("SELECT * FROM enquiry_captures ORDER BY capturedAt DESC, id DESC")
+    fun observeAll(): Flow<List<EnquiryCapture>>
+
+    @Query("SELECT * FROM enquiry_capture_photos ORDER BY id")
+    fun observeAllPhotos(): Flow<List<EnquiryCapturePhoto>>
+
+    /** This company's captures the server has not taken and has not refused: what the badge counts. */
+    @Query("SELECT COUNT(*) FROM enquiry_captures WHERE companyId = :companyId AND sentAt IS NULL AND rejectedAt IS NULL")
+    fun observeWaitingCount(companyId: String): Flow<Int>
+
+    @Query("SELECT * FROM enquiry_captures WHERE id = :id")
+    suspend fun get(id: Long): EnquiryCapture?
+
+    /** Oldest first: the neighbour who asked first is called first. */
+    @Query("SELECT * FROM enquiry_captures WHERE sentAt IS NULL AND rejectedAt IS NULL ORDER BY capturedAt, id")
+    suspend fun getUnsent(): List<EnquiryCapture>
+
+    /** Sent captures that still owe the office a photo. */
+    @Query(
+        "SELECT * FROM enquiry_captures WHERE sentAt IS NOT NULL AND id IN " +
+            "(SELECT captureId FROM enquiry_capture_photos WHERE storagePath IS NULL) " +
+            "ORDER BY capturedAt, id"
+    )
+    suspend fun getSentOwingPhotos(): List<EnquiryCapture>
+
+    @Query("SELECT * FROM enquiry_capture_photos WHERE captureId = :captureId ORDER BY id")
+    suspend fun photosFor(captureId: Long): List<EnquiryCapturePhoto>
+
+    /** Everything on the phone, for the sign-out guard's count. */
+    @Query("SELECT COUNT(*) FROM enquiry_captures WHERE sentAt IS NULL")
+    suspend fun countUnsent(): Int
+
+    @Query("SELECT COUNT(*) FROM enquiry_capture_photos WHERE storagePath IS NULL")
+    suspend fun countPhotosNotUploaded(): Int
+
+    /**
+     * Takes the capture to send it. 1 means it is yours; 0 means it is already
+     * sent, refused, or somebody else's claim is still fresh.
+     */
+    @Query(
+        "UPDATE enquiry_captures SET sendingSince = :now WHERE id = :id AND sentAt IS NULL " +
+            "AND rejectedAt IS NULL AND (sendingSince IS NULL OR sendingSince < :staleBefore)"
+    )
+    suspend fun claim(id: Long, now: Long, staleBefore: Long): Int
+
+    /** Gives a claim back after a send that did not land. */
+    @Query("UPDATE enquiry_captures SET sendingSince = NULL WHERE id = :id")
+    suspend fun release(id: Long): Int
+
+    /** The server has it. Stamped once: a second call changes nothing. */
+    @Query("UPDATE enquiry_captures SET sentAt = :at, sendingSince = NULL WHERE id = :id AND sentAt IS NULL")
+    suspend fun markSent(id: Long, at: Long): Int
+
+    /** The server refused it for good. It stays on the phone, whole. */
+    @Query(
+        "UPDATE enquiry_captures SET rejectedAt = :at, rejectedWhy = :why, sendingSince = NULL " +
+            "WHERE id = :id AND sentAt IS NULL"
+    )
+    suspend fun markRejected(id: Long, at: Long, why: String): Int
+
+    /** "Send again" after a refusal: back in the queue. */
+    @Query("UPDATE enquiry_captures SET rejectedAt = NULL, rejectedWhy = '' WHERE id = :id AND sentAt IS NULL")
+    suspend fun clearRejection(id: Long): Int
+
+    /**
+     * A correction. Lands only on a capture the office does not have yet and
+     * nobody is sending right now; 0 says which of the two it was not (the
+     * caller reads the row to tell). A corrected capture is also back in the
+     * queue if it had been refused.
+     */
+    @Query(
+        "UPDATE enquiry_captures SET customerName = :name, phone = :phone, email = :email, " +
+            "address = :address, fenceType = :fenceType, approxFeet = :approxFeet, notes = :notes, " +
+            "rejectedAt = NULL, rejectedWhy = '' " +
+            "WHERE id = :id AND sentAt IS NULL AND (sendingSince IS NULL OR sendingSince < :staleBefore)"
+    )
+    suspend fun editUnsent(
+        id: Long, name: String, phone: String, email: String, address: String,
+        fenceType: String, approxFeet: Int?, notes: String, staleBefore: Long
+    ): Int
+
+    @Query("UPDATE enquiry_capture_photos SET storagePath = :path WHERE id = :id AND storagePath IS NULL")
+    suspend fun setPhotoStoragePath(id: Long, path: String): Int
+}

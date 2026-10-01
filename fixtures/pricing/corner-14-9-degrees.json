@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "engine": {
-    "version": "2026.09.3",
-    "generated_at": "2026-09-29T08:54:40.747585100Z"
+    "version": "2026.10.1",
+    "generated_at": "2026-10-01T17:57:30.573603700Z"
   },
   "case": "corner-14-9-degrees",
   "note": "A 14.9-degree bend (atan(532/2000)) is a LINE vertex: no corner post.",
   "input": {
-    "engine_version": "2026.09.3",
+    "engine_version": "2026.10.1",
     "pixels_per_foot": 20.0,
     "job": {
       "calibration_pixels_per_foot": 20.0,
@@ -69,7 +69,7 @@
         "unit": "EA",
         "unit_price": 52.35,
         "supplier_unit_price": null,
-        "taxable": false,
+        "taxable": true,
         "covers_ft": 6.0,
         "is_active": true,
         "manufacturer_sync_id": null
@@ -174,7 +174,7 @@
         "unit": "EA",
         "unit_price": 145.05,
         "supplier_unit_price": null,
-        "taxable": false,
+        "taxable": true,
         "covers_ft": 5.0,
         "is_active": true,
         "manufacturer_sync_id": null
@@ -279,7 +279,7 @@
         "unit": "EA",
         "unit_price": 54.5,
         "supplier_unit_price": null,
-        "taxable": false,
+        "taxable": true,
         "covers_ft": 6.0,
         "is_active": true,
         "manufacturer_sync_id": null
@@ -294,7 +294,7 @@
         "unit": "EA",
         "unit_price": 54.5,
         "supplier_unit_price": null,
-        "taxable": false,
+        "taxable": true,
         "covers_ft": 6.0,
         "is_active": true,
         "manufacturer_sync_id": null
@@ -380,7 +380,7 @@
     "existing_items": []
   },
   "expected": {
-    "engine_version": "2026.09.3",
+    "engine_version": "2026.10.1",
     "linear_feet": 203.4773406982422,
     "teardown_linear_feet": 0.0,
     "billable_linear_feet": 203.4773406982422,
@@ -528,7 +528,7 @@
         "unit": "EA",
         "unit_price": 52.35,
         "supplier_unit_price": null,
-        "taxable": false,
+        "taxable": true,
         "role": "PANEL",
         "auto_generated": true,
         "category": null
@@ -602,8 +602,8 @@
     ],
     "totals": {
       "materials_subtotal": 2551.65,
-      "taxable_subtotal": 771.7499999999999,
-      "tax": 54.022499999999994,
+      "taxable_subtotal": 2551.65,
+      "tax": 178.61550000000003,
       "labor_cost": 1627.8187255859375,
       "teardown_cost": 0.0,
       "trash_haul_fee": 0.0,
@@ -613,8 +613,8 @@
       "change_order_feet": 0.0,
       "markup_amount": 0.0,
       "discount_amount": 0.0,
-      "pre_markup_total": 4233.491225585938,
-      "grand_total": 4240.0,
+      "pre_markup_total": 4358.084225585937,
+      "grand_total": 4358.08,
       "billable_linear_feet": 203.4773406982422
     }
   }

@@ -1425,3 +1425,127 @@ data class JobPayShare(
     val perFootCrewCount: Int,
     val fetchedAt: Long = System.currentTimeMillis()
 )
+
+/**
+ * A neighbour's enquiry taken down on a job site by a crew member who has been
+ * given CAPTURE_ENQUIRY -- the owner's "capture only" answer (a crew member
+ * records it, the OFFICE prices it).
+ *
+ * Its own table, and nothing else: not a [Job], not a fence run. A crew phone
+ * has no insert path for jobs (JobSync leaves a job it has never seen from the
+ * cloud alone), and a local Job row would carry every pricing column with its
+ * default on a phone that must never hold a price. This row has no money field
+ * of ANY kind -- no price, rate, total, deposit or tax -- and EnquiryCaptureTest
+ * holds the entity, the payload and the screen to that. It reaches the office
+ * through one RPC (crew_capture_enquiry) as an ordinary DRAFT lead.
+ *
+ * Written here first, sent afterwards: a garden is exactly where there is no
+ * signal, and a capture lost for want of bars is worse than no feature, because
+ * somebody has been promised a call. [sentAt] is stamped only when the server
+ * has taken it; until then it is on this phone, whole.
+ *
+ * A crew member can correct a capture until the office has it ([sentAt] null
+ * and nothing mid-send) and can never delete one: there is no delete query for
+ * this table anywhere (the wipe on an account change is clearAllTables, which
+ * is the system's, not the person's).
+ *
+ * The server's copy is never read back. The phone does not ask what the office
+ * did with it -- so nothing the office later attaches to that lead, a price
+ * above all, has any way to reach the person who captured it.
+ */
+@Entity(
+    tableName = "enquiry_captures",
+    indices = [Index(value = ["syncId"], unique = true)]
+)
+data class EnquiryCapture(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    /**
+     * Generated here, once, and sent as the lead's own sync id. It is what
+     * makes a retry harmless: the server answers a second send of the same id
+     * with "already have it" instead of a second lead.
+     */
+    val syncId: String = java.util.UUID.randomUUID().toString(),
+    /**
+     * The company this phone was signed in to when it was captured. A capture
+     * is only ever sent, listed or counted as waiting under THAT company: a
+     * phone that changes hands between two businesses must never deliver one
+     * company's neighbour to the other (the wipe on an account change is
+     * withheld while anything is unsent, so it can still be here).
+     */
+    val companyId: String = "",
+    val customerName: String = "",
+    val phone: String = "",
+    val email: String = "",
+    val address: String = "",
+    /** A [FenceType] name, or "" for "not sure". Text so an unknown future value survives. */
+    val fenceType: String = "",
+    /** A rough length in feet, or null for "not sure". A guess, never a measurement. */
+    val approxFeet: Int? = null,
+    val notes: String = "",
+    /** When the enquiry was taken -- the moment that starts the office's call-back clock. */
+    val capturedAt: Long = System.currentTimeMillis(),
+    /** When the server took it. Null until then; stamped once, never cleared. */
+    val sentAt: Long? = null,
+    /**
+     * Set while a send is in flight, so two passes cannot send it twice and an
+     * edit cannot slip in between the read and the send. Stale after
+     * [CLAIM_LIFETIME_MS], so a process that died mid-send does not hold it.
+     */
+    val sendingSince: Long? = null,
+    /**
+     * Set when the server refused this capture for good (not allowed, or a
+     * field it will not take). It stays on the phone, whole, and shows why --
+     * never deleted, never retried on its own.
+     */
+    val rejectedAt: Long? = null,
+    val rejectedWhy: String = ""
+) {
+    val isSent: Boolean get() = sentAt != null
+
+    companion object {
+        /** How long a send may hold a capture before it counts as abandoned. */
+        const val CLAIM_LIFETIME_MS: Long = 2 * 60 * 1000L
+
+        /** Photos on one capture. They are uploaded over the crew's own data, in a yard. */
+        const val MAX_PHOTOS = 8
+    }
+}
+
+/**
+ * One photo on an [EnquiryCapture]. A file on this phone until it is uploaded
+ * to the office's job folder (`{company}/{lead}/photo/` -- the folder the
+ * office's job sheet already lists), after which [storagePath] says where.
+ *
+ * Added, never removed: a crew member can attach more photos to a capture
+ * they have not sent yet, and cannot take one off.
+ */
+@Entity(
+    tableName = "enquiry_capture_photos",
+    foreignKeys = [
+        ForeignKey(
+            entity = EnquiryCapture::class,
+            parentColumns = ["id"],
+            childColumns = ["captureId"],
+            onDelete = ForeignKey.CASCADE
+        )
+    ],
+    indices = [Index("captureId"), Index(value = ["syncId"], unique = true)]
+)
+data class EnquiryCapturePhoto(
+    @PrimaryKey(autoGenerate = true) val id: Long = 0,
+    val captureId: Long,
+    val syncId: String = java.util.UUID.randomUUID().toString(),
+    val filePath: String,
+    /** Where it lives in cloud storage. Null until uploaded; [FILE_GONE] if the file was lost first. */
+    val storagePath: String? = null
+) {
+    companion object {
+        /**
+         * Stored in place of a path when the photo's file no longer exists on
+         * this phone before it was uploaded (storage cleared). It cannot ever
+         * go up, and leaving it null would show "photos still uploading" for
+         * ever.
+         */
+        const val FILE_GONE = "gone"
+    }
+}

@@ -26,8 +26,12 @@ import com.fenceestimator.app.geometry.UndoNoneReason
 import com.fenceestimator.app.geometry.UndoPlan
 import kotlinx.coroutines.Dispatchers
 import com.fenceestimator.app.cloud.CrashReporter
+import com.fenceestimator.app.estimate.DrawingFit
 import com.fenceestimator.app.estimate.DrawingScale
+import com.fenceestimator.app.estimate.GridBackdropPlan
+import com.fenceestimator.app.estimate.PhotoFit
 import com.fenceestimator.app.estimate.TakeoffRefresher
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -380,25 +384,95 @@ class SurveyViewModel(
         _pendingCalibrationPoints.value = emptyList()
     }
 
+    /** Why a chosen survey photo was not taken in -- said out loud, never a button that looks dead. */
+    enum class ImportRefusal { ALREADY_HAS_SURVEY, COULD_NOT_READ }
+
+    private val _importRefused = MutableSharedFlow<ImportRefusal>(extraBufferCapacity = 1)
+    val importRefused: SharedFlow<ImportRefusal> = _importRefused
+
+    /**
+     * Whether the survey photo is the background right now, as opposed to the
+     * grid. A DISPLAY choice, remembered on this phone only -- see
+     * [clearSurveyImage] -- so it survives leaving the screen, and it never
+     * touches the photo or the job.
+     */
+    private val hideSurveyKey = "hide_survey_$jobId"
+    private val backdropPrefs by lazy { appContext.getSharedPreferences(BACKDROP_PREFS, Context.MODE_PRIVATE) }
+    private val _surveyPhotoShown = MutableStateFlow(
+        !runCatching { backdropPrefs.getBoolean(hideSurveyKey, false) }.getOrDefault(false)
+    )
+    val surveyPhotoShown: StateFlow<Boolean> = _surveyPhotoShown
+
+    private fun rememberSurveyShown(show: Boolean) {
+        _surveyPhotoShown.value = show
+        runCatching { backdropPrefs.edit().putBoolean(hideSurveyKey, !show).apply() }
+    }
+
+    /**
+     * Takes a survey photo in as THE survey for this job.
+     *
+     * One survey per job, and a second is refused ([ImportRefusal.ALREADY_HAS_SURVEY]) --
+     * judged by [DrawingScale.hasSavedSurvey], so a reference to a file that is
+     * gone, with nothing in storage, does not lock a job out of ever having one.
+     * This used to replace the photo quietly, and a replacement does not
+     * survive: it is stored on this phone and uploaded only while the job has no
+     * stored photo ([com.fenceestimator.app.cloud.JobFileUploader]), so the new
+     * one never reached the cloud while the old one stayed there -- the office
+     * and every other phone kept the old picture under a drawing traced on the
+     * new one, and the unsynced-work check never noticed. Nothing here can fix
+     * that from this side, so it is not offered.
+     *
+     * A photo that could not be copied does not become the job's survey: a path
+     * to a file that is not there would turn the job into a photo job with no
+     * photo.
+     *
+     * The calibration is cleared with the new photo, as it always was -- a new
+     * photo has no scale until it is calibrated. (Whether that null SURVIVES a
+     * sync is not decided here; see the findings in the report that came with
+     * this change.)
+     */
     fun importImage(context: Context, uri: Uri) {
         if (viewerIsGuestDemo()) return
         viewModelScope.launch {
-            val savedPath = withContext(Dispatchers.IO) {
+            val before = job.value ?: repository.getJob(jobId) ?: return@launch
+            if (DrawingScale.hasSavedSurvey(before) { File(it).exists() }) {
+                _importRefused.tryEmit(ImportRefusal.ALREADY_HAS_SURVEY)
+                return@launch
+            }
+            val saved = withContext(Dispatchers.IO) {
                 val dir = File(context.filesDir, "surveys").apply { mkdirs() }
                 val outFile = File(dir, "survey_${jobId}_${UUID.randomUUID()}.jpg")
-                context.contentResolver.openInputStream(uri)?.use { input ->
-                    FileOutputStream(outFile).use { output -> input.copyTo(output) }
+                val copied = runCatching {
+                    context.contentResolver.openInputStream(uri)?.use { input ->
+                        FileOutputStream(outFile).use { output -> input.copyTo(output) }
+                    }
+                }.isSuccess
+                if (copied && outFile.exists() && outFile.length() > 0L) {
+                    outFile
+                } else {
+                    runCatching { outFile.delete() }
+                    null
                 }
-                outFile.absolutePath
             }
-            val current = job.value ?: repository.getJob(jobId) ?: return@launch
+            if (saved == null) {
+                _importRefused.tryEmit(ImportRefusal.COULD_NOT_READ)
+                return@launch
+            }
+            // Read again: a sync can land the cloud's photo while the bytes were copying.
+            val current = repository.getJob(jobId)
+            if (current == null || DrawingScale.hasSavedSurvey(current) { File(it).exists() }) {
+                runCatching { saved.delete() }
+                if (current != null) _importRefused.tryEmit(ImportRefusal.ALREADY_HAS_SURVEY)
+                return@launch
+            }
             repository.updateJob(
                 current.copy(
-                    surveyImagePath = savedPath,
+                    surveyImagePath = saved.absolutePath,
                     calibrationPixelsPerFoot = null,
                     calibrationKnownFeet = null
                 )
             )
+            rememberSurveyShown(true)
             clearDrawingHistory()
         }
     }
@@ -794,6 +868,34 @@ class SurveyViewModel(
             repository.updateJob(current.copy(calibrationPixelsPerFoot = pxPerFt, calibrationKnownFeet = knownFeet))
             // A new scale is a new drawing as far as Undo and Redo are concerned.
             clearDrawingHistory()
+            repriceAfterScaleChange()
+        }
+    }
+
+    /**
+     * Re-prices every run's materials after the job's SCALE changed.
+     *
+     * [watchDrawingForRepricing] follows the runs, and a recalibration does not
+     * touch a run: it changes what every point measures from the job row. So
+     * the labour footage followed it at once (it is read from the job live) and
+     * the stored materials did not -- the posts, panels and concrete stayed at
+     * what the old scale measured until some run next changed. Recalibrating a
+     * photo is exactly the "fix the scale and the quote follows" case, so it
+     * asks for the same refresh a drawing change gets, from the same code, for
+     * the same people ([viewerMayReprice]) and with the same failure banner.
+     * [TakeoffRefresher.refreshRun] still declines a run nobody has priced.
+     */
+    private suspend fun repriceAfterScaleChange() {
+        if (!repriceOnDrawingChange || !viewerMayReprice()) return
+        withContext(Dispatchers.IO) {
+            repository.getFenceRuns(jobId).forEach { run ->
+                runCatching { TakeoffRefresher.refreshRun(repository, run, true) }
+                    .onSuccess { _repriceFailed.value = false }
+                    .onFailure { e ->
+                        CrashReporter.report(appContext, "survey-reprice", e)
+                        _repriceFailed.value = true
+                    }
+            }
         }
     }
 
@@ -1031,7 +1133,14 @@ class SurveyViewModel(
         // nothing.
         if (viewerIsGuestDemo()) return
         val current = job.value ?: return
-        if (current.surveyImagePath != null) return
+        // A photo job, not merely a job whose photo file is on this phone. This
+        // asked only about the local file, so on a phone the photo had not
+        // reached yet -- the download runs at the end of a sync pass, and not
+        // at all offline -- a job whose photo is in cloud storage read as a
+        // grid job and was given the grid's scale, which then travelled to the
+        // office and priced the photo at a number nobody measured. The same
+        // question DrawingScale.calibrationToSeed asks for Suggest.
+        if (DrawingScale.isPhotoJob(current)) return
         // Only seed a scale when there isn't one. This used to force the grid
         // default back on every visit, which silently threw away any scale the
         // user set by hand -- so calibrating on the grid never stuck.
@@ -1068,7 +1177,9 @@ class SurveyViewModel(
     fun setGridExtent(extentFt: Float) {
         if (viewerIsGuestDemo()) return
         val current = job.value ?: return
-        if (current.surveyImagePath != null) return
+        // A photo job by either field -- see ensureGridCalibration. Resizing a
+        // grid rewrites the scale, and a photo's scale is not the grid's to rewrite.
+        if (DrawingScale.isPhotoJob(current)) return
         if (extentFt <= 0f) return
 
         // The same scale the drawing is shown at ([drawingScale]); never
@@ -1165,7 +1276,7 @@ class SurveyViewModel(
      * anything already drawn on a differently-scaled grid is rescaled by the
      * same ratio and keeps the real-world length it was measured at --
      * exactly what changing the grid size already guarantees. Its own guard
-     * (`if (current.surveyImagePath != null) return`) is what makes this
+     * (`if (DrawingScale.isPhotoJob(current)) return`) is what makes this
      * satisfy the office's rule: satellite only ever sets calibration when
      * there is no survey photo to calibrate against instead.
      *
@@ -1184,7 +1295,7 @@ class SurveyViewModel(
      */
     suspend fun ensureSatelliteCalibration(): SatelliteCalibration {
         val current = job.value ?: return SatelliteCalibration.Ready
-        if (current.surveyImagePath != null) return SatelliteCalibration.Ready
+        if (DrawingScale.isPhotoJob(current)) return SatelliteCalibration.Ready
         val before = drawingScale(current) ?: return SatelliteCalibration.Ready
         val after = unitsPerFoot(SATELLITE_CANVAS_EXTENT_FT)
         if (before > 0f && after > before) {
@@ -1265,59 +1376,190 @@ class SurveyViewModel(
     }
 
     /**
-     * Switches a job back to the GRID (no survey photo), for the drawing to
-     * start over on -- "Use Grid" in the layers menu (SurveyDrawScreen's
-     * `onUseGrid`). The docstring here used to say this switches a run BACK
-     * TO PHOTO MODE, backwards from what the function does and its only
-     * caller asks for.
+     * "Use Grid" in the layers menu (SurveyDrawScreen's `onUseGrid`): draw on
+     * the grid instead of the survey photo. THE PHOTO IS NOT REMOVED.
      *
-     * THE SPLIT this closes: this used to leave calibrationPixelsPerFoot
-     * null and let [ensureGridCalibration] fill it in the next time the
-     * drawing screen opens. In between those two moments the row can sit
-     * with a non-default [Job.gridExtentFt] and no calibration at all --
-     * exactly the one state office pricing and this job's own drawing scale
-     * ([DrawingScale.of]) read differently: pricing falls back to a flat
-     * [PIXELS_PER_FOOT_GRID], the drawing to this job's own extent
-     * ([unitsPerFoot]), and the two only agree at the 400ft default. Nothing
-     * -- a sync push, a price-job run triggered from the office -- should be
-     * able to observe that window, so the seed is written in the SAME update
-     * that clears the photo instead. It is the identical number
-     * [ensureGridCalibration] would already have seeded, so no job's price
-     * moves; this only removes the gap where it could have been read wrong
-     * for a moment. Nothing drawn needs rescaling here (unlike
-     * [setGridExtent]): gridExtentFt itself does not change, so there is
-     * nothing on the canvas whose ratio to the scale has moved.
+     * The name is historical -- GuestReadOnlyTest pins it -- and it is the
+     * BACKGROUND that is cleared here, never the survey. The photo stays saved
+     * with the job on this phone and in the cloud; [showSurveyPhoto] brings it
+     * back, and neither choice touches it.
      *
-     * Guarded on [Job.surveyStoragePath], not just the [Job.surveyImagePath]
-     * this function clears: a second phone that has not downloaded this
-     * job's photo yet has surveyImagePath == null with surveyStoragePath
-     * still set from the cloud, and [DrawingScale.isPhotoJob] -- the check
-     * [DrawingScale.calibrationToSeed] already uses for this same seed on
-     * the estimate side -- still calls that a photo job. Seeding a grid
-     * number onto it here would be the made-up-scale bug documented on
-     * [DrawingScale.isPhotoJob] itself; leaving the calibration null in that
-     * one case is exactly what this function already did before this fix.
+     * Why this stopped clearing the photo. It used to write
+     * `surveyImagePath = null` and leave `surveyStoragePath` alone. Those are
+     * two fields and only the second TRAVELS, so the next sync pass downloaded
+     * the photo again and "Use Grid" came back undone, with the drawing
+     * unaligned to the picture ("I said use grid only, and when I got out and
+     * I came back to the page, it brought back the survey picture"). The fix
+     * proposed for that -- clear the travelling path too -- cannot work from
+     * this side on an owner's phone: a null is dropped from the update it sends
+     * (explicitNulls = false) and the row the server hands back is merged over
+     * the phone's, so the path returns with the next push (SurveyNullsDoNotTravelTest
+     * runs both). The crew door is different -- it sends an explicit null for a
+     * key the phone changed -- but a choice that only holds on one kind of phone
+     * is not a choice. And the owner asked for the survey to be SAVED, not
+     * discarded. So the choice is made where it can be kept: a display setting,
+     * remembered on this phone ([surveyPhotoShown]), that survives leaving the
+     * screen.
+     *
+     * The one write this can make is a scale, and [DrawingScale.gridBackdropPlan]
+     * decides it: a job that already has a scale keeps it untouched; a job with
+     * no scale and nothing drawn on the photo gets the grid's own scale for its
+     * own extent (the number every grid job starts with) so it is left able to
+     * measure what is drawn on the grid; and a job with lines already drawn on
+     * an uncalibrated photo is REFUSED ([gridNeedsScale]), because giving those
+     * photo-pixel lines the grid's scale would price a made-up length.
+     *
+     * The choice is written first and the scale second, so a phone killed in
+     * between is left on the grid with no scale (quotes nothing, asks for one)
+     * and never on the photo with a scale nobody measured.
      */
     fun clearSurveyImage() {
         if (viewerIsGuestDemo()) return
-        val current = job.value ?: return
         viewModelScope.launch {
-            repository.updateJob(
-                current.copy(
-                    surveyImagePath = null,
-                    calibrationPixelsPerFoot = if (current.surveyStoragePath == null) {
-                        unitsPerFoot(current.gridExtentFt)
-                    } else {
-                        null
-                    },
-                    calibrationKnownFeet = null
-                )
-            )
-            clearDrawingHistory()
+            val current = repository.getJob(jobId) ?: return@launch
+            val drawn = repository.getFenceRuns(jobId).any { FenceCodec.decodePoints(it.pointsEncoded).isNotEmpty() }
+            when (val plan = DrawingScale.gridBackdropPlan(current, drawn)) {
+                is GridBackdropPlan.NeedsScale -> _gridNeedsScale.tryEmit(Unit)
+                is GridBackdropPlan.Allowed -> {
+                    rememberSurveyShown(false)
+                    val seed = plan.seed
+                    if (seed != null) {
+                        repository.updateJob(
+                            current.copy(calibrationPixelsPerFoot = seed, calibrationKnownFeet = null)
+                        )
+                        // A new scale is a new drawing as far as Undo and Redo are concerned.
+                        clearDrawingHistory()
+                    }
+                }
+            }
+        }
+    }
+
+    private val _gridNeedsScale = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+
+    /** "Use Grid" refused: lines are drawn on a photo that has no scale yet. See [clearSurveyImage]. */
+    val gridNeedsScale: SharedFlow<Unit> = _gridNeedsScale
+
+    /**
+     * "Show survey photo": the survey is the background again. A display
+     * choice only -- nothing is written to the job, the drawing or the photo.
+     */
+    fun showSurveyPhoto() {
+        if (viewerIsGuestDemo()) return
+        rememberSurveyShown(true)
+    }
+
+    private val _fitRefused = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+
+    /** A fit that was not applied, so the screen can say nothing changed. See [fitSurvey]. */
+    val fitRefused: SharedFlow<Unit> = _fitRefused
+
+    /**
+     * Applies a fitted survey photo: the drawing and its scale move TOGETHER,
+     * so not one measured foot changes. See [DrawingFit] for the rule and the
+     * reasoning, and [DrawingFit.plan] for the footage check this refuses to
+     * write without.
+     *
+     * What is written, in this order, under [drawingWrites] and out of reach of
+     * the screen closing: every run's points and gates, every site marker,
+     * and last the job's calibration. This is NOT one database transaction (the
+     * repository exposes none across runs, markers and the job -- the same as
+     * [setGridExtent]), and no order makes it safe to be interrupted: a phone
+     * killed part-way is left with a drawing and a scale that are out of step,
+     * whichever is written first. The window is a handful of local writes; the
+     * order is only the one the rest of the drawing code already uses (drawing,
+     * then the scale it is measured by).
+     *
+     * Refused, and nothing written, for a guest; for a job that is not a photo
+     * job (the grid is resized with [setGridExtent]); and for a photo with no
+     * scale, because a fit carries the drawing's scale across and has none to
+     * carry -- it never invents one.
+     *
+     * Like every drawing edit this withdraws nothing by itself: the footage the
+     * customer approved is unchanged, which is the point of the fit.
+     */
+    fun fitSurvey(fit: PhotoFit) {
+        if (viewerIsGuestDemo()) return
+        viewModelScope.launch {
+            // The writes below must run to the end even if the screen is closed
+            // while they do, or the drawing is left a different size from its scale.
+            withContext(NonCancellable) {
+                drawingWrites.withLock {
+                    val current = repository.getJob(jobId)
+                    if (current == null || !DrawingScale.isPhotoJob(current)) {
+                        _fitRefused.tryEmit(Unit)
+                        return@withLock
+                    }
+                    val runsNow = repository.getFenceRuns(jobId)
+                    val markersNow = repository.getSiteMarkers(jobId)
+                    val plan = DrawingFit.plan(
+                        runs = runsNow.map { run ->
+                            DrawingFit.RunDrawing(
+                                run.id,
+                                FenceCodec.decodePoints(run.pointsEncoded),
+                                FenceCodec.decodeGates(run.gatesEncoded),
+                                run.closedLoop
+                            )
+                        },
+                        markers = markersNow.map { DrawingFit.MarkerAt(it.id, it.x, it.y) },
+                        calibrationPixelsPerFoot = current.calibrationPixelsPerFoot,
+                        fit = fit
+                    )
+                    if (plan == null) {
+                        _fitRefused.tryEmit(Unit)
+                        return@withLock
+                    }
+
+                    // Every run is about to be rewritten; nothing on any of them
+                    // can be undone or redone onto the carried drawing.
+                    clearDrawingHistory()
+                    runsNow.forEach { run ->
+                        val moved = plan.runs.firstOrNull { it.id == run.id } ?: return@forEach
+                        if (moved.points.isEmpty() && moved.gates.isEmpty()) return@forEach
+                        repository.updateFenceRun(
+                            run.copy(
+                                pointsEncoded = FenceCodec.encodePoints(moved.points),
+                                gatesEncoded = if (moved.gates.isEmpty()) run.gatesEncoded
+                                else FenceCodec.encodeGates(moved.gates)
+                            )
+                        )
+                    }
+                    markersNow.forEach { marker ->
+                        val moved = plan.markers.firstOrNull { it.id == marker.id } ?: return@forEach
+                        repository.updateSiteMarker(marker.copy(x = moved.x, y = moved.y))
+                    }
+                    // Last, and from the freshest row: the scale that goes with the
+                    // drawing just written, and the known length cleared because the
+                    // scale was carried across, not measured against this photo.
+                    val latest = repository.getJob(jobId) ?: return@withLock
+                    repository.updateJob(DrawingFit.jobAfter(latest, fit))
+
+                    // The office sees a fit made from a crew phone, the way it sees a
+                    // length change: the footage did not move, but the scale's basis did.
+                    val name = editorName
+                    if (name != null) {
+                        com.fenceestimator.app.cloud.skipIfOrphaned {
+                            repository.recordFieldChange(
+                                FieldChange(
+                                    jobId = jobId,
+                                    summary = "Survey photo fitted to the drawing",
+                                    detail = "Every length is unchanged. The scale was carried across " +
+                                        "from the drawing, not measured on the photo.",
+                                    changedBy = name,
+                                    changedByRole = editorRole.orEmpty()
+                                )
+                            )
+                        }
+                    }
+                }
+            }
         }
     }
 
     companion object {
+        /** The phone's own record of which background each job is drawn on. See [surveyPhotoShown]. */
+        private const val BACKDROP_PREFS = "survey_backdrop"
+
         /**
          * Units per foot on the no-photo grid, for a job that has not chosen a
          * size. Kept as the old fixed value so existing drawings measure

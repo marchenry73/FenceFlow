@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "engine": {
-    "version": "2026.09.3",
-    "generated_at": "2026-09-29T08:54:40.747585100Z"
+    "version": "2026.10.1",
+    "generated_at": "2026-10-01T17:57:30.573603700Z"
   },
   "case": "teardown-drawn-run",
   "note": "A run flagged is_teardown: its typed 60 ft prices the teardown, it is left out of linear_feet, and it gets no line items.",
   "input": {
-    "engine_version": "2026.09.3",
+    "engine_version": "2026.10.1",
     "pixels_per_foot": 20.0,
     "job": {
       "calibration_pixels_per_foot": 20.0,
@@ -98,7 +98,7 @@
         "unit": "EA",
         "unit_price": 52.35,
         "supplier_unit_price": null,
-        "taxable": false,
+        "taxable": true,
         "covers_ft": 6.0,
         "is_active": true,
         "manufacturer_sync_id": null
@@ -203,7 +203,7 @@
         "unit": "EA",
         "unit_price": 145.05,
         "supplier_unit_price": null,
-        "taxable": false,
+        "taxable": true,
         "covers_ft": 5.0,
         "is_active": true,
         "manufacturer_sync_id": null
@@ -308,7 +308,7 @@
         "unit": "EA",
         "unit_price": 54.5,
         "supplier_unit_price": null,
-        "taxable": false,
+        "taxable": true,
         "covers_ft": 6.0,
         "is_active": true,
         "manufacturer_sync_id": null
@@ -323,7 +323,7 @@
         "unit": "EA",
         "unit_price": 54.5,
         "supplier_unit_price": null,
-        "taxable": false,
+        "taxable": true,
         "covers_ft": 6.0,
         "is_active": true,
         "manufacturer_sync_id": null
@@ -559,7 +559,7 @@
     "existing_items": []
   },
   "expected": {
-    "engine_version": "2026.09.3",
+    "engine_version": "2026.10.1",
     "linear_feet": 100.0,
     "teardown_linear_feet": 60.0,
     "billable_linear_feet": 100.0,
@@ -797,7 +797,7 @@
         "unit": "EA",
         "unit_price": 52.35,
         "supplier_unit_price": null,
-        "taxable": false,
+        "taxable": true,
         "role": "PANEL",
         "auto_generated": true,
         "category": null
@@ -871,8 +871,8 @@
     ],
     "totals": {
       "materials_subtotal": 1286.85,
-      "taxable_subtotal": 396.9,
-      "tax": 27.783,
+      "taxable_subtotal": 1286.85,
+      "tax": 90.0795,
       "labor_cost": 800.0,
       "teardown_cost": 180.0,
       "trash_haul_fee": 0.0,
@@ -882,8 +882,8 @@
       "change_order_feet": 0.0,
       "markup_amount": 0.0,
       "discount_amount": 0.0,
-      "pre_markup_total": 2294.633,
-      "grand_total": 2300.0,
+      "pre_markup_total": 2356.9295,
+      "grand_total": 2356.93,
       "billable_linear_feet": 100.0
     }
   }

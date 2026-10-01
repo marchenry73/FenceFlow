@@ -205,8 +205,9 @@ const itemsOf = (out: ReturnType<typeof priceJob>) => out.items.map((i) => [i.so
   check("case1 tax", out.totals.tax, taxable * (7 / 100));
   check("case1 labor", out.totals.labor_cost, 800);
   check("case1 gate charge", out.totals.gate_charge, 0);
-  // 1286.85 + 27.783 + 800 = 2114.633, up to the next ten.
-  check("case1 grand total", out.totals.grand_total, 2120);
+  // 1286.85 + 27.783 + 800 = 2114.633, exact to the cent: 2114.63. (Rounded up
+  // to 2120 until engine 2026.10.1.)
+  check("case1 grand total", out.totals.grand_total, 2114.63);
   check("case1 billable", out.billable_linear_feet, 100);
 }
 
@@ -274,8 +275,10 @@ const itemsOf = (out: ReturnType<typeof priceJob>) => out.items.map((i) => [i.so
   check("case2 teardown", [out.totals.teardown_cost, out.totals.trash_haul_fee], [410, 50]);
   // 1269.25 materials + 630 labour + 410 teardown + 200 change order + 100 gate.
   check("case2 pre-markup", out.totals.pre_markup_total, 2609.25);
-  // 2609.25 * 1.10 = 2870.175, less 5% = 2726.16625, up to the next ten.
-  check("case2 grand total", out.totals.grand_total, 2730);
+  // 2609.25 * 1.10 = 2870.175, less 5% (143.50875) = 2726.66625, exact to the
+  // cent: 2726.67. (2730 until engine 2026.10.1. The comment used to say
+  // 2726.16625 -- a typo the old rounding up to ten swallowed.)
+  check("case2 grand total", out.totals.grand_total, 2726.67);
 }
 
 // Case 3: a drawn L at 20 px/ft (two 1000 px legs = 100 ft, one 90 degree corner)
@@ -327,10 +330,9 @@ const itemsOf = (out: ReturnType<typeof priceJob>) => out.items.map((i) => [i.so
   check("case3 labor on 80 ft", out.totals.labor_cost, 800);
   // One more $0.74 cap than before the LINE_TO_WALL post-cap fix: materials
   // 2048.64 (was 2047.90), taxable 1315.74 x 7% = 92.1018 tax (was 92.05).
-  // 2048.64 + 92.1018 + 800 + 400 = 3340.7418, up to the next ten -- crosses
-  // this case's own $10 ceiling, so grand_total moves too (3340 -> 3350),
-  // not just materials.
-  check("case3 grand total", out.totals.grand_total, 3350);
+  // 2048.64 + 92.1018 + 800 + 400 = 3340.7418, exact to the cent: 3340.74.
+  // (Rounded up to 3350 until engine 2026.10.1.)
+  check("case3 grand total", out.totals.grand_total, 3340.74);
 }
 
 // Case 3b: the same drawing with the calibration missing. FIXED: this used
@@ -405,7 +407,59 @@ const itemsOf = (out: ReturnType<typeof priceJob>) => out.items.map((i) => [i.so
     existing,
   ));
   check("case5b 0 means off: raw labour bills", out.totals.labor_cost, 32);
-  check("case5b grand total unaffected by any floor", out.totals.grand_total, 220);
+  // $180 of materials + $32 of labour = $212 exactly. (220 until engine
+  // 2026.10.1, when the total was still rounded up to the next ten.)
+  check("case5b grand total unaffected by any floor", out.totals.grand_total, 212);
+}
+
+// Case 6: the total is EXACT, and exact means cents, not float dust.
+//   1000.00 + 1269.32 is 2269.3199999999997 in doubles. The old ceil to the
+//   next ten hid that (it read 2270); with the rounding gone, the dust has to
+//   be cleaned by roundToCents or it would be stored, signed and billed.
+//   Labour 0 and tax 0 so the lines are the whole job.
+{
+  const lump = (id: string, price: number): LineItemRow => ({
+    sync_id: id, fence_run_sync_id: null, role: "NONE", description: id, quantity: 1, unit: "EA",
+    unit_price: price, supplier_unit_price: null, taxable: false, auto_generated: false, sort_order: 0,
+  });
+  const noMaterials = "PANEL,LINE_POST,END_POST,CORNER_POST,POST_CAP,CONCRETE_BAG";
+  const out = priceJob(input(
+    job({ labor_rate_per_ft: 0, tax_rate_percent: 0 }),
+    [run("run-6", { manual_linear_feet: 4, suppressed_roles: noMaterials })],
+    [lump("a", 1000), lump("b", 1269.32)],
+  ));
+  check("case6 the double sum really is dust (1000 + 1269.32)", 1000 + 1269.32 === 2269.32, false);
+  check("case6 materials are the raw double sum", out.totals.materials_subtotal, 1000 + 1269.32);
+  check("case6 grand total is exactly 2269.32, not 2270 and not 2269.3199999999997", out.totals.grand_total, 2269.32);
+}
+
+// Case 7: the minimum job charge is applied before the rounding, so a job that
+//   falls to the minimum reads EXACTLY the minimum -- the figure quoted most
+//   often on small jobs -- and a job above it is not pulled to it.
+{
+  const lump = (id: string, price: number): LineItemRow => ({
+    sync_id: id, fence_run_sync_id: null, role: "NONE", description: id, quantity: 1, unit: "EA",
+    unit_price: price, supplier_unit_price: null, taxable: false, auto_generated: false, sort_order: 0,
+  });
+  const noMaterials = "PANEL,LINE_POST,END_POST,CORNER_POST,POST_CAP,CONCRETE_BAG";
+  const small = priceJob(input(
+    job({ labor_rate_per_ft: 0, tax_rate_percent: 0, minimum_job_charge: 450 }),
+    [run("run-7", { manual_linear_feet: 4, suppressed_roles: noMaterials })],
+    [lump("small", 183.47)],
+  ));
+  check("case7 below the minimum: reads exactly the minimum", small.totals.grand_total, 450);
+  const big = priceJob(input(
+    job({ labor_rate_per_ft: 0, tax_rate_percent: 0, minimum_job_charge: 450 }),
+    [run("run-7", { manual_linear_feet: 4, suppressed_roles: noMaterials })],
+    [lump("big", 2269.32)],
+  ));
+  check("case7 above the minimum: the minimum does not touch it", big.totals.grand_total, 2269.32);
+  const atIt = priceJob(input(
+    job({ labor_rate_per_ft: 0, tax_rate_percent: 0, minimum_job_charge: 450 }),
+    [run("run-7", { manual_linear_feet: 4, suppressed_roles: noMaterials })],
+    [lump("at", 450)],
+  ));
+  check("case7 exactly at the minimum: still exactly the minimum", atIt.totals.grand_total, 450);
 }
 
 console.log(`smoke: ${checks - failures} of ${checks} checks passed (engine ${PRICING_ENGINE_VERSION})`);

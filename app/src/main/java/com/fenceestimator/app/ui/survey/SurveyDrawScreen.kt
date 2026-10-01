@@ -15,6 +15,7 @@ import com.fenceestimator.app.geometry.GateGeometry
 import androidx.compose.material3.FilterChip
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Canvas
@@ -86,6 +87,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateMapOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.res.stringResource
@@ -109,6 +111,10 @@ import com.fenceestimator.app.cloud.SatelliteMath
 import com.fenceestimator.app.data.FenceRun
 import com.fenceestimator.app.data.SiteMarker
 import com.fenceestimator.app.data.SiteMarkerKind
+import com.fenceestimator.app.estimate.DrawingFit
+import com.fenceestimator.app.estimate.DrawingScale
+import com.fenceestimator.app.estimate.PhotoFit
+import com.fenceestimator.app.estimate.ScaleBasis
 import com.fenceestimator.app.geometry.FenceCodec
 import com.fenceestimator.app.geometry.FenceGeometryEngine
 import com.fenceestimator.app.geometry.FencePoint
@@ -175,6 +181,10 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
     }
 
     val job by viewModel.job.collectAsState()
+    // Whether the survey photo is the background right now. A display choice,
+    // remembered on this phone, that never touches the photo or the job -- see
+    // SurveyViewModel.clearSurveyImage.
+    val surveyShown by viewModel.surveyPhotoShown.collectAsState()
     // Warn before an approved job's drawing gets touched, not after --
     // editing it withdraws the customer's approval (docs/REAPPROVAL_RULE.md)
     // and this is the one place someone can be told what is about to happen
@@ -256,6 +266,18 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
     var viewZoom by remember(selectedRunId) { mutableStateOf(1f) }
     var viewPan by remember(selectedRunId) { mutableStateOf(Offset.Zero) }
 
+    // FITTING the survey photo to the drawing. Null means not fitting. While a
+    // draft is held the photo is drawn moved and zoomed under a drawing that
+    // stays put, and nothing is written -- Apply hands the draft to
+    // SurveyViewModel.fitSurvey, which carries the drawing and its scale
+    // together so no measured foot changes; Cancel (or Back, or picking another
+    // tool) just drops it. The draft is in drawing units, so it means the same
+    // thing at any view zoom.
+    var fitDraft by remember { mutableStateOf<PhotoFit?>(null) }
+    val fitActive = fitDraft != null
+    BackHandler(enabled = fitActive) { fitDraft = null }
+    LaunchedEffect(mode) { fitDraft = null }
+
     var fullScreenDrawing by rememberSaveable { mutableStateOf(false) }
     // Grouped floating controls (the grouped-tools/layers/property-info
     // redesign): whether the Layers popup is open, whether the property
@@ -317,8 +339,10 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
         if (uri != null) viewModel.importImage(context, uri)
     }
 
-    LaunchedEffect(job?.surveyImagePath) {
-        val path = job?.surveyImagePath
+    LaunchedEffect(job?.surveyImagePath, surveyShown) {
+        // The photo is loaded only while it is the background. Hiding it (Use
+        // Grid) leaves the file and the job untouched.
+        val path = if (surveyShown) job?.surveyImagePath else null
         bitmap = if (path != null) {
             withContext(Dispatchers.IO) { BitmapFactory.decodeFile(path) }
         } else null
@@ -408,6 +432,46 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
     val lengthRefusedMessage = stringResource(R.string.seg_len_refused)
     LaunchedEffect(Unit) {
         viewModel.lengthRefused.collect { snackbarHostState.showSnackbar(lengthRefusedMessage) }
+    }
+    // The survey photo's own refusals. Each says what happened and that nothing
+    // changed, rather than a control that looks dead.
+    val gridNeedsScaleMessage = fitText(
+        "survey_grid_needs_scale",
+        "Calibrate the photo first. What you drew on it has no scale yet, so the grid cannot measure it."
+    )
+    val fitRefusedMessage = fitText(
+        "survey_fit_refused",
+        "The fit could not be applied, so nothing was changed."
+    )
+    val importAlreadyMessage = fitText(
+        "survey_import_already",
+        "This job already has a survey photo. It stays saved with the job."
+    )
+    val importFailedMessage = fitText(
+        "survey_import_failed",
+        "That photo could not be read, so nothing was saved."
+    )
+    // The Layers dialog is closed first where the refusal came from it: a message
+    // behind the dialog's scrim is a message nobody reads.
+    LaunchedEffect(Unit) {
+        viewModel.gridNeedsScale.collect {
+            layersMenuOpen = false
+            snackbarHostState.showSnackbar(gridNeedsScaleMessage)
+        }
+    }
+    LaunchedEffect(Unit) {
+        viewModel.fitRefused.collect { snackbarHostState.showSnackbar(fitRefusedMessage) }
+    }
+    LaunchedEffect(Unit) {
+        viewModel.importRefused.collect { reason ->
+            layersMenuOpen = false
+            snackbarHostState.showSnackbar(
+                when (reason) {
+                    SurveyViewModel.ImportRefusal.ALREADY_HAS_SURVEY -> importAlreadyMessage
+                    SurveyViewModel.ImportRefusal.COULD_NOT_READ -> importFailedMessage
+                }
+            )
+        }
     }
     val canRedo by viewModel.canRedo.collectAsState()
 
@@ -672,6 +736,27 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                 // the wrong-size squares on every grid but the 400ft default.
                 val gridPxPerFt = pxPerFt ?: SurveyViewModel.PIXELS_PER_FOOT_GRID
 
+                // What stands behind the scale -- measured against a known
+                // length, carried or fitted by eye, or nothing yet. Display
+                // only: pricing reads the calibration alone, exactly as before.
+                // The line never lets a fit by eye read as a measurement.
+                val scaleBasis = DrawingScale.basisOf(job2)
+                val unmeasuredNote = fitText(
+                    "survey_scale_unmeasured",
+                    "Scale NOT measured on this photo -- lengths are only as good as the fit. Use Calibrate to measure it."
+                )
+                val measuredNote = fitText(
+                    "survey_scale_measured",
+                    "Scale measured against a %s ft reference",
+                    "%.1f".format(job2.calibrationKnownFeet ?: 0f)
+                )
+                val scaleNote: String? = when {
+                    usingGrid -> null
+                    scaleBasis == ScaleBasis.UNMEASURED -> unmeasuredNote
+                    scaleBasis == ScaleBasis.MEASURED -> measuredNote
+                    else -> null
+                }
+
                 // The magnifier loupe (see MagnifierLoupe below): where to draw
                 // it (screen space), what ground it should be centered on
                 // (content space), and the length of whichever segment(s) touch
@@ -735,6 +820,10 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                 }
                 val canvasContentSize = bitmap?.let { it.width to it.height }
                     ?: (SurveyViewModel.GRID_CANVAS_SIZE to SurveyViewModel.GRID_CANVAS_SIZE)
+                // Read by the pinch layer below, which is created once and would
+                // otherwise keep the size the canvas had on its first frame (the
+                // grid's, before the photo had loaded).
+                val contentSizeNow by rememberUpdatedState(canvasContentSize)
 
                 // Fixes the imagery to the app's own survey-pixel canvas: the
                 // content-space center is the job's site_lat/site_lon, at a
@@ -819,7 +908,28 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                                     awaitFirstDown(requireUnconsumed = false)
                                     do {
                                         val event = awaitPointerEvent()
-                                        if (event.changes.size >= 2) {
+                                        val fittingNow = fitDraft
+                                        if (event.changes.size >= 2 && fittingNow != null) {
+                                            // FITTING the survey photo: the same two
+                                            // fingers move and zoom the PHOTO under
+                                            // the drawing instead of the view, with
+                                            // the spot between the fingers staying
+                                            // put. The draft is in drawing units, so
+                                            // screen movement is divided by the view
+                                            // scale. Nothing is written until Apply.
+                                            val zoomChange = event.calculateZoom()
+                                            val panChange = event.calculatePan()
+                                            val centroid = event.calculateCentroid(useCurrent = false)
+                                            val content = contentSizeNow
+                                            val t = viewTransform(content.first, content.second, canvasSize, viewZoom, viewPan)
+                                            val about = t.toImage(centroid)
+                                            fitDraft = DrawingFit.clamp(
+                                                fittingNow
+                                                    .zoomedAbout(if (zoomChange > 0f) zoomChange else 1f, about.x, about.y)
+                                                    .movedBy(panChange.x / t.scale, panChange.y / t.scale)
+                                            )
+                                            event.changes.forEach { it.consume() }
+                                        } else if (event.changes.size >= 2) {
                                             val zoomChange = event.calculateZoom()
                                             val panChange = event.calculatePan()
                                             val centroid = event.calculateCentroid(useCurrent = false)
@@ -852,7 +962,27 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                                     } while (event.changes.any { it.pressed })
                                 }
                             }
-                            .pointerInput(mode, committedPoints, bmp, activeRun.id, usingGrid, gates, siteMarkers) {
+                            .pointerInput(mode, committedPoints, bmp, activeRun.id, usingGrid, gates, siteMarkers, fitActive) {
+                                // FITTING the survey photo: one finger slides the photo
+                                // under the drawing, and nothing else on this layer may
+                                // act -- a tap must not drop a corner while somebody is
+                                // lining a photo up. The photo is moved by the draft in
+                                // drawing units; two fingers zoom it (the layer above).
+                                if (fitActive) {
+                                    detectDragGestures { _, dragAmount ->
+                                        val draft = fitDraft
+                                        if (draft != null) {
+                                            val scale = viewTransform(
+                                                canvasContentSize.first, canvasContentSize.second,
+                                                canvasSize, viewZoom, viewPan
+                                            ).scale
+                                            fitDraft = DrawingFit.clamp(
+                                                draft.movedBy(dragAmount.x / scale, dragAmount.y / scale)
+                                            )
+                                        }
+                                    }
+                                    return@pointerInput
+                                }
                                 // Only one gesture detector is ever active at a time -- mixing a tap
                                 // detector and a drag detector on the same pointer stream is a real
                                 // source of flaky gesture recognition, so each mode that needs drag
@@ -1045,10 +1175,35 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                     ) {
                         val transform = viewTransform(canvasContentSize.first, canvasContentSize.second, IntSize(size.width.toInt(), size.height.toInt()), viewZoom, viewPan)
 
+                        // While FITTING, the photo alone is drawn moved and zoomed by
+                        // the draft; the drawing, the grid and everything on top of it
+                        // keep the ordinary transform, so what is being lined up
+                        // against the photo does not move.
+                        val fitting = fitDraft
+                        val photoTransform = if (fitting != null) {
+                            FitTransform(
+                                transform.scale * fitting.scale,
+                                transform.offsetX + transform.scale * fitting.dx,
+                                transform.offsetY + transform.scale * fitting.dy
+                            )
+                        } else transform
                         drawSurveyBackground(
-                            bmp, transform, canvasContentSize.first, canvasContentSize.second,
+                            bmp, photoTransform, canvasContentSize.first, canvasContentSize.second,
                             job2.gridFeetPerSquare, gridPxPerFt, satelliteOn, satelliteAnchor, satelliteTiles
                         )
+                        // The visible reference for a fit: a scale grid, in real feet,
+                        // over the photo. Squares of a known size are how the eye tells
+                        // a photo that is the right size from one that only looks it --
+                        // a house, a fence post spacing or a car in the picture can be
+                        // held against them. Drawn from the job's own scale, in round
+                        // numbers of feet that stay readable at the current zoom.
+                        if (fitting != null && pxPerFt != null && pxPerFt > 0f) {
+                            drawGrid(
+                                transform, canvasContentSize.first, canvasContentSize.second,
+                                DrawingFit.niceGridStepFt(FIT_GRID_MIN_SQUARE_PX / (pxPerFt * transform.scale)),
+                                pxPerFt, showLabels = true, fill = false
+                            )
+                        }
 
                         // A gate at its real width, hung on real posts, drawn
                         // the same way whichever run it belongs to -- see the
@@ -1422,6 +1577,51 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                         if (mode == SurveyMode.ADJUST && selectedPoint == null) {
                             CanvasHint(text = stringResource(R.string.misc_survey_adjust_canvas_hint))
                         }
+                        // A scale nobody measured against this photo -- carried from
+                        // the drawing, or fitted by eye -- says so, in amber, for as
+                        // long as the photo is on screen. A fit by eye and a
+                        // measurement are different things and must never read alike.
+                        if (fitDraft == null && !usingGrid && scaleBasis == ScaleBasis.UNMEASURED) {
+                            CanvasHint(
+                                modifier = Modifier.widthIn(max = 320.dp),
+                                text = unmeasuredNote,
+                                textColor = MaterialTheme.semantic.warning
+                            )
+                        }
+                        // The fit controls, while a fit is being lined up. Apply is
+                        // off until the photo has actually been moved.
+                        fitDraft?.let { draft ->
+                            FitBar(
+                                hint = fitText(
+                                    "survey_fit_hint",
+                                    "Drag to move the photo, pinch to zoom it, until it lines up with your drawing."
+                                ),
+                                effect = fitText(
+                                    "survey_fit_effect",
+                                    "Every length you drew stays exactly as it is. The scale is carried across, but it will read as fitted by eye, not measured."
+                                ),
+                                applyText = fitText("survey_fit_apply", "Apply fit"),
+                                resetText = fitText("survey_fit_reset", "Reset"),
+                                cancelText = stringResource(R.string.action_cancel),
+                                applyEnabled = !draft.isIdentity,
+                                onApply = {
+                                    if (!draft.isIdentity) {
+                                        // The view follows the photo, so what is on screen
+                                        // does not jump when the drawing is carried across.
+                                        val (zoomAfter, panAfter) = viewAfterFit(
+                                            canvasContentSize.first, canvasContentSize.second,
+                                            canvasSize, viewZoom, viewPan, draft
+                                        )
+                                        viewModel.fitSurvey(draft)
+                                        viewZoom = zoomAfter
+                                        viewPan = panAfter
+                                    }
+                                    fitDraft = null
+                                },
+                                onReset = { fitDraft = PhotoFit.IDENTITY },
+                                onCancel = { fitDraft = null }
+                            )
+                        }
                     }
 
                     // TOP-END: view controls only -- full screen, layers,
@@ -1518,7 +1718,8 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                         // button are reachable whatever tool is selected, so
                         // restricting visibleModes to Move View alone does not
                         // reach them. Guarded here for the same reason.
-                        editable = editable
+                        editable = editable,
+                        scaleNote = scaleNote
                     )
 
                     // NudgePad -- unchanged, still bottom-end, still only
@@ -1724,7 +1925,22 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
     }
 
     if (layersMenuOpen) {
+        // The dialog sits outside the drawing block above, so it works out
+        // for itself what kind of job this is.
+        val dialogJob = job
+        val dialogBasis = dialogJob?.let { DrawingScale.basisOf(it) } ?: ScaleBasis.GRID
         LayersDialog(
+            isPhotoJob = dialogBasis != ScaleBasis.GRID,
+            surveyOnThisPhone = dialogJob?.surveyImagePath != null,
+            surveyShown = surveyShown,
+            onShowSurvey = { viewModel.showSurveyPhoto() },
+            fitAvailable = !usingGrid &&
+                (dialogBasis == ScaleBasis.MEASURED || dialogBasis == ScaleBasis.UNMEASURED),
+            fitNeedsScale = !usingGrid && dialogBasis == ScaleBasis.NONE,
+            onFitPhoto = {
+                layersMenuOpen = false
+                fitDraft = PhotoFit.IDENTITY
+            },
             usingGrid = usingGrid,
             satelliteOn = satelliteOn,
             onSatelliteToggle = { satelliteOn = it },
@@ -2119,7 +2335,14 @@ private fun PropertyInfoPanel(
     lastSnap: com.fenceestimator.app.geometry.SnapResult?,
     onSegmentClick: (Int) -> Unit,
     onClear: () -> Unit,
-    editable: Boolean = true
+    editable: Boolean = true,
+    /**
+     * What stands behind the scale while a survey photo is showing -- measured
+     * against a known length, or not -- one line, always visible, so a number
+     * that was fitted by eye is never read as one that was measured. Null on
+     * the grid, whose scale needs no such line.
+     */
+    scaleNote: String? = null
 ) {
     Surface(
         modifier = modifier.widthIn(max = 360.dp),
@@ -2162,6 +2385,13 @@ private fun PropertyInfoPanel(
                     contentDescription = stringResource(
                         if (expanded) R.string.misc_survey_panel_collapse else R.string.misc_survey_panel_expand
                     )
+                )
+            }
+            if (scaleNote != null) {
+                Text(
+                    scaleNote,
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
             if (expanded) {
@@ -2295,7 +2525,19 @@ private fun LayersDialog(
      * one) -- the four show/hide layer switches below do not, so they stay
      * enabled regardless.
      */
-    editable: Boolean = true
+    editable: Boolean = true,
+    /** The job has a survey photo, whether or not its file has reached this phone. */
+    isPhotoJob: Boolean = false,
+    /** The survey's file is on this phone, so it can be shown. */
+    surveyOnThisPhone: Boolean = true,
+    /** The survey is the background right now (false: the grid was chosen). */
+    surveyShown: Boolean = true,
+    onShowSurvey: () -> Unit = {},
+    /** A photo is showing and has a scale to carry across, so it can be fitted. */
+    fitAvailable: Boolean = false,
+    /** A photo is showing but has no scale yet, so there is nothing to carry across. */
+    fitNeedsScale: Boolean = false,
+    onFitPhoto: () -> Unit = {}
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -2313,7 +2555,7 @@ private fun LayersDialog(
                     stringResource(R.string.misc_survey_layers_background),
                     style = MaterialTheme.typography.titleSmall
                 )
-                if (usingGrid) {
+                if (usingGrid && !isPhotoJob) {
                     Row(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
                         // Only offered instead of the grid, never alongside an
                         // uploaded photo -- the office's calibration rule is
@@ -2454,9 +2696,59 @@ private fun LayersDialog(
                             modifier = Modifier.fillMaxWidth()
                         ) { onSetGridSpacing(it) }
                     }
+                } else if (usingGrid) {
+                    // The job HAS a survey photo and the grid is the background.
+                    // The grid-size and satellite controls are not offered: they
+                    // rescale and rewrite the job's scale, and a photo job's scale
+                    // is not the grid's to rewrite. The photo is saved either way.
+                    Text(
+                        fitText(
+                            "survey_photo_saved_note",
+                            "The survey photo stays saved with this job. Choosing the grid only hides it on this phone."
+                        ),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    if (surveyOnThisPhone && !surveyShown) {
+                        OutlinedButton(onClick = onShowSurvey, enabled = editable) {
+                            Text(fitText("survey_show_photo", "Show survey photo"))
+                        }
+                    } else {
+                        Text(
+                            fitText(
+                                "survey_photo_not_here",
+                                "This phone cannot show the survey photo right now. It is still saved with the job."
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 } else {
                     Text(stringResource(R.string.misc_survey_drawing_on_photo), style = MaterialTheme.typography.bodyMedium)
                     OutlinedButton(onClick = onUseGrid, enabled = editable) { Text(stringResource(R.string.survey_use_grid)) }
+                    Text(
+                        fitText(
+                            "survey_photo_saved_note",
+                            "The survey photo stays saved with this job. Choosing the grid only hides it on this phone."
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    // Fitting: line the photo up with what is drawn, and carry the
+                    // scale with it. Needs a scale to carry; a photo with none is
+                    // calibrated (Calibrate mode), never fitted into one.
+                    OutlinedButton(onClick = onFitPhoto, enabled = editable && fitAvailable) {
+                        Text(fitText("survey_fit_open", "Fit photo to drawing"))
+                    }
+                    if (fitNeedsScale) {
+                        Text(
+                            fitText(
+                                "survey_fit_needs_scale",
+                                "This photo has no scale yet, so there is nothing to carry across. Use Calibrate first."
+                            ),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
 
                 Spacer(Modifier.height(Space.xs))
@@ -2734,6 +3026,123 @@ private fun viewTransform(contentW: Int, contentH: Int, canvasSize: IntSize, zoo
 }
 
 /**
+ * The view (zoom and pan) that shows a drawing exactly as it was on screen
+ * while [fit] was being lined up, once that fit has been applied.
+ *
+ * Applying a fit puts the photo back at its own origin and carries the drawing
+ * instead (see [DrawingFit]), which is the same picture seen through a view
+ * that has the fit folded in: a point that was at `p` is now at `(p - t) / f`,
+ * and `view(p) == viewAfter((p - t) / f)` exactly when `viewAfter = view after
+ * scaling by f and shifting by t`. So the screen does not jump.
+ */
+private fun viewAfterFit(
+    contentW: Int,
+    contentH: Int,
+    canvasSize: IntSize,
+    zoom: Float,
+    pan: Offset,
+    fit: PhotoFit
+): Pair<Float, Offset> {
+    val before = viewTransform(contentW, contentH, canvasSize, zoom, pan)
+    val base = fitTransform(contentW, contentH, canvasSize)
+    val zoomAfter = zoom * fit.scale
+    val wantedX = before.offsetX + before.scale * fit.dx
+    val wantedY = before.offsetY + before.scale * fit.dy
+    val centerX = canvasSize.width / 2f
+    val centerY = canvasSize.height / 2f
+    return zoomAfter to Offset(
+        wantedX - (centerX - (centerX - base.offsetX) * zoomAfter),
+        wantedY - (centerY - (centerY - base.offsetY) * zoomAfter)
+    )
+}
+
+/**
+ * Wording for the survey-photo controls: the string resource called [name] if
+ * it exists, otherwise [fallback] (English).
+ *
+ * Looked up by name rather than referenced as `R.string.x`, because a reference
+ * to a resource that is not in all three locales fails the whole build, and
+ * the strings.xml files these belong in are edited by other work in flight.
+ * Until they are added (the names and the three wordings are listed in the
+ * hand-over for this change) the controls read in English; once they are,
+ * Spanish and French phones pick them up with no further code change. The
+ * fallback is a real, complete sentence -- never a key shown to the user.
+ *
+ * [args] are formatted into whichever text is used, so a resource and its
+ * fallback take the same arguments in the same order.
+ */
+@Composable
+private fun fitText(name: String, fallback: String, vararg args: Any): String {
+    val context = LocalContext.current
+    val id = remember(name) { context.resources.getIdentifier(name, "string", context.packageName) }
+    return when {
+        id != 0 && args.isEmpty() -> context.getString(id)
+        id != 0 -> context.getString(id, *args)
+        args.isEmpty() -> fallback
+        else -> String.format(fallback, *args)
+    }
+}
+
+/**
+ * The controls shown while a survey photo is being fitted: what to do, what
+ * will and will not change, and Cancel / Reset / Apply. A plain Surface, unlike
+ * the hints around it, because these ARE meant to take the touch.
+ */
+@Composable
+private fun FitBar(
+    hint: String,
+    effect: String,
+    applyText: String,
+    resetText: String,
+    cancelText: String,
+    applyEnabled: Boolean,
+    onApply: () -> Unit,
+    onReset: () -> Unit,
+    onCancel: () -> Unit
+) {
+    // The right edge is left clear (end = 64dp): the view-control column floats
+    // there, drawn after this, and would sit on top of the Apply button on a
+    // narrow phone. The buttons share the width and wrap their words rather than
+    // overflowing, because the longer Spanish and French labels do not fit three
+    // across at their natural size. Judged on a real screen, not by this code.
+    val compact = androidx.compose.foundation.layout.PaddingValues(horizontal = Space.sm)
+    Surface(
+        modifier = Modifier.padding(top = Space.xs, end = 64.dp).widthIn(max = 300.dp),
+        tonalElevation = 4.dp,
+        shape = androidx.compose.foundation.shape.RoundedCornerShape(Radius.md)
+    ) {
+        Column(Modifier.padding(horizontal = Space.md, vertical = Space.sm)) {
+            Text(
+                hint,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
+            )
+            Text(
+                effect,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(Modifier.height(Space.sm))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(Space.xs),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                OutlinedButton(onClick = onCancel, modifier = Modifier.weight(1f), contentPadding = compact) {
+                    Text(cancelText)
+                }
+                OutlinedButton(onClick = onReset, enabled = applyEnabled, modifier = Modifier.weight(1f), contentPadding = compact) {
+                    Text(resetText)
+                }
+                Button(onClick = onApply, enabled = applyEnabled, modifier = Modifier.weight(1.3f), contentPadding = compact) {
+                    Text(applyText)
+                }
+            }
+        }
+    }
+}
+
+/**
  * A hard ceiling on gridlines drawn per axis, independent of extent, of
  * gridLineSpacingFt, and of the device this runs on.
  *
@@ -2753,6 +3162,15 @@ private fun viewTransform(contentW: Int, contentH: Int, canvasSize: IntSize, zoo
  * trusted to stay small by construction.
  */
 private const val MAX_GRID_LINES_PER_AXIS = 200
+
+/**
+ * The smallest a square of the fit reference grid is allowed to be on screen,
+ * in pixels, before the grid steps up to the next round number of feet. Small
+ * enough to hold a few squares across a house, and the same 64 that drawGrid
+ * needs before it will put a distance label on a line -- so a reference grid
+ * is always a labelled one.
+ */
+private const val FIT_GRID_MIN_SQUARE_PX = 64f
 
 /**
  * Draws the no-photo grid: the background rectangle, then vertical and
@@ -2789,13 +3207,21 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawGrid(
     contentH: Int,
     gridLineSpacingFt: Float,
     pxPerFt: Float,
-    showLabels: Boolean = true
+    showLabels: Boolean = true,
+    /**
+     * Paint the opaque background first. Off only for the reference grid shown
+     * over a survey photo while it is being fitted, which has to leave the
+     * photo showing through.
+     */
+    fill: Boolean = true
 ) {
-    drawRect(
-        PlanColors.canvasBackground,
-        topLeft = Offset(transform.offsetX, transform.offsetY),
-        size = androidx.compose.ui.geometry.Size(contentW * transform.scale, contentH * transform.scale)
-    )
+    if (fill) {
+        drawRect(
+            PlanColors.canvasBackground,
+            topLeft = Offset(transform.offsetX, transform.offsetY),
+            size = androidx.compose.ui.geometry.Size(contentW * transform.scale, contentH * transform.scale)
+        )
+    }
     val safePxPerFt = if (pxPerFt.isFinite() && pxPerFt > 0f) pxPerFt else SurveyViewModel.PIXELS_PER_FOOT_GRID
     val wantedStepUnits = gridLineSpacingFt.coerceAtLeast(0.5f) * safePxPerFt
     val minStepForBudget = contentW / MAX_GRID_LINES_PER_AXIS.toFloat()

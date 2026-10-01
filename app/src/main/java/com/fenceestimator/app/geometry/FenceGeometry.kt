@@ -565,3 +565,403 @@ private fun normaliseDeg(d: Float): Float {
     if (v < 0f) v += 360f
     return v
 }
+
+// ===========================================================================
+// JOINED RUNS: the post arithmetic at a join.
+// ===========================================================================
+
+/**
+ * What stands in the ground where two or more runs are joined.
+ *
+ * [CORNER] is a post that takes a pull from more than one direction, [LINE]
+ * is a post the fence passes straight through. The two are separate catalog
+ * rows at separate prices, which is the whole reason the kind matters: the
+ * count of posts is the same either way.
+ */
+enum class JoinPostKind { LINE, CORNER }
+
+/**
+ * Why a joint was left out of the arithmetic. A joint that is ignored changes
+ * nothing, so the price is whatever it would be with no joint recorded.
+ */
+enum class JoinIgnoredReason {
+    /**
+     * Fewer than two of the joint's ends belong to a run that bills posts.
+     * Covers a joint id recorded on only one end (the partner run deleted or
+     * not synced yet), and ends belonging to a teardown run, a closed run, or a
+     * run with nothing measurable drawn or typed.
+     */
+    FEWER_THAN_TWO_LIVE_RUNS,
+
+    /**
+     * Both ends of ONE run carry this joint id. Closing a run on itself is
+     * what closedLoop is for, and the closed-loop arithmetic (no free ends,
+     * one fewer position in the estimate) is not the same as a joint's, so a
+     * joint is not allowed to stand in for it.
+     */
+    SAME_RUN_TWICE,
+}
+
+/**
+ * One run, reduced to exactly what the join arithmetic reads.
+ *
+ * Deliberately not a FenceRun: this file is pure geometry and the FenceRun
+ * entity belongs to the data layer. A caller builds one of these per run of
+ * the job.
+ *
+ * @param id the run's stable identity (its sync id). Must be unique in the list.
+ * @param geometry the SAME geometry the run's posts are counted from
+ *   (resolveGeometry in the engine): a typed-footage run arrives with no
+ *   vertices, a closed run with no ends, a run with nothing measurable with
+ *   neither. The arithmetic trusts it and does not re-measure.
+ * @param heightFt the run's fence height. The taller run is billed the shared
+ *   post, because that is the post that has to be built for it.
+ * @param sortOrder the run's position on the job, the tie-break between equal heights.
+ * @param startJointId the joint the run's FIRST point belongs to; blank is not joined.
+ * @param endJointId the joint the run's LAST point belongs to; blank is not joined.
+ *   Any non-blank text is taken as a joint id here. Deciding that a stored value
+ *   is not a usable one (not a uuid, names no other run) and blanking it first is
+ *   the reader's job, so that bad data falls back to today's price.
+ */
+data class JoinableRun(
+    val id: String,
+    val geometry: FenceGeometryResult,
+    val heightFt: Float,
+    val sortOrder: Int,
+    val isTeardown: Boolean = false,
+    val startJointId: String = "",
+    val endJointId: String = "",
+)
+
+/**
+ * How a run's own post counts move because of the joints it takes part in.
+ *
+ * These are DELTAS, to be added to the counts the run already has after
+ * computePostCounts has finished, never fed into it. computePostCounts carves
+ * its corner and end posts out of one fixed estimate (the line posts are
+ * whatever is left), so changing the end count BEFORE it runs hands the same
+ * number straight back as extra line posts and the total does not move.
+ *
+ * Gate posts never appear here: a join does not touch them.
+ */
+data class RunPostAdjustment(
+    val runId: String,
+    val linePostsDelta: Int = 0,
+    val cornerPostsDelta: Int = 0,
+    val endPostsDelta: Int = 0,
+) {
+    /** What the run's total post count (and so its caps and concrete) moves by. */
+    val totalPostsDelta: Int get() = linePostsDelta + cornerPostsDelta + endPostsDelta
+
+    /** What the run's terminal post count (corner + end + gate) moves by. */
+    val terminalPostsDelta: Int get() = cornerPostsDelta + endPostsDelta
+
+    val isZero: Boolean get() = linePostsDelta == 0 && cornerPostsDelta == 0 && endPostsDelta == 0
+}
+
+/** One shared post: where it is, what kind it is, and which run is billed for it. */
+data class JoinedPost(
+    val jointId: String,
+    val kind: JoinPostKind,
+    /** The run whose own post counts keep the shared post. Every other member gives its end post up. */
+    val ownerRunId: String,
+    /** Every run that meets here, owner included, sorted by run id. */
+    val memberRunIds: List<String>,
+) {
+    /** How many run ends meet here. */
+    val degree: Int get() = memberRunIds.size
+}
+
+data class IgnoredJoint(val jointId: String, val reason: JoinIgnoredReason)
+
+/**
+ * The whole job's answer. [perRun] holds ONLY the runs that change, so an
+ * empty map is the guarantee that nothing moves: a job with no joints gets
+ * [JoinAdjustment.NONE] back from [RunJoinArithmetic.adjust].
+ */
+data class JoinAdjustment(
+    val perRun: Map<String, RunPostAdjustment>,
+    val posts: List<JoinedPost>,
+    val ignored: List<IgnoredJoint>,
+) {
+    /** The adjustment for one run; a run no joint touches gets a zero one. */
+    fun forRun(runId: String): RunPostAdjustment = perRun[runId] ?: RunPostAdjustment(runId)
+
+    /** True when no run's posts move at all. */
+    val changesNothing: Boolean get() = perRun.isEmpty()
+
+    /** Posts the job no longer builds, summed over every run. Zero when nothing is joined. */
+    val postsSaved: Int
+        get() {
+            var saved = 0
+            for (adj in perRun.values) saved -= adj.totalPostsDelta
+            return saved
+        }
+
+    companion object {
+        val NONE = JoinAdjustment(emptyMap(), emptyList(), emptyList())
+    }
+}
+
+/**
+ * A run's post counts as computePostCounts leaves them, for applying a
+ * [RunPostAdjustment] in one place. Gate posts are carried through untouched.
+ */
+data class RunPostTally(
+    val linePosts: Int,
+    val cornerPosts: Int,
+    val endPosts: Int,
+    val gatePosts: Int,
+) {
+    val terminalPosts: Int get() = cornerPosts + endPosts + gatePosts
+    val totalPosts: Int get() = linePosts + cornerPosts + endPosts + gatePosts
+
+    fun adjustedBy(adjustment: RunPostAdjustment): RunPostTally = RunPostTally(
+        linePosts = linePosts + adjustment.linePostsDelta,
+        cornerPosts = cornerPosts + adjustment.cornerPostsDelta,
+        endPosts = endPosts + adjustment.endPostsDelta,
+        gatePosts = gatePosts,
+    )
+}
+
+/**
+ * The post arithmetic for runs the owner has explicitly joined.
+ *
+ * ---------------------------------------------------------------------------
+ * STATUS: NOT YET REACHED BY THE ENGINE.
+ * ---------------------------------------------------------------------------
+ * Nothing calls [adjust] today. EstimateEngine.kt, the server takeoff
+ * (supabase/functions/_shared/pricing/takeoff.ts) and every screen price a job
+ * exactly as they did before this code existed, because no joint is stored
+ * anywhere a job is read from: FenceRun has no joint field, and the start_joint
+ * and end_joint columns proposed in supabase_a32_join_runs.sql are written but
+ * not applied. [JoinableRun.startJointId] and [JoinableRun.endJointId] mirror
+ * those two columns (text, blank for a free end). This file only decides what
+ * the numbers WOULD be. It is exercised by
+ * tests/a33-join-arithmetic-posts.test.mjs, which runs a line-for-line
+ * transcription of it and checks that against a stored snapshot of this file's
+ * compiled output; the test does not compile or run this file itself.
+ *
+ * The two call sites that will reach it:
+ *
+ *  1. EstimateEngine.suggestQuantities. It prices one run at a time, so the
+ *     job-level caller (the one that loops the job's runs) calls [adjust] ONCE
+ *     with every run of the job, then hands each run its own
+ *     [JoinAdjustment.forRun] as a new optional argument defaulting to zero.
+ *     suggestQuantities adds it to the counts right after computePostCounts,
+ *     before anything reads them. explainPosts takes the same argument so the
+ *     post-workings dialog explains the number actually billed.
+ *  2. The server takeoff, in priceJob (pricing/index.ts), the same way: once
+ *     over all runs before the per-run loop, then into suggestQuantities. The
+ *     server needs a TypeScript port of this object; the transcription in the
+ *     a33 test is the shape of it.
+ *
+ * Both engines and the parity fixtures move together when that happens. No
+ * fixture changes for a job with no joint, because a job with no joint gets a
+ * zero adjustment (see the zero-joints rule below).
+ *
+ * THE MODEL, decided by the owner: a join is an explicit fact he creates, and
+ * is never inferred from coordinates. Two points on identical coordinates are
+ * not evidence (the other fence may be a neighbour's). So nothing here reads
+ * where a point is to decide WHETHER runs are joined; the only thing read for
+ * that is the joint ids. Points are read afterwards, for one thing only: how
+ * sharply a two-run join turns, which decides line post or corner post.
+ *
+ * THE ARITHMETIC. Every open run's estimate is bays + 1 positions, one at each
+ * end, so two runs that meet count the shared position twice. A joint where
+ * [JoinedPost.degree] run ends meet is ONE post in the ground:
+ *
+ *     posts at the joint, before   degree end posts, one per member
+ *     posts at the joint, after    1 post, of the joint's [JoinPostKind]
+ *     owner                        its end post becomes that post: end -1, line or corner +1
+ *     every other member           its end post goes: end -1
+ *
+ * so the job's end posts fall by degree, its corner (or line) posts rise by
+ * one, and its total falls by degree - 1.
+ *
+ * KIND. Two runs: the same rule a bend inside one run already follows, so
+ * joining two runs prices as drawing them as one polyline does: a turn of
+ * [FenceGeometryEngine.CORNER_ANGLE_THRESHOLD_DEGREES] or more is a corner, less
+ * is a line post. A run with no drawing (typed footage) has no angle to read
+ * and counts as a corner. Three or more runs: always a corner. A post that
+ * several runs leave from is not a pass-through however the angles fall, and
+ * calling a T a line post because two of its legs happen to be collinear would
+ * be the lightest post on the job holding the heaviest load.
+ *
+ * OWNER. The post has to be billed to exactly one run (each run has its own
+ * lines). The taller run, so the post built is the one the taller fence needs;
+ * equal heights go to the lower sort order; then the lower id, so the answer
+ * never depends on list order.
+ *
+ * WHAT IS IGNORED (an ignored joint changes nothing; see [IgnoredJoint]): a
+ * teardown run is the old fence and bills nothing, so it neither owns a post
+ * nor gives one up; a closed run and a run with nothing measurable have no free
+ * end to give; a joint left with fewer than two such ends has nothing to
+ * merge; a joint holding both ends of one run is not a way to close it.
+ *
+ * ZERO JOINTS. No run carries a joint id: the loop below finds no joint and
+ * returns [JoinAdjustment.NONE] before any geometry is read. This is the
+ * additivity guarantee a quoted job depends on, and it is asserted explicitly
+ * in the a33 test.
+ *
+ * NOT DONE HERE, on purpose, because they are not post counts: how the shared
+ * post is priced when the joined runs are different fence types or colours (it
+ * is billed to the owner's run, in the owner's catalog), and per-run rounding
+ * of panels and of concrete bags, which a join does not touch.
+ */
+object RunJoinArithmetic {
+
+    /** One end of one run that carries a joint id. */
+    private class JoinMember(val run: JoinableRun, val atEnd: Boolean)
+
+    /**
+     * @param runs EVERY run of the job. The owner of a post is chosen across
+     *   runs, so a caller that passes a subset gets the wrong owner.
+     */
+    fun adjust(runs: List<JoinableRun>): JoinAdjustment {
+        val byJoint = LinkedHashMap<String, MutableList<JoinMember>>()
+        for (run in runs) {
+            if (run.startJointId.isNotBlank()) {
+                byJoint.getOrPut(run.startJointId) { mutableListOf() }.add(JoinMember(run, false))
+            }
+            if (run.endJointId.isNotBlank()) {
+                byJoint.getOrPut(run.endJointId) { mutableListOf() }.add(JoinMember(run, true))
+            }
+        }
+        // Zero joints: nothing to look at, nothing moves.
+        if (byJoint.isEmpty()) return JoinAdjustment.NONE
+
+        val deltas = HashMap<String, IntArray>()
+        val posts = mutableListOf<JoinedPost>()
+        val ignored = mutableListOf<IgnoredJoint>()
+
+        for (jointId in byJoint.keys.sorted()) {
+            val members = byJoint.getValue(jointId)
+            val live = members.filter { isLive(it.run) }
+
+            if (live.size < 2) {
+                ignored.add(IgnoredJoint(jointId, JoinIgnoredReason.FEWER_THAN_TWO_LIVE_RUNS))
+                continue
+            }
+            if (hasSameRunTwice(live)) {
+                ignored.add(IgnoredJoint(jointId, JoinIgnoredReason.SAME_RUN_TWICE))
+                continue
+            }
+
+            val owner = ownerOf(live)
+            val kind = kindOf(live)
+            for (member in live) {
+                if (member === owner) {
+                    if (kind == JoinPostKind.CORNER) bump(deltas, member.run.id, 0, 1, -1)
+                    else bump(deltas, member.run.id, 1, 0, -1)
+                } else {
+                    bump(deltas, member.run.id, 0, 0, -1)
+                }
+            }
+            posts.add(
+                JoinedPost(
+                    jointId = jointId,
+                    kind = kind,
+                    ownerRunId = owner.run.id,
+                    memberRunIds = live.map { it.run.id }.sorted(),
+                )
+            )
+        }
+
+        val perRun = LinkedHashMap<String, RunPostAdjustment>()
+        for (runId in deltas.keys.sorted()) {
+            val cell = deltas.getValue(runId)
+            val adjustment = RunPostAdjustment(runId, cell[0], cell[1], cell[2])
+            if (!adjustment.isZero) perRun[runId] = adjustment
+        }
+        return JoinAdjustment(perRun, posts, ignored)
+    }
+
+    /**
+     * A run can give up an end post only if it has free ends to give: not the
+     * old fence, and open with something measurable. An open run's geometry
+     * always has exactly two ends; a closed run, an unmeasurable run and a run
+     * with no drawing and no typed footage have none.
+     */
+    private fun isLive(run: JoinableRun): Boolean = !run.isTeardown && run.geometry.endCount >= 2
+
+    private fun hasSameRunTwice(live: List<JoinMember>): Boolean {
+        for (i in live.indices) {
+            for (j in i + 1 until live.size) {
+                if (live[i].run.id == live[j].run.id) return true
+            }
+        }
+        return false
+    }
+
+    private fun ownerOf(live: List<JoinMember>): JoinMember {
+        var best = live[0]
+        for (i in 1 until live.size) {
+            if (outranks(live[i].run, best.run)) best = live[i]
+        }
+        return best
+    }
+
+    /** Taller first, then lower sort order, then lower id. */
+    private fun outranks(a: JoinableRun, b: JoinableRun): Boolean {
+        if (a.heightFt != b.heightFt) return a.heightFt > b.heightFt
+        if (a.sortOrder != b.sortOrder) return a.sortOrder < b.sortOrder
+        return a.id < b.id
+    }
+
+    private fun kindOf(live: List<JoinMember>): JoinPostKind {
+        if (live.size >= 3) return JoinPostKind.CORNER
+        // The two ends in a fixed order, so the answer cannot depend on list order.
+        val firstIsZero = live[0].run.id < live[1].run.id
+        val first = if (firstIsZero) live[0] else live[1]
+        val second = if (firstIsZero) live[1] else live[0]
+        val turn = turnDegrees(first, second) ?: return JoinPostKind.CORNER
+        return if (turn >= FenceGeometryEngine.CORNER_ANGLE_THRESHOLD_DEGREES) JoinPostKind.CORNER else JoinPostKind.LINE
+    }
+
+    /**
+     * How far the fence turns where two runs meet: 0 is straight on, 90 a
+     * square corner. Measured exactly as analyze measures a bend inside one
+     * run, using the direction INTO the joint along the first run and OUT of
+     * it along the second, so it does not matter which end of either run was
+     * drawn first. Null when there is nothing to measure.
+     */
+    private fun turnDegrees(first: JoinMember, second: JoinMember): Float? {
+        val a = endAndNeighbour(first) ?: return null
+        val b = endAndNeighbour(second) ?: return null
+        val aEnd = a.first
+        val aNext = a.second
+        val bEnd = b.first
+        val bNext = b.second
+        // A side with no length has no heading.
+        if (aEnd.x == aNext.x && aEnd.y == aNext.y) return null
+        if (bEnd.x == bNext.x && bEnd.y == bNext.y) return null
+
+        val angleIn = atan2((aEnd.y - aNext.y).toDouble(), (aEnd.x - aNext.x).toDouble())
+        val angleOut = atan2((bNext.y - bEnd.y).toDouble(), (bNext.x - bEnd.x).toDouble())
+        var turnRad = angleOut - angleIn
+        while (turnRad > Math.PI) turnRad -= 2 * Math.PI
+        while (turnRad < -Math.PI) turnRad += 2 * Math.PI
+        val turnDeg = Math.toDegrees(abs(turnRad)).toFloat()
+        if (!turnDeg.isFinite()) return null
+        return turnDeg
+    }
+
+    /** The point at this end of the run and the point next to it, or null when the run has no drawing. */
+    private fun endAndNeighbour(member: JoinMember): Pair<FencePoint, FencePoint>? {
+        val vertices = member.run.geometry.vertices
+        if (vertices.size < 2) return null
+        return if (member.atEnd) {
+            Pair(vertices[vertices.size - 1].point, vertices[vertices.size - 2].point)
+        } else {
+            Pair(vertices[0].point, vertices[1].point)
+        }
+    }
+
+    private fun bump(deltas: MutableMap<String, IntArray>, runId: String, line: Int, corner: Int, end: Int) {
+        val cell = deltas.getOrPut(runId) { IntArray(3) }
+        cell[0] += line
+        cell[1] += corner
+        cell[2] += end
+    }
+}

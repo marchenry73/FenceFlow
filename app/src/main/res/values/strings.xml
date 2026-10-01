@@ -1522,6 +1522,7 @@
     <string name="warn_changed_after_signed">This changed after it was signed -- %1$s. Get a new signature before sending anything.</string>
     <string name="warn_posts_no_concrete">Posts are on the estimate but concrete hasn\'t been added.</string>
     <string name="warn_gate_no_hardware">A gate is drawn but gate hardware (hinges, latch) hasn\'t been added yet.</string>
+    <string name="warn_no_materials">No materials are priced on this job, so the total covers labor only. Copy FenceFlow\'s starting list under Catalog or add your own items, then tap Suggest Quantities on each run. If the customer is supplying the materials, you can ignore this.</string>
     <string name="doc_title_working_estimate">Estimate — internal</string>
     <string name="doc_title_customer_contract">Contract</string>
     <string name="doc_title_supplier_request">Material Request</string>
@@ -2087,4 +2088,84 @@
     <string name="time_dispute_already_approved">Already approved, so these hours are being paid.</string>
     <string name="time_dispute_still_waiting">Still waiting to be signed off.</string>
     <string name="time_dispute_settle_note">A dispute changes no hours and no pay. It stands until the shift’s times are corrected again.</string>
+    <!-- Sign-in health. What the jobs list, the Account screen and one
+         notification say when this phone is signed out, cannot find out, or has
+         no signal. Three different things that used to look identical: an empty
+         job list, and no warning anywhere. -->
+    <string name="so_out_title">You\'re signed out</string>
+    <string name="so_out_body">New jobs and changes from the office will not reach this phone, and what you record here will not reach the office, until you sign in. What is already on this phone is safe.</string>
+    <string name="so_unsure_title">Couldn\'t check your sign-in</string>
+    <string name="so_unsure_body">This phone could not confirm you are still signed in, so what you see may be out of date. Your work is saved on this phone. Try again.</string>
+    <string name="so_empty_out_title">Your jobs are not loaded</string>
+    <string name="so_empty_out_body">You\'re signed out, so this phone can\'t load them. An empty list here does not mean you have no jobs. Sign in and they come back.</string>
+    <string name="so_empty_unsure_title">We couldn\'t load your jobs</string>
+    <string name="so_empty_unsure_body">This phone could not check your sign-in, so an empty list here does not mean you have no jobs. Try again.</string>
+    <string name="so_empty_nosignal_title">No jobs on this phone yet</string>
+    <string name="so_empty_nosignal_body">There is no signal right now. Jobs from the office arrive on their own when you are back online.</string>
+    <string name="so_ntf_title">You\'ve been signed out</string>
+    <string name="so_ntf_body">Jobs will not update and your work will not reach the office until you sign in. Open FenceFlow to sign in.</string>
+
+    <!-- Crew enquiry capture: a neighbour asks while a crew member is on a job, and the office prices it.
+         Nothing in this block carries a price. -->
+    <string name="enum_perm_capture_enquiry">Capture enquiries on site</string>
+    <string name="enum_perm_capture_enquiry_desc">Take down a neighbour’s fence enquiry on the spot: who, where, what kind of fence, about how long, and photos. It goes to the office, who price it. The person capturing it never sees a price.</string>
+    <string name="enq_entry_title">Neighbour asking about a fence?</string>
+    <string name="enq_entry_body">Take their details and a few photos. The office prices it and calls them back. You will not see a price.</string>
+    <string name="enq_entry_button">Capture an enquiry</string>
+    <string name="enq_entry_waiting_one">1 enquiry is waiting to send</string>
+    <string name="enq_entry_waiting_many">%1$d enquiries are waiting to send</string>
+    <string name="enq_title">Capture an enquiry</string>
+    <string name="enq_intro">Take down the details here. It goes to the office, who price it and call them back. You will not see a price.</string>
+    <string name="enq_note_offline">No signal. This is saved on this phone and goes to the office by itself when you have signal.</string>
+    <string name="enq_note_signed_out">You are signed out. This is saved on this phone, but nothing goes to the office until you sign in again.</string>
+    <string name="enq_note_not_ready">The office has not switched this on yet. It is saved on this phone and will send once they do.</string>
+    <string name="enq_note_limit">A lot have gone in the last hour. The rest will go a little later.</string>
+    <string name="enq_note_failed">The last try did not go through. It is still on this phone and will try again.</string>
+    <string name="enq_editing">Correcting an enquiry that has not gone yet</string>
+    <string name="enq_field_name">Their name</string>
+    <string name="enq_field_phone">Phone</string>
+    <string name="enq_field_email">Email (if they gave one)</string>
+    <string name="enq_field_address">Address of the fence</string>
+    <string name="enq_field_fence">What kind of fence?</string>
+    <string name="enq_fence_hint">Tap one, or leave it if they are not sure.</string>
+    <string name="enq_field_feet">About how many feet?</string>
+    <string name="enq_field_feet_hint">A rough guess is fine. Leave blank if not sure.</string>
+    <string name="enq_field_notes">Anything else the office should know</string>
+    <string name="enq_notes_hint">Gates, dogs, old fence to take out, best time to call</string>
+    <string name="enq_photos_title">Photos</string>
+    <string name="enq_photo_add">Add a photo</string>
+    <string name="enq_photo_count">%1$d of %2$d photos</string>
+    <string name="enq_photo_desc">Photo %1$d</string>
+    <string name="enq_photos_saved">Already saved with this enquiry</string>
+    <string name="enq_photo_limit">That is the most photos for one enquiry.</string>
+    <string name="enq_save">Save and send</string>
+    <string name="enq_save_changes">Save changes</string>
+    <string name="enq_cancel_edit">Cancel changes</string>
+    <string name="enq_err_check">Check the details marked in red.</string>
+    <string name="enq_err_name">Add their name.</string>
+    <string name="enq_err_contact">Add a phone number or an email so the office can reach them.</string>
+    <string name="enq_err_email">That email does not look right.</string>
+    <string name="enq_err_address">Add the address of the fence.</string>
+    <string name="enq_err_feet">Use a whole number of feet, or leave it blank.</string>
+    <string name="enq_saved_local">Saved on this phone. It goes to the office as soon as it can.</string>
+    <string name="enq_changes_saved">Changes saved.</string>
+    <string name="enq_edit_busy">It is being sent right now. Try again in a moment.</string>
+    <string name="enq_edit_locked">The office already has this one, so it can’t be changed here. Call them with the correction.</string>
+    <string name="enq_not_allowed">You are not set up to capture enquiries. Ask the office.</string>
+    <string name="enq_list_title">Your enquiries</string>
+    <string name="enq_list_empty">Nothing captured yet.</string>
+    <string name="enq_captured_at">Captured %1$s</string>
+    <string name="enq_status_waiting">Waiting to send</string>
+    <string name="enq_status_sent">Sent to the office</string>
+    <string name="enq_status_sent_photos">Sent. %1$d photo(s) still uploading</string>
+    <string name="enq_status_rejected">The office could not take this</string>
+    <string name="enq_reject_not_allowed">You are not allowed to send enquiries. Ask the office, then send again.</string>
+    <string name="enq_reject_invalid">Something on it was not accepted. Correct the details, then send again.</string>
+    <string name="enq_edit">Correct</string>
+    <string name="enq_send_again">Send again</string>
+    <string name="enq_sent_hint">The office has this. To change anything, call them.</string>
+    <string name="enq_discard_title">Leave without saving?</string>
+    <string name="enq_discard_body">What you typed here will be lost.</string>
+    <string name="enq_discard_yes">Leave</string>
+    <string name="enq_discard_keep">Keep typing</string>
 </resources>

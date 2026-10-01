@@ -394,19 +394,68 @@ class GridExtentTest {
         )
     }
 
+    /**
+     * The body of the function whose signature starts with [signature], by brace
+     * balance -- so a check about ONE function cannot be satisfied (or tripped)
+     * by the text of the function written after it. The two tests below used to
+     * cut from the signature to the companion object, which swept in everything
+     * declared in between.
+     */
+    private fun bodyOf(src: String, signature: String): String {
+        val at = src.indexOf(signature)
+        assertTrue("could not find $signature -- it was renamed or removed; move this test with it", at >= 0)
+        val open = src.indexOf('{', at)
+        var depth = 0
+        for (i in open until src.length) {
+            if (src[i] == '{') depth++
+            else if (src[i] == '}') {
+                depth--
+                if (depth == 0) return src.substring(open, i + 1)
+            }
+        }
+        throw AssertionError("braces never balanced for $signature -- the file may be mid-edit")
+    }
+
+    /**
+     * "Use Grid" used to seed the grid's scale only when no storage path existed and
+     * wrote a NULL calibration otherwise, and it dropped the photo's local path while
+     * the travelling one stayed -- so the next sync downloaded the photo straight
+     * back. It no longer removes anything: it hides the photo, and the one write it
+     * may make (a scale) is decided by DrawingScale.gridBackdropPlan, which is held
+     * to behaviour tests in SurveyFitTest rather than to this text.
+     *
+     * What is pinned here is that clearSurveyImage still goes through that plan and
+     * does not write a scale of its own -- the number it seeds is whatever the plan
+     * says, which is the grid's own scale for this job's own extent.
+     */
     @Test
-    fun `clearSurveyImage seeds this job's own grid scale in the same write, instead of leaving calibration null`() {
-        val body = surveyViewModelSource()
-            .substringAfter("fun clearSurveyImage() {")
-            .substringBefore("\n    companion object {")
+    fun `clearSurveyImage takes any scale it writes from the grid backdrop plan, not a number of its own`() {
+        val body = bodyOf(surveyViewModelSource(), "fun clearSurveyImage() {")
         assertTrue(
-            "clearSurveyImage must seed the SAME grid scale ensureGridCalibration would (unitsPerFoot of this job's own extent)",
-            body.contains("unitsPerFoot(current.gridExtentFt)")
+            "clearSurveyImage must ask DrawingScale.gridBackdropPlan what, if anything, to write",
+            body.contains("DrawingScale.gridBackdropPlan(")
         )
         assertTrue(
-            "the seed must be skipped when a lingering surveyStoragePath still makes this a photo job elsewhere " +
-                "(DrawingScale.isPhotoJob) -- guessing a grid scale for that job would be the made-up-scale bug",
-            body.contains("current.surveyStoragePath == null")
+            "the seed must be the plan's own (the grid's scale for this job's own extent)",
+            body.contains("plan.seed")
+        )
+        assertFalse(
+            "a number typed here instead of the plan's would be a second grid scale that can drift " +
+                "(the live grid-25 / calibration-20 drift came from exactly that)",
+            body.contains("unitsPerFoot(") || body.contains("PIXELS_PER_FOOT_GRID")
+        )
+        assertTrue(
+            "a seeded scale carries no known length -- it was not measured",
+            body.contains("calibrationKnownFeet = null")
+        )
+        // The same, in behaviour: the plan's seed IS unitsPerFoot of the job's own extent.
+        val plan = com.fenceestimator.app.estimate.DrawingScale.gridBackdropPlan(
+            com.fenceestimator.app.data.Job(surveyStoragePath = "co/job/survey/x.jpg", gridExtentFt = 100f),
+            anythingDrawn = false
+        )
+        assertEquals(
+            com.fenceestimator.app.estimate.GridBackdropPlan.Allowed(seed = SurveyViewModel.unitsPerFoot(100f)),
+            plan
         )
     }
 
@@ -418,9 +467,7 @@ class GridExtentTest {
         // to protect breaks again, silently, the next time a job's grid
         // extent is not the 400ft default.
         val plantedOld = "calibrationPixelsPerFoot = null, calibrationKnownFeet = null"
-        val body = surveyViewModelSource()
-            .substringAfter("fun clearSurveyImage() {")
-            .substringBefore("\n    companion object {")
+        val body = bodyOf(surveyViewModelSource(), "fun clearSurveyImage() {")
         assertFalse(
             "the check above must go red if clearSurveyImage regresses to the old unconditional-null write",
             body.contains(plantedOld)

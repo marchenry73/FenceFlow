@@ -323,6 +323,17 @@ class AutoSync(
             }
         }
 
+        // The moment the sign-in is LOST, not at the next heartbeat. Until this,
+        // a phone that lost its sign-in learned it from the next sync pass --
+        // up to a minute later with the app open, fifteen in a pocket -- and
+        // nothing said so to somebody who was not looking.
+        scope.launch {
+            session.state
+                .map { it.login to lostSignIn(it.login, it.hadAccount, it.guestDemo) }
+                .distinctUntilChanged()
+                .collect { (health, lost) -> onLoginChanged(health, lost) }
+        }
+
         // The moment this phone learns which company it belongs to, pull.
         //
         // Signing in used to fire a sync straight away, while the profile fetch
@@ -402,6 +413,42 @@ class AutoSync(
         manualTrigger.tryEmit(Unit)
     }
 
+    /** True once a "you are signed out" notification is up for the current loss. */
+    @Volatile private var signedOutNotified = false
+
+    /**
+     * The sign-in was lost, or came back.
+     *
+     * On a loss: repaint the sync card at once (with no company id a pass
+     * returns straight away, so this is cheap), and -- only when the app is not
+     * on screen -- put one notification up. On screen, the jobs list already
+     * says it and a notification over the top of it would be noise; in a pocket
+     * it is the only thing that can reach somebody before they leave. Once per
+     * loss, and taken down when the sign-in comes back.
+     */
+    private suspend fun onLoginChanged(health: LoginHealth, lost: Boolean) {
+        if (lost) {
+            runSync()
+            if (!inForeground && !signedOutNotified) {
+                signedOutNotified = true
+                Notifications.show(
+                    context = context,
+                    id = SIGNED_OUT_NOTIFICATION_ID,
+                    title = context.getString(R.string.so_ntf_title),
+                    body = context.getString(R.string.so_ntf_body),
+                    channelId = Notifications.CHANNEL_CREW
+                )
+            }
+            return
+        }
+        if (health == LoginHealth.WORKING && signedOutNotified) {
+            signedOutNotified = false
+            runCatching {
+                androidx.core.app.NotificationManagerCompat.from(context).cancel(SIGNED_OUT_NOTIFICATION_ID)
+            }
+        }
+    }
+
     /**
      * Whether a failure is just "no signal" rather than something wrong.
      *
@@ -465,14 +512,25 @@ class AutoSync(
     private suspend fun runSync() {
         val companyId = session.state.value.companyId
         if (companyId == null) {
+            val s = session.state.value
+            // A phone that HAD an account and no longer holds a sign-in is not
+            // "working on this phone only", which is what a phone that never
+            // had one is. Losing the sign-in clears the company id, so the pass
+            // that noticed it said SIGNED_OUT, and the very next pass came here
+            // and replaced it with the quiet local-only wording within a minute
+            // -- the one state that must not fade. SessionManager says which of
+            // the two this is (see lostSignIn).
+            val lost = lostSignIn(s.login, s.hadAccount, s.guestDemo)
             _state.value = _state.value.copy(
-                phase = SyncPhase.OFFLINE_ONLY,
-                signedInWithoutCompany = session.state.value.signedIn,
+                phase = if (lost) SyncPhase.SIGNED_OUT else SyncPhase.OFFLINE_ONLY,
+                lastError = if (lost) context.getString(R.string.vm_signed_out_sign_in_again)
+                            else _state.value.lastError,
+                signedInWithoutCompany = s.signedIn,
                 // Startup has no company id yet simply because the answer has
                 // not arrived. Reporting "not backing up" during that moment
                 // put an alarming banner on screen at every launch, saying
                 // something that was not true a second later.
-                sessionResolved = session.state.value.resolved
+                sessionResolved = s.resolved
             )
             return
         }
@@ -530,7 +588,13 @@ class AutoSync(
                 // Two different situations that used to share one banner. A dead
                 // spot clears itself; an expired sign-in never does, and the
                 // person has to be told which one they are looking at.
-                val signedOut = outcome == SupabaseModule.RefreshOutcome.SIGNED_OUT
+                // The plugin's own status wins over the outcome. tryRefreshSession
+                // files every refresh failure that was not the network under
+                // SIGNED_OUT, including the auth SERVER answering 5xx -- and "sign
+                // in again, this will not fix itself" is false for an outage, which
+                // does. The plugin keeps that session and retries it by itself.
+                val signedOut = outcome == SupabaseModule.RefreshOutcome.SIGNED_OUT &&
+                    currentAuthStatusKind() != AuthStatusKind.REFRESH_SERVER_ERROR
                 _state.value = _state.value.copy(
                     phase = if (signedOut) SyncPhase.SIGNED_OUT else SyncPhase.WAITING_FOR_SIGNAL,
                     lastError = context.getString(
@@ -747,6 +811,28 @@ class AutoSync(
             // first; either beats nothing. See SyncFailure.toReport.
             val realError = SyncFailure.toReport(failures)
             val entityError = realError ?: failures.firstOrNull { !isNotOursToSync(it) }
+
+            // The token was there when this pass began (the guard above). Was it
+            // still there when the pass ended? A sign-in can be dropped part-way
+            // through a long pass, and every read after that goes out anonymous
+            // and comes back as an empty list rather than an error -- which the
+            // rest of this pass would then report as a clean sync, or as a few
+            // rows the server declined. Neither is true, so say what happened
+            // instead, and let the next pass start from a fresh answer.
+            if (!SupabaseModule.hasLiveSession()) {
+                val gone = judgeLogin(currentAuthStatusKind(), false, ProfileRead.NOT_ASKED) ==
+                    LoginHealth.SIGNED_OUT
+                _state.value = _state.value.copy(
+                    phase = if (gone) SyncPhase.SIGNED_OUT else SyncPhase.WAITING_FOR_SIGNAL,
+                    lastError = context.getString(
+                        if (gone) R.string.vm_signed_out_sign_in_again
+                        else R.string.vm_waiting_sign_back_in
+                    ),
+                    hasUnsyncedWork = true
+                )
+                session.refresh()
+                return@withLock
+            }
 
             if (entityError != null) {
                 // A network failure is not the same as a real error. The crew
@@ -982,6 +1068,7 @@ class AutoSync(
 
     private companion object {
         const val DELETE_REFUSED_NOTIFICATION_ID = 9_001
+        const val SIGNED_OUT_NOTIFICATION_ID = 9_002
         const val DEBOUNCE_MS = 1_500L
         const val REMOTE_ECHO_WINDOW_MS = 4_000L
 

@@ -188,9 +188,14 @@ class AcceptedPriceTest {
     }
 
     @Test
-    fun `the materials suggestion is net of money already in and rounded up`() {
+    fun `the materials suggestion is net of money already in, rounded up to the next hundred, plus a hundred`() {
+        // 2449.10 of materials less 1000 in is 1449.10 to cover: up to 1500, plus
+        // 100. (It was 1450 -- the next ten -- until 1 Oct 2026; the rule is
+        // pinned in JobMoneyDepositRuleTest and the shared vectors.)
         val part = signedJob(paid = 1000.0)
-        assertEquals(1450.0, JobMoney.suggestedMaterialsDeposit(part, 2449.10, 9710.0), 0.001)
+        assertEquals(1600.0, JobMoney.suggestedMaterialsDeposit(part, 2449.10, 9710.0), 0.001)
+        // Planted: the old rule on the same figures.
+        assertEquals(1450.0, kotlin.math.ceil((2449.10 - 1000.0) / 10.0) * 10.0, 0.001)
     }
 
     @Test

@@ -74,7 +74,29 @@ class ShippedDefaultsTest {
     @Test
     fun `a price a company typed itself is not a placeholder`() {
         assertFalse(isPlaceholderPrice(""))
-        assertFalse(isPlaceholderPrice("Imported"))
         assertFalse(isPlaceholderPrice("From a real supplier quote"))
+    }
+
+    // The bare word is what the phone's PDF importer stamped before
+    // IMPORTED_UNVERIFIED replaced it, so it is NOT something a company typed.
+    // It stays unmatched here exactly as it was before the office importer's
+    // label was added: widening it is a separate decision from that fix. The
+    // production database held no row carrying it when this was written
+    // (read-only count, 2026-10-01); that count cannot see a phone that has
+    // never synced.
+    @Test
+    fun `the retired bare Imported label is not a placeholder`() {
+        assertFalse(isPlaceholderPrice("Imported"))
+    }
+
+    // Every label the shipped data and both importers write is recognised, so
+    // adding a writer without teaching isPlaceholderPrice fails here, not in
+    // front of a customer.
+    @Test
+    fun `every label a FenceFlow writer stamps on an unchecked price is a placeholder`() {
+        listOf(SEEDED, PLACEHOLDER, IMPORTED_UNVERIFIED, IMPORTED_CHECK_FILING).forEach {
+            assertTrue("not recognised: $it", isPlaceholderPrice(it))
+        }
+        assertFalse(isPlaceholderPrice(CONFIRMED))
     }
 }

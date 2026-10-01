@@ -1472,6 +1472,7 @@
     <string name="warn_changed_after_signed">Esto cambió después de firmarse: %1$s. Consigue una nueva firma antes de enviar nada.</string>
     <string name="warn_posts_no_concrete">Hay postes en el presupuesto pero no se ha agregado el concreto.</string>
     <string name="warn_gate_no_hardware">Hay un portón dibujado pero todavía no se ha agregado la herrería del portón (bisagras, pasador).</string>
+    <string name="warn_no_materials">No hay materiales con precio en este trabajo, así que el total cubre solo la mano de obra. Copia la lista inicial de FenceFlow en Catálogo o agrega tus propios artículos, y luego toca Sugerir cantidades en cada tramo de cerca. Si el cliente pone los materiales, puedes ignorar este aviso.</string>
     <string name="doc_title_working_estimate">Presupuesto — interno</string>
     <string name="doc_title_customer_contract">Contrato</string>
     <string name="doc_title_supplier_request">Solicitud de materiales</string>
@@ -2018,4 +2019,83 @@
     <string name="time_dispute_already_approved">Ya aprobado, así que estas horas se están pagando.</string>
     <string name="time_dispute_still_waiting">Todavía en espera de aprobación.</string>
     <string name="time_dispute_settle_note">Una disputa no cambia las horas ni el pago. Queda abierta hasta que se vuelvan a corregir las horas del turno.</string>
+    <!-- Estado de la sesión. Lo que dicen la lista de trabajos, la pantalla de
+         cuenta y una notificación cuando este teléfono tiene la sesión cerrada,
+         no puede comprobarla o no tiene señal. -->
+    <string name="so_out_title">Tu sesión está cerrada</string>
+    <string name="so_out_body">Los trabajos nuevos y los cambios de la oficina no llegarán a este teléfono, y lo que registres aquí no llegará a la oficina, hasta que inicies sesión. Lo que ya está en este teléfono está a salvo.</string>
+    <string name="so_unsure_title">No pudimos comprobar tu sesión</string>
+    <string name="so_unsure_body">Este teléfono no pudo confirmar que sigues con la sesión iniciada, así que lo que ves puede estar desactualizado. Tu trabajo está guardado en este teléfono. Inténtalo de nuevo.</string>
+    <string name="so_empty_out_title">Tus trabajos no están cargados</string>
+    <string name="so_empty_out_body">Tu sesión está cerrada, así que este teléfono no puede cargarlos. Una lista vacía aquí no significa que no tengas trabajos. Inicia sesión y volverán.</string>
+    <string name="so_empty_unsure_title">No pudimos cargar tus trabajos</string>
+    <string name="so_empty_unsure_body">Este teléfono no pudo comprobar tu sesión, así que una lista vacía aquí no significa que no tengas trabajos. Inténtalo de nuevo.</string>
+    <string name="so_empty_nosignal_title">Aún no hay trabajos en este teléfono</string>
+    <string name="so_empty_nosignal_body">Ahora mismo no hay señal. Los trabajos de la oficina llegan solos en cuanto vuelvas a tener conexión.</string>
+    <string name="so_ntf_title">Se cerró tu sesión</string>
+    <string name="so_ntf_body">Los trabajos no se actualizarán y tu trabajo no llegará a la oficina hasta que inicies sesión. Abre FenceFlow para iniciar sesión.</string>
+
+    <!-- Crew enquiry capture: a neighbour asks while a crew member is on a job, and the office prices it.
+         Nothing in this block carries a price. -->
+    <string name="enum_perm_capture_enquiry">Registrar consultas en el sitio</string>
+    <string name="enum_perm_capture_enquiry_desc">Anotar al instante la consulta de un vecino sobre una cerca: quién, dónde, qué tipo de cerca, más o menos cuánto y fotos. Va a la oficina, que pone el precio. Quien la registra nunca ve un precio.</string>
+    <string name="enq_entry_title">¿Un vecino pregunta por una cerca?</string>
+    <string name="enq_entry_body">Anota sus datos y unas fotos. La oficina pone el precio y les devuelve la llamada. Tú no verás ningún precio.</string>
+    <string name="enq_entry_button">Registrar una consulta</string>
+    <string name="enq_entry_waiting_one">1 consulta espera para enviarse</string>
+    <string name="enq_entry_waiting_many">%1$d consultas esperan para enviarse</string>
+    <string name="enq_title">Registrar una consulta</string>
+    <string name="enq_intro">Anota aquí los datos. Va a la oficina, que pone el precio y los llama. Tú no verás ningún precio.</string>
+    <string name="enq_note_offline">Sin cobertura. Se guarda en este teléfono y llega sola a la oficina cuando tengas cobertura.</string>
+    <string name="enq_note_signed_out">Tu sesión está cerrada. Se guarda en este teléfono, pero nada llega a la oficina hasta que inicies sesión de nuevo.</string>
+    <string name="enq_note_not_ready">La oficina todavía no ha activado esto. Se guarda en este teléfono y se enviará cuando lo haga.</string>
+    <string name="enq_note_limit">Han salido muchas en la última hora. El resto saldrá un poco más tarde.</string>
+    <string name="enq_note_failed">El último intento no salió. Sigue en este teléfono y lo intentará de nuevo.</string>
+    <string name="enq_editing">Corrigiendo una consulta que aún no se ha enviado</string>
+    <string name="enq_field_name">Su nombre</string>
+    <string name="enq_field_phone">Teléfono</string>
+    <string name="enq_field_email">Correo (si lo dieron)</string>
+    <string name="enq_field_address">Dirección de la cerca</string>
+    <string name="enq_field_fence">¿Qué tipo de cerca?</string>
+    <string name="enq_fence_hint">Toca una, o déjalo si no están seguros.</string>
+    <string name="enq_field_feet">¿Más o menos cuántos pies?</string>
+    <string name="enq_field_feet_hint">Un cálculo aproximado basta. Déjalo en blanco si no estás seguro.</string>
+    <string name="enq_field_notes">Algo más que la oficina deba saber</string>
+    <string name="enq_notes_hint">Portones, perros, cerca vieja que quitar, mejor hora para llamar</string>
+    <string name="enq_photos_title">Fotos</string>
+    <string name="enq_photo_add">Añadir una foto</string>
+    <string name="enq_photo_count">%1$d de %2$d fotos</string>
+    <string name="enq_photo_desc">Foto %1$d</string>
+    <string name="enq_photos_saved">Ya guardadas con esta consulta</string>
+    <string name="enq_photo_limit">Ese es el máximo de fotos por consulta.</string>
+    <string name="enq_save">Guardar y enviar</string>
+    <string name="enq_save_changes">Guardar cambios</string>
+    <string name="enq_cancel_edit">Cancelar cambios</string>
+    <string name="enq_err_check">Revisa los datos marcados en rojo.</string>
+    <string name="enq_err_name">Añade su nombre.</string>
+    <string name="enq_err_contact">Añade un teléfono o un correo para que la oficina pueda contactarlos.</string>
+    <string name="enq_err_email">Ese correo no parece correcto.</string>
+    <string name="enq_err_address">Añade la dirección de la cerca.</string>
+    <string name="enq_err_feet">Usa un número entero de pies, o déjalo en blanco.</string>
+    <string name="enq_saved_local">Guardada en este teléfono. Llega a la oficina en cuanto pueda.</string>
+    <string name="enq_changes_saved">Cambios guardados.</string>
+    <string name="enq_edit_busy">Se está enviando ahora mismo. Inténtalo de nuevo en un momento.</string>
+    <string name="enq_edit_locked">La oficina ya tiene esta, así que no se puede cambiar aquí. Llámalos con la corrección.</string>
+    <string name="enq_not_allowed">No tienes permiso para registrar consultas. Pregunta en la oficina.</string>
+    <string name="enq_list_title">Tus consultas</string>
+    <string name="enq_list_empty">Todavía no has registrado nada.</string>
+    <string name="enq_captured_at">Registrada %1$s</string>
+    <string name="enq_status_waiting">Esperando para enviarse</string>
+    <string name="enq_status_sent">Enviada a la oficina</string>
+    <string name="enq_status_sent_photos">Enviada. %1$d foto(s) aún subiéndose</string>
+    <string name="enq_status_rejected">La oficina no pudo aceptarla</string>
+    <string name="enq_reject_not_allowed">No tienes permiso para enviar consultas. Pregunta en la oficina y vuelve a enviarla.</string>
+    <string name="enq_reject_invalid">Algo no fue aceptado. Corrige los datos y vuelve a enviarla.</string>
+    <string name="enq_edit">Corregir</string>
+    <string name="enq_send_again">Enviar de nuevo</string>
+    <string name="enq_sent_hint">La oficina ya la tiene. Para cambiar algo, llámalos.</string>
+    <string name="enq_discard_title">¿Salir sin guardar?</string>
+    <string name="enq_discard_body">Lo que escribiste aquí se perderá.</string>
+    <string name="enq_discard_yes">Salir</string>
+    <string name="enq_discard_keep">Seguir escribiendo</string>
 </resources>

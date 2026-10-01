@@ -170,6 +170,139 @@ export function depositFigures(input: DepositInput): DepositFigures {
   return { asked, due, payable: due >= MIN_CHARGEABLE, total, netPaid, balance };
 }
 
+// ---------------------------------------------------------------------------
+// Money to the cent, and the deposit rule.
+//
+// Both live in this file because it is the one the quote page and the payment
+// link already share. Kotlin carries the same two definitions
+// (EstimateEngine.roundToCents, JobMoney.ruleDeposit / depositSuggestion), and
+// tests/a29-deposit-and-rounding.test.mjs plus JobMoneyDepositRuleTest.kt both
+// run tests/a29-deposit-rule-vectors.json, so the two cannot drift apart
+// without a test going red.
+//
+// roundToCents has a THIRD copy, in pricing/totals.ts, because the engine's
+// directory is self-contained and may not import from here (a test copies it
+// to a scratch folder). The a29 test runs the same vectors through both.
+// ---------------------------------------------------------------------------
+
+/**
+ * Money, to the cent: the ONE place a total is rounded.
+ *
+ * The engine's total is a chain of float multiplications (tax, markup, then
+ * discount), so a job worth exactly $2,200 can come out as 2200.0000000000005.
+ * That is float dust, not a price, and it must never be stored or shown. Two
+ * decimal places, because a cent is the smallest thing money has -- rounding
+ * to whole dollars would be a different decision than the one the owner made.
+ *
+ * Math.round(x * 100) / 100 and nothing cleverer, because it is also exactly
+ * what Kotlin writes (java.lang.Math.round(x * 100.0) / 100.0): the same IEEE
+ * multiply and divide, and both round halves toward +infinity, so the two
+ * engines return the same double for the same input. A non-finite value passes
+ * through untouched: Java's Math.round turns NaN into 0, and a NaN total
+ * must stay visibly broken rather than quietly become a $0.00 quote.
+ */
+export function roundToCents(value: number): number {
+  return Number.isFinite(value) ? Math.round(value * 100) / 100 : value;
+}
+
+/** The deposit is rounded UP to the next multiple of this many dollars... */
+export const DEPOSIT_ROUND_UP_TO = 100;
+/** ...and then this many dollars are added. */
+export const DEPOSIT_PLUS = 100;
+
+/**
+ * THE DEPOSIT RULE, in one sentence: the deposit is the materials still to be
+ * bought, rounded up to the next $100, plus another $100 -- and never more than
+ * is still owed on the job ([suggestedDeposit] applies that cap).
+ *
+ * The extra $100 pays for scheduling and transport. It is the contractor's
+ * business and is deliberately NOT disclosed to the customer: it is folded
+ * into the one deposit figure and never itemised, noted or explained anywhere
+ * a customer reads. Nothing in this file, the quote page's response or the
+ * contract carries it as a separate number.
+ *
+ * Returns whole dollars, or 0 when no materials are outstanding.
+ *
+ *  - Rounded UP means a figure that is already a whole hundred stays where it
+ *    is before the $100 is added: $1,000 of materials is a $1,100 deposit.
+ *  - The amount is taken to cents FIRST. $1,000 of materials that arrives as
+ *    1000.0000000000001 is $1,000, not a cent over -- float dust must not
+ *    push a deposit into the next hundred.
+ */
+export function ruleDeposit(outstandingMaterials: number): number {
+  const cents = Math.round(Number(outstandingMaterials) * 100);
+  if (!Number.isFinite(cents) || cents <= 0) return 0;
+  return Math.ceil(cents / (DEPOSIT_ROUND_UP_TO * 100)) * DEPOSIT_ROUND_UP_TO + DEPOSIT_PLUS;
+}
+
+export interface DepositSuggestionInput {
+  /**
+   * What has to be bought for the job: the estimate's materials plus the
+   * materials on any change order. The app's materialCost, and the same
+   * figure its "Set deposit" button works from.
+   */
+  materialCost: number | null | undefined;
+  /** `jobs.amount_paid`. */
+  amountPaid: number | null | undefined;
+  /** `jobs.refunded_amount`. */
+  refundedAmount: number | null | undefined;
+  /** [billableTotal]: the figure the job is billed against. */
+  billableTotal: number | null | undefined;
+}
+
+export interface DepositSuggestion {
+  /** Dollars. 0 when there is nothing to suggest. */
+  amount: number;
+  /**
+   * True when the cap bit: [amount] is all that is still owed on the job and
+   * the rule's own figure was higher. The customer sees a deposit equal to
+   * what they still owe -- never one larger.
+   */
+  capped: boolean;
+}
+
+/**
+ * The deposit to offer: [ruleDeposit] of the materials still to be bought
+ * (net of money already in), capped at what is still owed on [billableTotal].
+ *
+ * The server's copy of the app's JobMoney.depositSuggestion -- same inputs,
+ * same answer, pinned by tests/a29-deposit-rule-vectors.json. It only OFFERS a
+ * figure. Nothing here writes jobs.deposit_amount, and the quote page and the
+ * payment link still read the STORED deposit (depositFigures above): "a deposit
+ * is a thing the contractor asks for". Today the phone's one-tap "Set deposit"
+ * button is what turns this figure into a stored one; no server code calls this
+ * yet.
+ *
+ * The cap is the existing one, for the existing reason: a deposit above the job
+ * is a bill for money the customer never agreed to (a $3,963 deposit was once
+ * stored against a $3,620 job). It bites on a small job -- materials of $120
+ * on a $150 job rule to $300, which is more than the job, so the suggestion is
+ * the $150 owed, i.e. the customer is asked for the whole job up front.
+ * Nothing is added or invented on top of the price; the extra $100 is simply
+ * not there to add when there is no room for it.
+ */
+export function suggestedDeposit(input: DepositSuggestionInput): DepositSuggestion {
+  const num = (v: number | null | undefined) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : 0;
+  };
+  const none: DepositSuggestion = { amount: 0, capped: false };
+
+  const materialCost = num(input.materialCost);
+  const total = Math.max(0, num(input.billableTotal));
+  if (materialCost <= 0 || total <= 0) return none;
+
+  const netPaid = Math.max(0, num(input.amountPaid) - num(input.refundedAmount));
+  const rule = ruleDeposit(materialCost - netPaid);
+  if (rule <= 0) return none;
+
+  // Cents, so the capped figure is the balance to the cent, not float dust.
+  const owed = roundToCents(Math.max(0, total - netPaid));
+  if (owed <= 0.005) return none;
+
+  return rule <= owed + 0.005 ? { amount: rule, capped: false } : { amount: owed, capped: true };
+}
+
 /**
  * The change_orders columns [billableTotal] reads, and the same list without
  * in_accepted_total for a database that does not have it yet

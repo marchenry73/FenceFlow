@@ -131,8 +131,43 @@ object EstimateEngine {
      * behind), and still refuses to overwrite a total once quote_sent_at is
      * set. Old rows read as stale, not wrong, and stale is exactly what
      * lets that machinery do its job.
+     *
+     * Bumped 2026.09.3 -> 2026.10.1 (1 Oct 2026) for the total's rounding:
+     * [Totals.grandTotal] is now EXACT to the cent instead of rounded up to the
+     * next ten ([computeTotals], through [roundToCents]) -- the owner's
+     * decision, taken knowing the cost. totals.ts moved with it, and the
+     * fixtures regenerate with nearly every grand_total lower by up to $10
+     * (and nothing else in any fixture moving).
+     * A formula change, so a version change, on both sides at once. Anchored
+     * totals are untouched, as above: an accepted price never moves for a new
+     * version number.
+     *
+     * A phone still on 2026.09.3 rounds up to ten until it updates; the
+     * version comparison above is what keeps that from overwriting an office
+     * price priced under this version.
      */
-    const val PRICING_ENGINE_VERSION = "2026.09.3"
+    const val PRICING_ENGINE_VERSION = "2026.10.1"
+
+    /**
+     * Money, to the cent: the ONE place a total is rounded.
+     *
+     * The total is a chain of double multiplications (tax, markup, then
+     * discount), so a job worth exactly $2,200 can come out as
+     * 2200.0000000000005 -- float dust, not a price, which must never be
+     * stored or shown. The old ceil-to-ten used to hide it. Two decimal places
+     * because a cent is the smallest thing money has.
+     *
+     * Math.round(x * 100.0) / 100.0 and nothing cleverer, because it is
+     * exactly what totals.ts writes (Math.round(x * 100) / 100): the same
+     * IEEE multiply and divide, and both round halves toward +infinity, so the
+     * two engines return the same double for the same input. NOT
+     * kotlin.math.round, which rounds halves to even and would disagree with
+     * the server on a half-cent. A non-finite value passes through untouched:
+     * Math.round turns NaN into 0, and a NaN total must stay visibly broken
+     * rather than quietly become a $0.00 quote.
+     */
+    fun roundToCents(value: Double): Double =
+        if (value.isFinite()) Math.round(value * 100.0) / 100.0 else value
 
     private data class PostCounts(
         val linePosts: Int,
@@ -962,10 +997,24 @@ object EstimateEngine {
         val discountAmount = afterMarkup * (job.discountPercent / 100.0)
         val afterDiscount = afterMarkup - discountAmount
 
-        // Up to the next ten, never down. A quote of $15,991.06 kept coming in
-        // "less than needed" once material prices moved a cent -- rounding up
-        // means the number on the contract always covers the buy.
-        val grandTotal = kotlin.math.ceil(maxOf(afterDiscount, job.minimumJobCharge) / 10.0) * 10.0
+        // EXACT, to the cent -- not rounded up. This was ceil(.. / 10) * 10 until
+        // PRICING_ENGINE_VERSION 2026.10.1 (the owner's decision, 1 Oct 2026,
+        // taken knowing the cost: a quote of $15,991.06 kept coming in "less
+        // than needed" once material prices moved a cent, and rounding up was
+        // the cushion for it).
+        //
+        // The ONE place a total is rounded, and to two places, not zero: the
+        // sum above is a chain of double multiplications, so a job that is
+        // exactly $2,200 can arrive as 2200.0000000000005, and without the
+        // cents rounding that dust would be stored, signed, billed and shown.
+        // Only the final figure is rounded -- tax, markup and the other parts
+        // stay unrounded, so the sum is not rounded twice.
+        //
+        // The minimum job charge is applied BEFORE the rounding, as it always
+        // was, so a job that falls to the minimum reads exactly the minimum:
+        // maxOf picks the charge itself and rounding a number already on cents
+        // leaves it alone. totals.ts does the same (roundToCents).
+        val grandTotal = roundToCents(maxOf(afterDiscount, job.minimumJobCharge))
 
         return Totals(
             materialsSubtotal, taxableSubtotal, tax, laborCost, teardownCost,
@@ -1004,10 +1053,70 @@ object EstimateEngine {
      */
     fun hasUnmeasurablePhotoWork(job: Job, runs: List<FenceRun>): Boolean =
         runs.any { run ->
-            TakeoffRefresher.blockedByUncalibratedPhoto(job, run) &&
-                (FenceCodec.decodePoints(run.pointsEncoded).size >= 2 ||
-                    FenceCodec.decodeGates(run.gatesEncoded).isNotEmpty())
+            TakeoffRefresher.blockedByUncalibratedPhoto(job, run) && runHasDrawnWork(run)
         }
+
+    /**
+     * Whether a run has something on it to price: at least two points placed
+     * on the drawing, or at least one gate.
+     *
+     * The ONE definition of "something is drawn", shared by
+     * [hasUnmeasurablePhotoWork] and [hasFenceWithNoMaterials]. It is the test
+     * that tells a job with real work on it from a job that is simply new, and
+     * two copies of it would eventually disagree about which is which -- one
+     * warning would then nag the empty job the other correctly leaves alone.
+     *
+     * Typed footage is not part of it, because typed footage is not drawn.
+     * [hasUnmeasurablePhotoWork] has no use for it (a run with a typed length
+     * is never blocked for want of a scale), and [hasFenceWithNoMaterials],
+     * which does, adds it on its own.
+     */
+    private fun runHasDrawnWork(run: FenceRun): Boolean =
+        FenceCodec.decodePoints(run.pointsEncoded).size >= 2 ||
+            FenceCodec.decodeGates(run.gatesEncoded).isNotEmpty()
+
+    /**
+     * Whether this job is a fence to build with nothing priced for materials:
+     * the total is labour (plus any gate, teardown and change-order charges)
+     * and no posts, panels or concrete, and it reads like a finished quote.
+     *
+     * Every other materials check on the estimate is switched off by
+     * materials being zero -- [estimateWarnings] only says the prices are
+     * provisional, the deposit is short of the materials, or the margin is
+     * thin when there ARE materials, and a job that keeps 100% of its price
+     * after "materials" never trips the margin test. So a job with no
+     * materials at all was the one job on which the estimate screen said
+     * nothing whatever, and it is the commonest state of a company that has
+     * not built a catalog: at the phone's default rates 100 ft of vinyl quotes
+     * $800 where the same job priced from the starting list is $2,120,
+     * confidently, and once the customer accepts, the figure they accepted is
+     * what they owe ([JobMoney.anchoredTotal]).
+     *
+     * A run counts when it is fence to BUILD -- not the old fence being taken
+     * out ([FenceRun.isTeardown], which legitimately needs no materials) --
+     * and can be measured, i.e. it is not [TakeoffRefresher.blockedByUncalibratedPhoto]
+     * (that job's zero is explained by [hasUnmeasurablePhotoWork], and "copy
+     * the starting list" would be the wrong advice for it). Of those, it
+     * counts if it has typed footage or something drawn ([runHasDrawnWork],
+     * the same test the photo warning uses), so a brand-new job with nothing
+     * on it is left alone.
+     *
+     * Materials are read from [totals], the same figure the rest of
+     * [estimateWarnings] reads, so a hand-entered lump-sum line counts as
+     * materials and silences this.
+     *
+     * It locks nothing by itself. [estimateWarnings] shows it as a warning.
+     * Whether the send buttons should also refuse is the screen's call, the way
+     * its zeroQuoteBlocked already refuses a $0 quote from
+     * [hasUnmeasurablePhotoWork].
+     */
+    fun hasFenceWithNoMaterials(job: Job, runs: List<FenceRun>, totals: Totals): Boolean =
+        totals.materialsSubtotal <= 0.005 &&
+            runs.any { run ->
+                !run.isTeardown &&
+                    !TakeoffRefresher.blockedByUncalibratedPhoto(job, run) &&
+                    (run.usesManualFeet || runHasDrawnWork(run))
+            }
 
     /**
      * Rule-based sanity checks over the current estimate -- no AI needed,
@@ -1042,6 +1151,17 @@ object EstimateEngine {
         // the fix is the same tap on the same screen either way.
         if (totals.grandTotal <= 0.005 && hasUnmeasurablePhotoWork(job, runs)) {
             warnings += EstimateWarning(R.string.survey_not_calibrated)
+        }
+
+        // A fence to build with no materials priced at all
+        // ([hasFenceWithNoMaterials]). Second, beside the other "this is not
+        // a real quote yet" warning, and for the same reason: every check
+        // further down is about a number reading wrong, and this is the case
+        // where those checks have all gone quiet BECAUSE the number is zero.
+        // The total is not zero -- labour still prices -- which is what makes
+        // it dangerous: it looks like a cheap job rather than a broken one.
+        if (hasFenceWithNoMaterials(job, runs, totals)) {
+            warnings += EstimateWarning(R.string.warn_no_materials)
         }
 
         // What stays with the business after materials, as a share of the

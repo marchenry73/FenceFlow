@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "engine": {
-    "version": "2026.09.3",
-    "generated_at": "2026-09-29T08:54:40.747585100Z"
+    "version": "2026.10.1",
+    "generated_at": "2026-10-01T17:57:30.573603700Z"
   },
   "case": "minimum-labour-charge",
   "note": "A 4 ft job with a $200 LABOUR floor: labour is lifted from $32 to $200, materials are charged on top and never count toward reaching it, and the markup earns on the floored labour.",
   "input": {
-    "engine_version": "2026.09.3",
+    "engine_version": "2026.10.1",
     "pixels_per_foot": 20.0,
     "job": {
       "calibration_pixels_per_foot": 20.0,
@@ -69,7 +69,7 @@
         "unit": "EA",
         "unit_price": 52.35,
         "supplier_unit_price": null,
-        "taxable": false,
+        "taxable": true,
         "covers_ft": 6.0,
         "is_active": true,
         "manufacturer_sync_id": null
@@ -174,7 +174,7 @@
         "unit": "EA",
         "unit_price": 145.05,
         "supplier_unit_price": null,
-        "taxable": false,
+        "taxable": true,
         "covers_ft": 5.0,
         "is_active": true,
         "manufacturer_sync_id": null
@@ -279,7 +279,7 @@
         "unit": "EA",
         "unit_price": 54.5,
         "supplier_unit_price": null,
-        "taxable": false,
+        "taxable": true,
         "covers_ft": 6.0,
         "is_active": true,
         "manufacturer_sync_id": null
@@ -294,7 +294,7 @@
         "unit": "EA",
         "unit_price": 54.5,
         "supplier_unit_price": null,
-        "taxable": false,
+        "taxable": true,
         "covers_ft": 6.0,
         "is_active": true,
         "manufacturer_sync_id": null
@@ -380,7 +380,7 @@
     "existing_items": []
   },
   "expected": {
-    "engine_version": "2026.09.3",
+    "engine_version": "2026.10.1",
     "linear_feet": 4.0,
     "teardown_linear_feet": 0.0,
     "billable_linear_feet": 4.0,
@@ -495,7 +495,7 @@
         "unit": "EA",
         "unit_price": 52.35,
         "supplier_unit_price": null,
-        "taxable": false,
+        "taxable": true,
         "role": "PANEL",
         "auto_generated": true,
         "category": null
@@ -554,8 +554,8 @@
     ],
     "totals": {
       "materials_subtotal": 96.45,
-      "taxable_subtotal": 44.099999999999994,
-      "tax": 3.0869999999999997,
+      "taxable_subtotal": 96.45,
+      "tax": 6.751500000000001,
       "labor_cost": 200.0,
       "teardown_cost": 0.0,
       "trash_haul_fee": 0.0,
@@ -563,10 +563,10 @@
       "gate_charge": 0.0,
       "change_order_cost": 0.0,
       "change_order_feet": 0.0,
-      "markup_amount": 44.930550000000004,
+      "markup_amount": 45.480225,
       "discount_amount": 0.0,
-      "pre_markup_total": 299.53700000000003,
-      "grand_total": 350.0,
+      "pre_markup_total": 303.2015,
+      "grand_total": 348.68,
       "billable_linear_feet": 4.0
     }
   }

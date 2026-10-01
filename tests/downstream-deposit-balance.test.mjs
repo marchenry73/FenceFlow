@@ -56,7 +56,25 @@ const ok = (label, cond, detail = "") => {
 // fails on purpose, telling you to read the transcription again and then
 // move the pin. That is an annoyance exactly once per real change, and the
 // alternative is a guard that quietly stops guarding.
-const JOB_MONEY_FINGERPRINT = "d362fcb9148c3a22";
+// Moved 1 Oct 2026, d362fcb9148c3a22 -> ce770636d29a85b0, after the exact-total
+// change. The pin fired exactly as designed and the transcription below was
+// re-read against JobMoney.kt function by function before it was moved:
+// netPaid, balance, stillOwed, isAccepted, acceptedAt, extraWorkSinceAcceptance,
+// anchoredTotal and billableTotal are all UNCHANGED, character for character in
+// meaning. That matters more than the hash: this file's whole value is that the
+// copy below is still a true copy.
+//
+// What actually changed in JobMoney.kt was ADDITIONS, none of which any check
+// here reads: ruleDeposit and depositSuggestion (the deposit rounded up to the
+// next hundred plus a hundred), depositToSeed (not yet called anywhere), and
+// priceMovedSinceSigning, which replaced a one-dollar tolerance that only ever
+// worked while every total sat on a ten-dollar grid.
+//
+// WORTH KNOWING FOR NEXT TIME: the deposit RULE is now real money logic that the
+// office does not have a transcription of. If the office ever starts suggesting
+// a deposit of its own, it has to match ruleDeposit, and this file is where that
+// comparison belongs.
+const JOB_MONEY_FINGERPRINT = "ce770636d29a85b0";
 const jobMoneyNow = createHash("sha256")
   .update(readFileSync("app/src/main/java/com/fenceestimator/app/estimate/JobMoney.kt", "utf8").split(String.fromCharCode(13)).join(""))
   .digest("hex").slice(0, 16);

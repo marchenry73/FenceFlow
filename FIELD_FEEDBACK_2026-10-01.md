@@ -263,3 +263,427 @@ building anything:**
 **Do not rebuild the arithmetic.** If it turns out correct, the work is placement plus a
 readout. Rewriting a working takeoff to make it visible is how a correct calculation gets
 broken.
+
+---
+
+## C8. CORRECTION — independent sides and the add-run control ALREADY EXIST
+
+He said it plainly: *"The whole goal was to be able to draw one side and to draw another
+one in the same drawing without connecting them together... I want to have the option to
+either continue or start another side."*
+
+**That is already the model, and I described it wrongly earlier.** Read from the source:
+
+- A job holds a LIST of runs (`observeFenceRuns(jobId)`), not one. `selectedRunId` decides
+  which one the finger is drawing on, and `addRun()` makes another.
+- The draw screen already has the control -- a button when the job is empty and an
+  "add run" dropdown once it is not, offering a fence run or a teardown run.
+- So two sides that do not touch are two runs, which is exactly what he asked for. If he
+  has not found the control, that is a LABELLING problem, not a missing feature. Check what
+  that menu is called on the phone before building anything.
+
+**Snapping across runs also already exists.** `snapTargets()` gathers vertices from EVERY
+run on the job so a newly placed point can land exactly on one, and its own comment gives
+the reason: *a back fence and a side fence that meet share one corner post; if the two runs
+each keep their own corner a few inches apart, the takeoff sets two posts and the crew
+arrives with a spare.*
+
+## C9. THE REAL GAP — a junction bills two end posts where one corner post belongs
+
+This is the thing he worked out himself without seeing the code: *"it would not be a corner
+post if I drew it on the other side until I connect it to that one."*
+
+**He is right, and the app never makes it a corner post at all.** The arithmetic is per run:
+
+    cornerPosts = geometry.cornerCount   // bends WITHIN one run's own polyline
+    endPosts    = geometry.endCount      // that run's own free ends
+    totalPosts  = linePosts + cornerPosts + endPosts + gatePosts
+
+`VertexKind.CORNER` is a bend inside a single run. So:
+
+| What he draws | What he is billed | Right? |
+|---|---|---|
+| One side with a bend in it | 1 corner post | yes |
+| Two separate sides, not touching | 2 + 2 end posts | yes -- his case |
+| Two separate sides SNAPPED to the same point | still 2 + 2 end posts | **no** |
+
+Snapping makes the two runs coincide geometrically. It does not merge the post. So the
+junction stands one post in the ground and bills two, of the wrong type -- and the types
+are separate catalog rows at separate prices (`CORNER_POST` "5x5 Co-Ex Corner Post, White"
+is its own item). The spare post the snapping comment was written to prevent is still
+bought.
+
+**So the model needs an explicit CONNECTED fact, not coordinate proximity.** His sentence is
+the specification: a post is a corner only once he says the two sides are joined. Two
+points at identical coordinates are not evidence of a connection -- he may be drawing a
+neighbour's fence that merely meets his. That settles the design question the running
+analysis was weighing, and it settles it the safer way: an explicit link cannot be created
+or destroyed by dragging a point a pixel.
+
+## C10. A pickup / materials-check page for whoever collects the materials
+
+> "When picking up materials, I want to have the whole process too for the person picking
+> up... I want them to have a whole page to check if we have everything according to the
+> job. Also... it would show the grid and the drawing and how many posts there needs and
+> what type of post, and what type of materials would be there, I want to be able to check
+> with the drawing etc, but put it somewhere convenient."
+
+A pull sheet per job: the drawing beside the material list, with the counts BY TYPE (line /
+corner / end / gate posts are four different items, which is the whole point of C9), so the
+person at the counter can tick off what is loaded and catch a missing item before driving
+back.
+
+**Two things to settle before building it:**
+1. **Who sees it.** He has said crew must never see money. A pull sheet is quantities and
+   item names, not prices -- so it is the first screen that could legitimately go to a crew
+   phone, PROVIDED no unit price, extended price or total appears anywhere on it. That has
+   to be enforced where the data is selected, not by leaving a column out of the layout.
+2. **Does ticking it off persist?** A checklist that forgets what was ticked when the screen
+   rotates is worse than a printed list. If it persists it is a new table and it must join
+   `TABLES` in `backup.ts`-equivalent for this app, or backup silently misses it.
+
+The counts themselves already exist -- the takeoff emits `linePosts`, `cornerPosts`,
+`endPosts`, `gatePosts` and the material lines. So this is a READOUT of existing numbers,
+which is also what C7 asked for (seeing what a gate did to the materials). **Build them as
+one screen, not two.**
+
+---
+
+## DECIDED 1 October 2026 — joining, the transition, and who sees the pull sheet
+
+Asked and answered, so these are no longer open:
+
+**1. Joining two sides swaps the post AUTOMATICALLY.** The moment he joins them, the two end
+posts become one corner post and the materials readout shows the change. Unjoining puts the
+two ends back. So the implementation must:
+  - carry an EXPLICIT connection between two runs, not coordinate proximity (see C9) --
+    dragging a point must not create or destroy a join,
+  - subtract one END_POST from each side and add one CORNER_POST, which is a different catalog
+    row at a different price, not a relabelling,
+  - and subtract the POST_CAP and the CONCRETE that followed the post that no longer exists.
+    Missing either of those two is an overcharge on every corner, and `POST_CAP` is priced off
+    `totalPosts`, so it follows automatically only if `totalPosts` is what changes.
+  - The readout is the proof. He asked to SEE it (C7, C10), and a join that silently changes
+    the price is exactly what he should not have to take on trust.
+
+**2. The 6-to-4 transition is dropped onto an existing side and the app splits it.** He taps a
+spot on the 6 ft side and says drop to 4 ft here. The app produces a 6 ft part, the raked bay,
+and a 4 ft part, joined by the same explicit joins as above, and adds the transition item.
+  - This means the split is a WRITE of three runs where one was, so it must be undoable in one
+    step -- the drawing already has an undo history and this has to land in it as one entry,
+    not three.
+  - It also means the transition's length is the app's choice, not his. One bay is the obvious
+    default. Say so where he can see it, because it is the number that decides how steep the
+    rake looks on the ground.
+  - He did NOT pick "set heights and let the app insert a rake", and the reason he gave for
+    joining applies here too: he does not want materials changing without him asking.
+
+**3. The pickup/pull sheet goes to crew phones, quantities only, never prices.** Counts by post
+type, the material list, the drawing, a tick box per line. No unit price, no extended price, no
+total, nothing about money anywhere on it.
+  - ENFORCE IT WHERE THE DATA IS SELECTED, not by omitting a column from the layout. A crew
+    phone that can fetch the row can read the price off it whatever the screen draws. This is
+    the same rule the rest of the app already follows and the reason crew currently read zero
+    job rows.
+  - He chose crew-wide rather than assigned-jobs-only, so the restriction is on the COLUMNS,
+    not the row set. Worth a canary test that must fail: a crew-role read of the pull sheet
+    payload asserting that no price field is present at all.
+
+---
+
+## DECIDED 1 October 2026 — the transition is a 6 ft panel he cuts himself
+
+> "The transition only needs a 6ft high, I will cut it myself, or the client will cut it into
+> the 4ft high. So just price it as 6ft."
+
+This closes the pricing-policy question in C6 and it closes it the cheap way. A 6-to-4 fence
+needs **no transition product**: the raked bay is a standard 6 ft panel, cut on site. It is one
+bay of the taller fence at the 6 ft panel price, which is already what happens if that bay
+simply belongs to the 6 ft run.
+
+Consequences, all good:
+- No catalog item, no new role, no engine rule for the transition.
+- The transition row a track added under the old assumption (role NONE, 100.00 placeholder) and
+  its one-company SQL are being **retracted**.
+- The split is now TWO runs, not three: a 6 ft side (whose last bay is the rake) joined to a
+  4 ft side. The diagonal is how it is DRAWN, not a thing that is priced.
+
+## C11. SHIPPED BUG — panel choice ignores height, so a 6 ft iron fence is billed with the 4 ft panel
+
+Found while defending the transition row, and worth far more than the row was. **Proved by
+running the real engine, not by reading it.**
+
+    The engine picks a PANEL by nearest coversFt, then by CHEAPEST, and never reads height.
+
+In the shipped starting catalog, "Ornamental Steel Panel 4'H x 6'W, Black" (135.00) and
+"Ornamental Steel Panel 6'H x 6'W, Black" (175.00) are both `coversFt = 6`. So a run spec'd 6 ft
+wide ties on width and the **cheaper one wins whatever height the run says**. The 6 ft high panel
+ships, and is never chosen. A 100 ft fence is 17 bays, so that is 17 x 40.00 = **680.00
+undercharged on every 6 ft ornamental-iron job**, out of his own pocket, silently.
+
+**This is also exactly why the 4 ft fences he asked for (B2) could not be added.** A
+4'H x 6'W vinyl panel priced under the 6'H one would take over every 6 ft white vinyl quote the
+same way. A test already demonstrates it. So B2 was never a catalog task -- it was blocked on
+this bug, and nobody knew.
+
+**The fix is the same fix for three separate requests:** the shipped iron mispricing, the 4 ft
+fences, and the transition. Make panel choice height-aware and all three come right.
+
+**What makes it non-trivial, and must be settled before it is built:**
+1. **Where does a row's height come from?** If the only place it appears is inside the product
+   NAME as text, then pricing would depend on parsing a product name -- fragile, and this
+   project has a standing rule against comparing against display text, which nearly
+   mis-coloured two charts once already. The clean answer is a real height column on the
+   catalog row, and that is a schema change.
+2. **What happens to a catalog with no matching height?** A company holding only 6 ft panels
+   must not suddenly price a 4 ft fence at zero. The fallback decides whether this fix breaks
+   an existing customer's live quote.
+3. **It changes a price that is wrong today**, so it is a formula change: engine version bumped
+   on BOTH sides and all 85 parity fixtures regenerated in the same commit.
+4. **Check POSTS, not just panels.** If the same width-then-cheapest selection picks posts, a
+   4 ft post could be chosen for a 6 ft fence -- that is a fence that falls over, not a pricing
+   error. Being checked now.
+
+## Known-red right now, and why — 1 October 2026
+
+Three things are failing. None is a mystery and none is lost:
+
+1. **The parity gate is RED.** Both engines read `PRICING_ENGINE_VERSION = 2026.10.1` after the
+   exact-total change, while `fixtures/pricing/manifest.json` still says `2026.09.3` with 85
+   cases. `ParityFixtureCheck` asserts those match, so it cannot pass. The fix is to regenerate:
+   `FENCEFLOW_PARITY_OUT=$(pwd)/fixtures/pricing ./gradlew testDebugUnitTest --tests "*ParityFixtureWriter*"`
+   -- which needs Gradle, which must not run while other waves are editing Kotlin. **Queued, not
+   forgotten.** Note the regeneration has to happen AFTER a clean test compile, because
+   `PRICING_ENGINE_VERSION` is a Kotlin compile-time constant and is inlined into the fixture
+   writer itself.
+2. **`tests/a30-use-grid-persists.test.mjs` is RED ON PURPOSE.** It pins the Use Grid bug
+   (C5) until `SurveyViewModel.clearSurveyImage()` is fixed; the survey wave owns that file.
+3. **Node suite flakes** from several Supabase CLI calls running at once -- they pass alone.
+   Not a code failure, and must not be counted as one.
+
+---
+
+## C12. SHIPPED MONEY BUG — the old importer's label is not one the warning recognises
+
+Found by the gate on the update-button wave, pre-existing and not introduced by it.
+
+The app warns before a contract goes out if any price on it is unverified. That warning
+decides by the row's `sourceDoc` label, and it recognises a fixed set of them
+(`isPlaceholderPrice` in SeedData.kt). **The older price importer stamps
+"Imported -- check this one", which is NOT in that set.** So every price brought in by that
+importer passes the gate built to catch exactly it, silently.
+
+The whole point of that warning is to stop a guessed price reaching a customer. An importer
+whose own label is invisible to it is worse than no warning, because the screen says nothing
+is wrong.
+
+Two ways to fix it and they are not equivalent: add the importer's label to the recognised
+set, or change the importer to stamp a recognised one. The first fixes rows ALREADY in the
+database; the second only fixes rows imported from now on. **It needs the first**, and
+possibly both.
+
+BLOCKED: `SeedData.kt` is held by the running retract wave. Queued, not forgotten.
+
+## The update button — FIXED, and the cause was the file in Drive
+
+The symptom was real and the diagnosis is worth recording. `fenceflow.apk` in Drive was the
+**Play-shaped** build: self-update off, install permission stripped. Byte-for-byte the
+no-update build. So any phone installed from that file had no button AND could not fetch its
+own fix -- the bug was unable to repair itself by design.
+
+There are now two release build types:
+- `assembleLink` -> `app/build/outputs/apk/link/app-link.apk`, self-updates, keeps
+  REQUEST_INSTALL_PACKAGES. **This is the one that goes to Drive and to the link.**
+- `assembleRelease` -> Play-shaped, self-update off, permission stripped.
+
+Both signed with the same real key (`7b107795...2d42e2`), same application id, so either
+installs over the other and keeps the data.
+
+**`assembleRelease` is no longer the command to build what he hands out.** Three docs still
+say it does: `DEV_ENVIRONMENT.md:226`, `RELEASE_SETUP.md:71`, `AUDIT_2026-09-17.md:24`.
+
+**He must install once by hand.** A phone on the old Play-shaped build cannot update itself to
+the new one -- that is the whole bug. After that one manual install it updates itself.
+
+**Drive currently holds 1.562 while the repo has moved to 564+**, because other tracks
+committed during that build. The publish script compares the two and will refuse, which is
+correct. A fresh `assembleLink` is needed at whatever commit is meant to ship -- and with
+nothing committing in between.
+
+---
+
+## C13. CORRECTED — the height transition is a DIAGONAL, it sits AT THE CORNER, and he chooses it
+
+Three readings of this, and only the third is his. Recording all three so nobody re-derives a
+wrong one from the earlier notes:
+
+1. First reading: a raked bay somewhere along a run, needing its own catalog product. WRONG --
+   he then said "the transition only needs a 6ft high, I will cut it myself... just price it
+   as 6ft", so there is no product.
+2. Second reading, from his photo: a STEP at a post, because the photo shows a tall privacy
+   section meeting a shorter picket section at a post. ALSO WRONG -- that is a different part
+   of the fence.
+3. HIS WORDS: *"The transition is a diagonal all the way in the corner, I want to choose it
+   when it's time."*
+
+So the model is:
+
+- **It is a diagonal**, not a step. The panel rakes from 6 ft down to 4 ft.
+- **It sits at the CORNER** -- the point where two sides meet, which is exactly the junction
+  the join work is building. So the transition is a property OF A JOIN, not of a run and not
+  of a bay somewhere in the middle of one.
+- **He chooses it.** Not inferred from two sides having different heights. Same principle he
+  already set for the corner post itself: *"it would not be a corner post if I drew it on the
+  other side until I connect it to that one."* He makes the fact; the app does not guess it.
+
+**This lands the transition squarely on the join, which is already being built.** A join
+between two runs of different heights gets an option -- step or diagonal -- and he picks per
+corner. That is a field on the join record, not new geometry on a run, and it is the natural
+place for it: the join already knows both runs and therefore both heights.
+
+**What it means for pricing, with his rule applied:** the diagonal bay is a 6 ft panel he cuts
+on site, so it bills as one bay of the TALLER side. No catalog item. The join still removes one
+post, one cap and that post's concrete, exactly as a plain corner does -- a diagonal corner is
+still one post in the ground.
+
+**What it means for the 3D view:** the quote page already renders each run at its own height
+(`const heightFt = Math.max(2, Number(run.heightFt)||6)` in website/quote.html), so two joined
+runs already draw at different heights. What is NOT drawn is the diagonal between them -- today
+the two heights would meet as an abrupt step. The rake is a geometry addition at the join, and
+it is cosmetic only: it changes no quantity, because the bay is already billed as a 6 ft panel.
+
+**Still unanswered, and only he can say:** over what distance does the diagonal fall? One bay
+is the obvious default, and his own photo suggests the drop happens across a single panel. Ask
+before building, because it decides how steep the rake looks on the ground.
+
+---
+
+## C14. Put the house on the grid, so the fence has something to be located against
+
+> "I want to be able to add the house, or where the house is so the fence can be located and
+> we know where it should be on the grid."
+
+On a photo survey the house is visible, so the drawing has something to sit against. On the
+GRID there is nothing -- just lines in space. So a grid drawing cannot answer "is this the
+left side or the right side", and the crew cannot tell from it where the fence actually goes.
+
+The job already carries `site_lat` / `site_lon` from geocoding the address, so the app knows
+where the house IS in the world. What it has no notion of is the house's FOOTPRINT or its
+ORIENTATION on the drawing.
+
+Worth settling before building, in this order:
+1. **What does he want to place -- a rectangle, or a marker?** A rough rectangle he can drag,
+   size and rotate is the useful version: it tells the crew which side is which. A single pin
+   says less but is one tap.
+2. **Does it travel?** The office and a second phone both need to see it, so it is a job
+   field, not a device setting -- unlike the Use Grid choice, which deliberately stayed local.
+3. **It must not become a fence.** Whatever shape is placed cannot enter the takeoff: it has
+   no height, no panels and no posts. The safest shape is a separate entity, NOT a FenceRun
+   with a flag, because a flag is one missed `if` away from pricing the house.
+
+## C15. BUG, seen in his own screenshot -- the 3D quote page overlaps its own labels
+
+From the photo he sent of the live quote page on his phone, at 390px wide:
+
+- **"YOUR FENCE..." is painted underneath "TURN THE FENCE TO MATCH".** Two overlays are drawn
+  in the same place at the top-left of the stage; the first is unreadable.
+- **The drag hint ("Drag to look around - two fingers to move - pinch to zoom") collides with
+  the imagery attribution block**, which is itself three lines long on a narrow screen. The
+  two sit on top of each other at the bottom of the stage.
+
+This is a customer-facing page -- it is what a homeowner sees when he sends a quote. Neither
+is subtle and both only appear at phone width, which is the width every customer uses.
+
+**Check it at 390px, not on a desktop.** The attribution is three lines on a phone and one on
+a desktop, which is exactly why this was not noticed.
+
+Related but separate: the ground in that same screenshot is washed out and speckled, which is
+NOT the imagery -- the raw tiles are sharp (see the comparison built on 1 Oct). Suspects, in
+the order they are worth checking: the canvas filter `contrast(1.1) saturate(1.12)
+brightness(1.03)` tuned for softer imagery and now amplifying compression noise; the ground
+being a lit MeshStandardMaterial over imagery that already contains its own baked sunlight;
+and texture filtering at the grazing angle the camera actually uses.
+
+**DECIDED (1 Oct): a rectangle he can drag and rotate**, not a pin. So the house carries a
+position, a width, a depth and a rotation -- four things, and rotation is the one that makes
+it useful, because it is what tells the crew which side of the house a run is on.
+
+Consequences to build to:
+- It TRAVELS (it is for the office and the crew), so it is a job-level record, not a device
+  setting. Unlike the Use Grid choice, which is deliberately local to the phone.
+- It is NOT a FenceRun with a flag. Its own entity. A flag on a run is one missed `if` away
+  from the house being priced as fence, and the takeoff walks runs.
+- It must be excluded from everything that measures: total footage, the extent used to fit
+  the drawing, post counts, and the parity fixtures. Each of those is a separate place that
+  reads geometry, so each needs checking rather than assuming one guard covers them all.
+- Rotation means it cannot be stored as a plain bounding box. Centre point, width, depth and
+  an angle is the honest shape.
+- On the GRID it is the only landmark, so it should be drawn plainly and clearly behind the
+  fence lines -- never on top of them, and never something that can be confused for a run.
+
+---
+
+## Building from a clean worktree needs TWO untracked files
+
+Recorded because it cost a 6-minute failed build on 1 Oct, and the next person doing this will
+hit it too.
+
+Building in a fresh `git worktree` is the right way to produce an APK while agents are editing
+the main checkout -- the worktree is a pristine copy at a commit, so nothing half-written can
+reach the artifact. That is the fix for the crashing 1.562 build, which was compiled across
+commits that landed at 10:24 and 10:27 WHILE it was running.
+
+But a worktree contains only TRACKED files, and two the build needs are gitignored:
+
+    cp local.properties      <worktree>/local.properties        # sdk.dir, supabase, keystore
+    cp app/google-services.json <worktree>/app/google-services.json
+
+Without the second, `processLinkGoogleServices` fails six minutes in with a clear message, so
+it is cheap to diagnose -- but six minutes is six minutes. Copy both immediately after
+`git worktree add`.
+
+Note the failure mode is worth telling apart from the memory one. This build printed a proper
+`FAILURE:` block with `What went wrong`. A memory death does NOT: the log simply stops
+mid-task with no error block at all. If you see a truncated log, check free RAM before reading
+a single line of code.
+
+Also: `git rev-list --count HEAD` in the worktree is what sets versionCode, so the worktree
+must be at the commit you intend to ship. A build from an older commit produces an APK Android
+will REFUSE to install over a newer one already on the phone -- which is the position the
+owner was left in by 1.562 crashing: 560 and 557 both existed and neither could be installed
+over it without uninstalling and losing the job data.
+
+---
+
+## DECIDED 1 October 2026 — diagonal length, and catalog write permission
+
+**1. The diagonal falls over ONE PANEL.** So the rake is a single bay wide: 6 ft down to 4 ft
+across one panel at the corner. No setting, no prompt for a distance -- one bay is the rule.
+That also means the drop is steep (2 ft over a 6 ft or 8 ft panel) and that is intended; it
+matches what he builds. Draw it that way in the 3D view and on the grid.
+
+**2. SALES and ACCOUNTANT ARE ALLOWED to change the catalog. DO NOT tighten the policy.**
+
+> "yeah sales and accountant can change catalogs."
+
+This closes C12's second half with NO CODE CHANGE. The policy on material_items checks company
+membership rather than role, and that turns out to be the intended behaviour, not an oversight.
+
+Two things follow and both matter:
+- **The hidden button is now the bug, not the policy.** The price-list upload button is shown
+  only to OWNER/MANAGER while the database lets SALES and ACCOUNTANT write. The UI and the
+  rule disagree, and the rule is the one he just confirmed. So the fix is to SHOW the button
+  to the roles that can actually use it, not to lock the database down. A control hidden from
+  someone who is permitted to act is a different defect from a control shown to someone who
+  is not -- this is the first.
+- **Record what he accepted**, so nobody "fixes" it later: anyone with money access can change
+  catalog prices, including through the API directly. That is deliberate. It is NOT a crew
+  exposure -- crew have no money access and still see nothing.
+
+The FIRST half of C12 still stands and is still a real bug: the old importer stamps
+"Imported - check this one", which `isPlaceholderPrice` does not recognise, so imported prices
+silently pass the unverified-price warning. Permission has nothing to do with it.
+
+**3. Stripe stays in test mode for now**, by his choice -- "will work on Stripe later". So no
+real money can move through a quote link until he switches it. Not a blocker to building
+anything else; it is a blocker to USING the payment half on a real job.

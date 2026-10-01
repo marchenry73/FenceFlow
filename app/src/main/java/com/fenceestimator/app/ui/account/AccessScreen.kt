@@ -322,7 +322,7 @@ private fun MemberAccessDialog(
                 item { Divider(Modifier.padding(vertical = 8.dp)) }
                 item { Text(stringResource(R.string.acct_access_allowed_to), style = MaterialTheme.typography.titleSmall) }
 
-                items(Permission.values().filter { !it.sensitive }) { permission ->
+                items(Permission.values().filter { !it.sensitive && it.grantableToday }) { permission ->
                     PermissionRow(permission, permission in permissions, enabled = !isSelf) { on ->
                         permissions = if (on) permissions + permission else permissions - permission
                     }
@@ -343,7 +343,7 @@ private fun MemberAccessDialog(
                         )
                     }
                 }
-                items(Permission.values().filter { it.sensitive }) { permission ->
+                items(Permission.values().filter { it.sensitive && it.grantableToday }) { permission ->
                     PermissionRow(permission, permission in permissions, enabled = !isSelf) { on ->
                         permissions = if (on) permissions + permission else permissions - permission
                     }
@@ -384,3 +384,27 @@ private fun PermissionRow(
         Switch(checked = checked, enabled = enabled, onCheckedChange = onChange)
     }
 }
+
+/**
+ * Whether this permission is worth offering on this screen YET.
+ *
+ * A toggle that changes nothing is worse than no toggle: it reads as a feature,
+ * it gets granted, and then nothing happens on the crew member's phone. That is
+ * the mismatch that has already produced a fake button here once.
+ *
+ * [Permission.CAPTURE_ENQUIRY] is withheld for exactly that reason. Everything
+ * behind it is written and compiles -- the capture screen, its outbox, its
+ * tests -- but FOUR things are still missing, and until all four land, granting
+ * it does nothing at all:
+ *   1. MainActivity.kt has no route to EnquiryCaptureScreen.
+ *   2. JobsListScreen.kt draws no EnquiryEntryCard, so there is no way in.
+ *   3. AutoSync.runSync never calls EnquiryOutboxRunner.flush, so a capture
+ *      would go up only while one of those screens is open.
+ *   4. supabase_a28_crew_enquiry_capture.sql is NOT APPLIED, so the server has
+ *      no crew_capture_enquiry function to take a capture at all.
+ *
+ * Delete this property and the two `grantableToday` filters above -- and
+ * nothing else -- once they have.
+ */
+private val Permission.grantableToday: Boolean
+    get() = this != Permission.CAPTURE_ENQUIRY

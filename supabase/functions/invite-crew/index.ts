@@ -43,22 +43,28 @@
 // for the rest of the office -- this function does not reimplement company
 // isolation, it inherits it.
 //
-// What the joiner actually types to join is the company's own id. There is
-// no separate "team code" table for crew -- join_company (see
-// supabase_join_company_guard.sql) takes target_company_id directly, and the
-// app's own Account screen already shows this same uuid under "Team invite
-// code" with its own Copy/Share buttons. This function sends the identical
-// value by email instead of asking somebody to read it out over the phone.
+// What the joiner types to join is the company's TEAM CODE: a random uuid of
+// its own, kept in company_join_codes and read here through
+// crew_join_code_for_invite() (supabase_r18_join_door.sql). It is NOT the
+// company id. The id identifies a company and authorises nothing, so an id
+// that leaks -- from an old email, a job-file URL, a colleague's profile row --
+// lets nobody in. The owner can replace the code (rotate_join_code()), which
+// stops every earlier invitation from working without touching the company.
+// This function never puts the company id in an email or in a response.
 //
-// Rate limiting: the spec for this function asked for a cap of 20 sends per
-// company per hour, counted from whatever got recorded. Nothing does.
-// employees has no invited_at/invite_sent_at column (confirmed against
-// supabase_schema.sql and every patch that touches employees), and adding
-// one is a schema change this function is not allowed to make. So there is
-// no send count to cap against, and the limit is skipped rather than faked
-// against something that would not actually catch abuse (an employees.notes
-// string is prose an owner edits freely, not a reliable counter). Flagged
-// here rather than silently omitted.
+// It only READS the code, as the caller. crew_join_code_for_invite() is
+// SECURITY DEFINER and checks the caller's role itself, and also says whether
+// the caller may be SHOWN the code (the SHARE_INVITE_CODE permission): a
+// manager may send an invitation without being handed the secret.
+//
+// Sequencing: the RPC exists only once supabase_r18_join_door.sql is applied.
+// Until then this function fails closed -- 500, nothing sent -- and never falls
+// back to emailing the company id, which join_company no longer accepts.
+//
+// Rate limiting: twenty invitations per company per hour, counted in
+// invite_sends by the note_invite_send RPC further down
+// (supabase_invite_sends_patch.sql); the twenty-first is refused with a 429
+// before anything is sent.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 import { buildInviteCrewEmail } from "../_shared/invite-crew-email.ts";
 
@@ -141,6 +147,18 @@ Deno.serve(async (req) => {
       return json({ error: "Could not load your company." }, 500);
     }
 
+    // The team code -- not the company id. Fetched as the caller. A missing
+    // code, or an error, ends the request: this function must never fall back
+    // to sending the company id. The code is never logged.
+    const { data: codeData, error: codeError } = await supabase.rpc("crew_join_code_for_invite");
+    const codeRow = Array.isArray(codeData) ? codeData[0] : codeData;
+    const joinCode = String(codeRow?.join_code ?? "").trim();
+    if (codeError || !joinCode) {
+      console.error("invite-crew: crew_join_code_for_invite", codeError?.message ?? "no code returned");
+      return json({ error: "Could not prepare the invitation. Try again in a moment." }, 500);
+    }
+    const mayShowCode = codeRow?.may_show === true;
+
     // app_releases is readable by anyone signed in (see
     // supabase_app_releases_patch.sql) -- no need for the service role here
     // either. A missing row, or one published with no hosted link, is
@@ -163,12 +181,17 @@ Deno.serve(async (req) => {
 
     if (!mailKey || !mailFrom) {
       // Not an error the office caused -- tell them exactly what to do
-      // instead of sending nothing and saying nothing. The code is the
-      // company id, the same value the Account screen's Copy/Share buttons
-      // already hand out, so this is not a dead end.
+      // instead of sending nothing and saying nothing. The team code comes back
+      // only to somebody who may be shown it (the owner, or a manager the owner
+      // granted SHARE_INVITE_CODE by name); anybody else is told to ask.
+      if (mayShowCode) {
+        return json({
+          error: "Email is not set up yet. Give them the code by hand.",
+          code: joinCode,
+        }, 503);
+      }
       return json({
-        error: "Email is not set up yet. Give them the code by hand.",
-        code: companyId,
+        error: "Email is not set up yet. Ask the owner for the team code and give it to them by hand.",
       }, 503);
     }
 
@@ -191,17 +214,17 @@ Deno.serve(async (req) => {
       companyPhone: company?.phone ?? "",
       inviterName,
       recipientEmail: email,
-      code: companyId,
+      code: joinCode,
       downloadUrl: release?.download_url ?? "",
       appVersion: release?.version_name ?? "",
     });
 
     const replyTo = (company?.email ?? "").trim();
 
-    // Nothing is written from employeeSyncId -- there is no column to write
-    // it to (see the rate-limiting note above) -- but it is worth one line in
-    // the function log for anyone chasing down a report that an invite never
-    // arrived.
+    // Nothing is written from employeeSyncId -- employees has no invited_at
+    // column to write it to -- but it is worth one line in the function log for
+    // anyone chasing down a report that an invite never arrived. The log line
+    // carries the address and the company id, never the team code.
     console.log(
       `invite-crew: sending to ${email} for company ${companyId}` +
       (employeeSyncId ? ` (employee ${employeeSyncId})` : ""),
@@ -232,8 +255,8 @@ Deno.serve(async (req) => {
       return json({ error: `Mail provider refused it: ${detail.slice(0, 300)}` }, 400);
     }
 
-    // Nowhere to record the send -- see the rate-limiting note above. This
-    // is genuine success, not a half-truth papered over: the mail went out.
+    // The send was already counted by note_invite_send above, before anything
+    // went out. This is genuine success: the mail provider accepted it.
     return json({ sent: true, to: email });
   } catch (e) {
     console.error("invite-crew:", e);

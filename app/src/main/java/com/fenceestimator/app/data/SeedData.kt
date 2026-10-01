@@ -19,6 +19,17 @@ internal const val SEEDED = "Starting price — verify with your supplier"
 internal const val PLACEHOLDER = "Placeholder — verify with your supplier"
 
 /**
+ * The separator in every label in this file, written as its code point:
+ * U+2014 EM DASH. Not U+002D (the hyphen on the keyboard) and not U+2013 (the
+ * en dash). The two look alike in an editor, and a label built with the wrong
+ * one never equals the stored string, so a comparison against it matches
+ * nothing and nothing says so. [IMPORTED_CHECK_FILING] is built from this
+ * constant rather than typed, and IsPlaceholderPriceTest asserts its code
+ * point.
+ */
+internal const val LABEL_DASH = "—"
+
+/**
  * A PDF-imported line, before anyone at the company has looked at it.
  *
  * `CatalogViewModel.applyImportSelections()` used to stamp these `"Imported"`,
@@ -30,22 +41,60 @@ internal const val PLACEHOLDER = "Placeholder — verify with your supplier"
  */
 internal const val IMPORTED_UNVERIFIED = "Imported — verify before quoting"
 
+/**
+ * A catalog line brought in by the OFFICE's price-list importer
+ * (website/dashboard.html, `runImport`, `kind === 'pricelist'`), before anyone
+ * has looked at where it landed.
+ *
+ * A different kind of thing from [IMPORTED_UNVERIFIED], which is why it is a
+ * second constant and not a second spelling of the first. There the NUMBER is
+ * unchecked: it was read off a supplier PDF. Here the price is whatever the
+ * company pasted from its own list, and what is unchecked is how the item was
+ * FILED -- fence type, category, role and unit are guessed from the name by
+ * `impMaterial`. A wrong guess still reaches a quote (the engine picks the
+ * item for each role by fence type and role, then multiplies its price by the
+ * quantity that role calls for), which is why the importer tells the owner to
+ * correct the filing "before quoting from them".
+ *
+ * The office keeps the two apart as well: its price-list update confirms an
+ * [IMPORTED_UNVERIFIED] row, because a supplier's list does check a price, and
+ * leaves this label in place, because a supplier's list says nothing about how
+ * the item was filed.
+ *
+ * Matched by prefix, as the office's own readers match it (the importer
+ * writes the bare label; a row someone has since extended is still a row
+ * nobody has signed off).
+ */
+internal const val IMPORTED_CHECK_FILING = "Imported ${LABEL_DASH} check this one"
+
 /** Stamped by the explicit "Confirm price" action once a person has checked it. */
 internal const val CONFIRMED = "Confirmed"
 
 /**
- * True for a catalog item still carrying a price nobody at this company has
- * checked -- shipped with the seed data, or pulled off an imported invoice
- * and never confirmed.
+ * True for a catalog item still carrying something nobody at this company has
+ * checked -- a price shipped with the seed data, a price pulled off an
+ * imported invoice and never confirmed, or an item the office's price-list
+ * importer filed by guesswork ([IMPORTED_CHECK_FILING]).
  *
  * All ninety-two seeded items are typical market rates, not quotes: they
  * exist so a company has a working estimate on day one, not so anybody sells
  * off them. The label is on every row. What the estimate screen does with it
  * is described on [SeedData]: it warns before a contract goes out, and it
  * does not stop the send.
+ *
+ * The warning's wording on the estimate and catalog screens ("starting
+ * figures", "prices ... not yours yet") was written for the first two kinds
+ * and describes the third only roughly: for those rows it is the filing, not
+ * the price, that wants checking. Ticking "Price confirmed" in the catalog
+ * editor clears all three, and the same dialog edits the fence type, category
+ * and role.
+ *
+ * The bare word "Imported", which the phone's PDF importer stamped before
+ * [IMPORTED_UNVERIFIED] existed, is deliberately not matched here.
  */
 fun isPlaceholderPrice(sourceDoc: String): Boolean =
-    sourceDoc == SEEDED || sourceDoc == PLACEHOLDER || sourceDoc == IMPORTED_UNVERIFIED
+    sourceDoc == SEEDED || sourceDoc == PLACEHOLDER || sourceDoc == IMPORTED_UNVERIFIED ||
+        sourceDoc.startsWith(IMPORTED_CHECK_FILING)
 
 /**
  * Whether this phone should insert [SeedData.materialItems] into the local

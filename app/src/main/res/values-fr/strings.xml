@@ -1472,6 +1472,7 @@
     <string name="warn_changed_after_signed">Ceci a changé après la signature : %1$s. Obtenez une nouvelle signature avant d\'envoyer quoi que ce soit.</string>
     <string name="warn_posts_no_concrete">Des poteaux figurent sur le devis mais le béton n\'a pas été ajouté.</string>
     <string name="warn_gate_no_hardware">Un portail est dessiné mais la quincaillerie du portail (charnières, loquet) n\'a pas encore été ajoutée.</string>
+    <string name="warn_no_materials">Aucun matériau n\'est chiffré sur ce chantier : le total ne couvre que la main-d\'œuvre. Copiez la liste de départ de FenceFlow dans Catalogue ou ajoutez vos propres articles, puis touchez Suggérer les quantités sur chaque tronçon de clôture. Si le client fournit les matériaux, vous pouvez ignorer ceci.</string>
     <string name="doc_title_working_estimate">Devis — interne</string>
     <string name="doc_title_customer_contract">Contrat</string>
     <string name="doc_title_supplier_request">Demande de matériaux</string>
@@ -2018,4 +2019,83 @@
     <string name="time_dispute_already_approved">Déjà approuvé, donc ces heures sont payées.</string>
     <string name="time_dispute_still_waiting">Toujours en attente d’approbation.</string>
     <string name="time_dispute_settle_note">Un litige ne change ni les heures ni la paie. Il reste ouvert jusqu’à ce que les heures du quart soient corrigées à nouveau.</string>
+    <!-- État de la connexion. Ce que disent la liste des chantiers, l'écran du
+         compte et une notification quand ce téléphone est déconnecté, ne peut
+         pas le vérifier ou n'a pas de réseau. -->
+    <string name="so_out_title">Vous êtes déconnecté</string>
+    <string name="so_out_body">Les nouveaux chantiers et les modifications du bureau n\'arriveront pas sur ce téléphone, et ce que vous enregistrez ici n\'arrivera pas au bureau, tant que vous ne vous reconnectez pas. Ce qui est déjà sur ce téléphone est en sécurité.</string>
+    <string name="so_unsure_title">Impossible de vérifier votre connexion</string>
+    <string name="so_unsure_body">Ce téléphone n\'a pas pu confirmer que vous êtes toujours connecté, ce que vous voyez peut donc être périmé. Votre travail est enregistré sur ce téléphone. Réessayez.</string>
+    <string name="so_empty_out_title">Vos chantiers ne sont pas chargés</string>
+    <string name="so_empty_out_body">Vous êtes déconnecté, donc ce téléphone ne peut pas les charger. Une liste vide ici ne signifie pas que vous n\'avez aucun chantier. Reconnectez-vous et ils reviendront.</string>
+    <string name="so_empty_unsure_title">Impossible de charger vos chantiers</string>
+    <string name="so_empty_unsure_body">Ce téléphone n\'a pas pu vérifier votre connexion : une liste vide ici ne signifie pas que vous n\'avez aucun chantier. Réessayez.</string>
+    <string name="so_empty_nosignal_title">Aucun chantier sur ce téléphone pour l\'instant</string>
+    <string name="so_empty_nosignal_body">Il n\'y a pas de réseau pour le moment. Les chantiers du bureau arrivent tout seuls dès que vous êtes de nouveau en ligne.</string>
+    <string name="so_ntf_title">Vous avez été déconnecté</string>
+    <string name="so_ntf_body">Les chantiers ne se mettront pas à jour et votre travail n\'arrivera pas au bureau tant que vous ne vous reconnectez pas. Ouvrez FenceFlow pour vous connecter.</string>
+
+    <!-- Crew enquiry capture: a neighbour asks while a crew member is on a job, and the office prices it.
+         Nothing in this block carries a price. -->
+    <string name="enum_perm_capture_enquiry">Noter les demandes sur place</string>
+    <string name="enum_perm_capture_enquiry_desc">Noter sur place la demande d’un voisin pour une clôture : qui, où, quel type de clôture, environ quelle longueur, et des photos. Elle part au bureau, qui fait le prix. La personne qui la saisit ne voit jamais de prix.</string>
+    <string name="enq_entry_title">Un voisin vous demande pour une clôture ?</string>
+    <string name="enq_entry_body">Notez ses coordonnées et quelques photos. Le bureau fait le prix et le rappelle. Vous ne verrez aucun prix.</string>
+    <string name="enq_entry_button">Noter une demande</string>
+    <string name="enq_entry_waiting_one">1 demande attend d’être envoyée</string>
+    <string name="enq_entry_waiting_many">%1$d demandes attendent d’être envoyées</string>
+    <string name="enq_title">Noter une demande</string>
+    <string name="enq_intro">Notez les détails ici. Cela part au bureau, qui fait le prix et le rappelle. Vous ne verrez aucun prix.</string>
+    <string name="enq_note_offline">Pas de réseau. Ceci est enregistré sur ce téléphone et part tout seul au bureau dès que vous avez du réseau.</string>
+    <string name="enq_note_signed_out">Vous êtes déconnecté. Ceci est enregistré sur ce téléphone, mais rien ne part au bureau tant que vous ne vous reconnectez pas.</string>
+    <string name="enq_note_not_ready">Le bureau n’a pas encore activé cette fonction. Ceci est enregistré sur ce téléphone et sera envoyé dès que ce sera fait.</string>
+    <string name="enq_note_limit">Beaucoup sont parties depuis une heure. Le reste partira un peu plus tard.</string>
+    <string name="enq_note_failed">La dernière tentative n’a pas abouti. Ceci est toujours sur ce téléphone et va réessayer.</string>
+    <string name="enq_editing">Correction d’une demande qui n’est pas encore partie</string>
+    <string name="enq_field_name">Son nom</string>
+    <string name="enq_field_phone">Téléphone</string>
+    <string name="enq_field_email">E-mail (s’il en a donné un)</string>
+    <string name="enq_field_address">Adresse de la clôture</string>
+    <string name="enq_field_fence">Quel type de clôture ?</string>
+    <string name="enq_fence_hint">Touchez-en une, ou laissez vide s’il n’est pas sûr.</string>
+    <string name="enq_field_feet">Environ combien de pieds ?</string>
+    <string name="enq_field_feet_hint">Une estimation suffit. Laissez vide si vous n’êtes pas sûr.</string>
+    <string name="enq_field_notes">Autre chose que le bureau doit savoir</string>
+    <string name="enq_notes_hint">Portails, chiens, vieille clôture à enlever, meilleure heure pour appeler</string>
+    <string name="enq_photos_title">Photos</string>
+    <string name="enq_photo_add">Ajouter une photo</string>
+    <string name="enq_photo_count">%1$d photos sur %2$d</string>
+    <string name="enq_photo_desc">Photo %1$d</string>
+    <string name="enq_photos_saved">Déjà enregistrées avec cette demande</string>
+    <string name="enq_photo_limit">C’est le maximum de photos pour une demande.</string>
+    <string name="enq_save">Enregistrer et envoyer</string>
+    <string name="enq_save_changes">Enregistrer les modifications</string>
+    <string name="enq_cancel_edit">Annuler les modifications</string>
+    <string name="enq_err_check">Vérifiez les informations en rouge.</string>
+    <string name="enq_err_name">Ajoutez son nom.</string>
+    <string name="enq_err_contact">Ajoutez un téléphone ou un e-mail pour que le bureau puisse le joindre.</string>
+    <string name="enq_err_email">Cet e-mail ne semble pas correct.</string>
+    <string name="enq_err_address">Ajoutez l’adresse de la clôture.</string>
+    <string name="enq_err_feet">Utilisez un nombre entier de pieds, ou laissez vide.</string>
+    <string name="enq_saved_local">Enregistré sur ce téléphone. Cela part au bureau dès que possible.</string>
+    <string name="enq_changes_saved">Modifications enregistrées.</string>
+    <string name="enq_edit_busy">L’envoi est en cours. Réessayez dans un instant.</string>
+    <string name="enq_edit_locked">Le bureau a déjà celle-ci, elle ne peut donc plus être modifiée ici. Appelez-les avec la correction.</string>
+    <string name="enq_not_allowed">Vous n’êtes pas autorisé à noter des demandes. Demandez au bureau.</string>
+    <string name="enq_list_title">Vos demandes</string>
+    <string name="enq_list_empty">Rien de noté pour l’instant.</string>
+    <string name="enq_captured_at">Notée %1$s</string>
+    <string name="enq_status_waiting">En attente d’envoi</string>
+    <string name="enq_status_sent">Envoyée au bureau</string>
+    <string name="enq_status_sent_photos">Envoyée. %1$d photo(s) encore en cours d’envoi</string>
+    <string name="enq_status_rejected">Le bureau n’a pas pu la prendre</string>
+    <string name="enq_reject_not_allowed">Vous n’avez pas le droit d’envoyer des demandes. Demandez au bureau, puis renvoyez-la.</string>
+    <string name="enq_reject_invalid">Une information n’a pas été acceptée. Corrigez-la, puis renvoyez.</string>
+    <string name="enq_edit">Corriger</string>
+    <string name="enq_send_again">Renvoyer</string>
+    <string name="enq_sent_hint">Le bureau l’a. Pour tout changement, appelez-les.</string>
+    <string name="enq_discard_title">Quitter sans enregistrer ?</string>
+    <string name="enq_discard_body">Ce que vous avez saisi sera perdu.</string>
+    <string name="enq_discard_yes">Quitter</string>
+    <string name="enq_discard_keep">Continuer</string>
 </resources>

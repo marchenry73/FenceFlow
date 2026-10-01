@@ -54,6 +54,10 @@ import com.fenceestimator.app.R
 import com.fenceestimator.app.cloud.SupabaseModule
 import com.fenceestimator.app.cloud.SyncPhase
 import com.fenceestimator.app.cloud.UnsyncedReason
+import com.fenceestimator.app.cloud.LoginHealth
+import com.fenceestimator.app.cloud.LoginNotice
+import com.fenceestimator.app.ui.jobs.LoginNoticeBanner
+import com.fenceestimator.app.ui.jobs.rememberLoginNotice
 import com.fenceestimator.app.ui.components.UiMessage
 import com.fenceestimator.app.ui.components.currentApp
 import com.fenceestimator.app.ui.components.label
@@ -98,6 +102,9 @@ fun AccountScreen(
     )
     val state by viewModel.state.collectAsState()
     val session by app.session.state.collectAsState()
+    // The same verdict the jobs list draws, from the same place, so the two
+    // screens cannot disagree about whether this phone is signed out.
+    val notice = rememberLoginNotice()
     val snackbarHostState = remember { SnackbarHostState() }
 
     // Resolved here because the snackbar coroutine is not a composition --
@@ -130,6 +137,15 @@ fun AccountScreen(
         app.session.refresh()
         // A freshly-joined company means there is cloud data to reconcile now.
         if (state.profile?.companyId != null) app.autoSync.requestSync()
+    }
+
+    // This screen read who is signed in once, when it opened. A sign-in that
+    // goes while it is open, or comes back, has to move it too -- otherwise it
+    // sits showing "Signed in" over a phone that is not.
+    LaunchedEffect(session.login) {
+        if ((session.login == LoginHealth.SIGNED_OUT && state.isSignedIn) ||
+            (session.login == LoginHealth.WORKING && !state.isSignedIn)
+        ) viewModel.refresh()
     }
 
     // Straight on to the home screen after a sign-in made here, rather than
@@ -202,6 +218,19 @@ fun AccountScreen(
                     }
                 }
                 return@LazyColumn
+            }
+
+            // First, above the sign-in form and the sync card alike, in the same
+            // words the jobs list uses. The sign-in form is right below, so the
+            // signed-out version needs no button of its own.
+            if (notice == LoginNotice.SIGNED_OUT || notice == LoginNotice.COULD_NOT_TELL) {
+                item {
+                    LoginNoticeBanner(
+                        notice = notice,
+                        onSignIn = null,
+                        onTryAgain = { app.session.refresh(); app.autoSync.requestSync() }
+                    )
+                }
             }
 
             if (!state.isSignedIn) {

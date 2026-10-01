@@ -1,0 +1,247 @@
+package com.fenceestimator.app.estimate
+
+import com.fenceestimator.app.R
+import com.fenceestimator.app.data.EstimateLineItem
+import com.fenceestimator.app.data.FenceRun
+import com.fenceestimator.app.data.FenceType
+import com.fenceestimator.app.data.Job
+import com.fenceestimator.app.data.MaterialRole
+import com.fenceestimator.app.data.SeedData
+import com.fenceestimator.app.geometry.FenceCodec
+import com.fenceestimator.app.geometry.FencePoint
+import com.fenceestimator.app.geometry.GateMarker
+import com.fenceestimator.app.geometry.GateMounting
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
+import org.junit.Test
+
+/**
+ * A drawn fence with nothing priced for materials must not look like a quote.
+ *
+ * Every test here goes through the code the way the app does: the takeoff
+ * ([EstimateEngine.suggestQuantities]) is turned into lines against a real
+ * catalog ([EstimateEngine.buildLineItems]), summed ([EstimateEngine.computeTotals]),
+ * and the warnings are asked for last ([EstimateEngine.estimateWarnings]) with
+ * the SAME totals -- not a hand-built Totals(materials = 0). The catalog is
+ * either empty or the real starting list ([SeedData.materialItems]).
+ *
+ * Numbers are the ones tests/a25-new-company-onboarding.test.mjs measured on
+ * the server engine at the phone's default rates (7% tax, $8/ft, $200
+ * minimum): 100 ft of vinyl is $800 with an empty catalog and $2,114.63 with the
+ * starting list (it was $2,120 while totals were rounded up to the next ten;
+ * engine 2026.10.1 made them exact). Getting the same two figures here is the
+ * parity check.
+ *
+ * Lives in tests/ because the track that wrote it owned no file under
+ * app/src/test. To have Gradle run it, move it to
+ * app/src/test/java/com/fenceestimator/app/estimate/. To run it without
+ * Gradle: A26_KOTLIN=1 node --test tests/a26-catalog-no-materials.test.mjs
+ */
+class NoMaterialsWarningTest {
+
+    private val phoneDefaults = Job(
+        customerName = "Test",
+        taxRatePercent = 7.0, markupPercent = 0.0, laborRatePerFt = 8.0,
+        minimumJobCharge = 200.0, gateRatePerFt = 20.0,
+    )
+
+    private fun typedRun(feet: Float = 100f, teardown: Boolean = false, type: FenceType = FenceType.VINYL) = FenceRun(
+        id = 1L, jobId = 1L, fenceType = type, manualLinearFeet = feet, isTeardown = teardown,
+        panelWidthFt = 6f, postSpacingFt = 6f, concreteBagsPerPost = 1f,
+    )
+
+    /** 2000 units at the grid's 20 px/ft is 100 ft. */
+    private fun drawnRun(teardown: Boolean = false) = FenceRun(
+        id = 2L, jobId = 1L, fenceType = FenceType.VINYL, isTeardown = teardown,
+        pointsEncoded = FenceCodec.encodePoints(listOf(FencePoint(0f, 0f), FencePoint(2000f, 0f))),
+        panelWidthFt = 6f, postSpacingFt = 6f, concreteBagsPerPost = 1f,
+    )
+
+    private fun gateOnlyRun() = FenceRun(
+        id = 3L, jobId = 1L, fenceType = FenceType.VINYL,
+        gatesEncoded = FenceCodec.encodeGates(listOf(GateMarker(0f, 0f, 4f, GateMounting.LINE))),
+    )
+
+    /** A run nobody has touched: no points, no gates, no typed length. */
+    private fun untouchedRun() = FenceRun(id = 4L, jobId = 1L, fenceType = FenceType.VINYL)
+
+    private class Estimate(
+        val job: Job,
+        val runs: List<FenceRun>,
+        val lines: List<EstimateLineItem>,
+        val totals: EstimateEngine.Totals,
+    ) {
+        val warnings get() = EstimateEngine.estimateWarnings(job, runs, lines, totals)
+        val warns get() = warnings.any { it.textRes == R.string.warn_no_materials }
+        val predicate get() = EstimateEngine.hasFenceWithNoMaterials(job, runs, totals)
+    }
+
+    /** What the Estimate screen shows once "Suggest Quantities" has been pressed on every run. */
+    private fun estimate(
+        job: Job,
+        runs: List<FenceRun>,
+        catalog: List<com.fenceestimator.app.data.MaterialItem>,
+        extra: List<EstimateLineItem> = emptyList(),
+    ): Estimate {
+        // The refresher clears a run it cannot measure, and never builds a teardown run: same two refusals here.
+        val lines = runs.filterNot { it.isTeardown || TakeoffRefresher.blockedByUncalibratedPhoto(job, it) }.flatMap { run ->
+            val pxPerFt = job.calibrationPixelsPerFoot ?: DrawingScale.PIXELS_PER_FOOT_GRID
+            val suggestions = EstimateEngine.suggestQuantities(run, pxPerFt, job.wastePercent)
+            EstimateEngine.buildLineItems(1L, run.id, run, suggestions, catalog, null).items
+        } + extra
+        val totals = EstimateEngine.computeTotals(
+            job, lines, EstimateEngine.linearFeet(job, runs), emptyList(), runs
+        )
+        return Estimate(job, runs, lines, totals)
+    }
+
+    private val startingList get() = SeedData.materialItems()
+
+    private fun handLine(price: Double) = EstimateLineItem(
+        jobId = 1L, description = "Fence materials, lump sum", quantity = 1.0,
+        unitPrice = price, isAutoGenerated = false,
+    )
+
+    // ------------------------------------------------------------------
+    // The defect, as it happened, and the control that shows it is the catalog.
+    // ------------------------------------------------------------------
+
+    @Test
+    fun `an empty catalog quotes labor only, with a plausible total, and now says so`() {
+        val e = estimate(phoneDefaults, listOf(typedRun()), catalog = emptyList())
+        assertEquals("no lines: nothing matched", 0, e.lines.size)
+        assertEquals(0.0, e.totals.materialsSubtotal, 0.0)
+        assertEquals("labor alone prices 100 ft at 8 a foot", 800.0, e.totals.grandTotal, 0.0)
+        assertTrue("the total is a believable number, which is the danger", e.totals.grandTotal > 0.0)
+        assertTrue("and the estimate warns", e.warns)
+        assertTrue("through the predicate the warning is built on", e.predicate)
+    }
+
+    @Test
+    fun `CONTROL -- the same job on the starting list is 2176_93, materials priced, and does not warn`() {
+        val e = estimate(phoneDefaults, listOf(typedRun()), catalog = startingList)
+        assertTrue("materials are priced", e.totals.materialsSubtotal > 1000.0)
+        // 1286.85 materials + 90.08 tax + 800 labour = 2176.9295, exact to the cent.
+        //
+        // MOVED 1 Oct 2026, 2114.63 -> 2176.93, and the MOVE IS THE BUG FIX, not a drift to
+        // be papered over. The old figure carried 27.78 of tax on 1286.85 of materials -- 2.16
+        // percent against a 7 percent rate -- because four PANEL and GATE rows in the starting
+        // catalog shipped with taxable = false. The live rows had been corrected on 25
+        // September; the SEED that generates every new company's catalog had not, so the
+        // factory kept producing the bug for another six days. Fixed in SeedData.kt and
+        // guarded by tests/a31-seed-panels-are-taxable.test.mjs.
+        //
+        // So the whole of the materials is now taxed, which is what Florida actually charges:
+        //   1286.85 * 1.07 = 1376.9295, + 800 labour = 2176.9295.
+        // If this ever drops back toward 2114, something has stopped taxing part of the
+        // materials again -- check the seed's taxable flags before touching this number.
+        assertEquals("server engine measured 2176.93 for this job (a25)", 2176.93, e.totals.grandTotal, 0.0)
+        assertFalse(e.warns)
+        assertFalse(e.predicate)
+        // The other warnings did NOT go quiet: with materials present the provisional-price warning is back.
+        assertTrue(e.warnings.any { it.textRes == R.string.warn_provisional_pricing })
+    }
+
+    @Test
+    fun `WITHOUT materials the old warnings are silent -- that silence is what this fixes`() {
+        val e = estimate(phoneDefaults, listOf(typedRun()), catalog = emptyList())
+        val res = e.warnings.map { it.textRes }
+        assertFalse(R.string.warn_provisional_pricing in res)
+        assertFalse(R.string.warn_deposit_short in res)
+        assertFalse(R.string.warn_low_kept in res)
+        assertEquals("only the new warning is on the card", listOf(R.string.warn_no_materials), res)
+    }
+
+    // ------------------------------------------------------------------
+    // What counts as "a fence has been drawn".
+    // ------------------------------------------------------------------
+
+    @Test
+    fun `a drawn run warns, typed footage warns, a lone gate warns`() {
+        assertTrue(estimate(phoneDefaults, listOf(drawnRun()), emptyList()).warns)
+        assertTrue(estimate(phoneDefaults, listOf(typedRun()), emptyList()).warns)
+        assertTrue("a gate is content -- the same test the photo warning uses", estimate(phoneDefaults, listOf(gateOnlyRun()), emptyList()).warns)
+    }
+
+    @Test
+    fun `a new job with nothing drawn is never nagged`() {
+        assertFalse(estimate(phoneDefaults, emptyList(), emptyList()).warns)
+        assertFalse(estimate(phoneDefaults, listOf(untouchedRun()), emptyList()).warns)
+        assertFalse(estimate(phoneDefaults, listOf(untouchedRun()), emptyList()).predicate)
+    }
+
+    @Test
+    fun `a single point is not a fence`() {
+        val onePoint = untouchedRun().copy(pointsEncoded = FenceCodec.encodePoints(listOf(FencePoint(0f, 0f))))
+        assertFalse(estimate(phoneDefaults, listOf(onePoint), emptyList()).warns)
+    }
+
+    @Test
+    fun `an old fence being taken down needs no materials and is not warned about`() {
+        val e = estimate(phoneDefaults.copy(teardownEnabled = true, teardownRatePerFt = 3.0), listOf(typedRun(teardown = true)), emptyList())
+        assertFalse(e.warns)
+        // ...but a new fence beside it is.
+        val both = estimate(phoneDefaults, listOf(typedRun(teardown = true), drawnRun()), emptyList())
+        assertTrue(both.warns)
+    }
+
+    @Test
+    fun `an uncalibrated survey photo is explained by calibration, not by the catalog`() {
+        val photo = phoneDefaults.copy(surveyStoragePath = "co/job/survey.jpg", calibrationPixelsPerFoot = null)
+        val zeroTotal = photo.copy(minimumJobCharge = 0.0)
+        val runs = listOf(drawnRun())
+        // Same predicate as the calibration lock: this run is blocked, so it is not counted here.
+        assertTrue(EstimateEngine.hasUnmeasurablePhotoWork(photo, runs))
+        assertFalse("copy-the-list is the wrong advice for a photo nobody calibrated", estimate(photo, runs, emptyList()).warns)
+        val z = estimate(zeroTotal, runs, emptyList())
+        assertFalse(z.warns)
+        assertTrue("the calibration warning is the one that speaks", z.warnings.any { it.textRes == R.string.survey_not_calibrated })
+        // A CALIBRATED photo is measurable, so an empty catalog is a real problem there.
+        assertTrue(estimate(photo.copy(calibrationPixelsPerFoot = 20f), runs, emptyList()).warns)
+        // Typed footage needs no scale, photo or not.
+        assertTrue(estimate(photo, listOf(typedRun()), emptyList()).warns)
+    }
+
+    // ------------------------------------------------------------------
+    // What silences it, and what must not.
+    // ------------------------------------------------------------------
+
+    @Test
+    fun `a hand-entered lump-sum line is materials, so it silences the warning`() {
+        val e = estimate(phoneDefaults, listOf(typedRun()), emptyList(), extra = listOf(handLine(1500.0)))
+        assertTrue(e.totals.materialsSubtotal > 0.0)
+        assertFalse(e.warns)
+    }
+
+    @Test
+    fun `lines priced at zero are still no materials`() {
+        val zeroCatalog = startingList.map { it.copy(unitPrice = 0.0) }
+        val e = estimate(phoneDefaults, listOf(typedRun()), zeroCatalog)
+        assertTrue("the catalog matched, so there are lines", e.lines.isNotEmpty())
+        assertEquals(0.0, e.totals.materialsSubtotal, 0.0)
+        assertTrue("but they cost nothing, which is the same broken quote", e.warns)
+    }
+
+    @Test
+    fun `a partly-priced job is not this warning -- that is a different, unfixed gap`() {
+        // One priced concrete line and nothing else: materials are not zero, so this stays quiet.
+        // (The partial catalog is recorded as a finding, not covered here.)
+        val onlyConcrete = startingList.filter { it.role == MaterialRole.CONCRETE_BAG }
+        val e = estimate(phoneDefaults, listOf(typedRun()), onlyConcrete)
+        assertTrue(e.totals.materialsSubtotal > 0.0)
+        assertFalse(e.warns)
+    }
+
+    @Test
+    fun `the predicate and the warning always agree`() {
+        val cases = listOf(
+            estimate(phoneDefaults, listOf(typedRun()), emptyList()),
+            estimate(phoneDefaults, listOf(typedRun()), startingList),
+            estimate(phoneDefaults, emptyList(), emptyList()),
+            estimate(phoneDefaults, listOf(drawnRun(teardown = true)), emptyList()),
+            estimate(phoneDefaults, listOf(gateOnlyRun()), emptyList()),
+        )
+        cases.forEach { assertEquals(it.predicate, it.warns) }
+    }
+}

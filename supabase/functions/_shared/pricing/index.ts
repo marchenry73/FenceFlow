@@ -51,8 +51,22 @@ export {
  * short, nothing migrates: an anchored (signed/sent) total never moves
  * regardless of this number, and JobSync's own version comparison already
  * treats a stale stored value as exactly that, not as a crash.
+ *
+ * Bumped 2026.09.3 -> 2026.10.1 (1 Oct 2026) for the total's rounding: grand
+ * total is now EXACT to the cent instead of rounded up to the next ten
+ * (totals.ts computeTotals / EstimateEngine.computeTotals, both through
+ * roundToCents). A formula change, so a version change -- on BOTH engines, and
+ * in the regenerated fixtures, where nearly every grand_total moves (82 of the
+ * 85 when this was written; by up to $10, always downward, since the old
+ * figure was rounded up -- and nothing else in any fixture moves).
+ * A phone still on 2026.09.3 rounds up to ten until it updates. On a job the
+ * OFFICE priced under 2026.10.1, JobSync's version comparison sees the office
+ * as newer and the phone backs off, filing a pricing_parity report instead of
+ * overwriting; a job that phone prices itself keeps getting the ten-rounded
+ * total until the phone updates. See the matching comment on
+ * EstimateEngine.PRICING_ENGINE_VERSION.
  */
-export const PRICING_ENGINE_VERSION = "2026.09.3";
+export const PRICING_ENGINE_VERSION = "2026.10.1";
 
 // ---------------------------------------------------------------------------
 // Contract shapes (docs/PRICING_CONTRACT.md). Column names, never invented.

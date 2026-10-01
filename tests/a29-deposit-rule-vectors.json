@@ -1,0 +1,59 @@
+{
+  "_about": "Shared by BOTH languages. tests/a29-deposit-and-rounding.test.mjs runs every row against supabase/functions/_shared/quote-deposit.ts; app/src/test/java/com/fenceestimator/app/estimate/JobMoneyDepositRuleTest.kt runs the same rows against EstimateEngine.roundToCents and JobMoney.ruleDeposit / depositSuggestion. Change a row and both must agree, or one goes red. Every expected value was worked out by hand from the owner's rules of 1 Oct 2026, not copied from either implementation.",
+  "_rules": [
+    "A total is exact to the cent: Math.round(x * 100) / 100, halves toward +infinity (roundToCents).",
+    "The deposit is the materials still to be bought (net of money already in), rounded UP to the next $100, plus another $100, and never more than is still owed on the job.",
+    "A figure that is already a whole hundred stays there before the $100 is added: $1,000 of materials is a $1,100 deposit."
+  ],
+  "roundToCents": [
+    { "name": "float dust above a clean total", "in": 2200.0000000000005, "out": 2200 },
+    { "name": "float dust below a clean total", "in": 2119.9999999999995, "out": 2120 },
+    { "name": "1000 + 1269.32 summed in doubles", "in": 2269.3199999999997, "out": 2269.32 },
+    { "name": "a sum that landed a hair high", "in": 2538.6400000000003, "out": 2538.64 },
+    { "name": "the 100 ft vinyl job (smoke case 1)", "in": 2114.633, "out": 2114.63 },
+    { "name": "markup then discount (smoke case 2)", "in": 2726.66625, "out": 2726.67 },
+    { "name": "already on cents is untouched", "in": 450, "out": 450 },
+    { "name": "zero", "in": 0, "out": 0 },
+    { "name": "an exact half cent rounds up", "in": 0.125, "out": 0.13 },
+    { "name": "a double just under a half cent stays down (1.005 is really 1.00499999999999989)", "in": 1.005, "out": 1 },
+    { "name": "a negative credit keeps its sign", "in": -150.004, "out": -150 },
+    { "name": "a large figure", "in": 123456.785, "out": 123456.79 }
+  ],
+  "ruleDeposit": [
+    { "outstanding": 0, "out": 0 },
+    { "outstanding": -550, "out": 0 },
+    { "outstanding": 0.004, "out": 0 },
+    { "outstanding": 0.01, "out": 200 },
+    { "outstanding": 0.5, "out": 200 },
+    { "outstanding": 99.99, "out": 200 },
+    { "outstanding": 100, "out": 200 },
+    { "outstanding": 100.01, "out": 300 },
+    { "outstanding": 199.99, "out": 300 },
+    { "outstanding": 200, "out": 300 },
+    { "outstanding": 999.9999999999999, "out": 1100 },
+    { "outstanding": 1000, "out": 1100 },
+    { "outstanding": 1000.0000000000001, "out": 1100 },
+    { "outstanding": 1000.01, "out": 1200 },
+    { "outstanding": 1449.1, "out": 1600 },
+    { "outstanding": 1630, "out": 1800 },
+    { "outstanding": 3963.44, "out": 4100 },
+    { "outstanding": 9999.99, "out": 10100 },
+    { "outstanding": 10000, "out": 10100 }
+  ],
+  "suggestedDeposit": [
+    { "name": "a fresh job: materials 1630 on a 6200 job", "materialCost": 1630, "amountPaid": 0, "refundedAmount": 0, "billableTotal": 6200, "amount": 1800, "capped": false },
+    { "name": "Woody: 3963.44 of materials on a 3620 accepted job is capped at the price", "materialCost": 3963.44, "amountPaid": 0, "refundedAmount": 0, "billableTotal": 3620, "amount": 3620, "capped": true },
+    { "name": "part paid: 1000 in on 2449.10 of materials leaves 1449.10 to cover", "materialCost": 2449.1, "amountPaid": 1000, "refundedAmount": 0, "billableTotal": 9710, "amount": 1600, "capped": false },
+    { "name": "payments already cover the materials: nothing to suggest", "materialCost": 2450, "amountPaid": 3000, "refundedAmount": 0, "billableTotal": 9710, "amount": 0, "capped": false },
+    { "name": "no materials: nothing to suggest", "materialCost": 0, "amountPaid": 0, "refundedAmount": 0, "billableTotal": 9710, "amount": 0, "capped": false },
+    { "name": "not priced yet: nothing to suggest", "materialCost": 1000, "amountPaid": 0, "refundedAmount": 0, "billableTotal": 0, "amount": 0, "capped": false },
+    { "name": "a small job: 120 of materials on a 150 job rules to 300, the customer is asked for the 150", "materialCost": 120, "amountPaid": 0, "refundedAmount": 0, "billableTotal": 150, "amount": 150, "capped": true },
+    { "name": "the cap is the balance to the cent", "materialCost": 2000, "amountPaid": 0, "refundedAmount": 0, "billableTotal": 1619.98, "amount": 1619.98, "capped": true },
+    { "name": "the cap after a part payment is float-clean (2119.99 - 500.01)", "materialCost": 5000, "amountPaid": 500.01, "refundedAmount": 0, "billableTotal": 2119.99, "amount": 1619.98, "capped": true },
+    { "name": "nothing left owed: no suggestion even though materials are not covered", "materialCost": 5000, "amountPaid": 1500, "refundedAmount": 0, "billableTotal": 1500, "amount": 0, "capped": false },
+    { "name": "a refund puts money back: 1000 paid, 400 refunded, 600 net leaves 400 of materials", "materialCost": 1000, "amountPaid": 1000, "refundedAmount": 400, "billableTotal": 5000, "amount": 500, "capped": false },
+    { "name": "rule equals what is owed: not capped", "materialCost": 1000, "amountPaid": 0, "refundedAmount": 0, "billableTotal": 1100, "amount": 1100, "capped": false },
+    { "name": "owed is a cent under the rule: capped to the cent", "materialCost": 1000, "amountPaid": 0, "refundedAmount": 0, "billableTotal": 1099.99, "amount": 1099.99, "capped": true },
+    { "name": "materials a hair over a whole hundred through float dust do not jump a hundred", "materialCost": 1000.0000000000001, "amountPaid": 0, "refundedAmount": 0, "billableTotal": 8000, "amount": 1100, "capped": false }
+  ]
+}

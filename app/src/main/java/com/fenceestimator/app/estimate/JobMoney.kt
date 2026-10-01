@@ -202,25 +202,138 @@ object JobMoney {
         else -> liveGrandTotal
     }
 
+    // ---- the deposit rule ----
+    //
+    // One rule, defined once per language: this object for the phone and
+    // _shared/quote-deposit.ts (ruleDeposit / suggestedDeposit) for the server.
+    // tests/a29-deposit-rule-vectors.json is run by BOTH
+    // (JobMoneyDepositRuleTest.kt here, tests/a29-deposit-and-rounding.test.mjs
+    // there), so one cannot change without the other going red.
+
+    /** The deposit is rounded UP to the next multiple of this many dollars... */
+    private const val DEPOSIT_ROUND_UP_TO = 100L
+
+    /** ...and then this many dollars are added. */
+    private const val DEPOSIT_PLUS = 100L
+
     /**
-     * The "Set deposit to cover materials" suggestion: what is still needed to
-     * buy the materials, net of money already in, rounded up to the next $10 --
-     * and never more than is still owed on [billableTotal].
+     * THE DEPOSIT RULE, in one sentence: the deposit is the materials still to
+     * be bought, rounded up to the next $100, plus another $100 -- and never
+     * more than is still owed on the job ([depositSuggestion] applies that cap).
      *
-     * Only ever offered, never written by itself. It used to be written
+     * The extra $100 pays for scheduling and transport. It is the contractor's
+     * business and is deliberately NOT disclosed to the customer: it is folded
+     * into the one deposit figure and never itemised, noted or explained on the
+     * quote page, in the contract or in the PDF, each of which prints a single
+     * deposit number. The contractor's own screens may say what the figure is
+     * made of; a customer-facing surface must not.
+     *
+     * Returns whole dollars, or 0 when no materials are outstanding.
+     *
+     *  - Rounded UP means a figure that is already a whole hundred stays where
+     *    it is before the $100 is added: $1,000 of materials is a $1,100
+     *    deposit.
+     *  - The amount is taken to cents FIRST, and the rounding is done in whole
+     *    cents. $1,000 of materials that arrives as 1000.0000000000001 is
+     *    $1,000, not a cent over -- float dust must not push a deposit into
+     *    the next hundred.
+     */
+    fun ruleDeposit(outstandingMaterials: Double): Double {
+        if (!outstandingMaterials.isFinite()) return 0.0
+        val cents = Math.round(outstandingMaterials * 100.0)
+        if (cents <= 0L) return 0.0
+        val stepCents = DEPOSIT_ROUND_UP_TO * 100L
+        val hundreds = (cents + stepCents - 1L) / stepCents
+        return (hundreds * DEPOSIT_ROUND_UP_TO + DEPOSIT_PLUS).toDouble()
+    }
+
+    /**
+     * A deposit to offer, and whether the cap on it bit.
+     *
+     * @property amount dollars; 0 when there is nothing to suggest.
+     * @property capped true when [amount] is all that is still owed on the job
+     *   and the rule's own figure was higher.
+     */
+    data class DepositSuggestion(val amount: Double, val capped: Boolean) {
+        companion object { val NONE = DepositSuggestion(0.0, false) }
+    }
+
+    /**
+     * The "Set deposit" suggestion: [ruleDeposit] of the materials still to be
+     * bought (net of money already in), never more than is still owed on
+     * [billableTotal].
+     *
+     * THE CAP, and what the customer sees where it bites. A deposit above the
+     * job is a bill for money the customer never agreed to (a $3,963 deposit
+     * was once stored against a $3,620 job), so the suggestion stops at what is
+     * still owed. On a small job that is the whole job: materials of $120 on a
+     * $150 job rule to $300, so the suggestion is the $150 -- the customer is
+     * asked for the whole price up front, as one ordinary deposit figure with
+     * nothing added on top of it. There is simply no room for the extra $100.
+     * The capped amount is taken to cents, because the total is now exact to
+     * the cent and the cap is the balance.
+     *
+     * Only ever offered, never written by itself -- see [depositToSeed] for the
+     * one narrow case where writing it is safe. It used to be written
      * automatically the first time the materials figure was non-zero, which on
      * a takeoff that was flip-flopping (see the line-item sync fixes) meant
      * whatever snapshot happened to be on screen became the customer's deposit,
-     * for good. The cap is new too: materials can outrun the agreed price (a
-     * $3,620 job carrying $3,963 of hidden lines), and a deposit above the
-     * price is a bill for money the customer never agreed to.
+     * for good.
+     *
+     * Same inputs and same answer as the server's suggestedDeposit in
+     * quote-deposit.ts: non-finite inputs read as nothing to suggest on both.
      */
-    fun suggestedMaterialsDeposit(job: Job, materialCost: Double, billableTotal: Double): Double {
-        if (materialCost <= 0.0 || billableTotal <= 0.0) return 0.0
-        val outstanding = materialCost - netPaid(job)
-        if (outstanding <= 0.0) return 0.0
-        val rounded = kotlin.math.ceil(outstanding / 10.0) * 10.0
-        return minOf(rounded, stillOwed(job, billableTotal))
+    fun depositSuggestion(job: Job, materialCost: Double, billableTotal: Double): DepositSuggestion {
+        if (!materialCost.isFinite() || !billableTotal.isFinite()) return DepositSuggestion.NONE
+        if (materialCost <= 0.0 || billableTotal <= 0.0) return DepositSuggestion.NONE
+        val rule = ruleDeposit(materialCost - netPaid(job))
+        if (rule <= 0.0) return DepositSuggestion.NONE
+        val owed = EstimateEngine.roundToCents(stillOwed(job, billableTotal))
+        if (owed <= 0.005) return DepositSuggestion.NONE
+        return if (rule <= owed + 0.005) DepositSuggestion(rule, false) else DepositSuggestion(owed, true)
+    }
+
+    /** [depositSuggestion]'s amount. Kept under its old name for the callers that only want the figure. */
+    fun suggestedMaterialsDeposit(job: Job, materialCost: Double, billableTotal: Double): Double =
+        depositSuggestion(job, materialCost, billableTotal).amount
+
+    /**
+     * Whether the customer is in it, so the deposit must stop following the
+     * price: they approved or signed a price that still stands, or money has
+     * actually moved. The same test, in the same terms, as the database's
+     * deposit_follows_price trigger (supabase_r8_deposit_follows_price.sql,
+     * customer_is_in_it) -- read off the job's own fields, never a figure a
+     * client supplied.
+     */
+    fun customerIsInIt(job: Job): Boolean =
+        (isAccepted(job) && job.reapprovalRequiredAt == null) || netPaid(job) > 0.005
+
+    /**
+     * The deposit to STORE on a job that has none, or null when nothing should
+     * be stored. This is the one case where writing the suggestion is safe,
+     * and it is as narrow as the old auto-fill was wide:
+     *
+     *  - a deposit already on the job is never touched (a person typed it or
+     *    tapped it; the old auto-fill overwrote one, and John Beaunissant's
+     *    moved from $9,910 to $5,730 ten seconds after he signed), and
+     *  - nothing is written once [customerIsInIt]: a deposit that changes after
+     *    the customer has agreed is a different deal from the one they signed.
+     *
+     * NOT CALLED ANYWHERE YET. Nothing seeds a deposit today: a new job's
+     * deposit stays 0 until a person types one or taps "Set deposit", which is
+     * why the estimate's "Deposit ($0.00) doesn't cover the estimated material
+     * cost" warning appears on a fresh job whose materials are substantial.
+     * This is the decision, pure and tested, for whoever wires the write (the
+     * job screen's view model, after a takeoff run); the figure it returns is
+     * what [depositSuggestion] already offers. Wiring it also needs a decision
+     * about the database trigger: deposit_follows_price scales a stored
+     * deposit in proportion to every re-price, which turns a whole-hundred
+     * deposit into one that is not.
+     */
+    fun depositToSeed(job: Job, materialCost: Double, billableTotal: Double): Double? {
+        if (job.depositAmount > 0.005) return null
+        if (customerIsInIt(job)) return null
+        return depositSuggestion(job, materialCost, billableTotal).amount.takeIf { it > 0.0 }
     }
 
     /**
@@ -233,14 +346,56 @@ object JobMoney {
      * Jobs signed before this was tracked carry zeroed terms, and are left
      * alone rather than flagged -- retroactively accusing every historical job
      * of being unsigned would train people to ignore the warning.
+     *
+     * The price half is [priceMovedSinceSigning], which knows about the
+     * rounding change of 1 Oct 2026 (below). Without it this check would have
+     * blocked the estimate and the invoice on most signed jobs the day totals
+     * went exact.
      */
     fun signatureIsStale(job: Job, contractTotal: Double, linearFeet: Float): Boolean {
         if (job.signedAt == null) return false
         if (job.signedContractTotal <= 0.0 && job.signedLinearFeet <= 0f) return false
-        val moneyMoved = kotlin.math.abs(contractTotal - job.signedContractTotal) > MONEY_TOLERANCE
+        val moneyMoved = priceMovedSinceSigning(job.signedContractTotal, contractTotal)
         val fenceMoved = kotlin.math.abs(linearFeet - job.signedLinearFeet) > FOOTAGE_TOLERANCE
         return moneyMoved || fenceMoved
     }
+
+    /**
+     * Whether the live price has moved off the figure the customer signed.
+     *
+     * More than [MONEY_TOLERANCE] apart, EXCEPT for one case the old rounding
+     * made possible. Until engine 2026.10.1 every total was rounded UP to the
+     * next ten, so a signed total always sat on a ten-dollar grid and the live
+     * total sat on it too: the two were either equal or at least $10 apart, and
+     * a one-dollar tolerance never had anything to decide. Totals are exact
+     * now, so a job signed at $3,620 whose nothing-has-changed live estimate is
+     * $3,614.50 is $5.50 "apart" -- and on a signed job that is a hard block:
+     * [EstimateScreen]'s needsResign refuses to send the estimate or the
+     * invoice until the customer signs again. About nine signed jobs in ten
+     * would have hit it, for a price that never moved.
+     *
+     * So a signed figure that is on the ten-dollar grid is compared the way the
+     * engine that produced it would have: the live total rounded up to the next
+     * ten ([ceil]) must be that same figure. It is exactly the answer the old
+     * engine gave for every such signature, so nothing that was caught before
+     * stops being caught -- any change that moved the old, rounded total still
+     * flags it. What it does not catch is a drop of under $10 that stays in the
+     * same ten-dollar step, which the old engine could not see either. A
+     * signed figure that is NOT on the grid (every signature taken on an
+     * exact-engine phone, bar the one in ten that lands on a round figure by
+     * chance) is compared exactly as before.
+     */
+    fun priceMovedSinceSigning(signedTotal: Double, liveTotal: Double): Boolean {
+        if (kotlin.math.abs(liveTotal - signedTotal) <= MONEY_TOLERANCE) return false
+        if (isOnTenDollarGrid(signedTotal) &&
+            kotlin.math.abs(kotlin.math.ceil(liveTotal / 10.0) * 10.0 - signedTotal) <= MONEY_TOLERANCE
+        ) return false
+        return true
+    }
+
+    /** Whether [amount] is a whole multiple of ten dollars -- the grid every total sat on before 2026.10.1. */
+    private fun isOnTenDollarGrid(amount: Double): Boolean =
+        amount > 0.0 && kotlin.math.abs(amount - Math.rint(amount / 10.0) * 10.0) < 0.005
 
     /**
      * Why a new signature is needed, as string resources plus their positional
@@ -257,7 +412,7 @@ object JobMoney {
         linearFeet: Float
     ): List<Pair<Int, List<Any>>> {
         val parts = mutableListOf<Pair<Int, List<Any>>>()
-        if (kotlin.math.abs(contractTotal - job.signedContractTotal) > MONEY_TOLERANCE) {
+        if (priceMovedSinceSigning(job.signedContractTotal, contractTotal)) {
             parts += R.string.eng2_reason_price_moved to listOf(
                 "%.2f".format(job.signedContractTotal),
                 "%.2f".format(contractTotal)

@@ -5,8 +5,9 @@
  * Money is Double on the phone and stays a plain double here; only the
  * footage that Kotlin holds in a Float goes through f32. The term order in
  * computeTotals is the phone's, including the parts a fresh pair of eyes
- * would call wrong -- markup on top of tax, discount after markup, the
- * always-up $10 rounding. They are what every quote in the field says.
+ * would call wrong -- markup on top of tax, discount after markup. They are
+ * what every quote in the field says. (The always-up $10 rounding that used to
+ * be on this list is gone: the total is exact to the cent, see roundToCents.)
  */
 import { coerceAtLeast, doubleSum, f32 } from "./f32.ts";
 import { decodeGates } from "./geometry.ts";
@@ -88,6 +89,31 @@ function footageOf(job: Job, run: FenceRun): number {
   if (manual !== null && manual > 0) return manual;
   const pixelsPerFoot = job.calibrationPixelsPerFoot ?? GRID_PIXELS_PER_FOOT;
   return resolveGeometry(run, pixelsPerFoot).totalLinearFeet;
+}
+
+/**
+ * Money, to the cent: the ONE place the engine rounds a total.
+ *
+ * The total is a chain of float multiplications (tax, markup, then discount),
+ * so a job worth exactly $2,200 can come out as 2200.0000000000005 -- float
+ * dust, not a price, which must never be stored or shown. Two decimal places
+ * because a cent is the smallest thing money has.
+ *
+ * Math.round(x * 100) / 100 and nothing cleverer, because it is exactly what
+ * Kotlin writes (EstimateEngine.roundToCents: java.lang.Math.round(x * 100.0) /
+ * 100.0): the same IEEE multiply and divide, and both round halves toward
+ * +infinity, so the two engines return the same double for the same input. A
+ * non-finite value passes through untouched: Java's Math.round turns NaN into
+ * 0, and a NaN total must stay visibly broken rather than become a $0.00 quote.
+ *
+ * Defined here, not imported from _shared/quote-deposit.ts, which carries an
+ * identical copy for the quote page: this directory is deliberately
+ * self-contained (a test copies it to a scratch folder to revert one rule at a
+ * time), so it may not reach outside itself. tests/a29-deposit-and-rounding
+ * runs the same vectors through both copies.
+ */
+export function roundToCents(value: number): number {
+  return Number.isFinite(value) ? Math.round(value * 100) / 100 : value;
 }
 
 export interface Totals {
@@ -192,10 +218,24 @@ export function computeTotals(
   const discountAmount = afterMarkup * (job.discountPercent / 100.0);
   const afterDiscount = afterMarkup - discountAmount;
 
-  // Up to the next ten, never down. A quote of $15,991.06 kept coming in
-  // "less than needed" once material prices moved a cent -- rounding up
-  // means the number on the contract always covers the buy.
-  const grandTotal = Math.ceil(Math.max(afterDiscount, job.minimumJobCharge) / 10.0) * 10.0;
+  // EXACT, to the cent -- not rounded up. This was ceil(.. / 10) * 10 until
+  // PRICING_ENGINE_VERSION 2026.10.1 (the owner's decision, 1 Oct 2026, taken
+  // knowing the cost: a quote of $15,991.06 kept coming in "less than needed"
+  // once material prices moved a cent, and rounding up was the cushion for it).
+  //
+  // This is the ONE place a total is rounded, and it rounds to two places,
+  // not zero: the sum above is a chain of float multiplications, so a job that
+  // is exactly $2,200 can arrive as 2200.0000000000005, and without the cents
+  // rounding that dust would be stored, signed, billed and shown. The old
+  // ceil to ten used to hide it; this replaces the hiding with a real fix.
+  // Only the final figure is rounded -- tax, markup and the other parts stay
+  // unrounded so the sum is not rounded twice.
+  //
+  // The minimum job charge is applied BEFORE the rounding, as it always was,
+  // so a job that falls to the minimum reads exactly the minimum: max picks the
+  // charge itself and rounding a number already on cents leaves it alone.
+  // Kotlin does the same in EstimateEngine.computeTotals (roundToCents).
+  const grandTotal = roundToCents(Math.max(afterDiscount, job.minimumJobCharge));
 
   return {
     materialsSubtotal,

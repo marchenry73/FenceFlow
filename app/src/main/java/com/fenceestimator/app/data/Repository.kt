@@ -70,6 +70,22 @@ sealed class BreakResult {
     data class Ended(val entry: TimeEntry) : BreakResult()
 }
 
+/**
+ * What happened when a crew member tried to correct a capture they had taken.
+ * Spelled out so the screen can say which of the three it was instead of
+ * guessing from a zero.
+ */
+enum class EnquiryEditResult {
+    /** The correction landed. */
+    SAVED,
+    /** No such capture on this phone. */
+    NOT_FOUND,
+    /** The office already has it. A correction made here would only be a lie about what they hold. */
+    LOCKED_SENT,
+    /** It is being sent this moment; trying again in a few seconds will work. */
+    BUSY_SENDING
+}
+
 class Repository(private val db: AppDatabase) {
 
     /**
@@ -181,6 +197,8 @@ class Repository(private val db: AppDatabase) {
     private val paymentRecordDao = db.paymentRecordDao()
     private val buildTemplateDao = db.buildTemplateDao()
     private val jobPayShareDao = db.jobPayShareDao()
+    private val enquiryCaptureDao = db.enquiryCaptureDao()
+    private val runJoinDao = db.runJoinDao()
 
     /** The job list. Leaves out jobs kept after their person was taken off them -- see [observeHeldJobs]. */
     fun observeJobs(): Flow<List<Job>> = jobDao.observeAll()
@@ -624,9 +642,14 @@ class Repository(private val db: AppDatabase) {
             }
         }
 
+        // A crew member's captured enquiry the office does not have yet is work
+        // only this phone holds, exactly as an unsent job edit is -- and a wipe
+        // or a sign-out onto another account would destroy it, with a neighbour
+        // waiting on a call. Counted as a job (it will be one) and its photos as
+        // files, so the sign-out dialog needs no new sentence to say so.
         return UnsyncedSummary(
-            jobs = unsyncedJobIds.size,
-            files = files,
+            jobs = unsyncedJobIds.size + enquiryCaptureDao.countUnsent(),
+            files = files + enquiryCaptureDao.countPhotosNotUploaded(),
             blockedTimeEntries = timeEntryDao.getSyncBlocked().size
         )
     }
@@ -680,6 +703,87 @@ class Repository(private val db: AppDatabase) {
     suspend fun updateFenceRunFromCloud(run: FenceRun) = fenceRunDao.update(run)
     suspend fun deleteFenceRun(run: FenceRun) = deleteSynced(run.syncId, "fence_runs") { fenceRunDao.delete(run) }
 
+    // ---- Joined run ends (see RunJoin: storage only, not yet read by the price or any screen) ----
+
+    /**
+     * The joins of one job as live rows: every row of every point that two or more
+     * ends are at. An end with no row here is free. Group by jointId to get the
+     * points.
+     */
+    fun observeRunJoins(jobId: Long): Flow<List<RunJoin>> = runJoinDao.observeLiveForJob(jobId)
+    suspend fun getRunJoins(jobId: Long): List<RunJoin> = runJoinDao.getLiveForJob(jobId)
+
+    /**
+     * Says that this end of run A and this end of run B are the same post, as one
+     * fact the owner has stated, never inferred from where the points are. Decided
+     * by [planJoin]; only [JoinResult.JOINED] writes. A third run joining a point two
+     * are already at takes that point's label, and so does a fourth.
+     *
+     * Both rows are written in one transaction with one stamp, so a phone killed
+     * halfway has joined both ends or neither. Throws IllegalStateException, with
+     * the whole join rolled back, only if the table refuses a write the plan had
+     * allowed, which would mean the rows changed under the transaction.
+     */
+    suspend fun joinRunEnds(runIdA: Long, endA: RunEnd, runIdB: Long, endB: RunEnd): JoinResult =
+        guardWrite("joinRunEnds") {
+            db.withTransaction {
+                val runA = fenceRunDao.getById(runIdA)
+                val runB = fenceRunDao.getById(runIdB)
+                val jointA = runJoinDao.liveJointOf(runIdA, endA.atEnd)
+                val jointB = runJoinDao.liveJointOf(runIdB, endB.atEnd)
+                val plan = planJoin(
+                    runA = runA,
+                    runB = runB,
+                    jointA = jointA,
+                    jointB = jointB,
+                    runBAlreadyAtA = jointA != null && runJoinDao.countRunAtJoint(jointA, runIdB) > 0,
+                    runAAlreadyAtB = jointB != null && runJoinDao.countRunAtJoint(jointB, runIdA) > 0,
+                    newJointId = java.util.UUID.randomUUID().toString()
+                )
+                val target = plan.jointId
+                if (plan.result == JoinResult.JOINED && target != null && runA != null && runB != null) {
+                    val now = System.currentTimeMillis()
+                    // An end already at the target keeps its row untouched, so its clock does not move for nothing.
+                    if (jointA != target) writeJoinEnd(runA, endA, target, now)
+                    if (jointB != target) writeJoinEnd(runB, endB, target, now)
+                }
+                plan.result
+            }
+        }
+
+    /**
+     * Takes this end off its point. The other ends stay where they are; if that
+     * leaves one end alone at the point it simply reads as free. Nothing is removed
+     * from the table. False if the end was not at a point, and nothing was written.
+     */
+    suspend fun unjoinRunEnd(runId: Long, end: RunEnd): Boolean = guardWrite("unjoinRunEnd") {
+        db.withTransaction {
+            val joined = runJoinDao.liveJointOf(runId, end.atEnd) != null
+            joined && runJoinDao.setJoint(runId, end.atEnd, null, System.currentTimeMillis()) == 1
+        }
+    }
+
+    /**
+     * Gives one end of a run its row if it has none, then puts it at [jointId]. The
+     * plan has already ruled out the one thing setJoint refuses (both ends of a run
+     * at one point), so a 0 here means something moved underneath the transaction,
+     * and the whole join is rolled back by the exception rather than half kept.
+     */
+    private suspend fun writeJoinEnd(run: FenceRun, end: RunEnd, jointId: String, at: Long) {
+        runJoinDao.insertEndIfAbsent(
+            RunJoin(
+                syncId = RunJoin.syncIdFor(run.syncId, end.atEnd),
+                runId = run.id,
+                atEnd = end.atEnd,
+                jointId = null,
+                updatedAt = at
+            )
+        )
+        check(runJoinDao.setJoint(run.id, end.atEnd, jointId, at) == 1) {
+            "run end could not be put at its point: the other end of that run is already there, or the run is gone"
+        }
+    }
+
     // ---- Per-foot pay split (head count only; see supabase_per_foot_pay.sql) ----
 
     fun observePerFootCrewCount(jobSyncId: String): Flow<Int?> =
@@ -687,6 +791,94 @@ class Repository(private val db: AppDatabase) {
     suspend fun savePerFootCrewCount(jobSyncId: String, count: Int) = guardWrite("savePerFootCrewCount") {
         jobPayShareDao.upsert(JobPayShare(jobSyncId = jobSyncId, perFootCrewCount = count))
     }
+
+    // ---- Enquiry capture (crew, capture-only; see EnquiryCapture) ----
+    //
+    // No delete anywhere in this block, and none may be added: a crew member
+    // captures and corrects, never destroys. The first three are user writes and
+    // pass the guest gate first; the rest are the sender's bookkeeping, which
+    // must run for a send that is already on its way (the same split as
+    // updateJobFromCloud against updateJob).
+
+    fun observeEnquiryCaptures(): Flow<List<EnquiryCapture>> = enquiryCaptureDao.observeAll()
+    fun observeEnquiryPhotos(): Flow<List<EnquiryCapturePhoto>> = enquiryCaptureDao.observeAllPhotos()
+    /** This company's captures the office has not taken and has not refused, for the badge on the crew home. */
+    fun observeEnquiriesWaiting(companyId: String): Flow<Int> = enquiryCaptureDao.observeWaitingCount(companyId)
+
+    /**
+     * Whether any captured enquiry, or any photo of one, is still only on this
+     * phone -- refused ones included, because they are not at the office either.
+     * For the sync card: a pass that moved nothing must not say "everything is
+     * backed up" while a neighbour is waiting on a call.
+     */
+    suspend fun hasEnquiriesWaiting(): Boolean =
+        enquiryCaptureDao.countUnsent() > 0 || enquiryCaptureDao.countPhotosNotUploaded() > 0
+
+    /**
+     * Saves a new capture and its photos together, or neither. Always written
+     * unsent: whatever send state the caller's copy carried is dropped, so a
+     * capture can never be saved already marked as delivered.
+     */
+    suspend fun saveEnquiryCapture(capture: EnquiryCapture, photoPaths: List<String>): Long =
+        guardWrite("saveEnquiryCapture") {
+            db.withTransaction {
+                val id = enquiryCaptureDao.insert(
+                    capture.copy(id = 0, sentAt = null, sendingSince = null, rejectedAt = null, rejectedWhy = "")
+                )
+                photoPaths.distinct().take(EnquiryCapture.MAX_PHOTOS).forEach { path ->
+                    enquiryCaptureDao.insertPhoto(EnquiryCapturePhoto(captureId = id, filePath = path))
+                }
+                id
+            }
+        }
+
+    /**
+     * A correction to a capture the office does not have yet. New photos are
+     * added; none is ever taken off. Refused (and says which way) once the
+     * office has it or while it is being sent.
+     */
+    suspend fun editEnquiryCapture(
+        id: Long,
+        name: String, phone: String, email: String, address: String,
+        fenceType: String, approxFeet: Int?, notes: String,
+        newPhotoPaths: List<String>
+    ): EnquiryEditResult = guardWrite("editEnquiryCapture") {
+        db.withTransaction {
+            val now = System.currentTimeMillis()
+            val changed = enquiryCaptureDao.editUnsent(
+                id, name, phone, email, address, fenceType, approxFeet, notes,
+                now - EnquiryCapture.CLAIM_LIFETIME_MS
+            )
+            if (changed == 0) {
+                val row = enquiryCaptureDao.get(id)
+                return@withTransaction when {
+                    row == null -> EnquiryEditResult.NOT_FOUND
+                    row.sentAt != null -> EnquiryEditResult.LOCKED_SENT
+                    else -> EnquiryEditResult.BUSY_SENDING
+                }
+            }
+            val room = (EnquiryCapture.MAX_PHOTOS - enquiryCaptureDao.photosFor(id).size).coerceAtLeast(0)
+            newPhotoPaths.distinct().take(room).forEach { path ->
+                enquiryCaptureDao.insertPhoto(EnquiryCapturePhoto(captureId = id, filePath = path))
+            }
+            EnquiryEditResult.SAVED
+        }
+    }
+
+    /** "Send again" on a capture the server refused: back in the queue, content untouched. */
+    suspend fun retryEnquiryCapture(id: Long): Boolean =
+        guardWrite("retryEnquiryCapture") { enquiryCaptureDao.clearRejection(id) > 0 }
+
+    suspend fun getEnquiryCapture(id: Long): EnquiryCapture? = enquiryCaptureDao.get(id)
+    suspend fun enquiriesToSend(): List<EnquiryCapture> = enquiryCaptureDao.getUnsent()
+    suspend fun enquiriesOwingPhotos(): List<EnquiryCapture> = enquiryCaptureDao.getSentOwingPhotos()
+    suspend fun enquiryPhotos(captureId: Long): List<EnquiryCapturePhoto> = enquiryCaptureDao.photosFor(captureId)
+    suspend fun claimEnquiry(id: Long, now: Long): Boolean =
+        enquiryCaptureDao.claim(id, now, now - EnquiryCapture.CLAIM_LIFETIME_MS) > 0
+    suspend fun releaseEnquiry(id: Long) { enquiryCaptureDao.release(id) }
+    suspend fun markEnquirySent(id: Long, at: Long): Boolean = enquiryCaptureDao.markSent(id, at) > 0
+    suspend fun markEnquiryRejected(id: Long, at: Long, why: String) { enquiryCaptureDao.markRejected(id, at, why) }
+    suspend fun setEnquiryPhotoStoragePath(photoId: Long, path: String) { enquiryCaptureDao.setPhotoStoragePath(photoId, path) }
 
     // ---- Build templates (pull-only; see EntitySync.pullBuildTemplates) ----
 

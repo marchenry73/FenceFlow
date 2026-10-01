@@ -18,9 +18,10 @@ import kotlinx.coroutines.withContext
         Manufacturer::class, PricingTier::class, JobPhoto::class, InventoryChecklistItem::class,
         Employee::class, Expense::class, PunchListItem::class, JobStep::class, ChangeOrder::class,
         SiteMarker::class, TimeEntry::class, PendingDeletion::class, FieldChange::class,
-        PaymentRecord::class, BuildTemplate::class, JobPayShare::class, PendingResurrection::class
+        PaymentRecord::class, BuildTemplate::class, JobPayShare::class, PendingResurrection::class,
+        EnquiryCapture::class, EnquiryCapturePhoto::class, RunJoin::class
     ],
-    version = 46,
+    version = 48,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -47,6 +48,8 @@ abstract class AppDatabase : RoomDatabase() {
     abstract fun buildTemplateDao(): BuildTemplateDao
     abstract fun jobPayShareDao(): JobPayShareDao
     abstract fun pendingResurrectionDao(): PendingResurrectionDao
+    abstract fun enquiryCaptureDao(): EnquiryCaptureDao
+    abstract fun runJoinDao(): RunJoinDao
 
     /** Flushes the write-ahead log into the main .db file so a raw file copy is complete and consistent. */
     suspend fun checkpoint() = withContext(Dispatchers.IO) {
@@ -754,13 +757,27 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** See [SchemaV47] for what each statement is for. */
+        private val MIGRATION_46_47 = object : Migration(46, 47) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                SchemaV47.MIGRATION_46_47_STATEMENTS.forEach { db.execSQL(it) }
+            }
+        }
+
+        /** See [SchemaV48] for what each statement is for. */
+        private val MIGRATION_47_48 = object : Migration(47, 48) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                SchemaV48.MIGRATION_47_48_STATEMENTS.forEach { db.execSQL(it) }
+            }
+        }
+
         fun getInstance(context: Context, scope: CoroutineScope): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     DB_NAME
-                ).addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35, MIGRATION_35_36, MIGRATION_36_37, MIGRATION_37_38, MIGRATION_38_39, MIGRATION_39_40, MIGRATION_40_41, MIGRATION_41_42, MIGRATION_42_43, MIGRATION_43_44, MIGRATION_44_45, MIGRATION_45_46)
+                ).addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35, MIGRATION_35_36, MIGRATION_36_37, MIGRATION_37_38, MIGRATION_38_39, MIGRATION_39_40, MIGRATION_40_41, MIGRATION_41_42, MIGRATION_42_43, MIGRATION_43_44, MIGRATION_44_45, MIGRATION_45_46, MIGRATION_46_47, MIGRATION_47_48)
                 // Destructive ONLY from the pre-release versions that predate the
                 // migration chain (it starts at 4). Blanket
                 // fallbackToDestructiveMigration() was a standing offer to wipe a
@@ -892,5 +909,90 @@ internal object SchemaV46 {
         "ALTER TABLE `time_entries` ADD COLUMN `correctionSeenAt` INTEGER",
         "ALTER TABLE `time_entries` ADD COLUMN `correctionDisputedAt` INTEGER",
         "ALTER TABLE `time_entries` ADD COLUMN `disputeNote` TEXT NOT NULL DEFAULT ''"
+    )
+}
+
+/**
+ * The 46 -> 47 upgrade: the two tables behind crew enquiry capture
+ * ([EnquiryCapture], [EnquiryCapturePhoto]). Purely additive -- two new tables
+ * and their indexes, no existing row read or changed -- so a phone on 46 loses
+ * nothing and a phone coming from older runs it after the earlier steps.
+ *
+ * A new version rather than more statements in [SchemaV46]: that list was the
+ * unshipped one when this was written, but a release APK had already been built
+ * at schema 46 (2026-09-29), and a phone that ran that 46 and then met a
+ * changed 46 would refuse to open its own database.
+ *
+ * Written to match what Room itself generates for these entities (the same
+ * shape as job_photos, whose foreign key and CASCADE this copies). Room
+ * refuses to open a database whose tables differ from its entities, so
+ * tests/a28-capture.test.mjs builds these statements in SQLite and holds them
+ * to the entities field by field.
+ */
+internal object SchemaV47 {
+    val MIGRATION_46_47_STATEMENTS: List<String> = listOf(
+        "CREATE TABLE IF NOT EXISTS `enquiry_captures` (" +
+            "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+            "`syncId` TEXT NOT NULL, " +
+            "`companyId` TEXT NOT NULL, " +
+            "`customerName` TEXT NOT NULL, " +
+            "`phone` TEXT NOT NULL, " +
+            "`email` TEXT NOT NULL, " +
+            "`address` TEXT NOT NULL, " +
+            "`fenceType` TEXT NOT NULL, " +
+            "`approxFeet` INTEGER, " +
+            "`notes` TEXT NOT NULL, " +
+            "`capturedAt` INTEGER NOT NULL, " +
+            "`sentAt` INTEGER, " +
+            "`sendingSince` INTEGER, " +
+            "`rejectedAt` INTEGER, " +
+            "`rejectedWhy` TEXT NOT NULL)",
+        "CREATE UNIQUE INDEX IF NOT EXISTS `index_enquiry_captures_syncId` ON `enquiry_captures` (`syncId`)",
+        "CREATE TABLE IF NOT EXISTS `enquiry_capture_photos` (" +
+            "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+            "`captureId` INTEGER NOT NULL, " +
+            "`syncId` TEXT NOT NULL, " +
+            "`filePath` TEXT NOT NULL, " +
+            "`storagePath` TEXT, " +
+            "FOREIGN KEY(`captureId`) REFERENCES `enquiry_captures`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "CREATE INDEX IF NOT EXISTS `index_enquiry_capture_photos_captureId` ON `enquiry_capture_photos` (`captureId`)",
+        "CREATE UNIQUE INDEX IF NOT EXISTS `index_enquiry_capture_photos_syncId` ON `enquiry_capture_photos` (`syncId`)"
+    )
+}
+
+/**
+ * The 47 -> 48 upgrade: the one table behind joined run ends ([RunJoin]). Purely
+ * additive -- one new table and its three unique indexes, no existing row read or
+ * changed, and fence_runs itself is not touched -- so a phone on 47 loses nothing
+ * and a phone coming from older runs it after the earlier steps. A job with no
+ * joins has no rows here, which is every job on every phone the day this lands.
+ *
+ * A new version rather than more statements in [SchemaV47]: a build at schema 47
+ * already exists (the link APK of 2026-10-01 carries enquiry_captures), and a phone
+ * that ran that 47 and then met a changed 47 would refuse to open its own database.
+ * This list is now the unshipped one; once a build at 48 exists, a change to the
+ * schema belongs in a version 49, not here.
+ *
+ * Written to match what Room itself generates for the entity, and held to it by
+ * tests/a33-join-model-storage.test.mjs, which builds these statements in SQLite
+ * and compares them with the entity field by field and index by index. The three
+ * unique indexes are the rules the table enforces (see the header of RunJoin.kt)
+ * and they are declared on the entity, not only here, so a fresh install gets
+ * them as well as an upgraded phone. There is deliberately no CHECK constraint:
+ * Room cannot declare one, so it would exist only after an upgrade.
+ */
+internal object SchemaV48 {
+    val MIGRATION_47_48_STATEMENTS: List<String> = listOf(
+        "CREATE TABLE IF NOT EXISTS `run_joins` (" +
+            "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+            "`syncId` TEXT NOT NULL, " +
+            "`runId` INTEGER NOT NULL, " +
+            "`atEnd` INTEGER NOT NULL, " +
+            "`jointId` TEXT, " +
+            "`updatedAt` INTEGER NOT NULL, " +
+            "FOREIGN KEY(`runId`) REFERENCES `fence_runs`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )",
+        "CREATE UNIQUE INDEX IF NOT EXISTS `index_run_joins_runId_atEnd` ON `run_joins` (`runId`, `atEnd`)",
+        "CREATE UNIQUE INDEX IF NOT EXISTS `index_run_joins_jointId_runId` ON `run_joins` (`jointId`, `runId`)",
+        "CREATE UNIQUE INDEX IF NOT EXISTS `index_run_joins_syncId` ON `run_joins` (`syncId`)"
     )
 }

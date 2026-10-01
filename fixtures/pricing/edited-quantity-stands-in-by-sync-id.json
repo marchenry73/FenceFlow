@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "engine": {
-    "version": "2026.09.3",
-    "generated_at": "2026-09-29T08:54:40.747585100Z"
+    "version": "2026.10.1",
+    "generated_at": "2026-10-01T17:57:30.573603700Z"
   },
   "case": "edited-quantity-stands-in-by-sync-id",
   "note": "The owner typed 18 panels where the drawing says 17. The edited line carries the built line's own sync id, so it IS that line: kept at 18 and nothing written beside it. The untouched LINE_POST is rebuilt as it was, and the quote on the generated END_POST carries.",
   "input": {
-    "engine_version": "2026.09.3",
+    "engine_version": "2026.10.1",
     "pixels_per_foot": 20.0,
     "job": {
       "calibration_pixels_per_foot": 20.0,
@@ -69,7 +69,7 @@
         "unit": "EA",
         "unit_price": 52.35,
         "supplier_unit_price": null,
-        "taxable": false,
+        "taxable": true,
         "covers_ft": 6.0,
         "is_active": true,
         "manufacturer_sync_id": null
@@ -174,7 +174,7 @@
         "unit": "EA",
         "unit_price": 145.05,
         "supplier_unit_price": null,
-        "taxable": false,
+        "taxable": true,
         "covers_ft": 5.0,
         "is_active": true,
         "manufacturer_sync_id": null
@@ -279,7 +279,7 @@
         "unit": "EA",
         "unit_price": 54.5,
         "supplier_unit_price": null,
-        "taxable": false,
+        "taxable": true,
         "covers_ft": 6.0,
         "is_active": true,
         "manufacturer_sync_id": null
@@ -294,7 +294,7 @@
         "unit": "EA",
         "unit_price": 54.5,
         "supplier_unit_price": null,
-        "taxable": false,
+        "taxable": true,
         "covers_ft": 6.0,
         "is_active": true,
         "manufacturer_sync_id": null
@@ -420,7 +420,7 @@
     ]
   },
   "expected": {
-    "engine_version": "2026.09.3",
+    "engine_version": "2026.10.1",
     "linear_feet": 100.0,
     "teardown_linear_feet": 0.0,
     "billable_linear_feet": 100.0,
@@ -627,7 +627,7 @@
       "markup_amount": 0.0,
       "discount_amount": 0.0,
       "pre_markup_total": 2164.7146000000002,
-      "grand_total": 2170.0,
+      "grand_total": 2164.71,
       "billable_linear_feet": 100.0
     }
   }

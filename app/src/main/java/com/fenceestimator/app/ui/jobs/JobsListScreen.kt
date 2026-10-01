@@ -78,6 +78,15 @@ import com.fenceestimator.app.ui.theme.Space
 import com.fenceestimator.app.ui.components.currentApp
 import com.fenceestimator.app.ui.components.label
 import com.fenceestimator.app.cloud.UnsyncedReason
+import com.fenceestimator.app.cloud.JobsEmpty
+import com.fenceestimator.app.cloud.LOGIN_UNSURE_GRACE_MS
+import com.fenceestimator.app.cloud.LoginHealth
+import com.fenceestimator.app.cloud.LoginNotice
+import com.fenceestimator.app.cloud.jobsEmptyKind
+import com.fenceestimator.app.cloud.loginNotice
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.lifecycle.viewmodel.compose.viewModel
 import java.text.NumberFormat
 import java.util.Calendar
@@ -121,6 +130,11 @@ fun JobsListScreen(
     val online by app.connectivity.online.collectAsState()
     val profile by app.settingsStore.profile.collectAsState(initial = com.fenceestimator.app.data.BusinessProfile())
     val session by app.session.state.collectAsState()
+    // What the phone has to say about its own sign-in. Drawn above everything
+    // else and, when there is no list, in place of "No jobs yet" -- an empty
+    // list used to mean signed out, no signal and could not find out all at
+    // once, and showed nothing about any of them.
+    val notice = rememberLoginNotice()
     val ent = com.fenceestimator.app.ui.components.LocalEntitlements.current
     val pendingHours by viewModel.pendingHours.collectAsState()
     val allPayments by viewModel.allPayments.collectAsState()
@@ -404,10 +418,19 @@ fun JobsListScreen(
             }
         }
 
+        Column(Modifier.fillMaxSize().padding(padding)) {
+        // Outside the scrolling list, so it cannot be scrolled past, and drawn
+        // from state so it cannot be dismissed: see LoginNoticeBanner.
+        LoginNoticeBanner(
+            notice = notice,
+            onSignIn = onOpenAccount,
+            onTryAgain = { app.session.refresh(); app.autoSync.requestSync() },
+            modifier = Modifier.padding(start = Space.screen, end = Space.screen, top = 8.dp)
+        )
         PullToRefreshBox(
             isRefreshing = refreshing,
             onRefresh = onRefresh,
-            modifier = Modifier.fillMaxSize().padding(padding)
+            modifier = Modifier.fillMaxWidth().weight(1f)
         ) {
         // The plain empty state only when the scope has nothing to add. A
         // scoped crew member with no jobs gets the list below instead, which
@@ -415,19 +438,11 @@ fun JobsListScreen(
         // sync card in view so an empty list is never read as a failed sync,
         // and still offers "request access" and anything kept on the phone.
         val nothingToSay = scoped.notice == ScopedNotice.NONE && !scoped.offerRequestAccess && !scoped.showKept
+        // "No jobs yet" only when nothing about the sign-in says otherwise.
+        val emptyKind = jobsEmptyKind(jobs.isEmpty() && nothingToSay, notice)
         if (jobs.isEmpty() && nothingToSay) {
             Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(stringResource(R.string.jobs_no_jobs), style = MaterialTheme.typography.titleMedium)
-                    Spacer(Modifier.height(8.dp))
-                    Text(
-                        // "Tap +" only where there is a + to tap.
-                        stringResource(
-                            if (session.canEditJobs) R.string.jobs_tap_to_start else R.string.jobs_empty_office_adds
-                        ),
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                EmptyJobsMessage(emptyKind, session.canEditJobs)
             }
         } else {
             LazyColumn(
@@ -445,12 +460,19 @@ fun JobsListScreen(
                     // hours showing stale money with nothing on screen to say
                     // so -- the one state where silence is actively misleading,
                     // because everything looks like it is working.
-                    if (sync.hasUnsyncedWork ||
+                    // The banner above already says a lost or unconfirmed sign-in, in
+                    // bigger type; the card's "Signed out" and "this phone only" would
+                    // be the same news twice.
+                    val bannerCovers =
+                        (notice == LoginNotice.SIGNED_OUT || notice == LoginNotice.COULD_NOT_TELL) &&
+                            (sync.phase == com.fenceestimator.app.cloud.SyncPhase.SIGNED_OUT ||
+                                sync.phase == com.fenceestimator.app.cloud.SyncPhase.OFFLINE_ONLY)
+                    if (!bannerCovers && (sync.hasUnsyncedWork ||
                         sync.phase == com.fenceestimator.app.cloud.SyncPhase.WAITING_FOR_SIGNAL ||
                         sync.phase == com.fenceestimator.app.cloud.SyncPhase.SIGNED_OUT ||
                         (sync.phase == com.fenceestimator.app.cloud.SyncPhase.OFFLINE_ONLY &&
                             sync.sessionResolved) ||
-                        sync.phase == com.fenceestimator.app.cloud.SyncPhase.FAILED
+                        sync.phase == com.fenceestimator.app.cloud.SyncPhase.FAILED)
                     ) {
                         // Tappable exactly when there is something to tap for.
                         val needsSigningIn =
@@ -951,6 +973,7 @@ fun JobsListScreen(
             }
         }
         }
+        }
     }
 
     pendingDelete?.let { job ->
@@ -1038,3 +1061,150 @@ private fun unsyncedReasonMessage(reason: UnsyncedReason?): String = when (reaso
 /** One wording for a job's status everywhere it is shown; see [JobStatus.label]. */
 @Composable
 internal fun statusLabel(status: JobStatus): String = status.label()
+
+/**
+ * What this phone is telling the person about its sign-in, ready to draw.
+ *
+ * Read by the jobs list and the Account screen alike, so the two can never
+ * disagree about whether the phone is signed out. Everything that decides it
+ * lives in the pure block of SessionManager.kt (see [loginNotice]); this only
+ * gathers what it needs and keeps one clock for the one rule that depends on
+ * time -- a question that got no answer is left alone for
+ * [LOGIN_UNSURE_GRACE_MS] before anybody is told, so a hiccup the retry clears
+ * in a few seconds does not flash a warning and vanish.
+ */
+@Composable
+internal fun rememberLoginNotice(): LoginNotice {
+    val app = currentApp()
+    val session by app.session.state.collectAsState()
+    val online by app.connectivity.online.collectAsState()
+    val sync by app.autoSync.state.collectAsState()
+    var clockMs by remember { mutableStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(session.login, session.loginSince) {
+        val due = session.loginSince + LOGIN_UNSURE_GRACE_MS - System.currentTimeMillis()
+        if (session.login == LoginHealth.COULD_NOT_TELL && due > 0) kotlinx.coroutines.delay(due + 50)
+        clockMs = System.currentTimeMillis()
+    }
+    return loginNotice(
+        health = session.login,
+        // Its own word that it has no signal, or a sync pass that failed on the
+        // network: either way the phone is offline, which is not a fault.
+        offline = !online || sync.phase == com.fenceestimator.app.cloud.SyncPhase.WAITING_FOR_SIGNAL,
+        hadAccount = session.hadAccount,
+        guestDemo = session.guestDemo,
+        unsureForMs = clockMs - session.loginSince
+    )
+}
+
+/** The headline for each thing the phone can say about its sign-in. */
+@Composable
+internal fun loginNoticeTitle(notice: LoginNotice): String = when (notice) {
+    LoginNotice.SIGNED_OUT -> stringResource(R.string.so_out_title)
+    LoginNotice.COULD_NOT_TELL -> stringResource(R.string.so_unsure_title)
+    LoginNotice.NO_SIGNAL -> stringResource(R.string.acct_sync_waiting_for_signal)
+    LoginNotice.NONE -> ""
+}
+
+/** What it means and what to do, for each of them. */
+@Composable
+internal fun loginNoticeBody(notice: LoginNotice): String = when (notice) {
+    LoginNotice.SIGNED_OUT -> stringResource(R.string.so_out_body)
+    LoginNotice.COULD_NOT_TELL -> stringResource(R.string.so_unsure_body)
+    LoginNotice.NO_SIGNAL -> stringResource(R.string.acct_sync_waiting_for_signal_detail)
+    LoginNotice.NONE -> ""
+}
+
+/**
+ * The sign-in warning, pinned above the job list where it cannot be scrolled
+ * past and cannot be dismissed. It goes away only when the cause does.
+ *
+ * Sticky on purpose. This exists because somebody was about to drive to a job
+ * believing the app was working, and a toast he scrolled past, or a card at
+ * the foot of a settings screen, is exactly how he did not find out. It is
+ * drawn from state rather than from an event, so reopening the app, rotating
+ * the phone or coming back from another screen shows it again until it is true
+ * no longer.
+ *
+ * Only two of the three notices are loud. [LoginNotice.NO_SIGNAL] draws nothing
+ * here: this app is built to work with no signal, the work is safe, and a
+ * banner that is up all day in a back yard is wallpaper -- where work is
+ * waiting to upload the sync card already says so quietly, and an empty list
+ * says it in its own words. [onSignIn] is for the signed-out banner and
+ * [onTryAgain] for the could-not-tell one; either is null where the screen
+ * already has its own way to do that.
+ */
+@Composable
+internal fun LoginNoticeBanner(
+    notice: LoginNotice,
+    onSignIn: (() -> Unit)?,
+    onTryAgain: (() -> Unit)?,
+    modifier: Modifier = Modifier
+) {
+    when (notice) {
+        LoginNotice.NONE, LoginNotice.NO_SIGNAL -> return
+        LoginNotice.SIGNED_OUT, LoginNotice.COULD_NOT_TELL -> Unit
+    }
+    val signedOut = notice == LoginNotice.SIGNED_OUT
+    val container =
+        if (signedOut) MaterialTheme.colorScheme.errorContainer else MaterialTheme.colorScheme.tertiaryContainer
+    val content =
+        if (signedOut) MaterialTheme.colorScheme.onErrorContainer else MaterialTheme.colorScheme.onTertiaryContainer
+    Card(
+        modifier = modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Assertive },
+        colors = CardDefaults.cardColors(containerColor = container, contentColor = content)
+    ) {
+        Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(
+                loginNoticeTitle(notice),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = content
+            )
+            Text(loginNoticeBody(notice), style = MaterialTheme.typography.bodyMedium, color = content)
+            if (signedOut && onSignIn != null) {
+                Button(onClick = onSignIn) { Text(stringResource(R.string.action_sign_in)) }
+            }
+            if (!signedOut && onTryAgain != null) {
+                OutlinedButton(onClick = onTryAgain) { Text(stringResource(R.string.action_retry)) }
+            }
+        }
+    }
+}
+
+/**
+ * The job list area when there is no list to show. An empty list is only ever
+ * "No jobs yet" when nothing about the sign-in says otherwise: signed out, or
+ * unable to find out, it means "not loaded" and says so (see [jobsEmptyKind]).
+ */
+@Composable
+private fun EmptyJobsMessage(kind: JobsEmpty, canEditJobs: Boolean) {
+    val (title, body) = when (kind) {
+        JobsEmpty.SIGNED_OUT ->
+            stringResource(R.string.so_empty_out_title) to stringResource(R.string.so_empty_out_body)
+        JobsEmpty.COULD_NOT_LOAD ->
+            stringResource(R.string.so_empty_unsure_title) to stringResource(R.string.so_empty_unsure_body)
+        JobsEmpty.NO_SIGNAL ->
+            stringResource(R.string.so_empty_nosignal_title) to stringResource(R.string.so_empty_nosignal_body)
+        // "Tap +" only where there is a + to tap.
+        JobsEmpty.ORDINARY, JobsEmpty.LIST ->
+            stringResource(R.string.jobs_no_jobs) to stringResource(
+                if (canEditJobs) R.string.jobs_tap_to_start else R.string.jobs_empty_office_adds
+            )
+    }
+    Column(
+        horizontalAlignment = Alignment.CenterHorizontally,
+        modifier = Modifier.padding(horizontal = 24.dp)
+    ) {
+        Text(
+            title,
+            style = MaterialTheme.typography.titleMedium,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+        )
+        Spacer(Modifier.height(8.dp))
+        Text(
+            body,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center
+        )
+    }
+}
