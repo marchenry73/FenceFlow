@@ -79,14 +79,48 @@ const read = (p) => readFileSync(join(REPO, p), "utf8");
  * rather than quietly skipping, because an unverified canary is not a passed
  * one.
  */
-function headSource(path) {
+/**
+ * The file as it was BEFORE this fix landed, found by the fix itself.
+ *
+ * This read `HEAD:<path>` until 2026-10-02, which worked for exactly as long as
+ * the fix was uncommitted. The moment it was committed HEAD *became* the fixed
+ * copy, every section-10 check went green-on-both, and the whole canary section
+ * reported failure -- permanently, after every future commit. A test that can
+ * only pass before you commit is worse than no test: it goes red for a reason
+ * that has nothing to do with the code, and gets switched off.
+ *
+ * So the anchor is the CHANGE, not the branch tip. `git log -S<marker>` finds
+ * the commit that first introduced the marker into this path; its parent is the
+ * last state without it. That answer does not move as more commits land on top.
+ *
+ * Returns null if git cannot answer -- a shallow clone, a path with no history,
+ * a marker that was never committed. Section 10 then says so out loud and counts
+ * a FAILURE rather than skipping, because an unverified canary is not a passed
+ * one.
+ */
+function preFixSource(path, marker) {
+  const git = (args) => execFileSync("git", args, {
+    cwd: REPO, encoding: "utf8", maxBuffer: 64 * 1024 * 1024,
+  });
   try {
-    return execFileSync("git", ["show", `HEAD:${path}`], {
-      cwd: REPO, encoding: "utf8", maxBuffer: 64 * 1024 * 1024,
-    });
+    const introduced = git(["log", "--format=%H", "-1", `-S${marker}`, "--", path]).trim();
+    if (!introduced) return null;
+    return git(["show", `${introduced}^:${path}`]);
   } catch {
     return null;
   }
+}
+/** Each file, with the marker this fix added to it. */
+const PRE_FIX_MARKER = {
+  "app/src/main/java/com/fenceestimator/app/ui/survey/SurveyViewModel.kt": "resolveRunSelection",
+  "app/src/main/java/com/fenceestimator/app/ui/survey/SurveyDrawScreen.kt": "resolveRunSelection",
+  "app/src/main/java/com/fenceestimator/app/ui/runs/RunEditScreen.kt": "DraftNumberField",
+  "app/src/main/java/com/fenceestimator/app/MainActivity.kt": "runId",
+  "app/src/main/java/com/fenceestimator/app/ui/nav/NavGraph.kt": "runId",
+};
+function headSource(path) {
+  const marker = PRE_FIX_MARKER[path];
+  return marker ? preFixSource(path, marker) : null;
 }
 
 let passed = 0;

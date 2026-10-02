@@ -39,7 +39,7 @@
  * the tool is offered while the storage is missing, AND it fails if the storage
  * lands and the flag is left false.
  */
-import { readFileSync, existsSync } from "node:fs";
+import { readFileSync, existsSync, readdirSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
 
@@ -353,10 +353,28 @@ console.log("\n4. THE RETIRED LOCAL TABLE IS NOT TOUCHED");
 console.log("\n5. EVERY WORD IS IN ALL THREE LOCALES");
 // =============================================================================
 /** name -> text, for one values directory. */
+/**
+ * Every string a locale declares, across ALL of its string files.
+ *
+ * Read only values/strings.xml until 2026-10-02, when the join-offer strings
+ * landed in their own file. Android merges every <resources> in a values folder,
+ * so strings.xml was never the whole table -- this app now also ships
+ * strings_join_offer.xml, strings_email.xml, strings_pullsheet.xml,
+ * strings_number_guards.xml and strings_side_types.xml, and more will come,
+ * because a separate file is how two people edit strings at once without losing
+ * each other's work.
+ *
+ * Reading one file made this report five strings missing that the app resolves
+ * perfectly well. The guarantee underneath is unchanged and still the point: a
+ * key present in one locale and absent in another is a crash in that language.
+ */
 function resourceStrings(dir) {
-  const text = read(`app/src/main/res/${dir}/strings.xml`);
+  const base = new URL(`../app/src/main/res/${dir}/`, import.meta.url);
   const out = {};
-  for (const m of text.matchAll(/<string name="([^"]+)"[^>]*>([\s\S]*?)<\/string>/g)) out[m[1]] = m[2];
+  for (const file of readdirSync(base).filter((f) => /^strings.*\.xml$/.test(f)).sort()) {
+    const text = readFileSync(new URL(file, base), 'utf8');
+    for (const m of text.matchAll(/<string name="([^"]+)"[^>]*>([\s\S]*?)<\/string>/g)) out[m[1]] = m[2];
+  }
   return out;
 }
 /** The format arguments one string takes, as a set, the way StringResourceSanityTest reads them. */

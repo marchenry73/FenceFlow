@@ -39,6 +39,7 @@ import com.fenceestimator.app.estimate.DrawingScale
 import com.fenceestimator.app.estimate.GridBackdropPlan
 import com.fenceestimator.app.estimate.PhotoFit
 import com.fenceestimator.app.estimate.TakeoffRefresher
+import com.fenceestimator.app.ui.runs.RunTypeChange
 import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -1919,7 +1920,17 @@ class SurveyViewModel(
             // Was left blank, which the drawing screen renders as
             // "Untitled (Vinyl)" -- several rows reading the same thing, in an
             // order that moved. See [nextQuickRunLabel].
-            label = nextQuickRunLabel(siblings.map { it.label }, isTeardown)
+            label = nextQuickRunLabel(siblings.map { it.label }, isTeardown),
+            // Inherit the job's own last type instead of the entity default of
+            // VINYL. A yard is almost always one material, so the second side
+            // should not have to be told what the first one was -- and on the
+            // job that IS mixed, being wrong on side two is one tap to fix
+            // rather than a wrong price nobody notices.
+            //
+            // Teardown sides are excluded inside defaultTypeFor: on "pull the
+            // wood out, put vinyl in", the old fence's type is the one answer
+            // guaranteed wrong.
+            fenceType = RunTypeChange.defaultTypeFor(siblings)
         )
         val created = if (defaults == null) base else base.copy(
             panelWidthFt = defaults.defaultPanelWidthFt,

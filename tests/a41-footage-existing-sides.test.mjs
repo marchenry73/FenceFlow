@@ -1006,7 +1006,31 @@ function tapProblems(screenSrc) {
   const to = src.indexOf("SurveyMode.CALIBRATE ->", snap);
   if (from === -1 || to === -1 || to < snap) return ["could not bound the DRAW branch of the tap handler"];
   const calls = [...src.slice(from, to).matchAll(/viewModel\.(\w+)\(/g)].map((m) => m[1]).sort();
-  return calls.join(",") === "addDrawPoint,snapForDraw" ? [] : [`the DRAW tap now calls: ${calls}`];
+  // WIDENED 2026-10-02, and only by one name.
+  //
+  // This demanded exactly "addDrawPoint,snapForDraw". Snap-to-connect added a
+  // third call: when the snap lands the new point on another side's free end,
+  // the tap also raises the "make it one post?" offer. That is a question on
+  // screen, not a write.
+  //
+  // The guarantee underneath is unchanged and is NOT about how many calls the
+  // branch makes -- it is that adding a side cannot move the job's SCALE, which
+  // is what docs/FOOTAGE_DRIFT.md is about. So the allowance is a named list,
+  // not a relaxation to "anything", and the new name is held to the same rule
+  // by the scale check below (6d/6f read every writer in the view model, and
+  // offerJoinAfterDraw is not one of them: it delegates to offerJoinFromSnap,
+  // which raises a StateFlow and writes nothing).
+  //
+  // Any FOURTH name still fails here, deliberately, so the next thing bolted
+  // onto the tap gets looked at.
+  const ALLOWED = ["addDrawPoint", "offerJoinAfterDraw", "snapForDraw"];
+  const unexpected = calls.filter((c) => !ALLOWED.includes(c));
+  if (unexpected.length) return [`the DRAW tap now calls: ${calls} (unexpected: ${unexpected})`];
+  // And the two that do the work must still both be there.
+  for (const required of ["snapForDraw", "addDrawPoint"]) {
+    if (!calls.includes(required)) return [`the DRAW tap no longer calls ${required}: ${calls}`];
+  }
+  return [];
 }
 
 /**
