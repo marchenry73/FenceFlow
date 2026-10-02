@@ -433,13 +433,28 @@ fun SnapResult.angleCue(): AngleCue? {
  * of the corners to join, because landing exactly on it makes a side with no
  * length and no heading, which the takeoff then counts as an extra post.
  */
+/**
+ * The reach [snapDrawPoint] uses when the caller does not name one: 26 units
+ * on the PLAN, not on the screen, which is what the parameter's name has
+ * always implied and never meant.
+ */
+const val DEFAULT_VERTEX_SNAP_PX = 26f
+
+/**
+ * The furthest a vertex snap may ever reach in real distance, however far out
+ * the drawing is zoomed. A screen-relative reach is what makes the snap
+ * hittable; this is what stops it reaching across the yard for a corner he was
+ * nowhere near, where the snap would be moving his line rather than helping it.
+ */
+const val VERTEX_SNAP_MAX_FT = 3.0f
+
 fun snapDrawPoint(
     candidate: FencePoint,
     previous: FencePoint?,
     beforePrevious: FencePoint?,
     otherVertices: List<FencePoint>,
     pxPerFt: Float,
-    vertexSnapPx: Float = 26f,
+    vertexSnapPx: Float = DEFAULT_VERTEX_SNAP_PX,
     angleToleranceDeg: Float = 7f,
     lengthSnapFt: Float = 0.35f,
     avoid: List<FencePoint> = emptyList(),
@@ -911,9 +926,17 @@ object RunJoinArithmetic {
         return best
     }
 
-    /** Taller first, then lower sort order, then lower id. */
+    /**
+     * Who owns the post where runs meet: the SHORTER side owns the shared post where the heights differ.
+     * A post has to be tall enough for the tallest panel on it, so "shorter
+     * wins" is only ever reached at a height CHANGE -- and there the fence
+     * steps DOWN onto the short post rather than leaving a tall one standing
+     * proud of the low side. Equal heights never reach it, and fall through to
+     * sort order and then id, which is what keeps the answer independent of
+     * list order.
+     */
     private fun outranks(a: JoinableRun, b: JoinableRun): Boolean {
-        if (a.heightFt != b.heightFt) return a.heightFt > b.heightFt
+        if (a.heightFt != b.heightFt) return a.heightFt < b.heightFt
         if (a.sortOrder != b.sortOrder) return a.sortOrder < b.sortOrder
         return a.id < b.id
     }

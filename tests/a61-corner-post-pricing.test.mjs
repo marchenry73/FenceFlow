@@ -474,15 +474,25 @@ section("5. A T, AND A CHAIN");
 section("6. WHO IS BILLED THE SHARED POST");
 // =============================================================================
 {
-  // The taller run keeps the post, because that is the post that has to be
-  // built. It matters in money: the post is billed in the owner run's own
-  // catalog, at its own height.
+  // The SHORTER run keeps the post where the heights differ. March's field
+  // rule, 2 Oct 2026: where a 6 ft side meets a 4 ft side the fence steps DOWN
+  // onto a 4 ft post, rather than a 6 ft post standing two feet proud of the
+  // low side. This reverses the original rule here, which read "the taller run
+  // keeps the post, because that is the post that has to be built" -- true of
+  // a post carrying two runs of EQUAL height, and not how he builds a step.
+  //
+  // It matters in money, and the direction is not free: the post is billed in
+  // the OWNER run's own catalog at its own height, so this corner now wants a
+  // 4 ft corner post row. Equal heights never reach this branch and still fall
+  // through to sort order, then id.
   const tall = run(U(1), LEG_A, { sort_order: 1, panel_height_ft: 6 });
   const short = run(U(2), LEG_B_UP, { sort_order: 0, panel_height_ft: 4, panel_width_ft: 6 });
   const out = price([{ ...tall, end_joint: U(30) }, { ...short, start_joint: U(30) }]);
   const cornerOn = out.runs.filter((r) => r.posts.corner > 0).map((r) => r.run_sync_id);
-  eq("6a", "the TALLER run is billed the shared post even though the shorter one sorts first",
-    cornerOn, [U(1)]);
+  eq("6a", "the SHORTER run is billed the shared post -- the 6 ft side steps down onto the 4 ft post",
+    cornerOn, [U(2)]);
+  eq("6a-ii", "and it is billed to exactly ONE of them, never both",
+    out.runs.filter((r) => r.posts.corner > 0).length, 1);
 
   // Equal heights: the lower sort order, then the lower id. Never list order.
   const e1 = run(U(1), LEG_A, { sort_order: 5 });

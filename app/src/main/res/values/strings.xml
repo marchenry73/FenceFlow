@@ -292,7 +292,7 @@
     <string name="seg_len_title">Set this length</string>
     <string name="snap_toggle">Snap</string>
     <string name="snap_help">Corners, square angles and whole feet</string>
-    <string name="snap_joined">Joined to a corner</string>
+    <string name="snap_joined">On the corner — not joined yet</string>
     <string name="snap_angle">%1$d° locked</string>
     <string name="snap_length">Rounded to %1$s</string>
     <string name="snap_both">%1$s · %2$s</string>

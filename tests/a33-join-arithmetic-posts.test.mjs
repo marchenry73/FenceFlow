@@ -145,9 +145,9 @@ e-gate-line-to-wall|ADJ|A|1|0|-1
 e-gate-line-to-wall|ADJ|B|0|0|-1
 e-gate-line-to-wall|POST|J1|LINE|A|A,B
 e-gate-line-to-wall|SAVED|1
-e-gate-run-gives-up|ADJ|A|1|0|-1
-e-gate-run-gives-up|ADJ|B|0|0|-1
-e-gate-run-gives-up|POST|J1|LINE|A|A,B
+e-gate-run-gives-up|ADJ|A|0|0|-1
+e-gate-run-gives-up|ADJ|B|1|0|-1
+e-gate-run-gives-up|POST|J1|LINE|B|A,B
 e-gate-run-gives-up|SAVED|1
 f-no-joints|SAVED|0
 f-dangling-ids|IGN|J1|FEWER_THAN_TWO_LIVE_RUNS
@@ -599,7 +599,7 @@ function turnDegrees(first, second) {
 }
 
 const outranks = (a, b) => {
-  if (a.heightFt !== b.heightFt) return a.heightFt > b.heightFt;
+  if (a.heightFt !== b.heightFt) return a.heightFt < b.heightFt;
   if (a.sortOrder !== b.sortOrder) return a.sortOrder < b.sortOrder;
   return a.id < b.id;
 };
@@ -1054,7 +1054,7 @@ console.log("\n4. OWNER, KIND AND IGNORED JOINTS -- the rules, one number each")
   const eq = pair({}, {});
   expectEq("4a", "equal heights: the LOWER sort order is billed the shared post (A keeps 6, B drops 4 -> 3)", [eq.byId.A.total, eq.byId.B.total], [6, 3]);
   const tall = pair({ height: 4 }, { height: 6 });
-  expectEq("4b", "the TALLER run is billed the post even when it sorts later (B is 6 ft high, A 4 ft high): B keeps 4 posts, A gives its end up and drops 6 -> 5", [tall.byId.A.total, tall.byId.B.total], [5, 4],
+  expectEq("4b", "the SHORTER run is billed the post even when it sorts later (B is 6 ft high, A 4 ft high): A keeps 6 posts, B gives its end up and drops 4 -> 3", [tall.byId.A.total, tall.byId.B.total], [6, 3],
     "RIGHT: the post stays with the taller run B (4 posts); A, 6 posts alone, gives its end up (5).");
   expectEq("4c", "...and the post's TYPE is unchanged by who owns it: same fence total either way", [eq.fence.total, tall.fence.total], [9, 9]);
   const idTie = compose(null, [R("Z", A_PTS, { sort: 0, end: "J1" }), R("M", B_STRAIGHT, { sort: 0, start: "J1" })]);
@@ -1185,21 +1185,22 @@ const perRunJson = (adj) => JSON.stringify(Object.keys(adj.perRun).sort().map((k
     const flipped = specs.map((s) => (rand() < 0.5 ? reverseSpec(s) : s));
     const rf = compose(n < 8 ? `rnd-chain-${n}-flipped` : null, flipped);
     if (perRunJson(rf.adj) === perRunJson(r.adj) && rf.fence.total === r.fence.total && rf.fence.corner === r.fence.corner) reverseOk++; else bad.reverse.push(`chain ${n}: drawing direction changed the answer`);
-    // a random height decides the owner: the tallest member of every joint
+    // a random height decides the owner: the SHORTEST member of every joint,
+    // because the fence steps down onto the short post (March, 2 Oct 2026)
     const hs = specs.map((s) => ({ ...s, height: [4, 5, 6][Math.floor(rand() * 3)] }));
     const rh = compose(null, hs);
     const ownersRight = rh.adj.posts.every((jp) => {
       const members = hs.filter((s) => jp.memberRunIds.includes(s.id));
-      const top = Math.max(...members.map((m) => m.height));
+      const low = Math.min(...members.map((m) => m.height));
       const owner = members.find((m) => m.id === jp.ownerRunId);
-      return owner.height === top && members.filter((m) => m.height === top).every((m) => m.sort >= owner.sort);
+      return owner.height === low && members.filter((m) => m.height === low).every((m) => m.sort >= owner.sort);
     });
-    if (ownersRight && rh.fence.total === r.fence.total) ownerOk++; else bad.owner.push(`chain ${n}: owner is not the tallest / lowest-sorted`);
+    if (ownersRight && rh.fence.total === r.fence.total) ownerOk++; else bad.owner.push(`chain ${n}: owner is not the shortest / lowest-sorted`);
   }
   expectEq("6a", "40 random rectilinear chains (2-6 legs, mixed turns incl. straight): joined == the real engine's ONE polyline, line/corner/end/total, and saves legs-1 posts", chainsOk, 40, bad.chain.slice(0, 3).join(" ; "));
   expectEq("6b", "...the list order of the runs never changes the answer", orderOk, 40, bad.order.slice(0, 3).join(" ; "));
   expectEq("6c", "...the drawing direction of each run (points reversed, ends swapped) never changes the answer", reverseOk, 40, bad.reverse.slice(0, 3).join(" ; "));
-  expectEq("6d", "...the shared post always goes to the tallest member, then the lowest sort order, and the fence total never depends on who owns it", ownerOk, 40, bad.owner.slice(0, 3).join(" ; "));
+  expectEq("6d", "...the shared post always goes to the SHORTEST member, then the lowest sort order, and the fence total never depends on who owns it", ownerOk, 40, bad.owner.slice(0, 3).join(" ; "));
 
   // WHERE THE POLYLINE COMPARISON STOPS HOLDING, pinned so nobody "fixes" the join to match it. A polyline rounds its bays up ONCE over
   // the whole length; joined runs round up PER RUN. Two 7 ft legs: 2 bays each (a 7 ft bay will not take a 6 ft panel), so 3 + 3 posts

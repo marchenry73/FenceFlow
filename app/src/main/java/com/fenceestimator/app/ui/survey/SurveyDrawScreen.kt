@@ -1248,7 +1248,20 @@ fun SurveyDrawScreen(
                                                 if (finalPoint != null) {
                                                     when {
                                                         idx != null -> {
-                                                            val snap = viewModel.snapForMove(idx, finalPoint, snapOn)
+                                                            val snap = viewModel.snapForMove(
+                                                        idx,
+                                                        finalPoint,
+                                                        snapOn,
+                                                        vertexReach = screenVertexReach(
+                                                            viewTransform(
+                                                                canvasContentSize.first,
+                                                                canvasContentSize.second,
+                                                                canvasSize,
+                                                                viewZoom,
+                                                                viewPan
+                                                            ).scale
+                                                        ),
+                                                    )
                                                             lastSnap = snap.takeIf { it.snapped }
                                                             viewModel.movePoint(idx, snap.point)
                                                             // Dragging an end onto another side's
@@ -1323,7 +1336,11 @@ fun SurveyDrawScreen(
                                         val imgPoint = transform.toImage(tapOffset)
                                         when (mode) {
                                             SurveyMode.DRAW -> {
-                                                val snap = viewModel.snapForDraw(imgPoint, snapOn)
+                                                val snap = viewModel.snapForDraw(
+                                                    imgPoint,
+                                                    snapOn,
+                                                    vertexReach = screenVertexReach(transform.scale),
+                                                )
                                                 lastSnap = snap.takeIf { it.snapped }
                                                 viewModel.addDrawPoint(snap.point)
                                                 // The snap has already put this point exactly on
@@ -3564,6 +3581,20 @@ private data class OtherRunDrawing(
 
 /** Screen-space tap tolerance for grabbing a vertex in Adjust mode, independent of zoom level. */
 private const val VERTEX_HIT_RADIUS_PX = 40f
+
+/**
+ * The snap reach, in screen pixels, turned into drawing units by the live
+ * view transform. Smaller than [VERTEX_HIT_RADIUS_PX] on purpose: 40 is the
+ * reach of a deliberate tap on a corner, and a snap that fired that far out
+ * while drawing would keep dragging points onto corners he was only passing.
+ *
+ * Returns null when there is no usable scale, which [SurveyViewModel] reads
+ * as "use the old fixed reach".
+ */
+private const val VERTEX_SNAP_SCREEN_PX = 18f
+
+private fun screenVertexReach(scale: Float): Float? =
+    if (scale > 0f) VERTEX_SNAP_SCREEN_PX / scale else null
 
 /**
  * How near a segment's midpoint a tap has to land to mean "edit this

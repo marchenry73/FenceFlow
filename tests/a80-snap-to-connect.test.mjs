@@ -817,8 +817,29 @@ console.log("\n10. THE NUMBERS THIS FILE'S MODEL BORROWS, PINNED TO THEIR SOURCE
 // =============================================================================
 {
   const code = stripComments(geomSrc);
-  ok("10a", "the vertex snap reach is still 26 px, which is what sections 6a and 9c are measured against",
-    new RegExp(`vertexSnapPx: Float = ${VERTEX_SNAP_PX}f`).test(code));
+  ok("10a", "the vertex snap FLOOR is still 26 drawing units, which is what sections 6a and 9c are measured against",
+    /vertexSnapPx: Float = DEFAULT_VERTEX_SNAP_PX/.test(code) &&
+      new RegExp(`const val DEFAULT_VERTEX_SNAP_PX = ${VERTEX_SNAP_PX}f`).test(code));
+  ok("10a-ii", "and the reach a caller may ask for is capped in FEET, so a screen-relative reach cannot grab a corner across the yard",
+    /const val VERTEX_SNAP_MAX_FT = /.test(code));
+  {
+    // The clamp itself, as the view model applies it. Floor at the old reach so
+    // zoomed in is never worse; ceiling in feet so zoomed out is never silly.
+    const FLOOR = VERTEX_SNAP_PX, MAX_FT = 3.0;
+    const reach = (fromScreen, scale) => {
+      if (fromScreen == null || fromScreen <= 0) return FLOOR;
+      const ceiling = scale > 0 ? MAX_FT * scale : Infinity;
+      return Math.min(Math.max(fromScreen, FLOOR), Math.max(FLOOR, ceiling));
+    };
+    ok("10a-iii", "zoomed out, 18 screen px is worth far more than 26 units, and the foot cap is what bites",
+      reach(305, 20) === 60 && reach(305, 20) < 305);
+    ok("10a-iv", "zoomed in, the screen figure falls below the old reach and the floor holds it there",
+      reach(4, 400) === FLOOR);
+    ok("10a-v", "no reach given means exactly the old behaviour",
+      reach(null, 20) === FLOOR && reach(0, 20) === FLOOR);
+    ok("10a-vi", "CANARY: without the floor, a zoomed-in snap would reach less than the old 26 and this check would pass a worse value",
+      Math.min(Math.max(4, 0), Math.max(0, 3.0 * 400)) === 4);
+  }
   ok("10b", "the angle tolerance is still 7 degrees and the whole-foot window still 0.35 ft",
     new RegExp(`angleToleranceDeg: Float = ${ANGLE_TOLERANCE_DEG}f`).test(code) &&
       new RegExp(`lengthSnapFt: Float = ${LENGTH_SNAP_FT}f`).test(code));

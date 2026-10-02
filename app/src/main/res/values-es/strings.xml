@@ -264,7 +264,7 @@
     <string name="seg_len_title">Fijar esta longitud</string>
     <string name="snap_toggle">Ajuste</string>
     <string name="snap_help">Esquinas, ángulos rectos y pies enteros</string>
-    <string name="snap_joined">Unido a una esquina</string>
+    <string name="snap_joined">En la esquina — todavía sin unir</string>
     <string name="snap_angle">%1$d° fijado</string>
     <string name="snap_length">Redondeado a %1$s</string>
     <string name="snap_both">%1$s · %2$s</string>

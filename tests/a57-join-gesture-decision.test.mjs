@@ -477,7 +477,7 @@ function turnDegrees(first, second) {
   return (Math.abs(turn) * 180) / Math.PI;
 }
 function outranks(a, b) {
-  if (a.heightFt !== b.heightFt) return a.heightFt > b.heightFt;
+  if (a.heightFt !== b.heightFt) return a.heightFt < b.heightFt;
   if (a.sortOrder !== b.sortOrder) return a.sortOrder < b.sortOrder;
   return a.id < b.id;
 }
@@ -725,8 +725,8 @@ const C = R("c", [P(600, 0), P(1000, 0)], { sortOrder: 2 });
 
   // 6g. Who is billed.
   const taller = G.effectOfAttaching([A, { ...B, heightFt: 8 }], decision, PX);
-  eq("6g", "the shared post is billed on the TALLER side, because that is the post that has to be built",
-    taller && taller.ownerRunId, "b");
+  eq("6g", "the shared post is billed on the SHORTER side: the taller fence steps down onto the short post",
+    taller && taller.ownerRunId, "a");
   const equal = G.effectOfAttaching([{ ...A, sortOrder: 5 }, { ...B, sortOrder: 1 }], decision, PX);
   eq("6h", "equal heights go to the lower sort order, so the answer never depends on list order",
     equal && equal.ownerRunId, "b");

@@ -722,10 +722,45 @@ class SurveyViewModel(
         }
 
     /**
+     * How far from a corner a point may land and still be taken as that corner.
+     *
+     * [snapDrawPoint]'s own default is 26 DRAWING units, despite the name. That
+     * is a fixed distance on the plan, so it shrinks on screen the further out
+     * he is zoomed: about three and a half screen pixels with a 400 ft grid in
+     * view. Nobody can hit three pixels on purpose, which is why the offer to
+     * share a post so rarely appeared -- the snap it rides on never fired.
+     *
+     * So the screen passes what its own transform says 18 screen pixels are
+     * worth right now, and this clamps it at both ends:
+     *
+     *  - never SMALLER than the old 26, so zoomed in is no worse than before;
+     *  - never larger than [VERTEX_SNAP_MAX_FT] of real distance, so zoomed
+     *    right out it cannot reach across the yard and grab a corner he was
+     *    nowhere near. At a 400 ft grid the screen figure alone would be about
+     *    7 ft; the clamp is what keeps that honest.
+     *
+     * Null (the default) keeps the old fixed behaviour, which is what every
+     * caller without a view transform -- and every test -- still gets.
+     */
+    private fun vertexReachOf(fromScreen: Float?): Float {
+        val floor = com.fenceestimator.app.geometry.DEFAULT_VERTEX_SNAP_PX
+        if (fromScreen == null || fromScreen <= 0f) return floor
+        val scale = editScale()
+        val ceiling = if (scale > 0f)
+            com.fenceestimator.app.geometry.VERTEX_SNAP_MAX_FT * scale
+        else Float.MAX_VALUE
+        return fromScreen.coerceIn(floor, maxOf(floor, ceiling))
+    }
+
+    /**
      * Where a newly drawn point should go: on a corner it was aiming at, on
      * a square heading, on a whole foot, or exactly where the finger was.
      */
-    fun snapForDraw(candidate: FencePoint, enabled: Boolean): com.fenceestimator.app.geometry.SnapResult {
+    fun snapForDraw(
+        candidate: FencePoint,
+        enabled: Boolean,
+        vertexReach: Float? = null,
+    ): com.fenceestimator.app.geometry.SnapResult {
         val run = selectedRun()
             ?: return com.fenceestimator.app.geometry.SnapResult(candidate, com.fenceestimator.app.geometry.SnapKind.NONE)
         if (!enabled) return com.fenceestimator.app.geometry.SnapResult(candidate, com.fenceestimator.app.geometry.SnapKind.NONE)
@@ -736,6 +771,7 @@ class SurveyViewModel(
             beforePrevious = pts.getOrNull(pts.size - 2),
             otherVertices = snapTargets(run.id, pts.size),
             pxPerFt = editScale(),
+            vertexSnapPx = vertexReachOf(vertexReach),
         )
     }
 
@@ -744,7 +780,12 @@ class SurveyViewModel(
      * heading is judged against the segment arriving at this point, which is
      * the one the person can see moving under their finger.
      */
-    fun snapForMove(index: Int, candidate: FencePoint, enabled: Boolean): com.fenceestimator.app.geometry.SnapResult {
+    fun snapForMove(
+        index: Int,
+        candidate: FencePoint,
+        enabled: Boolean,
+        vertexReach: Float? = null,
+    ): com.fenceestimator.app.geometry.SnapResult {
         val run = selectedRun()
             ?: return com.fenceestimator.app.geometry.SnapResult(candidate, com.fenceestimator.app.geometry.SnapKind.NONE)
         if (!enabled) return com.fenceestimator.app.geometry.SnapResult(candidate, com.fenceestimator.app.geometry.SnapKind.NONE)
@@ -765,6 +806,7 @@ class SurveyViewModel(
             beforePrevious = pts.getOrNull(index - 2),
             otherVertices = snapTargets(run.id, index),
             pxPerFt = editScale(),
+            vertexSnapPx = vertexReachOf(vertexReach),
             avoid = avoid,
         )
     }

@@ -264,7 +264,7 @@
     <string name="seg_len_title">Définir cette longueur</string>
     <string name="snap_toggle">Aimantation</string>
     <string name="snap_help">Angles, équerres et pieds entiers</string>
-    <string name="snap_joined">Relié à un angle</string>
+    <string name="snap_joined">Sur l’angle — pas encore relié</string>
     <string name="snap_angle">%1$d° verrouillé</string>
     <string name="snap_length">Arrondi à %1$s</string>
     <string name="snap_both">%1$s · %2$s</string>

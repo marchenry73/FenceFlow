@@ -267,8 +267,20 @@ function turnDegrees(first: JoinMember, second: JoinMember): number | null {
 }
 
 /** Taller first, then lower sort order, then lower id. */
+/**
+ * Who owns the post where runs meet: the SHORTER side owns the shared post where the heights differ.
+ * A post has to be tall enough for the tallest panel on it, so "shorter
+ * wins" is only ever reached at a height CHANGE -- and there the fence
+ * steps DOWN onto the short post rather than leaving a tall one standing
+ * proud of the low side. Equal heights never reach it, and fall through to
+ * sort order and then id, which is what keeps the answer independent of
+ * list order.
+ *
+ * The twin of outranks() in FenceGeometry.kt. Both or neither: a difference
+ * here is the office and the phone billing a different post for one hole.
+ */
 function outranks(a: JoinableRun, b: JoinableRun): boolean {
-  if (a.heightFt !== b.heightFt) return a.heightFt > b.heightFt;
+  if (a.heightFt !== b.heightFt) return a.heightFt < b.heightFt;
   if (a.sortOrder !== b.sortOrder) return a.sortOrder < b.sortOrder;
   return a.id < b.id;
 }
