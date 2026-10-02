@@ -454,8 +454,18 @@ function gateAreaEntries(gate: GateMarker): QtyEntry[] {
   switch (gate.mounting) {
     case "WALL":
       entries.push(qty("BLANK_POST", 1.0));
-      // The latch side. A post at the opening, not the end of a fence line.
-      entries.push(qty("GATE_POST", 1.0));
+      // The latch side is an END POST, and the owner said so plainly on
+      // 1 Oct 2026: "if it's against the wall, it's a blank post, and then an
+      // end post for the fence line that the gate latches to."
+      //
+      // This read GATE_POST for a few hours earlier that day, on the reasoning
+      // that a post at an opening is not the end of a fence. That reasoning is
+      // wrong HERE and right for LINE below, and the difference is what the
+      // fence does on the far side. On a WALL gate the hinge side is the wall,
+      // so the fence line runs up to the latch post and STOPS: that post IS the
+      // end of the line. On a LINE gate the fence carries on past both posts,
+      // so neither is an end.
+      entries.push(qty("END_POST", 1.0));
       entries.push(qty("HOLE_PLUG", WALL_MOUNT_HOLES));
       // The hinge side is bolted to the wall and set in nothing. The
       // latch side is still a post in a hole and still takes its bag.

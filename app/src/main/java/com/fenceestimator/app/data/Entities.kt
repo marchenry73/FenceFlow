@@ -631,6 +631,44 @@ data class FenceRun(
     val buildTemplateSyncId: String? = null,
 
     /**
+     * The joint this run's FIRST point stands at, or blank for a free end.
+     *
+     * A joint is a shared post: two or more run ends the OWNER has said are
+     * one post. Runs whose ends carry the same id share one post. There is no
+     * joints table and no joint row -- a joint has no attributes, only
+     * members -- so a T is three ends carrying one id. Written by
+     * SurveyViewModel's attach gesture through [Repository.setRunJointIds];
+     * read back through SurveyViewModel.jointIdsOf into
+     * [com.fenceestimator.app.geometry.JoinCandidateRun]. Spec:
+     * docs/JOINING_RUNS.md sections 1, 4 and 11.
+     *
+     * TEXT WITH A BLANK DEFAULT, NEVER A NULLABLE ID, and the reason is the
+     * sync rather than the schema. The phone's cloud JSON has
+     * `explicitNulls = false` (SupabaseModule.cloudJson, SyncScope.SyncJson),
+     * so a Kotlin null is LEFT OUT of the upsert body and the column keeps
+     * whatever it held before. A nullable "joined to" column could therefore
+     * be SET from this phone and never CLEARED: pulling two sides apart would
+     * not travel, and the office would go on pricing them as one post. The
+     * same Json has `encodeDefaults = true`, so a blank string -- a value
+     * equal to this declared default -- IS written into the body as
+     * `"start_joint": ""`, which is how un-joining reaches Postgres and the
+     * other phone. Exactly the reason pointsEncoded and suppressedRolesCsv
+     * are blank-defaulted strings too.
+     *
+     * ANY TEXT IS ACCEPTED HERE, and the READER decides what is usable:
+     * SurveyViewModel.jointIdsOf blanks anything that is not a uuid, and
+     * RunJoinGesture.liveJointOf treats an id no OTHER run of the job holds
+     * as a free end. That is deliberate -- fence_runs upserts are batched, and
+     * one row a constraint refuses fails the whole batch, so no run for the
+     * company syncs at all. Bad data has to fall back to a free end, which is
+     * the HIGHER post count and today's price, rather than block the sync.
+     */
+    val startJoint: String = "",
+
+    /** The joint this run's LAST point stands at, or blank. See [startJoint]. */
+    val endJoint: String = "",
+
+    /**
      * This phone's last-edit-wins clock for sync, same idea as [Job.updatedAt].
      * Bumped on every user edit (see Repository.saveFenceRun); a pull
      * stores the cloud's own clock here instead of bumping it, so the next

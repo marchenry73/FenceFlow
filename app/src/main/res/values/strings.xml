@@ -2182,4 +2182,35 @@
     <string name="enq_discard_body">What you typed here will be lost.</string>
     <string name="enq_discard_yes">Leave</string>
     <string name="enq_discard_keep">Keep typing</string>
+
+    <!-- Attaching one side to another: the Attach tool on the drawing screen. -->
+    <string name="mode_attach">Attach</string>
+    <string name="attach_hint_first">Tap the end of a side to attach it.</string>
+    <string name="attach_hint_second">Now tap the end it joins. Tap the same end again to put it down.</string>
+    <string name="attach_title">Attach these two ends?</string>
+    <string name="attach_detach_title">Detach this end?</string>
+    <string name="attach_body_two">%1$s and %2$s would meet at one post.</string>
+    <string name="attach_body_many">%1$d sides would meet at one post.</string>
+    <string name="attach_detach_body">%1$s goes back to having its own post here.</string>
+    <string name="attach_effect_one">One post fewer in the ground: 1 post, 1 post cap and that post’s concrete come off the order.</string>
+    <string name="attach_effect_many">%1$d posts fewer in the ground: %1$d posts, %1$d post caps and their concrete come off the order.</string>
+    <string name="attach_detach_effect_one">Back on the order: 1 post, 1 post cap and its concrete.</string>
+    <string name="attach_detach_effect_many">Back on the order: %1$d posts, %1$d post caps and their concrete.</string>
+    <string name="attach_kind_corner">%1$d end posts become one corner post.</string>
+    <string name="attach_kind_line">%1$d end posts become one line post: the fence carries straight on through it.</string>
+    <string name="attach_billed">It is billed on %1$s, the taller side.</string>
+    <string name="attach_gap">These two ends are %1$s apart. Attaching them moves neither one; line them up with Adjust if they should meet.</string>
+    <string name="attach_no_material">This changes no materials: a tear-out side bills no posts, and a side with nothing measurable drawn has none to give up. The attachment is still recorded.</string>
+    <string name="attach_price_later">The estimate does not read attachments yet, so the materials and the price do not change today. This records that the two sides share one post.</string>
+    <string name="attach_approved_warning">This quote is already approved. Changing the post count withdraws that approval, and the customer is asked to approve the new price.</string>
+    <string name="attach_action">Attach</string>
+    <string name="attach_detach_action">Detach</string>
+    <string name="attach_refused_same_run">That is the same side. Attach the end of one side to the end of another.</string>
+    <string name="attach_refused_closed_loop">A closed perimeter has no loose ends. Open the loop first.</string>
+    <string name="attach_refused_typed_footage">That side is quoted from typed footage, so it has no drawn end to attach.</string>
+    <string name="attach_refused_teardown">One of those is the old fence coming out and the other is the new one going in.</string>
+    <string name="attach_refused_already">Those two ends are already at one post.</string>
+    <string name="attach_refused_at_another_point">Both of those ends already meet other sides, at two different posts. Detach one of them first.</string>
+    <string name="attach_refused_not_found">That side is no longer on this job.</string>
+    <string name="attach_refused_no_storage">Nothing was attached. This build cannot save an attachment yet, and one that could not be saved would be lost the moment you leave the drawing.</string>
 </resources>

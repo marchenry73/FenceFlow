@@ -144,6 +144,40 @@ data class CloudManufacturer(
     val notes: String = ""
 )
 
+/**
+ * Whether `fence_runs.start_joint` and `fence_runs.end_joint` EXIST in Postgres.
+ *
+ * FALSE. supabase_a32_join_runs.sql is written and has not been applied
+ * (probed read-only against the live project on 1 Oct 2026:
+ * information_schema.columns returns neither, with a canary column proving the
+ * probe could see a false). Flip this to true in the same change that applies
+ * that file, and not before.
+ *
+ * WHY A FLAG AND NOT JUST THE FIELDS. fence_runs is pushed as a BATCHED upsert
+ * ([EntitySync.pushFenceRuns] hands a whole list to [upsert]). PostgREST
+ * refuses a body naming a column the table does not have -- PGRST204, 400 --
+ * and it refuses the WHOLE batch, so sending these two keys today would stop
+ * EVERY fence run of EVERY job syncing for the company, not just a run with a
+ * joint on it. That is the same shape as the duplicate estimate-line id that
+ * once stopped a job's estimate reaching the cloud, and it would be caused by
+ * a column nobody is using yet.
+ *
+ * While this is false the two keys are left out of the body entirely (null,
+ * and `explicitNulls = false` drops a null key), so the push is byte-for-byte
+ * what it is today and a joint simply does not travel. [FenceRun.startJoint]
+ * is still stored and still survives the app closing -- see SchemaV50.
+ *
+ * THE ORDERING THIS PROTECTS, and it is the reason
+ * SurveyViewModel.JOIN_STORAGE_READY must not be flipped ahead of this one:
+ * fence_runs is pushed only when the local clock is NEWER than the cloud's
+ * ([EntitySync.pushFenceRuns] compares updatedAt). A join made while this flag
+ * is false pushes the run WITHOUT the joint, the cloud's clock then matches or
+ * leads, and that run never pushes again on its own -- the joint is stranded
+ * on the handset for good, with nothing to say so. So the Attach tool must not
+ * be offered until the column exists and this is true.
+ */
+internal const val JOIN_COLUMNS_LIVE = false
+
 @Serializable
 data class CloudFenceRun(
     @SerialName("company_id") val companyId: String,
@@ -178,6 +212,29 @@ data class CloudFenceRun(
     @SerialName("include_barbed_wire_arms") val includeBarbedWireArms: Boolean = false,
     @SerialName("include_privacy_slats") val includePrivacySlats: Boolean = false,
     @SerialName("split_rail_count") val splitRailCount: Int = 2,
+    // The shared post each end stands at (supabase_a32_join_runs.sql), or ''
+    // for a free end.
+    //
+    // NULLABLE HERE AND NON-NULL ON THE ENTITY, and the two mean different
+    // things on purpose:
+    //
+    //   ''    "this end is free" -- a real value. `encodeDefaults = true` on
+    //         the shared Json means a blank string IS written into the body as
+    //         "start_joint": "", which is the whole reason the column is text
+    //         and not a nullable uuid: pulling two sides apart has to TRAVEL,
+    //         and `explicitNulls = false` would have dropped a null, leaving
+    //         the office pricing them as one post forever.
+    //   null  "this build is not sending this column at all" -- the key is
+    //         dropped from the body (explicitNulls = false). Only [toCloud]
+    //         produces it, only while [JOIN_COLUMNS_LIVE] is false, because
+    //         the column does not exist yet and one unknown key fails the
+    //         whole batched upsert.
+    //
+    // On PULL the same distinction is what stops a pre-a32 server erasing a
+    // joint: a row from a table without the column decodes as null, which the
+    // merge below leaves alone, where '' would have blanked it.
+    @SerialName("start_joint") val startJoint: String? = null,
+    @SerialName("end_joint") val endJoint: String? = null,
     // Never set on push -- the touch_updated_at trigger owns this column, the
     // same as pricing_tiers.updated_at. Only read, on pull, to arbitrate which
     // side of an edit is newer.
@@ -3524,6 +3581,13 @@ object EntitySync {
                         includeBarbedWireArms = row.includeBarbedWireArms,
                         includePrivacySlats = row.includePrivacySlats,
                         splitRailCount = row.splitRailCount,
+                        // A run arriving for the first time: a column the
+                        // server does not have yet decodes as null, and a run
+                        // this phone has never seen has no joint of its own to
+                        // keep, so null and '' mean the same thing here --
+                        // both free ends.
+                        startJoint = row.startJoint.orEmpty(),
+                        endJoint = row.endJoint.orEmpty(),
                         updatedAt = row.updatedAtMillis()
                     )
                 ) } ?: return@forEach
@@ -3575,6 +3639,19 @@ object EntitySync {
                     includeBarbedWireArms = row.includeBarbedWireArms,
                     includePrivacySlats = row.includePrivacySlats,
                     splitRailCount = row.splitRailCount,
+                    // The cloud wins on a joint exactly as it does on the
+                    // points, INCLUDING when it says '' -- that is another
+                    // phone having pulled the two sides apart, and the whole
+                    // reason the column is text rather than a nullable uuid.
+                    //
+                    // `?: existing.*` is not a fallback for a blank, it is the
+                    // one case where the cloud has not spoken at all: a server
+                    // without the column (supabase_a32_join_runs.sql still
+                    // unapplied) returns no key, that decodes as null, and
+                    // this phone's own joint must survive it rather than be
+                    // erased by a column that does not exist yet.
+                    startJoint = row.startJoint ?: existing.startJoint,
+                    endJoint = row.endJoint ?: existing.endJoint,
                     updatedAt = row.updatedAtMillis()
                 )
                 if (merged != existing) { skipIfOrphaned { repository.updateFenceRunFromCloud(merged) } ?: return@forEach; added++ }
@@ -4152,7 +4229,14 @@ private fun FenceRun.toCloud(companyId: String, jobSyncId: String) = CloudFenceR
     includeTopRail = includeTopRail, includeTensionWire = includeTensionWire,
     includeBarbedWireArms = includeBarbedWireArms,
     includePrivacySlats = includePrivacySlats,
-    splitRailCount = splitRailCount
+    splitRailCount = splitRailCount,
+    // Sent as the run's own value -- INCLUDING a blank one, which is how
+    // un-joining reaches the cloud -- but only once the columns exist. Null
+    // keeps the key out of the body altogether; see [JOIN_COLUMNS_LIVE] for
+    // why an unknown key is not a wasted field but a broken sync for every
+    // run of every job.
+    startJoint = if (JOIN_COLUMNS_LIVE) startJoint else null,
+    endJoint = if (JOIN_COLUMNS_LIVE) endJoint else null
 )
 
 /**

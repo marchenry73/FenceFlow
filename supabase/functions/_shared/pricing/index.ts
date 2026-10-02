@@ -141,7 +141,7 @@ export {
  * role -- so BLANK_POST leaves it where a GATE_POST row carries the line and
  * stays in it where neither row exists. Anchored totals do not move, as above.
  */
-export const PRICING_ENGINE_VERSION = "2026.10.5";
+export const PRICING_ENGINE_VERSION = "2026.10.6";
 
 // ---------------------------------------------------------------------------
 // Contract shapes (docs/PRICING_CONTRACT.md). Column names, never invented.

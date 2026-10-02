@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fenceestimator.app.data.BusinessProfile
 import com.fenceestimator.app.data.FenceRun
+import com.fenceestimator.app.data.FenceType
 import com.fenceestimator.app.data.FieldChange
 import com.fenceestimator.app.data.Job
 import com.fenceestimator.app.data.Repository
@@ -17,6 +18,13 @@ import com.fenceestimator.app.geometry.FencePoint
 import com.fenceestimator.app.geometry.GateMarker
 import com.fenceestimator.app.geometry.GateMounting
 import com.fenceestimator.app.geometry.GateSwing
+import com.fenceestimator.app.geometry.JoinCandidateRun
+import com.fenceestimator.app.geometry.JoinDecision
+import com.fenceestimator.app.geometry.JoinEffect
+import com.fenceestimator.app.geometry.JoinEnd
+import com.fenceestimator.app.geometry.JoinRefusal
+import com.fenceestimator.app.geometry.JointMarker
+import com.fenceestimator.app.geometry.RunJoinGesture
 import com.fenceestimator.app.geometry.DrawingSnapshot
 import com.fenceestimator.app.geometry.RedoHistory
 import com.fenceestimator.app.geometry.RedoNoneReason
@@ -50,7 +58,37 @@ import java.io.File
 import java.io.FileOutputStream
 import java.util.UUID
 
-enum class SurveyMode { DRAW, CALIBRATE, GATE, MARKER, ADJUST, PAN }
+enum class SurveyMode { DRAW, CALIBRATE, GATE, MARKER, ADJUST, JOIN, PAN }
+
+/**
+ * An attachment (or a detachment) waiting for him to say yes, and what it does
+ * to the materials if he does.
+ *
+ * Held as one object so the confirmation cannot show figures worked out from a
+ * different drawing than the one the write will act on: the decision, the
+ * ends, the effect and the approval question are all taken in the same breath
+ * (SurveyViewModel.tapJoinEnd).
+ *
+ * [effect] is null when the attachment changes no material at all -- two
+ * teardown runs bill no posts, and a run with nothing measurable drawn has no
+ * post to give up. Null has to be SAID, not rounded down to zero: a
+ * confirmation that claims a saving it cannot deliver is the fake feature this
+ * whole thing was told not to be.
+ */
+data class JoinOffer(
+    /** True when this takes a shared post apart; false when it makes one. */
+    val detach: Boolean,
+    /** For an attach, the post both ends go to. For a detach, the post being broken up. */
+    val decision: JoinDecision,
+    /** The end being freed. Null unless [detach]. */
+    val end: JoinEnd?,
+    /** What the order loses (attach) or gains back (detach); null when nothing moves. */
+    val effect: JoinEffect?,
+    /** The sync ids of every run that meets at the post, lowest first. */
+    val memberRunIds: List<String>,
+    /** True when a customer approval is on the line and he has to be told first. */
+    val approvalAtRisk: Boolean,
+)
 
 class SurveyViewModel(
     private val repository: Repository,
@@ -767,6 +805,21 @@ class SurveyViewModel(
         }
     }
 
+    /**
+     * Takes the whole drawing off this run.
+     *
+     * Neither this nor [toggleClosedLoop] clears the run's joint ids, and that
+     * is safe rather than overlooked: the join arithmetic counts a shared post
+     * only while every member has a free end to give
+     * (RunJoinArithmetic.isLive), and a run with no points and a run that
+     * closes on itself both have none -- so the post goes back to being two
+     * end posts on its own, at today's price, the moment this lands. Clearing
+     * the ids outright would be tidier and is what docs/JOINING_RUNS.md 7.4.5
+     * asks for, but it cannot be undone from here: DrawingSnapshot carries
+     * points, gates and the closed flag only, so an id this wiped would not
+     * come back with the drawing. That belongs with the wave that widens the
+     * snapshot.
+     */
     fun clearPoints() {
         editRun(_selectedRunId.value) { run ->
             // One Undo step brings the whole run back -- every point and gate
@@ -779,6 +832,360 @@ class SurveyViewModel(
         editRun(_selectedRunId.value) { run ->
             commitEdit(run, run.copy(closedLoop = closed))
         }
+    }
+
+    // -----------------------------------------------------------------------
+    // ATTACHING ONE SIDE TO ANOTHER
+    //
+    // His words: "for the grid, I'm not able to attach the fence to the other
+    // ones", and the rule that governs it: "it would not be a corner post if I
+    // drew it on the other side until I connect it to that one." So this is
+    // two deliberate taps -- the end of one side, then the end of the other --
+    // and never a thing the app notices because two points landed together.
+    // The arithmetic, the refusals and the materials figures are all in
+    // RunJoinGesture (geometry/FenceGeometry.kt), which is pure; this half
+    // holds what the finger is in the middle of doing and the one door the
+    // write goes through.
+    //
+    // WHY NOT "DRAG AN END ONTO ANOTHER AND CONFIRM", the obvious alternative:
+    //
+    //  1. The ends he needs to attach are ALREADY on top of one another. A
+    //     point placed within 26 px of another run's corner is moved onto that
+    //     corner exactly (snapDrawPoint, SnapKind.VERTEX), across every run on
+    //     the job, and has been for months -- so for the drawings he has, there
+    //     is no drag left to make. Confirm-on-snap would mean dragging an end
+    //     away and back to get a question asked about it.
+    //  2. That snap fires constantly, including when he is tracing beside a
+    //     neighbour's fence. A dialog on every snap is a dialog he learns to
+    //     dismiss, and whichever way the dismissal falls is wrong: "always
+    //     attach" is inferring a join from proximity, which is the one thing he
+    //     said not to do, and "never attach" makes the question noise.
+    //  3. A drag cannot say T. Three sides meeting at one post is a third end
+    //     joining a post that already exists; a tap can pick that post, a drag
+    //     onto one of two coincident ends cannot say which.
+    //  4. A drag already means something here -- move this corner -- and one
+    //     pointer stream cannot run a drag detector and a tap detector at once
+    //     (see the gesture block in SurveyDrawScreen).
+    //
+    // Detaching is the same gesture in reverse and ONE tap: tap a shared post
+    // and the only thing offered is Detach. That matters more than it looks,
+    // because Undo cannot take an attachment back -- DrawingSnapshot
+    // (geometry/DrawHistory.kt) carries points, gates and the closed flag and
+    // nothing else, and that file is not this wave's to change. Detach IS the
+    // undo, which is why it is one tap and not buried.
+    // -----------------------------------------------------------------------
+
+    /**
+     * The end a first tap lifted, waiting for a second tap. Null when nothing
+     * is half-attached.
+     */
+    private val _joinPick = MutableStateFlow<JoinEnd?>(null)
+    val joinPick: StateFlow<JoinEnd?> = _joinPick
+
+    /**
+     * The attach or detach waiting to be confirmed, with what it does to the
+     * materials, or null. Nothing is written until [confirmJoinOffer].
+     */
+    private val _joinOffer = MutableStateFlow<JoinOffer?>(null)
+    val joinOffer: StateFlow<JoinOffer?> = _joinOffer
+
+    /**
+     * "That cannot be attached, and here is why" -- a one-shot event, because
+     * a refusal is not a state the screen sits in. Same shape as
+     * [lengthRefused] and [undoNothingToDo]: a tap that does nothing still
+     * says something rather than looking broken.
+     */
+    private val _joinRefused = MutableSharedFlow<JoinRefusal>(extraBufferCapacity = 1)
+    val joinRefused: SharedFlow<JoinRefusal> = _joinRefused
+
+    /**
+     * Every run of this job as the attach gesture reads it.
+     *
+     * Every run, never a subset: the shared post is billed to the tallest
+     * member, so an answer worked out from two runs can name the wrong owner.
+     */
+    private fun joinCandidates(): List<JoinCandidateRun> = runs.value.map { run ->
+        val joints = jointIdsOf(run)
+        JoinCandidateRun(
+            runId = run.syncId,
+            points = FenceCodec.decodePoints(run.pointsEncoded),
+            closedLoop = run.closedLoop,
+            typedFootage = run.usesManualFeet,
+            isTeardown = run.isTeardown,
+            heightFt = joinHeightOf(run),
+            sortOrder = run.sortOrder,
+            startJointId = joints.first,
+            endJointId = joints.second,
+        )
+    }
+
+    /**
+     * The height that decides which run is billed the shared post: the taller
+     * post is the one that has to be built, and a taller post can carry a
+     * shorter panel but not the reverse (docs/JOINING_RUNS.md 2.4, Q1).
+     *
+     * Chain link keeps its height in fabricHeightFt and split rail has none,
+     * so this is not simply panelHeightFt. Note that it is a different
+     * question from the one EstimateEngine's catalog choice asks -- that reads
+     * panelHeightFt even on a chain-link run, deliberately, because no
+     * chain-link post row declares a height. This is "which post is taller in
+     * the ground", not "which catalog row gets picked".
+     */
+    private fun joinHeightOf(run: FenceRun): Float = when (run.fenceType) {
+        FenceType.CHAIN_LINK -> run.fabricHeightFt
+        FenceType.SPLIT_RAIL -> 0f
+        else -> run.panelHeightFt
+    }
+
+    /**
+     * The joint ids recorded at this run's first and last point: start, end.
+     *
+     * ---------------------------------------------------------------------
+     * THE READ SEAM, and the one place a STORED value is judged usable.
+     * ---------------------------------------------------------------------
+     * [FenceRun.startJoint] and [FenceRun.endJoint] (schema 50,
+     * supabase_a32_join_runs.sql) hold a uuid, or blank for a free end. Blank,
+     * never null, for the reason the columns are text: the phone's JSON drops
+     * nulls (explicitNulls = false in cloudJson), so a null would be LEFT OUT
+     * of the upsert body and the office would go on pricing two runs as
+     * attached after he had pulled them apart. The empty string travels.
+     *
+     * VALIDATE ON READ, NOT ON WRITE. Neither column carries a CHECK and
+     * neither ever will: fence_runs upserts are batched, and one row the table
+     * refuses fails the WHOLE batch, so no run for the company would sync at
+     * all. The database therefore takes any text and this function decides
+     * what it means -- anything that is not a uuid is read as blank, which is
+     * a FREE end. That is the right direction to fail in: a free end is one
+     * more post in the ground, which is today's price, never one fewer.
+     * (The other half of the same rule is RunJoinGesture.liveJointOf, which
+     * reads an id no OTHER run of the job holds as blank too, so a joint
+     * naming nothing -- its partner deleted, or not synced down yet -- is also
+     * a free end.)
+     */
+    private fun jointIdsOf(run: FenceRun): Pair<String, String> {
+        // Length first: UUID.fromString accepts short, non-canonical forms
+        // ("1-1-1-1-1"), and a joint id is only ever one this app generated
+        // with UUID.randomUUID().toString().
+        fun usable(stored: String): String =
+            if (stored.length == 36 && runCatching { UUID.fromString(stored) }.isSuccess) stored else ""
+        return usable(run.startJoint) to usable(run.endJoint)
+    }
+
+    /**
+     * Writes a joint id onto run ends, or blanks them to take a post apart.
+     *
+     * ---------------------------------------------------------------------
+     * THE WRITE SEAM. It writes.
+     * ---------------------------------------------------------------------
+     * Through [Repository.setRunJointIds], which is the fence-run dao and the
+     * same `updatedAt` bump [Repository.updateFenceRun] gives every other run
+     * edit -- a join rides the run's own row up, so there is no second write
+     * path and no joint table. (The one that existed, [RunJoin] at schema 48,
+     * is inert and untouched -- docs/JOINING_RUNS.md 11.1.)
+     *
+     * ONE transaction over every end, because a half-written attachment is an
+     * id alone on one end -- which reads as a free end everywhere
+     * (RunJoinGesture.liveJointOf, RunJoinArithmetic.isLive), so the failure
+     * is a post too many rather than a post too few, but it is still a lie on
+     * the plan.
+     *
+     * Returns true ONLY when a row actually changed, so [confirmJoinOffer]
+     * raises [JoinRefusal.NO_STORAGE] rather than reporting an attachment that
+     * is not there. False covers an empty list, a run that left the job while
+     * the confirmation was up (and [skipIfOrphaned] covers the job itself
+     * going, which would otherwise hit the foreign key), and an end already
+     * carrying exactly the value asked for.
+     *
+     * WHAT THIS STILL DOES NOT DO, and neither is in this file:
+     *  - It does not reach the office. `fence_runs.start_joint` /
+     *    `end_joint` do not exist in Postgres yet (supabase_a32_join_runs.sql
+     *    is unapplied), so EntitySync.JOIN_COLUMNS_LIVE is false and the keys
+     *    are left out of the push -- see that constant for why sending them
+     *    before the column exists would stop EVERY run syncing, and why the
+     *    Attach tool must stay off until it is true.
+     *  - price-job/index.ts needs the two names in RUN_COLUMNS, or the office
+     *    reads no joint and the two engines price one job two ways.
+     */
+    private suspend fun writeJointIds(writes: List<Pair<JoinEnd, String>>): Boolean {
+        if (writes.isEmpty()) return false
+        val kept = com.fenceestimator.app.cloud.skipIfOrphaned {
+            repository.setRunJointIds(
+                jobId,
+                writes.map { (end, jointId) -> Triple(end.runId, end.atEnd, jointId) }
+            )
+        } ?: false
+        if (kept) noteJoinChange(writes)
+        return kept
+    }
+
+    /**
+     * Records who attached or detached, when there is somebody to report to.
+     *
+     * The same shape as [noteFootageChange]: only when [editorName] is set (an
+     * owner's own phone has nobody to report to), and skipped rather than
+     * crashed if the job went while the drawing was open. A join takes a post
+     * out of the ground, so the office hearing about it from the field is the
+     * same need footage has -- even while the price does not move yet
+     * ([JOIN_PRICING_READY]).
+     */
+    private suspend fun noteJoinChange(writes: List<Pair<JoinEnd, String>>) {
+        val name = editorName ?: return
+        val attaching = writes.any { it.second.isNotBlank() }
+        val labels = repository.getFenceRuns(jobId)
+            .filter { run -> writes.any { it.first.runId == run.syncId } }
+            .map { it.label.ifBlank { "Fence run" } }
+        if (labels.isEmpty()) return
+        com.fenceestimator.app.cloud.skipIfOrphaned {
+            repository.recordFieldChange(
+                FieldChange(
+                    jobId = jobId,
+                    summary = if (attaching) "Attached: ${labels.joinToString(" + ")}"
+                    else "Detached: ${labels.joinToString(" + ")}",
+                    detail = if (attaching)
+                        "These sides now share one post on the plan."
+                    else
+                        "These sides no longer share a post — each has its own end post again.",
+                    changedBy = name,
+                    changedByRole = editorRole.orEmpty()
+                )
+            )
+        }
+    }
+
+    /**
+     * The shared posts to draw on the plan, from the join arithmetic itself,
+     * so the drawing can never show a post the estimate is not counting.
+     *
+     * A plain function rather than a flow: it is pure and cheap, the screen
+     * already remembers it against the runs and the scale, and a flow here
+     * would be a second copy of the runs to keep in step.
+     */
+    fun jointMarkers(): List<JointMarker> = RunJoinGesture.markers(joinCandidates(), editScale())
+
+    /**
+     * Every end a tap may attach, with the point to draw a target at.
+     *
+     * Only wanted while the Attach tool is in hand, so the screen asks for it
+     * then: a closed perimeter and a typed-footage run have no free end and
+     * are not offered one, which is better than a target that refuses when it
+     * is tapped.
+     */
+    fun attachableEnds(): List<Pair<JoinEnd, FencePoint>> =
+        RunJoinGesture.attachableEnds(joinCandidates())
+
+    /**
+     * A tap in Attach mode, in drawing coordinates, with [radius] in the same
+     * units (the screen divides its own tolerance by the view's scale, so the
+     * target is the same size under the finger at any zoom).
+     *
+     * Tapping empty ground puts down whatever was picked up -- the way out of
+     * a half-made attachment is the gesture people try first.
+     */
+    fun tapJoinEnd(at: FencePoint, radius: Float) {
+        if (viewerIsGuestDemo()) return
+        val candidates = joinCandidates()
+        val hit = RunJoinGesture.endNear(candidates, at, radius)
+        if (hit == null) {
+            clearJoinPick()
+            return
+        }
+        val first = _joinPick.value
+        if (first == null) {
+            // A shared post offers one thing: taking it apart again.
+            val joint = RunJoinGesture.liveJointOf(candidates, hit)
+            if (joint.isNotBlank()) {
+                _joinOffer.value = JoinOffer(
+                    detach = true,
+                    decision = JoinDecision(null, joint, RunJoinGesture.endsAtJoint(candidates, joint)),
+                    end = hit,
+                    effect = RunJoinGesture.effectOfDetaching(candidates, hit, editScale()),
+                    memberRunIds = RunJoinGesture.runsAtJoint(candidates, joint),
+                    approvalAtRisk = approvalAtRisk(),
+                )
+            } else {
+                _joinPick.value = hit
+            }
+            return
+        }
+        // The same end again: put it down.
+        if (first == hit) {
+            clearJoinPick()
+            return
+        }
+        val decision = RunJoinGesture.decide(candidates, first, hit, UUID.randomUUID().toString())
+        val refusal = decision.refusal
+        if (refusal != null) {
+            // The pick stays up: he aimed at the wrong end, not at the wrong
+            // side, and making him start again would be the tool arguing.
+            _joinRefused.tryEmit(refusal)
+            return
+        }
+        _joinOffer.value = JoinOffer(
+            detach = false,
+            decision = decision,
+            end = null,
+            effect = RunJoinGesture.effectOfAttaching(candidates, decision, editScale()),
+            memberRunIds = RunJoinGesture.runsAtJoint(
+                RunJoinGesture.withDecisionApplied(candidates, decision), decision.jointId
+            ),
+            approvalAtRisk = approvalAtRisk(),
+        )
+    }
+
+    /** Drops the half-made attachment and any offer waiting on it. */
+    fun clearJoinPick() {
+        _joinPick.value = null
+        _joinOffer.value = null
+    }
+
+    /**
+     * Carries out the offer on the table, or says why it could not be kept.
+     *
+     * The refusal when there is no storage is deliberate and loud. An
+     * attachment that lived only in this screen's memory would be gone the
+     * moment he backed out of the drawing, and one kept only on this phone
+     * would never reach the office that prices the job -- so it is refused
+     * rather than accepted and quietly lost. See [writeJointIds].
+     */
+    fun confirmJoinOffer() {
+        val offer = _joinOffer.value ?: return
+        if (viewerIsGuestDemo()) {
+            clearJoinPick()
+            return
+        }
+        val writes: List<Pair<JoinEnd, String>> = if (offer.detach) {
+            val end = offer.end
+            if (end == null) emptyList() else listOf(end to "")
+        } else {
+            offer.decision.ends.map { it to offer.decision.jointId }
+        }
+        clearJoinPick()
+        if (writes.isEmpty()) {
+            // A detach offer with no end on it: the run went while the
+            // confirmation was up. Nothing to free, and saying "cannot be
+            // saved" would name the wrong reason.
+            _joinRefused.tryEmit(JoinRefusal.NOT_FOUND)
+            return
+        }
+        viewModelScope.launch {
+            val kept = drawingWrites.withLock { writeJointIds(writes) }
+            if (!kept) _joinRefused.tryEmit(JoinRefusal.NO_STORAGE)
+        }
+    }
+
+    /**
+     * Whether this job has a customer approval that an attachment would
+     * withdraw -- the same predicate the drawing screen's edit warning uses,
+     * so the two cannot come to disagree.
+     *
+     * A job that already needs re-approval has had its warning; a job that was
+     * never approved has nothing to lose.
+     */
+    private fun approvalAtRisk(): Boolean {
+        val current = job.value ?: return false
+        return com.fenceestimator.app.reapproval.shouldWarnBeforeEditingDrawing(
+            current.quoteApprovedAt, current.reapprovalRequiredAt
+        )
     }
 
     /**
@@ -1559,6 +1966,75 @@ class SurveyViewModel(
     companion object {
         /** The phone's own record of which background each job is drawn on. See [surveyPhotoShown]. */
         private const val BACKDROP_PREFS = "survey_backdrop"
+
+        /**
+         * Whether an attachment between two sides can be KEPT, and therefore
+         * whether the Attach tool is offered at all.
+         *
+         * FALSE, and it has to stay false until BOTH of these are true. A tool
+         * that cannot keep what it is given is worse than no tool: he would
+         * attach four corners in a yard with no signal, close the app, and
+         * find the fence in pieces again with nothing to say why.
+         *
+         *  1. A joint can be stored AND SYNCED. The PHONE half is now done:
+         *     [FenceRun.startJoint] / [FenceRun.endJoint], the schema 50
+         *     migration ([SchemaV50]), [Repository.setRunJointIds], the read
+         *     at [jointIdsOf] and the write at [writeJointIds], and both
+         *     EntitySync pull sites. The CLOUD half is NOT: the two columns do
+         *     not exist in Postgres -- supabase_a32_join_runs.sql is written
+         *     and unapplied (probed read-only, 1 Oct 2026) -- so
+         *     EntitySync.JOIN_COLUMNS_LIVE is false and a joint cannot leave
+         *     the handset.
+         *
+         *     THAT IS NOT MERELY "IT DOES NOT TRAVEL YET". fence_runs pushes a
+         *     run only when the phone's clock beats the cloud's. A join made
+         *     while JOIN_COLUMNS_LIVE is false pushes the run WITHOUT it, the
+         *     cloud's clock then leads, and the run never pushes again on its
+         *     own -- so that join is stranded on the phone for good, silently,
+         *     and the office keeps pricing two posts. Apply the SQL and flip
+         *     JOIN_COLUMNS_LIVE in the same change, then this.
+         *
+         *     Still outstanding either way: `start_joint` and `end_joint` in
+         *     RUN_COLUMNS in price-job/index.ts, or the office reads no joint
+         *     and the two engines price one job two ways.
+         *  2. PART A of supabase_a56_join_reapproval_fingerprint.sql is live.
+         *     Until it is, the re-approval fingerprint cannot see a joint
+         *     (verified from pg_proc again on 1 Oct 2026 -- neither column name
+         *     appears in any reapp_ function; docs/JOINING_RUNS.md 11.2), so
+         *     attaching two runs on an APPROVED quote takes a post off the
+         *     customer's agreed price and leaves the approval standing. Her
+         *     price would move behind her back, which is the one rule this
+         *     product does not walk past. ([JOIN_PRICING_READY] being false
+         *     means no engine reads a joint today, so nothing is moving yet --
+         *     but the fingerprint has to be able to see one BEFORE the tool
+         *     ships, not after, because the first joint made is the one whose
+         *     approval would stand wrongly.)
+         *
+         * Flipping this is the whole of turning the tool on; everything behind
+         * it -- the decision at RunJoinGesture.decide, the read at
+         * [jointIdsOf], the write at [writeJointIds] -- is written.
+         * tests/a57-join-gesture-decision.test.mjs held it false while
+         * FenceRun carried no joint field, so it could not be flipped ahead of
+         * (1) by accident; now that the field exists, that check reads the
+         * other way and must be retired with the rest of its section 2 (see
+         * tests/a59-join-storage-roundtrip.test.mjs, which replaces it and
+         * pins this flag to EntitySync.JOIN_COLUMNS_LIVE instead).
+         */
+        const val JOIN_STORAGE_READY = false
+
+        /**
+         * Whether the ESTIMATE reads attachments yet.
+         *
+         * FALSE. RunJoinArithmetic is called by no engine (its own header says
+         * so, and tests/a33-join-arithmetic-posts.test.mjs check 7h holds that
+         * claim to the engine files), so an attachment changes no post count,
+         * no material line and no price today. While this is false the
+         * confirmation says so in as many words, because a control that
+         * changes a price nobody is told about and a control that changes
+         * nothing while implying it does are the same lie pointing opposite
+         * ways.
+         */
+        const val JOIN_PRICING_READY = false
 
         /**
          * Units per foot on the no-photo grid, for a job that has not chosen a

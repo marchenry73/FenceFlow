@@ -735,7 +735,12 @@ data class RunPostTally(
  * exactly as they did before this code existed, because no joint is stored
  * anywhere a job is read from: FenceRun has no joint field, and the start_joint
  * and end_joint columns proposed in supabase_a32_join_runs.sql are written but
- * not applied. [JoinableRun.startJointId] and [JoinableRun.endJointId] mirror
+ * not applied. Neither is supabase_a56_join_reapproval_fingerprint.sql, the
+ * follow-up that teaches the re-approval fingerprint and the drawing snapshot
+ * to see a joint; its PART A has to be live before anyone can attach two runs
+ * on a job that may be approved, or the post count moves without withdrawing
+ * the customer's approval (docs/JOINING_RUNS.md 11.2 and 11.5).
+ * [JoinableRun.startJointId] and [JoinableRun.endJointId] mirror
  * those two columns (text, blank for a free end). This file only decides what
  * the numbers WOULD be. It is exercised by
  * tests/a33-join-arithmetic-posts.test.mjs, which runs a line-for-line
@@ -964,4 +969,518 @@ object RunJoinArithmetic {
         cell[1] += corner
         cell[2] += end
     }
+}
+
+// ===========================================================================
+// ATTACHING ONE SIDE TO ANOTHER: the gesture, not the price.
+// ===========================================================================
+
+/**
+ * One end of one run's line: the run's sync id, and which end of it.
+ *
+ * The end, never a vertex number, for the same reason the two columns are
+ * named start_joint and end_joint: inserting or deleting a point in the middle
+ * of a run slides every vertex number along, and the first and last point stay
+ * the first and last.
+ */
+data class JoinEnd(val runId: String, val atEnd: Boolean)
+
+/**
+ * Why two ends may not be attached, or an attachment not recorded.
+ *
+ * Every one of these is refused at WRITE time, before anything is stored. That
+ * is the half of the rule [RunJoinArithmetic] does not carry: the arithmetic
+ * has to re-check eligibility on every price anyway (a run can be closed,
+ * typed or turned into a teardown long after it was attached), so these exist
+ * to stop a nonsense attachment being made, not to keep the price honest.
+ * docs/JOINING_RUNS.md 11.1, "refuse on write, honour on read".
+ */
+enum class JoinRefusal {
+    /** One of the two runs is not on this job any more. */
+    NOT_FOUND,
+
+    /** Both ends belong to one run, or that run's other end is already at this post. */
+    SAME_RUN,
+
+    /** One run is a closed perimeter: it has no free ends to attach. */
+    CLOSED_LOOP,
+
+    /** One run is quoted from typed-in footage: there is no drawn end to attach. */
+    TYPED_FOOTAGE,
+
+    /** One is the old fence coming out and the other the new one going in. */
+    TEARDOWN_MISMATCH,
+
+    /** They are already at one post. Nothing to do. */
+    ALREADY_ATTACHED,
+
+    /**
+     * Both ends already meet other runs, at two different posts. Attaching
+     * would merge two posts into one, which is a bigger change than the one
+     * being asked for, so one end gets detached first -- deliberately.
+     */
+    AT_ANOTHER_POINT,
+
+    /**
+     * There is nowhere to keep it. FenceRun carries no joint field and no
+     * cloud column exists, so an attachment could not survive the app closing
+     * or travel to the office. See SurveyViewModel.JOIN_STORAGE_READY.
+     */
+    NO_STORAGE,
+}
+
+/** What [RunJoinGesture.decide] decided: the post both ends go to, or why not. */
+data class JoinDecision(
+    val refusal: JoinRefusal?,
+    /** The joint id to write to both ends. Blank unless [allowed]. */
+    val jointId: String = "",
+    /** The ends to write it to: the two tapped, in the order given. Empty unless [allowed]. */
+    val ends: List<JoinEnd> = emptyList(),
+) {
+    val allowed: Boolean get() = refusal == null
+}
+
+/**
+ * One run of one job, reduced to what the attach gesture reads.
+ *
+ * Deliberately not a FenceRun: this file is pure geometry and the entity
+ * belongs to the data layer. [startJointId] and [endJointId] mirror the
+ * start_joint and end_joint columns (text, blank for a free end); until those
+ * exist they are blank for every run and nothing here can find a joint.
+ *
+ * Every function below takes EVERY run of ONE job. Two runs of different jobs
+ * can never be compared here because they are never in the same list; that is
+ * the check planJoin made with jobId and this layer makes by construction.
+ */
+data class JoinCandidateRun(
+    /**
+     * The run's sync id, never its local row id: it is the tie-break when two
+     * members are the same height and the same sort order, so two phones have
+     * to agree on it, and it is what the joint columns will be read beside.
+     */
+    val runId: String,
+    val points: List<FencePoint>,
+    val closedLoop: Boolean,
+    /** True when the run is quoted from typed footage, so it has no drawn ends. */
+    val typedFootage: Boolean,
+    val isTeardown: Boolean,
+    /** fabric_height_ft for chain link, panel_height_ft otherwise; the taller run is billed the post. */
+    val heightFt: Float,
+    val sortOrder: Int,
+    val startJointId: String = "",
+    val endJointId: String = "",
+) {
+    /** The joint id this run records at one side, blank for a free end. */
+    fun jointIdAt(atEnd: Boolean): String = if (atEnd) endJointId else startJointId
+
+    /** The point at that side, or null when the run has no drawn line. */
+    fun pointAt(atEnd: Boolean): FencePoint? =
+        if (points.size < 2) null else if (atEnd) points.last() else points.first()
+
+    /** Whether a finger may attach this run's ends: a drawn, open, typed-free run. */
+    val attachable: Boolean get() = points.size >= 2 && !closedLoop && !typedFootage
+}
+
+/**
+ * A post on the plan where two or more sides are attached: where to draw it,
+ * how many ends meet there, and whether they are still in the same place.
+ *
+ * Only ever built for a joint the post arithmetic counts
+ * ([JoinAdjustment.posts]), so the plan cannot show a shared post the price
+ * does not believe in.
+ */
+data class JointMarker(
+    val jointId: String,
+    val point: FencePoint,
+    val kind: JoinPostKind,
+    /** How many run ends meet here: 2 for a corner of two sides, 3 for a T. */
+    val memberCount: Int,
+    /** The ends are this far apart, in feet. 0 when they sit on one another. */
+    val openByFeet: Float,
+    /** The ends meeting here, lowest run id first. */
+    val ends: List<JoinEnd>,
+)
+
+/**
+ * What attaching two ends takes off the order, or what detaching puts back.
+ *
+ * Deltas, and positive means "no longer needed": [postsSaved] of 1 is one post
+ * fewer in the ground. [RunJoinGesture.effectOfDetaching] flips the sign, so
+ * one piece of wording serves both directions.
+ *
+ * Every figure here comes out of [RunJoinArithmetic] -- the same arithmetic the
+ * engine will use when it reads joints -- run twice, once on the drawing as it
+ * is and once on the drawing as it would be, and subtracted. Nothing here is a
+ * second opinion about the post count.
+ */
+data class JoinEffect(
+    val postsSaved: Int,
+    /** One cap per post (POST_CAP follows the total), so this tracks [postsSaved]. */
+    val postCapsSaved: Int,
+    /** End posts that stop being end posts. */
+    val endPostsRemoved: Int,
+    val cornerPostsAdded: Int,
+    val linePostsAdded: Int,
+    val kind: JoinPostKind,
+    /** The run billed the shared post: tallest, then lowest sort order, then lowest id. */
+    val ownerRunId: String,
+    val memberCount: Int,
+    /** How far apart the ends are now, in feet. Attaching does not move either one. */
+    val gapFeet: Float,
+)
+
+/**
+ * The attach gesture: which end a finger hit, whether it may be attached to
+ * another, and what that does to the materials.
+ *
+ * ---------------------------------------------------------------------------
+ * A JOIN IS SOMETHING THE OWNER SAYS, NEVER SOMETHING THE APP NOTICES.
+ * ---------------------------------------------------------------------------
+ * His rule, in his words: "it would not be a corner post if I drew it on the
+ * other side until I connect it to that one." Two points on identical
+ * coordinates are not attached -- the drawing tool already copies a corner's
+ * exact position when a point is placed near one ([snapDrawPoint]), and the
+ * other fence may be a neighbour's. So nothing here reads a coordinate to
+ * decide WHETHER ends are attached. Coordinates are read for three things,
+ * all of them after the fact: which end a tap was nearest ([endNear]), how far
+ * apart attached ends have drifted ([JointMarker.openByFeet]), and how sharply
+ * the fence turns at the post, which decides line or corner and is
+ * [RunJoinArithmetic]'s job, not this object's.
+ *
+ * ---------------------------------------------------------------------------
+ * STATUS: NOTHING HERE IS STORED YET.
+ * ---------------------------------------------------------------------------
+ * [JoinCandidateRun.startJointId] and [JoinCandidateRun.endJointId] come from
+ * columns that do not exist (see the header of [RunJoinArithmetic]), so every
+ * run reaches this object with both blank, [markers] is empty on every job, and
+ * [decide] can only ever be asked about two free ends. The drawing screen does
+ * not offer the tool while that is true (SurveyViewModel.JOIN_STORAGE_READY).
+ */
+object RunJoinGesture {
+
+    /**
+     * Every end a finger may attach, with the point to draw it at.
+     *
+     * A closed perimeter and a typed-footage run are left out because they have
+     * no free end to give, which is the same reason the price ignores them
+     * (1.4). A teardown run IS included: an old fence drawn in two pieces is a
+     * real thing to attach, and refusing it would refuse the thing rather than
+     * the mistake. Mixing a teardown end with a new-fence end is what
+     * [JoinRefusal.TEARDOWN_MISMATCH] is for.
+     */
+    fun attachableEnds(runs: List<JoinCandidateRun>): List<Pair<JoinEnd, FencePoint>> {
+        val out = mutableListOf<Pair<JoinEnd, FencePoint>>()
+        for (run in runs) {
+            if (!run.attachable) continue
+            for (atEnd in listOf(false, true)) {
+                val point = run.pointAt(atEnd) ?: continue
+                out.add(Pair(JoinEnd(run.runId, atEnd), point))
+            }
+        }
+        return out
+    }
+
+    /**
+     * The attachable end nearest a tap and within [radius] of it, or null.
+     *
+     * [at] and [radius] are both in the drawing's own pixel space, so the
+     * caller divides a screen tolerance by the view's scale and the target
+     * stays the same size under the finger at any zoom.
+     *
+     * A run of one point has no end here at all: its single point is both ends
+     * and attaching it would make a post on a run with no length.
+     */
+    fun endNear(runs: List<JoinCandidateRun>, at: FencePoint, radius: Float): JoinEnd? {
+        if (radius <= 0f) return null
+        var best: JoinEnd? = null
+        var bestDistance = radius
+        for ((end, point) in attachableEnds(runs)) {
+            val dx = (point.x - at.x).toDouble()
+            val dy = (point.y - at.y).toDouble()
+            val distance = sqrt(dx * dx + dy * dy).toFloat()
+            if (distance > bestDistance) continue
+            // Strictly nearer to replace one already found, so a tie between
+            // two ends sitting on one another is broken by run order and never
+            // by which happened to be looked at first.
+            if (best == null || distance < bestDistance) {
+                best = end
+                bestDistance = distance
+            }
+        }
+        return best
+    }
+
+    fun runOf(runs: List<JoinCandidateRun>, end: JoinEnd): JoinCandidateRun? =
+        runs.firstOrNull { it.runId == end.runId }
+
+    fun pointOf(runs: List<JoinCandidateRun>, end: JoinEnd): FencePoint? =
+        runOf(runs, end)?.pointAt(end.atEnd)
+
+    /**
+     * The post this end is at, or blank.
+     *
+     * Live only when the id is held by the ends of at least two DIFFERENT runs,
+     * which is the rule the arithmetic applies (1.4) and the rule the retired
+     * table's queries carried: an id left on one end -- its partner deleted, or
+     * not synced down yet -- is a free end, and a free end is today's price.
+     */
+    fun liveJointOf(runs: List<JoinCandidateRun>, end: JoinEnd): String {
+        val run = runOf(runs, end) ?: return ""
+        val id = run.jointIdAt(end.atEnd)
+        if (id.isBlank()) return ""
+        return if (runsAtJoint(runs, id).size >= 2) id else ""
+    }
+
+    /** The distinct runs holding this joint id at either end, lowest id first. */
+    fun runsAtJoint(runs: List<JoinCandidateRun>, jointId: String): List<String> {
+        if (jointId.isBlank()) return emptyList()
+        val ids = LinkedHashSet<String>()
+        for (run in runs) {
+            if (run.startJointId == jointId || run.endJointId == jointId) ids.add(run.runId)
+        }
+        return ids.sorted()
+    }
+
+    /** Every end holding this joint id, lowest run id first, start before end. */
+    fun endsAtJoint(runs: List<JoinCandidateRun>, jointId: String): List<JoinEnd> {
+        if (jointId.isBlank()) return emptyList()
+        val out = mutableListOf<JoinEnd>()
+        for (run in runs.sortedBy { it.runId }) {
+            if (run.startJointId == jointId) out.add(JoinEnd(run.runId, false))
+            if (run.endJointId == jointId) out.add(JoinEnd(run.runId, true))
+        }
+        return out
+    }
+
+    /**
+     * Whether two tapped ends may be attached, and to which post.
+     *
+     * The refusals, in order, are planJoin's own (data/RunJoin.kt), re-homed
+     * here as docs/JOINING_RUNS.md 11.1 asks: they are the right rules and only
+     * their storage was wrong. Two differences, both deliberate:
+     *
+     *  - the same-job check is by construction, not a field: [runs] is one
+     *    job's runs, so two jobs can never be compared.
+     *  - an id held by only one end counts as blank ([liveJointOf]), so a
+     *    half-synced attachment does not block a real one.
+     *
+     * [newJointId] is used only when both ends are free. When one end is
+     * already at a post the other joins THAT post, which is how a third side
+     * reaches an existing corner (a T) in one write instead of three.
+     */
+    fun decide(
+        runs: List<JoinCandidateRun>,
+        a: JoinEnd,
+        b: JoinEnd,
+        newJointId: String,
+    ): JoinDecision {
+        val runA = runOf(runs, a)
+        val runB = runOf(runs, b)
+        if (runA == null || runB == null) return JoinDecision(JoinRefusal.NOT_FOUND)
+        if (runA.runId == runB.runId) return JoinDecision(JoinRefusal.SAME_RUN)
+        if (runA.closedLoop || runB.closedLoop) return JoinDecision(JoinRefusal.CLOSED_LOOP)
+        if (runA.typedFootage || runB.typedFootage) return JoinDecision(JoinRefusal.TYPED_FOOTAGE)
+        if (runA.isTeardown != runB.isTeardown) return JoinDecision(JoinRefusal.TEARDOWN_MISMATCH)
+
+        val jointA = liveJointOf(runs, a)
+        val jointB = liveJointOf(runs, b)
+        if (jointA.isNotBlank() && jointA == jointB) return JoinDecision(JoinRefusal.ALREADY_ATTACHED)
+        if (jointA.isNotBlank() && jointB.isNotBlank()) return JoinDecision(JoinRefusal.AT_ANOTHER_POINT)
+
+        val ends = listOf(a, b)
+        if (jointA.isNotBlank()) {
+            return if (runB.jointIdAt(!b.atEnd) == jointA) JoinDecision(JoinRefusal.SAME_RUN)
+            else JoinDecision(null, jointA, ends)
+        }
+        if (jointB.isNotBlank()) {
+            return if (runA.jointIdAt(!a.atEnd) == jointB) JoinDecision(JoinRefusal.SAME_RUN)
+            else JoinDecision(null, jointB, ends)
+        }
+        if (newJointId.isBlank()) return JoinDecision(JoinRefusal.NOT_FOUND)
+        return JoinDecision(null, newJointId, ends)
+    }
+
+    /**
+     * The runs with a joint id written at one end -- the drawing as it WOULD be.
+     *
+     * Pure, so the confirmation can be shown the real arithmetic's answer
+     * before anything is written and the write itself has one list of rows to
+     * save. Writing a blank id is a detach.
+     */
+    fun withJointAt(
+        runs: List<JoinCandidateRun>,
+        end: JoinEnd,
+        jointId: String,
+    ): List<JoinCandidateRun> = runs.map { run ->
+        if (run.runId != end.runId) run
+        else if (end.atEnd) run.copy(endJointId = jointId)
+        else run.copy(startJointId = jointId)
+    }
+
+    /** The runs with a decision's joint id written at both of its ends. */
+    fun withDecisionApplied(
+        runs: List<JoinCandidateRun>,
+        decision: JoinDecision,
+    ): List<JoinCandidateRun> {
+        if (!decision.allowed) return runs
+        var out = runs
+        for (end in decision.ends) out = withJointAt(out, end, decision.jointId)
+        return out
+    }
+
+    /**
+     * The posts the plan should draw as shared, from the arithmetic itself.
+     *
+     * Built from [JoinAdjustment.posts], so a recorded joint the price IGNORES
+     * -- one member left after its partner was deleted, a run since closed,
+     * typed or made a teardown -- is not drawn as a shared post. The drawing
+     * must not show a post the estimate is not counting: that is the confusion
+     * this whole feature exists to end.
+     */
+    fun markers(runs: List<JoinCandidateRun>, pxPerFt: Float): List<JointMarker> {
+        val adjustment = RunJoinArithmetic.adjust(runs.map { toJoinable(it, pxPerFt) })
+        if (adjustment.posts.isEmpty()) return emptyList()
+        val out = mutableListOf<JointMarker>()
+        for (post in adjustment.posts) {
+            val ends = endsAtJoint(runs, post.jointId).filter { post.memberRunIds.contains(it.runId) }
+            val points = ends.mapNotNull { pointOf(runs, it) }
+            val point = points.firstOrNull() ?: continue
+            out.add(
+                JointMarker(
+                    jointId = post.jointId,
+                    point = point,
+                    kind = post.kind,
+                    memberCount = post.degree,
+                    openByFeet = if (pxPerFt > 0f) widestGapPx(points) / pxPerFt else 0f,
+                    ends = ends,
+                )
+            )
+        }
+        return out
+    }
+
+    /**
+     * What attaching the two ends of a decision would do to the materials, or
+     * null when it would do nothing at all.
+     *
+     * Null is a real answer and the wording must say so rather than claim a
+     * saving: two teardown runs bill no posts, so attaching them changes no
+     * material, and an end whose run has nothing measurable drawn has no post
+     * to give up. The attachment is still worth recording -- it is his drawing,
+     * and the run may be drawn properly a minute later -- but nothing comes off
+     * the order today.
+     */
+    fun effectOfAttaching(
+        runs: List<JoinCandidateRun>,
+        decision: JoinDecision,
+        pxPerFt: Float,
+    ): JoinEffect? {
+        if (!decision.allowed) return null
+        val after = withDecisionApplied(runs, decision)
+        return effectBetween(runs, after, decision.jointId, decision.ends, pxPerFt, 1)
+    }
+
+    /**
+     * What detaching one end would put back, or null when it changes nothing.
+     *
+     * The same arithmetic read the other way round: the "after" drawing is the
+     * one with this end freed, and the sign is flipped so the caller can say
+     * "puts back 1 post" with the same figures.
+     */
+    fun effectOfDetaching(
+        runs: List<JoinCandidateRun>,
+        end: JoinEnd,
+        pxPerFt: Float,
+    ): JoinEffect? {
+        val jointId = liveJointOf(runs, end)
+        if (jointId.isBlank()) return null
+        val ends = endsAtJoint(runs, jointId)
+        val after = withJointAt(runs, end, "")
+        return effectBetween(after, runs, jointId, ends, pxPerFt, -1)
+    }
+
+    /** The widest distance between any two of these points, in drawing pixels. */
+    private fun widestGapPx(points: List<FencePoint>): Float {
+        var widest = 0f
+        for (i in points.indices) {
+            for (j in i + 1 until points.size) {
+                val dx = (points[i].x - points[j].x).toDouble()
+                val dy = (points[i].y - points[j].y).toDouble()
+                val d = sqrt(dx * dx + dy * dy).toFloat()
+                if (d > widest) widest = d
+            }
+        }
+        return widest
+    }
+
+    /**
+     * The difference the arithmetic makes between two drawings, as savings.
+     *
+     * The figures are the "after" drawing minus the "before" one, so attaching
+     * (which passes them in that order) gives positive savings and detaching
+     * (which passes them the other way round, with a sign of -1) gives negative
+     * ones. The post described -- its kind, its owner, how many ends meet at it
+     * -- is always the one that EXISTS in the second list, which is the post
+     * being created when attaching and the post being broken up when detaching.
+     *
+     * Null when the two drawings price the same: the joint is one the
+     * arithmetic ignores, and nothing may be claimed for it.
+     */
+    private fun effectBetween(
+        before: List<JoinCandidateRun>,
+        after: List<JoinCandidateRun>,
+        jointId: String,
+        ends: List<JoinEnd>,
+        pxPerFt: Float,
+        sign: Int,
+    ): JoinEffect? {
+        val wasAdjustment = RunJoinArithmetic.adjust(before.map { toJoinable(it, pxPerFt) })
+        val isAdjustment = RunJoinArithmetic.adjust(after.map { toJoinable(it, pxPerFt) })
+        val post = isAdjustment.posts.firstOrNull { it.jointId == jointId } ?: return null
+        val saved = isAdjustment.postsSaved - wasAdjustment.postsSaved
+        if (saved == 0) return null
+
+        var endPosts = 0
+        var cornerPosts = 0
+        var linePosts = 0
+        for (runId in post.memberRunIds) {
+            val was = wasAdjustment.forRun(runId)
+            val now = isAdjustment.forRun(runId)
+            endPosts += was.endPostsDelta - now.endPostsDelta
+            cornerPosts += now.cornerPostsDelta - was.cornerPostsDelta
+            linePosts += now.linePostsDelta - was.linePostsDelta
+        }
+
+        return JoinEffect(
+            postsSaved = saved * sign,
+            postCapsSaved = saved * sign,
+            endPostsRemoved = endPosts * sign,
+            cornerPostsAdded = cornerPosts * sign,
+            linePostsAdded = linePosts * sign,
+            kind = post.kind,
+            ownerRunId = post.ownerRunId,
+            memberCount = post.degree,
+            gapFeet = if (pxPerFt > 0f) widestGapPx(ends.mapNotNull { pointOf(after, it) }) / pxPerFt else 0f,
+        )
+    }
+
+    /**
+     * The arithmetic's view of one run.
+     *
+     * The geometry is [FenceGeometryEngine.analyze], the same call the takeoff
+     * measures a run with, so eligibility here is decided by exactly what the
+     * price decides it by: a closed run and a run of fewer than two points come
+     * back with no ends, and a typed-footage run is handed no points at all,
+     * as the engine's own resolveGeometry hands it none.
+     */
+    private fun toJoinable(run: JoinCandidateRun, pxPerFt: Float): JoinableRun = JoinableRun(
+        id = run.runId,
+        geometry = if (run.typedFootage) FenceGeometryEngine.analyze(emptyList(), pxPerFt, false)
+        else FenceGeometryEngine.analyze(run.points, pxPerFt, run.closedLoop),
+        heightFt = run.heightFt,
+        sortOrder = run.sortOrder,
+        isTeardown = run.isTeardown,
+        startJointId = run.startJointId,
+        endJointId = run.endJointId,
+    )
 }

@@ -21,7 +21,7 @@ import kotlinx.coroutines.withContext
         PaymentRecord::class, BuildTemplate::class, JobPayShare::class, PendingResurrection::class,
         EnquiryCapture::class, EnquiryCapturePhoto::class, RunJoin::class
     ],
-    version = 49,
+    version = 50,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -778,13 +778,20 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /** See [SchemaV50] for what each statement is for. */
+        private val MIGRATION_49_50 = object : Migration(49, 50) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                SchemaV50.MIGRATION_49_50_STATEMENTS.forEach { db.execSQL(it) }
+            }
+        }
+
         fun getInstance(context: Context, scope: CoroutineScope): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     DB_NAME
-                ).addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35, MIGRATION_35_36, MIGRATION_36_37, MIGRATION_37_38, MIGRATION_38_39, MIGRATION_39_40, MIGRATION_40_41, MIGRATION_41_42, MIGRATION_42_43, MIGRATION_43_44, MIGRATION_44_45, MIGRATION_45_46, MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49)
+                ).addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35, MIGRATION_35_36, MIGRATION_36_37, MIGRATION_37_38, MIGRATION_38_39, MIGRATION_39_40, MIGRATION_40_41, MIGRATION_41_42, MIGRATION_42_43, MIGRATION_43_44, MIGRATION_44_45, MIGRATION_45_46, MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49, MIGRATION_49_50)
                 // Destructive ONLY from the pre-release versions that predate the
                 // migration chain (it starts at 4). Blanket
                 // fallbackToDestructiveMigration() was a standing offer to wipe a
@@ -1031,5 +1038,45 @@ internal object SchemaV48 {
 internal object SchemaV49 {
     val MIGRATION_48_49_STATEMENTS: List<String> = listOf(
         "ALTER TABLE `material_items` ADD COLUMN `heightFt` REAL"
+    )
+}
+
+/**
+ * The 49 -> 50 upgrade: [FenceRun.startJoint] and [FenceRun.endJoint], the
+ * shared post two run ends stand at. Purely additive -- no row is read,
+ * changed or deleted -- and `''` for every run already on the phone, which is
+ * "this end is free". That is today's behaviour exactly, so NOTHING a 49
+ * database already holds is joined by this upgrade and no quote already sent
+ * can move because the migration ran.
+ *
+ * NO BACKFILL, deliberately, and none may be added here: runs whose ends
+ * already sit on one another are NOT joined for the owner. A join takes a post
+ * out of a price, and inferring one from coordinates is the single thing he
+ * said not to do ("it would not be a corner post if I drew it on the other
+ * side until I connect it to that one").
+ *
+ * A new version rather than a statement appended to [SchemaV49]: a build at
+ * schema 49 exists, so a phone may already have run that 49, and a phone that
+ * ran one 49 and then met a changed 49 would refuse to open its own database.
+ * Room validates the whole schema against the entity list on open, which is
+ * why the two entity fields and these two statements have to land together --
+ * a field with no migration, or a migration with no field, is an app that
+ * cannot open its database on upgrade.
+ *
+ * `TEXT NOT NULL DEFAULT ''` matches a non-null Kotlin `String = ""` field with
+ * no `@ColumnInfo` of its own, the same shape as jobs.reapprovalReason in
+ * MIGRATION_40_41 (which shipped and opens). SQLite requires a non-null
+ * DEFAULT when a NOT NULL column is added to a table that already has rows,
+ * and `''` is it.
+ *
+ * The cloud half is supabase_a32_join_runs.sql, which is UNAPPLIED -- see
+ * EntitySync.JOIN_COLUMNS_LIVE. This migration does not depend on it: a join
+ * made on the phone is kept locally either way. It only travels once that file
+ * is applied.
+ */
+internal object SchemaV50 {
+    val MIGRATION_49_50_STATEMENTS: List<String> = listOf(
+        "ALTER TABLE `fence_runs` ADD COLUMN `startJoint` TEXT NOT NULL DEFAULT ''",
+        "ALTER TABLE `fence_runs` ADD COLUMN `endJoint` TEXT NOT NULL DEFAULT ''"
     )
 }

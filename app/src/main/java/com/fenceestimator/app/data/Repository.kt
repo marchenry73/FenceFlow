@@ -703,6 +703,67 @@ class Repository(private val db: AppDatabase) {
     suspend fun updateFenceRunFromCloud(run: FenceRun) = fenceRunDao.update(run)
     suspend fun deleteFenceRun(run: FenceRun) = deleteSynced(run.syncId, "fence_runs") { fenceRunDao.delete(run) }
 
+    /**
+     * Puts run ends at a shared post, or takes them off one, as ONE change.
+     *
+     * [writes] is one triple per end: the run's SYNC id, whether it is the
+     * run's LAST point (false = its first), and what to stamp there -- a joint
+     * id to attach, `""` to detach. Named by sync id because that is the
+     * identity the joint columns are read beside and the one two phones agree
+     * on; three plain values rather than the gesture's own JoinEnd so this
+     * layer keeps no dependency on geometry, the same way [joinRunEnds] takes
+     * [RunEnd]. Decided by RunJoinGesture.decide; this only writes.
+     *
+     * ONE TRANSACTION OVER EVERY END, and nothing is written until every end
+     * has resolved. A half-written attachment is an id alone on one end, which
+     * reads as a free end everywhere (RunJoinGesture.liveJointOf), so the
+     * failure would be a post too many rather than a post too few -- but the
+     * plan would still be drawing something the estimate does not believe, and
+     * nothing would say why. An end naming a run that is not on this job
+     * writes NOTHING and answers false.
+     *
+     * Goes through [fenceRunDao] and bumps `updatedAt` exactly as
+     * [updateFenceRun] does, so a join is an ordinary run edit as far as sync
+     * is concerned and rides the run's own row up. There is no second write
+     * path and no joint table: the one that existed ([RunJoin], schema 48) is
+     * inert and is not touched here -- docs/JOINING_RUNS.md 11.1.
+     *
+     * @return true only when a row actually changed. False means nothing was
+     *   stored -- an empty list, an end whose run has gone, or every end
+     *   already carrying the value asked for -- and the caller must say so
+     *   rather than report an attachment it does not have.
+     */
+    suspend fun setRunJointIds(jobId: Long, writes: List<Triple<String, Boolean, String>>): Boolean {
+        if (writes.isEmpty()) return false
+        return guardWrite("setRunJointIds") {
+            // Explicit <Boolean> so the early `return@withTransaction` below
+            // cannot be read as anything else.
+            db.withTransaction<Boolean> {
+                val current = fenceRunDao.getForJob(jobId).associateBy { it.syncId }
+                // Build every row first, then write. An end that cannot be
+                // resolved has to stop the whole thing BEFORE anything lands,
+                // or a rerun would be working from a half-joined drawing.
+                val staged = LinkedHashMap<String, FenceRun>()
+                for ((runSyncId, atEnd, jointId) in writes) {
+                    val run = staged[runSyncId] ?: current[runSyncId] ?: return@withTransaction false
+                    staged[runSyncId] =
+                        if (atEnd) run.copy(endJoint = jointId) else run.copy(startJoint = jointId)
+                }
+                val now = System.currentTimeMillis()
+                var changed = 0
+                for (run in staged.values) {
+                    // An end already carrying this value keeps its row
+                    // untouched, so its clock does not move for nothing and a
+                    // just-pulled office edit is not made to look older.
+                    if (current[run.syncId] == run) continue
+                    fenceRunDao.update(run.copy(updatedAt = now))
+                    changed++
+                }
+                changed > 0
+            }
+        }
+    }
+
     // ---- Joined run ends (see RunJoin: storage only, not yet read by the price or any screen) ----
 
     /**

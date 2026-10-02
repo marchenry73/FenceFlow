@@ -121,6 +121,8 @@ import com.fenceestimator.app.geometry.FencePoint
 import com.fenceestimator.app.geometry.GateMarker
 import com.fenceestimator.app.geometry.GateMounting
 import com.fenceestimator.app.geometry.GateSpan
+import com.fenceestimator.app.geometry.JoinPostKind
+import com.fenceestimator.app.geometry.JoinRefusal
 import com.fenceestimator.app.geometry.VertexKind
 import com.fenceestimator.app.geometry.angleCue
 import com.fenceestimator.app.ui.components.FeetInches
@@ -475,6 +477,46 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
     }
     val canRedo by viewModel.canRedo.collectAsState()
 
+    // ATTACHING ONE SIDE TO ANOTHER: the end a first tap lifted, and the
+    // attach or detach waiting to be confirmed. Both live in the view model so
+    // a half-made attachment survives a recomposition and dies with the
+    // screen, never outliving the drawing it was aimed at.
+    val joinPick by viewModel.joinPick.collectAsState()
+    val joinOffer by viewModel.joinOffer.collectAsState()
+    // Every refusal says which one it was, in his terms. Branches on the enum,
+    // never on the words, the same rule Undo and Redo follow above, so a
+    // translation cannot change which message appears.
+    val joinRefusedSameRun = stringResource(R.string.attach_refused_same_run)
+    val joinRefusedClosed = stringResource(R.string.attach_refused_closed_loop)
+    val joinRefusedTyped = stringResource(R.string.attach_refused_typed_footage)
+    val joinRefusedTeardown = stringResource(R.string.attach_refused_teardown)
+    val joinRefusedAlready = stringResource(R.string.attach_refused_already)
+    val joinRefusedElsewhere = stringResource(R.string.attach_refused_at_another_point)
+    val joinRefusedGone = stringResource(R.string.attach_refused_not_found)
+    val joinRefusedNoStorage = stringResource(R.string.attach_refused_no_storage)
+    LaunchedEffect(Unit) {
+        viewModel.joinRefused.collect { reason ->
+            snackbarHostState.showSnackbar(
+                when (reason) {
+                    JoinRefusal.SAME_RUN -> joinRefusedSameRun
+                    JoinRefusal.CLOSED_LOOP -> joinRefusedClosed
+                    JoinRefusal.TYPED_FOOTAGE -> joinRefusedTyped
+                    JoinRefusal.TEARDOWN_MISMATCH -> joinRefusedTeardown
+                    JoinRefusal.ALREADY_ATTACHED -> joinRefusedAlready
+                    JoinRefusal.AT_ANOTHER_POINT -> joinRefusedElsewhere
+                    JoinRefusal.NOT_FOUND -> joinRefusedGone
+                    JoinRefusal.NO_STORAGE -> joinRefusedNoStorage
+                }
+            )
+        }
+    }
+    // Leaving the tool puts down anything half-attached: a lifted end that
+    // survived a trip through Draw would attach itself to whatever was tapped
+    // next, which is the thing he must never have happen.
+    LaunchedEffect(mode) {
+        if (mode != SurveyMode.JOIN) viewModel.clearJoinPick()
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -688,6 +730,16 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                         add(SurveyMode.GATE to R.string.mode_gate)
                         add(SurveyMode.MARKER to R.string.mode_mark_site)
                         add(SurveyMode.ADJUST to R.string.mode_adjust)
+                        // Attach, and ONLY while an attachment can be kept and
+                        // can travel to the office -- see
+                        // SurveyViewModel.JOIN_STORAGE_READY, which lists what
+                        // has to land first. Absent, not present-and-refusing:
+                        // he draws in yards with no signal, and a tool that
+                        // loses what it was given the moment the app closes is
+                        // worse than no tool at all.
+                        if (SurveyViewModel.JOIN_STORAGE_READY) {
+                            add(SurveyMode.JOIN to R.string.mode_attach)
+                        }
                     }
                     add(SurveyMode.PAN to R.string.mode_move_view)
                 }
@@ -818,6 +870,31 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                     }
                     FenceGeometryEngine.totalLinearFeetAcrossRuns(allRunPoints, scale)
                 }
+                // ATTACHING ONE SIDE TO ANOTHER: the shared posts to draw on
+                // the plan, the ends a tap can reach while the tool is in
+                // hand, and the end a first tap lifted.
+                //
+                // Worked out from the runs here rather than inside the draw
+                // block, which runs on every frame of every pan. The shared
+                // posts come from the join arithmetic itself, so the plan can
+                // never draw a post the estimate is not counting -- a joint
+                // whose partner run was deleted, or whose run has since been
+                // closed, typed or turned into a teardown, is ignored by the
+                // price and is therefore not drawn as attached either.
+                val jointMarkers = remember(runs, job2) { viewModel.jointMarkers() }
+                val attachTargets = remember(runs, job2, mode) {
+                    if (mode == SurveyMode.JOIN) viewModel.attachableEnds() else emptyList()
+                }
+                val joinPickPoint = remember(runs, joinPick) {
+                    val end = joinPick
+                    if (end == null) null else runs.firstOrNull { it.syncId == end.runId }?.let { picked ->
+                        val pts = FenceCodec.decodePoints(picked.pointsEncoded)
+                        if (pts.size < 2) null else if (end.atEnd) pts.last() else pts.first()
+                    }
+                }
+                // Hoisted out of the draw block: the theme is only readable
+                // from a composable, and DrawScope is not one.
+                val warningColor = MaterialTheme.semantic.warning
                 val canvasContentSize = bitmap?.let { it.width to it.height }
                     ?: (SurveyViewModel.GRID_CANVAS_SIZE to SurveyViewModel.GRID_CANVAS_SIZE)
                 // Read by the pinch layer below, which is created once and would
@@ -1167,6 +1244,24 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                                                 else gateDialogPoint = imgPoint
                                             }
                                             SurveyMode.MARKER -> markerDialogPoint = imgPoint
+                                            // ATTACH: tap the end of one side,
+                                            // then the end of the other. The
+                                            // tolerance is converted out of
+                                            // screen pixels by the view's own
+                                            // scale, so the target under the
+                                            // finger is the same size zoomed
+                                            // in and zoomed out -- in drawing
+                                            // units it is 40 px of screen,
+                                            // which on a 400 ft grid is about
+                                            // 16 ft and on a tight one a few
+                                            // inches. Tapping nothing puts
+                                            // down whatever was lifted.
+                                            SurveyMode.JOIN -> {
+                                                val reach = if (transform.scale > 0f) {
+                                                    VERTEX_HIT_RADIUS_PX / transform.scale
+                                                } else VERTEX_HIT_RADIUS_PX
+                                                viewModel.tapJoinEnd(imgPoint, reach)
+                                            }
                                             else -> {}
                                         }
                                     }
@@ -1466,6 +1561,86 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                         // between an opening that fits and one that does not.
                         if (showGatesLayer) gateSpans.forEach { (gate, span) -> drawGate(gate, span, 1f) }
 
+                        // ATTACHED ENDS, and they must not look like two ends
+                        // that merely touch.
+                        //
+                        // That is the confusion the whole feature exists to
+                        // end: today two runs can already end on the identical
+                        // pixel (a point placed near another run's corner is
+                        // moved onto it exactly) and the estimate still counts
+                        // two end posts there, with nothing on the drawing to
+                        // say so either way. So an attached post is drawn as a
+                        // DIFFERENT THING, not a tinted version of the same
+                        // thing: nearly twice the radius of an ordinary
+                        // vertex, filled in the corner-post orange, ringed in
+                        // white, and carrying the number of sides that meet
+                        // there. Read at arm's length in sunlight that is a
+                        // badge, which is what it has to survive -- a subtle
+                        // shade of a 11px dot is invisible on a phone held
+                        // over a satellite photo of grass and driveway.
+                        //
+                        // Last in the fence layer, so neither a line nor a
+                        // gate can be drawn over the one mark that says a post
+                        // is shared.
+                        jointMarkers.forEach { marker ->
+                            val c = transform.toCanvas(marker.point)
+                            drawCircle(SafetyOrange40, radius = 21f, center = c)
+                            drawCircle(
+                                Color.White, radius = 21f, center = c,
+                                style = androidx.compose.ui.graphics.drawscope.Stroke(width = 4f)
+                            )
+                            // Open by more than half a foot at this drawing's
+                            // own scale: the attachment stands (it is his
+                            // decision, not the pixels'), and the amber ring
+                            // is how he can see that the two ends have drifted
+                            // apart without having to zoom in and guess.
+                            if (marker.openByFeet > 0.5f) {
+                                drawCircle(
+                                    warningColor, radius = 27f, center = c,
+                                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3f)
+                                )
+                            }
+                            drawContext.canvas.nativeCanvas.drawText(
+                                marker.memberCount.toString(),
+                                c.x, c.y + 9f,
+                                android.graphics.Paint().apply {
+                                    color = android.graphics.Color.WHITE
+                                    textSize = 26f
+                                    textAlign = android.graphics.Paint.Align.CENTER
+                                    isAntiAlias = true
+                                    isFakeBoldText = true
+                                }
+                            )
+                        }
+
+                        // While the Attach tool is in hand: a target on every
+                        // free end a tap can reach, on EVERY run of the job
+                        // and not only the one being edited -- the whole point
+                        // is attaching one side to another, so the other
+                        // side's ends have to be tappable without selecting it
+                        // first. The end already lifted is bigger still and in
+                        // the other colour, so it is obvious which of the two
+                        // taps has happened.
+                        if (mode == SurveyMode.JOIN) {
+                            attachTargets.forEach { (_, point) ->
+                                val c = transform.toCanvas(point)
+                                drawCircle(Graphite40, radius = 15f, center = c)
+                                drawCircle(
+                                    Color.White, radius = 15f, center = c,
+                                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 3f)
+                                )
+                            }
+                            joinPickPoint?.let { picked ->
+                                val c = transform.toCanvas(picked)
+                                drawCircle(SteelTeal20, radius = 23f, center = c)
+                                drawCircle(
+                                    Color.White, radius = 23f, center = c,
+                                    style = androidx.compose.ui.graphics.drawscope.Stroke(width = 4.5f)
+                                )
+                                drawCircle(Color.White, radius = 6f, center = c)
+                            }
+                        }
+
                         } // showFenceLayer
 
                         // Markers layer: what's already sitting on the site
@@ -1576,6 +1751,19 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
                         }
                         if (mode == SurveyMode.ADJUST && selectedPoint == null) {
                             CanvasHint(text = stringResource(R.string.misc_survey_adjust_canvas_hint))
+                        }
+                        // Attach says which of the two taps it is waiting for,
+                        // because a tool whose first tap looks like nothing
+                        // happened is a tool people tap twice on the same end.
+                        if (mode == SurveyMode.JOIN) {
+                            CanvasHint(
+                                modifier = Modifier.widthIn(max = 320.dp),
+                                text = if (joinPick == null) {
+                                    stringResource(R.string.attach_hint_first)
+                                } else {
+                                    stringResource(R.string.attach_hint_second)
+                                }
+                            )
                         }
                         // A scale nobody measured against this photo -- carried from
                         // the drawing, or fitted by eye -- says so, in amber, for as
@@ -1860,6 +2048,22 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
         )
     }
 
+    // ATTACHING: what it does to the fence, before it happens.
+    //
+    // This is the answer to what he asked for weeks ago -- "I want to be able
+    // to see that in the grid" -- and it is the half that makes the control
+    // worth having: a post, a cap and that post's concrete come off the order,
+    // and two end posts become one corner post. Said in his terms, with the
+    // numbers, from the same arithmetic that will price it.
+    joinOffer?.let { offer ->
+        JoinOfferDialog(
+            offer = offer,
+            runs = runs,
+            onConfirm = { viewModel.confirmJoinOffer() },
+            onDismiss = { viewModel.clearJoinPick() }
+        )
+    }
+
     // Asked, not assumed -- and asked with what it costs spelled out, because
     // this is the one control on the drawing screen that cannot be walked back
     // with Undo.
@@ -2087,6 +2291,148 @@ private fun SiteMarkerDialog(
         },
         confirmButton = { Button(onClick = { onConfirm(kind, label) }) { Text(stringResource(R.string.draw_add_marker)) } },
         dismissButton = { OutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } }
+    )
+}
+
+/**
+ * What a run is called in the attach wording: its own name, or "Untitled", and
+ * its fence type -- exactly as the run picker names it, so the confirmation and
+ * the picker cannot call the same side two different things.
+ */
+@Composable
+private fun joinRunName(runs: List<FenceRun>, syncId: String): String {
+    val untitled = stringResource(R.string.misc_survey_untitled)
+    val run = runs.firstOrNull { it.syncId == syncId } ?: return untitled
+    return "${run.label.ifBlank { untitled }} (${run.fenceType.label()})"
+}
+
+/**
+ * "Attach these two ends?", with what it does to the materials.
+ *
+ * Every figure comes off [JoinOffer.effect], which the view model took from the
+ * join arithmetic by running it twice -- on the drawing as it is, and on the
+ * drawing as it would be -- so this cannot drift from what the estimate will
+ * eventually charge. Three things it refuses to do:
+ *
+ *  - claim a saving when there is none. A tear-out side bills no posts, so
+ *    attaching two of them changes no material; [JoinOffer.effect] is null and
+ *    the wording says so instead of printing a confident zero.
+ *  - imply the price has moved. While SurveyViewModel.JOIN_PRICING_READY is
+ *    false no engine reads an attachment, so the dialog says the materials and
+ *    the price do not change today. A control that quietly changes a price and
+ *    a control that quietly changes nothing are the same lie.
+ *  - let an approved quote be re-cut silently. [JoinOffer.approvalAtRisk] is
+ *    the same predicate the screen's edit warning uses, and it is said here,
+ *    before the attachment, in the words of what happens to the customer.
+ */
+@Composable
+private fun JoinOfferDialog(
+    offer: JoinOffer,
+    runs: List<FenceRun>,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    val effect = offer.effect
+    val members = offer.memberRunIds
+    val warning = MaterialTheme.semantic.warning
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                stringResource(
+                    if (offer.detach) R.string.attach_detach_title else R.string.attach_title
+                )
+            )
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
+                if (offer.detach) {
+                    val freed = offer.end
+                    Text(
+                        stringResource(
+                            R.string.attach_detach_body,
+                            if (freed == null) stringResource(R.string.misc_survey_untitled)
+                            else joinRunName(runs, freed.runId)
+                        )
+                    )
+                } else if (members.size == 2) {
+                    Text(
+                        stringResource(
+                            R.string.attach_body_two,
+                            joinRunName(runs, members[0]),
+                            joinRunName(runs, members[1])
+                        )
+                    )
+                } else {
+                    Text(stringResource(R.string.attach_body_many, members.size))
+                }
+
+                if (effect == null) {
+                    Text(stringResource(R.string.attach_no_material))
+                } else {
+                    // The sign is already flipped for a detach, so the count
+                    // is read without it and the two directions have their own
+                    // words rather than a minus sign to interpret.
+                    val posts = kotlin.math.abs(effect.postsSaved)
+                    if (offer.detach) {
+                        Text(
+                            if (posts == 1) stringResource(R.string.attach_detach_effect_one)
+                            else stringResource(R.string.attach_detach_effect_many, posts)
+                        )
+                    } else {
+                        Text(
+                            if (posts == 1) stringResource(R.string.attach_effect_one)
+                            else stringResource(R.string.attach_effect_many, posts)
+                        )
+                        Text(
+                            stringResource(
+                                if (effect.kind == JoinPostKind.CORNER) R.string.attach_kind_corner
+                                else R.string.attach_kind_line,
+                                effect.memberCount
+                            )
+                        )
+                        Text(
+                            stringResource(
+                                R.string.attach_billed,
+                                joinRunName(runs, effect.ownerRunId)
+                            )
+                        )
+                        // Open by more than half a foot: the attachment stands
+                        // either way -- it is his decision and not the pixels'
+                        // -- but a post he thinks is in one place and the crew
+                        // will set in another is worth a sentence.
+                        if (effect.gapFeet > 0.5f) {
+                            Text(
+                                stringResource(
+                                    R.string.attach_gap,
+                                    FeetInches.formatCompact(effect.gapFeet)
+                                ),
+                                color = warning
+                            )
+                        }
+                    }
+                }
+
+                if (!SurveyViewModel.JOIN_PRICING_READY) {
+                    Text(stringResource(R.string.attach_price_later))
+                }
+                if (offer.approvalAtRisk) {
+                    Text(stringResource(R.string.attach_approved_warning), color = warning)
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = onConfirm) {
+                Text(
+                    stringResource(
+                        if (offer.detach) R.string.attach_detach_action else R.string.attach_action
+                    )
+                )
+            }
+        },
+        dismissButton = {
+            OutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
+        }
     )
 }
 

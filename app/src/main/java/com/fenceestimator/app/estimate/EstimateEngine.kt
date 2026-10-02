@@ -227,7 +227,7 @@ object EstimateEngine {
      * GATE_POST row carries the line and stays in it where neither row exists.
      * Anchored totals do not move, as above.
      */
-    const val PRICING_ENGINE_VERSION = "2026.10.5"
+    const val PRICING_ENGINE_VERSION = "2026.10.6"
 
     /**
      * Money, to the cent: the ONE place a total is rounded.
@@ -724,8 +724,18 @@ object EstimateEngine {
         when (gate.mounting) {
             GateMounting.WALL -> {
                 entries += QtyEntry(MaterialRole.BLANK_POST, 1.0)
-                // The latch side. A post at the opening, not the end of a fence line.
-                entries += QtyEntry(MaterialRole.GATE_POST, 1.0)
+                // The latch side is an END POST, and the owner said so plainly on
+                // 1 Oct 2026: "if it's against the wall, it's a blank post, and then
+                // an end post for the fence line that the gate latches to."
+                //
+                // This read GATE_POST for a few hours earlier that day, on the
+                // reasoning that a post at an opening is not the end of a fence. That
+                // reasoning is wrong HERE and right for LINE below, and the difference
+                // is what the fence does on the far side. On a WALL gate the hinge side
+                // is the wall, so the fence line runs up to the latch post and STOPS:
+                // that post IS the end of the line. On a LINE gate the fence carries on
+                // past both posts, so neither is an end.
+                entries += QtyEntry(MaterialRole.END_POST, 1.0)
                 entries += QtyEntry(MaterialRole.HOLE_PLUG, WALL_MOUNT_HOLES)
                 // The hinge side is bolted to the wall and set in nothing. The
                 // latch side is still a post in a hole and still takes its bag.
