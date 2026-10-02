@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "engine": {
-    "version": "2026.10.5",
-    "generated_at": "2026-10-02T01:40:27.008031800Z"
+    "version": "2026.10.6",
+    "generated_at": "2026-10-02T03:33:16.202157300Z"
   },
   "case": "multi-gate-whole-bags",
   "note": "1.25 bags per post and three mountings: 16.25 + 2.5 + 1.0 + 3.5 = 23.25 bags, rounded up once to 24.",
   "input": {
-    "engine_version": "2026.10.5",
+    "engine_version": "2026.10.6",
     "pixels_per_foot": 20.0,
     "job": {
       "calibration_pixels_per_foot": 20.0,
@@ -380,7 +380,7 @@
     "existing_items": []
   },
   "expected": {
-    "engine_version": "2026.10.5",
+    "engine_version": "2026.10.6",
     "linear_feet": 100.0,
     "teardown_linear_feet": 0.0,
     "billable_linear_feet": 100.0,
@@ -535,7 +535,7 @@
             "covers_linear_ft": null
           },
           {
-            "role": "GATE_POST",
+            "role": "END_POST",
             "quantity": 1.0,
             "prefer_covers_ft": null,
             "covers_linear_ft": null
@@ -741,7 +741,7 @@
         "fence_run_sync_id": "00000028-0000-4000-8000-000000000001",
         "sort_order": 2,
         "description": "5\"x5\" Co-Ex End Post, White",
-        "quantity": 3.0,
+        "quantity": 4.0,
         "unit": "EA",
         "unit_price": 16.56,
         "supplier_unit_price": null,
@@ -867,7 +867,7 @@
         "fence_run_sync_id": "00000028-0000-4000-8000-000000000001",
         "sort_order": 11,
         "description": "5\"x5\" Co-Ex Gate Post, White",
-        "quantity": 5.0,
+        "quantity": 4.0,
         "unit": "EA",
         "unit_price": 16.56,
         "supplier_unit_price": null,

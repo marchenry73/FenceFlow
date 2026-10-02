@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "engine": {
-    "version": "2026.10.5",
-    "generated_at": "2026-10-02T01:40:27.008031800Z"
+    "version": "2026.10.6",
+    "generated_at": "2026-10-02T03:33:16.202157300Z"
   },
   "case": "inactive-row-ignored",
   "note": "The White 6 ft panel is inactive, so White narrows to the 8 ft row and the count is reconciled to 13.",
   "input": {
-    "engine_version": "2026.10.5",
+    "engine_version": "2026.10.6",
     "pixels_per_foot": 20.0,
     "job": {
       "calibration_pixels_per_foot": 20.0,
@@ -380,7 +380,7 @@
     "existing_items": []
   },
   "expected": {
-    "engine_version": "2026.10.5",
+    "engine_version": "2026.10.6",
     "linear_feet": 100.0,
     "teardown_linear_feet": 0.0,
     "billable_linear_feet": 100.0,

@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "engine": {
-    "version": "2026.10.5",
-    "generated_at": "2026-10-02T01:40:27.008031800Z"
+    "version": "2026.10.6",
+    "generated_at": "2026-10-02T03:33:16.202157300Z"
   },
   "case": "multi-run-mixed-types",
   "note": "Three runs of three types on one job: items concatenated in run order, sort_order restarting per run, totals summed in (sort_order, sync_id) order across runs.",
   "input": {
-    "engine_version": "2026.10.5",
+    "engine_version": "2026.10.6",
     "pixels_per_foot": 20.0,
     "job": {
       "calibration_pixels_per_foot": 20.0,
@@ -858,7 +858,7 @@
     "existing_items": []
   },
   "expected": {
-    "engine_version": "2026.10.5",
+    "engine_version": "2026.10.6",
     "linear_feet": 265.0,
     "teardown_linear_feet": 0.0,
     "billable_linear_feet": 265.0,
@@ -1412,7 +1412,7 @@
             "covers_linear_ft": null
           },
           {
-            "role": "GATE_POST",
+            "role": "END_POST",
             "quantity": 1.0,
             "prefer_covers_ft": null,
             "covers_linear_ft": null
@@ -1920,7 +1920,7 @@
         "fence_run_sync_id": "0000000c-0000-4000-8000-000000000003",
         "sort_order": 3,
         "description": "2\" Galvanized Terminal Post, 8'",
-        "quantity": 2.0,
+        "quantity": 3.0,
         "unit": "EA",
         "unit_price": 19.75,
         "supplier_unit_price": null,
@@ -2056,23 +2056,9 @@
         "category": null
       },
       {
-        "sync_id": "8ca5633d-8305-3698-af69-67370a125387",
-        "fence_run_sync_id": "0000000c-0000-4000-8000-000000000003",
-        "sort_order": 13,
-        "description": "2\" Galvanized Terminal Post, 8'",
-        "quantity": 1.0,
-        "unit": "EA",
-        "unit_price": 19.75,
-        "supplier_unit_price": null,
-        "taxable": true,
-        "role": "GATE_POST",
-        "auto_generated": true,
-        "category": null
-      },
-      {
         "sync_id": "bd4520c6-745d-3fda-9da5-b72f9f06a257",
         "fence_run_sync_id": "0000000c-0000-4000-8000-000000000003",
-        "sort_order": 14,
+        "sort_order": 13,
         "description": "5/8\" Hole Plug, White",
         "quantity": 4.0,
         "unit": "EA",
@@ -2086,7 +2072,7 @@
       {
         "sync_id": "52b492df-7101-35d8-a5d9-900e02c19117",
         "fence_run_sync_id": "0000000c-0000-4000-8000-000000000003",
-        "sort_order": 15,
+        "sort_order": 14,
         "description": "Concrete Mix 60lb Bag",
         "quantity": 7.0,
         "unit": "EA",
@@ -2164,7 +2150,6 @@
       "5375f6ad-e034-3513-a72e-ccae9f2996f7",
       "25821ef8-fe78-3e6a-ad67-e9686c99597a",
       "f4a247c9-722c-336e-9a73-de8b12efeaa7",
-      "8ca5633d-8305-3698-af69-67370a125387",
       "bd4520c6-745d-3fda-9da5-b72f9f06a257",
       "52b492df-7101-35d8-a5d9-900e02c19117"
     ],

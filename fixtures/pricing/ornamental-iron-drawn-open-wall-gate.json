@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "engine": {
-    "version": "2026.10.5",
-    "generated_at": "2026-10-02T01:40:27.008031800Z"
+    "version": "2026.10.6",
+    "generated_at": "2026-10-02T03:33:16.202157300Z"
   },
   "case": "ornamental-iron-drawn-open-wall-gate",
   "note": "Ornamental iron with a wall-hung 5 ft gate: BLANK_POST has no catalog row (unmatched), hole plugs are universal.",
   "input": {
-    "engine_version": "2026.10.5",
+    "engine_version": "2026.10.6",
     "pixels_per_foot": 20.0,
     "job": {
       "calibration_pixels_per_foot": 20.0,
@@ -260,7 +260,7 @@
     "existing_items": []
   },
   "expected": {
-    "engine_version": "2026.10.5",
+    "engine_version": "2026.10.6",
     "linear_feet": 120.0,
     "teardown_linear_feet": 0.0,
     "billable_linear_feet": 120.0,
@@ -378,7 +378,7 @@
             "covers_linear_ft": null
           },
           {
-            "role": "GATE_POST",
+            "role": "END_POST",
             "quantity": 1.0,
             "prefer_covers_ft": null,
             "covers_linear_ft": null
@@ -530,7 +530,7 @@
         "fence_run_sync_id": "00000015-0000-4000-8000-000000000001",
         "sort_order": 2,
         "description": "4\"x4\" Steel Post, 6', Black",
-        "quantity": 2.0,
+        "quantity": 3.0,
         "unit": "EA",
         "unit_price": 32.0,
         "supplier_unit_price": null,
@@ -610,23 +610,9 @@
         "category": null
       },
       {
-        "sync_id": "1d762636-efcf-3f3f-b570-c1d7da9bd876",
-        "fence_run_sync_id": "00000015-0000-4000-8000-000000000001",
-        "sort_order": 8,
-        "description": "4\"x4\" Steel Post, 6', Black",
-        "quantity": 1.0,
-        "unit": "EA",
-        "unit_price": 32.0,
-        "supplier_unit_price": null,
-        "taxable": true,
-        "role": "GATE_POST",
-        "auto_generated": true,
-        "category": null
-      },
-      {
         "sync_id": "f926c4b3-1225-3cce-ab06-147b4c0fefa4",
         "fence_run_sync_id": "00000015-0000-4000-8000-000000000001",
-        "sort_order": 9,
+        "sort_order": 8,
         "description": "5/8\" Hole Plug, White",
         "quantity": 4.0,
         "unit": "EA",
@@ -640,7 +626,7 @@
       {
         "sync_id": "62b11851-53ae-33fa-b590-0db37313060d",
         "fence_run_sync_id": "00000015-0000-4000-8000-000000000001",
-        "sort_order": 10,
+        "sort_order": 9,
         "description": "Concrete Mix 60lb Bag",
         "quantity": 21.0,
         "unit": "EA",
@@ -677,7 +663,6 @@
       "e977f353-d0b6-3f69-81bc-5e6fdf27fc82",
       "531eef5a-2a34-3e5f-8957-521b5e546b53",
       "83089855-6e7b-3f89-b362-b4f8df97bff9",
-      "1d762636-efcf-3f3f-b570-c1d7da9bd876",
       "f926c4b3-1225-3cce-ab06-147b4c0fefa4",
       "62b11851-53ae-33fa-b590-0db37313060d"
     ],
