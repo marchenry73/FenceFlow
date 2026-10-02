@@ -12,10 +12,17 @@ Owner's asks this settles (`FIELD_FEEDBACK_2026-10-01.md` C2 and C6):
 
 What this track produced, and what it deliberately did not touch:
 
+> **DECIDED 1 Oct 2026 — read section 11 first.** Storage is settled (columns, not the
+> `run_joins` table), the approval hazard in 7.2 was verified live and a fix is written, and the
+> drawing-version answer and the no-backfill figures are measured. Section 11 is the decision;
+> sections 1.6, 6.3 and 7.2 are the working that led to it and carry corrections pointing at it.
+
 | File | What |
 |---|---|
 | `docs/JOINING_RUNS.md` | this document |
 | `supabase_a32_join_runs.sql` | PART 1: two additive joint columns on `fence_runs`. PART 2 (contested): the transition flag. **Unapplied.** |
+| `supabase_a56_join_reapproval_fingerprint.sql` | **the 7.2 blocker, written.** PART A teaches the re-approval fingerprint the joints; PART B teaches the drawing snapshot. **Unapplied**, and PART B is reader-gated. Section 11.2 |
+| `tests/a56-join-decision-fingerprint.test.mjs` | the tripwires that hold 11.1-11.4 to the files: append-only, gated, no backfill, no second home, and the PART B reader order |
 | `tests/a32-join-posts.test.mjs` | the join arithmetic: 21 cases red on purpose, 8 guards, 13 baselines |
 | `tests/a32-join-transition.test.mjs` | the transition item (answer C, contested): 4 cases red on purpose, 4 guards. Delete if the owner's "priced as 6 ft" decision stands |
 
@@ -60,7 +67,8 @@ Three ways this ships a wrong price **silently** if missed (section 7 has the de
 
 * **The re-approval fingerprint and the drawing snapshot do not read the new columns.** Joining
   two runs on an approved quote would change its posts without withdrawing the approval. The join
-  UI must not ship before the database follow-up in 7.2.
+  UI must not ship before the database follow-up in 7.2. **Verified live and fixed, unapplied:
+  section 11.2 and `supabase_a56_join_reapproval_fingerprint.sql`.**
 * **Adding the 4 ft catalog rows, on their own, underprices every 6 ft run.** Height is not a
   selection key (6.3, and `docs/PANEL_HEIGHT_BLINDNESS.md`); the ornamental catalog already does this
   today.
@@ -191,7 +199,10 @@ works with either home. Only the storage is open.
 | Two phones, one run | row-level last-edit-wins: a stale copy of a run pushed after someone joined it can drop the join. It fails toward today's higher bill, and visibly | per-end rows: a join survives an edit to the run |
 | Nonsense (same end twice, a run joined to itself) | the readers refuse it (G2, G3, G6), as they must anyway | the schema refuses it; pricing still has to re-check closed, typed and teardown, as its header says |
 
-**Recommendation: columns.** The deciding facts are the first two data rows and the re-approval row:
+**Recommendation: columns.** *(Now the decision — see 11.1, which weighs this again from the
+code rather than accepting it, and adds the two arguments this table missed: the batched-upsert
+failure mode cuts the other way from how it reads here, and a T is the case where the table's
+schema buys the least.)* The deciding facts are the first two data rows and the re-approval row:
 this repository's history is a series of places where a new table was left off a list (backups,
 tenant isolation, the reaper), and the owner's re-approval rule is the one that must not be walked past.
 The one thing the table does better, surviving a concurrent edit of the same run, is a failure mode
@@ -350,8 +361,17 @@ sent. The owner should be told.
 ### 4.1 What the code says
 
 * Height lives on the run (1.1). `takeoff.ts` **never reads `panel_height_ft`**; the only height the
-  engine reads is `fabric_height_ft`, for chain link. So a run cannot change height along its length,
-  and nothing about a run's height changes its price today.
+  engine reads there is `fabric_height_ft`, for chain link. So a run cannot change height along its
+  length.
+* ~~and nothing about a run's height changes its price today~~ **— no longer true, corrected
+  1 Oct 2026.** `line-items.ts` now narrows candidates by height for `PANEL`, `GATE_PANEL` and
+  every post role (`LINE_POST`, `END_POST`, `CORNER_POST`, `GATE_POST`, `BLANK_POST`), against
+  `MaterialItem.heightFt` (`supabase_a40_material_height.sql`, `supabase_a50_post_heights.sql`,
+  Room schema 49, `PRICING_ENGINE_VERSION` 2026.10.2, `tests/a51-post-height-choice.test.mjs`).
+  A run's `panel_height_ft` therefore **does** change its price today. That lands on this track in
+  two places, both in 11.2: it is why the join fingerprint has to carry the heights, and it is a
+  hole in the re-approval fingerprint that exists **with or without joins** and is not this
+  track's to close.
 * There is no transition, rake or step item in the 92-row starting catalog at any height, and no
   `MaterialRole` for one (`Entities.kt` 30-41, `types.ts` 27-38).
 
@@ -455,9 +475,20 @@ This defect is measured, with a reference fix and its cost, by **`docs/PANEL_HEI
 and `tests/a34-height-blindness.test.mjs`, and tripwired by
 `tests/a32-panel-choice-ignores-height.test.mjs`. I found it independently while reading
 `buildLineItems` (`line-items.ts` 136-156), and those documents are the fuller account. In short: a
-panel is chosen by nearest width, then cheapest, then sync id, and `panel_height_ft` is read by no
-pricing code, so a 6 ft ornamental iron run is priced with the cheaper 4'H panel (the shipped
-`template-08-ornamental-iron-6ft.json` fixture expects it). What it means for this track:
+panel was chosen by nearest width, then cheapest, then sync id, and `panel_height_ft` was read by no
+pricing code, so a 6 ft ornamental iron run was priced with the cheaper 4'H panel (the shipped
+`template-08-ornamental-iron-6ft.json` fixture expected it).
+
+> **FIXED, and the fix changes this section. Corrected 1 Oct 2026.** Height is now a selection key
+> for the two panel roles **and for every post role**, narrowing within a width (`line-items.ts`,
+> the `entry.role === "PANEL" || ... || "BLANK_POST"` block; `MaterialItem.heightFt`;
+> `supabase_a40_material_height.sql`, `supabase_a50_post_heights.sql`, Room schema 49,
+> `tests/a51-post-height-choice.test.mjs`). So the bullets below that say height cannot be
+> selected on, or that the 4 ft rows are blocked, are **stale**: they are kept because they are
+> what the reasoning rested on, not because they are still the state. The live consequence for
+> this track is in 11.2.
+
+What it meant for this track:
 
 * **Answer C could not select a transition by height.** A second height pair (8 to 6, 6 to 3) is
   indistinguishable from the first, so version 1 of C supports **one transition per fence type and
@@ -690,6 +721,365 @@ taller run owns it, D3: typed runs are a corner), so they change in one place if
 
 Test index. Baselines (green now, must stay green): B1-B12 and B5b. Pending join arithmetic: P1-P10.
 Policy: D1-D3. Guards (each with a control): G1-G8. Transition (contested): T1a-T4.
+
+---
+
+---
+
+## 11. The decision, 1 Oct 2026
+
+Written after reading the live function bodies out of `pg_proc` and probing his data read-only.
+This section settles what sections 1.6 and 7.2 left open. **Nothing was applied and nothing was
+deployed.** The gesture itself is deliberately not built here: the next phase builds it, and it
+depends on 11.1 and cannot ship before 11.2.
+
+What he said today was "for the grid, I'm not able to attach the fence to the other ones", and
+what he said before that is the spec: *"it would not be a corner post if I drew it on the other
+side until I connect it to that one."* A post becomes a corner because **he joined it**, never
+because two points happen to land on the same spot. Everything below holds that line.
+
+### 11.1 Storage: columns on `fence_runs`. The `run_joins` table is retired.
+
+The two joint columns win. Section 1.6 recommended it; this is that recommendation re-argued from
+the code, including the two places where 1.6's own table is wrong or incomplete.
+
+**Where 1.6 is right, and it is the deciding point.** The join has to be noticed by
+`reapp_on_run_change`, the `AFTER` trigger on `fence_runs`. With columns it already is noticed —
+the write *is* a write to `fence_runs`, so the trigger fires, and all that is missing is about
+twenty lines of fingerprint (11.2, written). With a table, `RunJoin.kt`'s own header says it
+plainly: *nothing at all fires on a join*. That would need a new `SECURITY DEFINER` trigger on a
+new table, and a fingerprint that reads across two tables — on the one rule in this product that
+must not be walked past. The whole reason this phase exists is that the join must not move an
+approved price silently, and one design starts half-done while the other starts at zero.
+
+Second: a new cloud table has to be added by hand to every list that protects a table. This
+repository's history is a catalogue of a list that was missed — `supabase_sweep_hardening_patch.sql`,
+`supabase_crew_job_scope.sql` (twice), the realtime publication, the tenant-isolation tests, and,
+per `RunJoin.kt`'s own header, `SyncTables.ALL` (the deletion reaper) and the unsynced-work
+warning. Probed live: every grant on `fence_runs` is table-level and its policies name only
+`company_id` and the suspension check, so two new columns inherit RLS, crew scope, the plan gate
+and the suspension gate **with no new line of policy anywhere**. A new table inherits nothing.
+
+**Where 1.6's table is wrong, and it matters because it is the argument *for* the table.**
+
+1. **`explicitNulls = false`.** 1.6 lists this against neither design, but it is the reason the
+   columns must be `text not null default ''` rather than a nullable uuid, and the file already
+   says so. Worth restating because it is the trap that would make un-joining a one-way door: a
+   Kotlin `null` is **left out** of the upsert body, so a nullable column could be set from the
+   phone and never cleared, and the office would go on pricing two runs as joined after he had
+   pulled them apart. `''` travels. Note this cuts **against** the table too: `RunJoin.kt`'s
+   header says its own future sync must send the empty string and map it back to null on pull,
+   because its local unique index cannot hold two empty strings — i.e. the table needs the same
+   trick *plus* a mapping layer the columns do not.
+2. **Batched upserts.** 1.6 reads this as a point for the table ("the schema refuses the
+   nonsense"). It is the opposite. `fence_runs` upserts go up in batches and **one row the table
+   refuses fails the whole batch**, so nothing for that company syncs — the same way one
+   duplicate estimate-line id once stopped a job's estimate reaching the cloud. The table's
+   three unique indexes are exactly the kind of refusal that does that. The columns design takes
+   any text and makes the **readers** validate, which fails toward today's higher price instead
+   of toward a company whose phones have stopped syncing. A schema that refuses nonsense is a
+   virtue locally and a liability on a batched wire.
+3. **A T, three ends at one point.** This is where the table buys least. Both designs model a T
+   the same way — three ends, one id — so the table's three unique indexes refuse nothing a T
+   needs refusing, and pricing still has to re-check closed, typed and teardown on every price
+   either way (`RunJoin.kt`'s header says so itself). The table's refusals are a subset of the
+   checks the readers must perform regardless.
+4. **The one thing the table genuinely does better** is the one 1.6 names: per-end rows survive a
+   stale whole-row push of the run. With columns, a phone that pushes an old copy of a run after
+   someone joined it drops the join. That is real — and it is the failure mode `fence_runs`
+   already has for `points_encoded`, `gates_encoded`, `closed_loop`, `panel_height_ft` and every
+   other field on the row, and it fails toward **today's higher post count**, visibly, and with
+   11.2 applied it withdraws the approval while doing so. Trading that for the re-approval gap
+   and seven protection lists is not a trade.
+
+**The ambiguity the two designs disagreed on, settled.** `RunJoin.kt` refuses to *create* a join
+on a typed-footage run; this document's reader *honours* an existing join on one as a corner post
+(2.4, D3). Both stand: **refuse on write, honour on read.** A run that was joined and later typed
+is not silently un-joined, and a typed run cannot be joined in the first place. That is his rule
+("until I connect it"), applied in both directions.
+
+**What retiring the loser costs, concretely.** Not a file deletion. `run_joins` is live on
+phones: `AppDatabase.kt` lists `RunJoin::class` among its entities at `version = 49`, exposes
+`runJoinDao()`, and `SchemaV48.MIGRATION_47_48_STATEMENTS` creates the table — and its own comment
+records that **a link build at schema 48 already exists**, which build 568 confirms. So:
+
+| Step | File | Cost |
+|---|---|---|
+| Drop the entity from the `@Database` list and `runJoinDao()` | `AppDatabase.kt` | 2 lines |
+| A **new** `SchemaV50` with `DROP TABLE IF EXISTS run_joins` and `version = 50` | `AppDatabase.kt` | a migration, not an edit to 48 or 49. Room validates the schema against the entity list on open: remove the entity without the migration and **every phone that already opened a 48 or 49 database refuses to open it** |
+| Remove `observeRunJoins`, `getRunJoins`, `joinRunEnds`, `unjoinRunEnd` and the private helper | `Repository.kt` | about 80 lines, one `guardWrite` block |
+| Delete the file and its storage test | `data/RunJoin.kt`, `tests/a33-join-model-storage.test.mjs` | the test asserts the table, the migration, the DAO and `planJoin`; it is wholly about the retired design |
+| **Keep** `planJoin`'s refusals | re-home them as the drawing screen's write-time checks (7.4) | they are the right rules; only their storage is wrong |
+| **Keep** `RunJoinArithmetic` (`FenceGeometry.kt`) and `tests/a33-join-arithmetic-posts.test.mjs` | — | the arithmetic already mirrors `start_joint` / `end_joint` and is home-agnostic. 125 checks, independent of storage |
+
+**This phase did not do that retirement, on purpose.** `Repository.kt` is held by another wave and
+`AppDatabase.kt` cannot be edited without the Room migration above. Deleting `RunJoin.kt` on its
+own would leave `AppDatabase.kt` and `Repository.kt` referring to a type that no longer exists —
+**a compile error, with a release build queued behind this.** So the file is left in place, inert,
+with the decision recorded here and in `supabase_a32_join_runs.sql`. It is read by no engine and
+called by no screen, so it costs nothing to leave standing for one more wave; the only thing that
+gets more expensive with delay is the `DROP TABLE` migration, and that is already unavoidable.
+
+### 11.2 The approval hazard. Verified, and the fix is written.
+
+**Verified, not taken on trust.** Read live from `pg_proc` on 1 Oct 2026, with a positive control
+(the same query found six of the seven functions asked for and reported a non-zero body length for
+each, so an empty answer could not read as "clean"):
+
+* `reapp_row_takeoff(r public.fence_runs, ppf double precision)` — its entire body is one call to
+  `reapp_run_takeoff(r.points_encoded, r.gates_encoded, r.closed_loop, r.manual_linear_feet,
+  r.manual_corner_count, r.is_teardown, ppf)`.
+* `reapp_run_takeoff` returns seven fields: `b=` built feet, `t=` teardown feet, `c=` corners,
+  `e=` ends, `g=` gate count, `gf=` gate feet, `gm=` gate mountings.
+* `position('start_joint' in prosrc)` and `position('end_joint' in prosrc)` are **0** in
+  `reapp_run_takeoff`, `reapp_row_takeoff`, `reapp_job_takeoff` **and** `reapp_run_snapshot`.
+* `reapp_on_run_change` (`SECURITY DEFINER`, the trigger `reapproval_on_drawing_change` on
+  `fence_runs`) computes `before_fp` and `after_fp` with `reapp_row_takeoff` and, on
+  `if before_fp = after_fp`, **returns without touching the approval**.
+
+So the answer to "would they notice a join?" is **no, and silently**. Writing a joint id to two
+ends changes neither the points nor the gates nor the flags the fingerprint reads. The trigger sees
+a write that changed nothing, the approval stands, and the post count drops by one per joint. The
+customer's agreed price moves **down**, behind her back, on a quote she has already approved.
+`docs/REAPPROVAL_RULE.md` says the office "must not be able to quietly enlarge an approved job";
+quietly shrinking it is the same wrong, and it is the direction a join actually goes.
+
+**Which way it must fail: toward withdrawing.** A withdrawal that was not strictly necessary costs
+one more tap on a quote link she already has. A join that slips past costs her a fence she never
+agreed to buy.
+
+**The rule is not reinvented.** `docs/REAPPROVAL_RULE.md` already defines the whole mechanism —
+history row in `quote_reapprovals` with the prior approval and the before/after takeoff, lines in
+`audit_log` and `field_changes`, `quote_approved_at` cleared, `reapproval_required_at` stamped,
+**no money column written**, and re-approval through the ordinary quote link. The fix adds nothing
+to that. It teaches the existing fingerprint to see the join, so the existing rule fires.
+
+**`supabase_a56_join_reapproval_fingerprint.sql`, unapplied.** It replaces two function bodies in
+place and touches nothing else: no row, no table, no column, no policy, no grant, no trigger, no
+money. It must run **after** `supabase_a32_join_runs.sql`, and PART 0 refuses to go further if the
+columns are absent.
+
+*PART A — the fingerprint.* A tail is appended to the existing seven fields, and **only** for a run
+that is a live join member: a joint id of uuid shape, open, not a teardown run, and pricing some
+footage. Those are 1.4's own conditions (G4, G5, G6), so the fingerprint says exactly what the
+engine will act on. Gating on them hides nothing, because each of them is already visible in the
+seven base fields — `is_teardown` swaps `b=` and `t=`, `closed_loop` moves `e=` from 2 to 0 and
+changes the length, clearing the points empties `b=` — so a run that becomes ineligible moves its
+own fingerprint anyway.
+
+The tail is `|sj=|ej=|jf=|jph=|jfh=|jso=`: the two ids (**membership** — the only part that changes
+the post *count*), `fence_type` (it decides which height column ownership reads), **both** height
+columns raw, and `sort_order`.
+
+* **Why the heights.** The shared post is billed to the **tallest** member (2.4), and since
+  `supabase_a50_post_heights.sql` a post row is chosen **by height** — so which member owns it is
+  a price, not a bookkeeping detail. Section 6.3's "height is read by no pricing code" is stale
+  and now says so. Both columns go in rather than the one the fence type selects, so a fence-type
+  change cannot hide a height change behind it.
+* **Why `sort_order`, and how to get rid of it.** It is the ownership tie-break between members of
+  equal height, so it can move a post — and therefore money — between two runs. It is also the
+  one field `docs/REAPPROVAL_RULE.md` lists as **explicitly not material**, and it stays not
+  material for every unjoined run, because the tail is empty there. The cost of keeping it: on a
+  joined, approved job, **reordering the run list withdraws the approval**. That is the safe
+  direction, which is why it is in. **The cheaper fix is in the engine, not the fingerprint:** let
+  ownership be *tallest, then lowest `sync_id`*, dropping `sort_order` from the tie-break.
+  `sync_id` is immutable, so it can never move a price, and the day that lands the `|jso=` line
+  comes out of the SQL and nothing else changes. That is a one-line change to
+  `RunJoinArithmetic` (`FenceGeometry.kt`) and Appendix A's `byOrder`, plus the D1 policy test —
+  **recommended, and not done here** because this phase owns neither file. See 11.5.
+* **Why not `is_transition`.** Contested (4.2, Q4 — the owner's call). Joining does not depend on
+  it. When it lands it appends `|jx=1` to the same tail under the same gate.
+
+*Byte identity is load-bearing, not tidiness.* `reapp_restores_approved_state` matches a freshly
+computed fingerprint against the `takeoff_before` **text** stored in `quote_reapprovals`, so a
+format change makes every withdrawal already on the books unrestorable — and there are rows on the
+books: **two of his jobs are flagged needs-reapproval right now.** The gate keeps every one of
+them matchable. A fourth gate clause, `reapp_is_empty(fp)`, exists for the same family of reason:
+the trigger lets an empty run be added to or removed from an approved job without disturbing it by
+comparing against the exact literal `b=0.0|t=0.0|c=0|e=0|g=0|gf=0.0|gm=`, and anything appended to
+an empty run's fingerprint would break that comparison for ever.
+
+*Proved before it was written, read-only, on his 16 live runs.* The tail expression was computed
+inline as a `SELECT` — no function created, no row written, the joint values synthesised — in four
+variants per run:
+
+| Claim | Result |
+|---|---|
+| unjoined: new fingerprint byte-identical to today's, every run | true |
+| **canary**: the same test on the joined variant | **false** — so the row above can fail |
+| joined: eligible runs whose fingerprint moved | 11 of 11 |
+| joined: eligible runs that did **not** move | 0 |
+| two different joint ids at the same end fingerprint differently | true |
+| a junk (non-uuid) joint id is ignored: byte-identical to today | true |
+| `reapp_is_empty` still true for the all-zero fingerprint, false for a real one | true / false |
+
+Every proof row in the `.sql` that can be run before the columns exist was also run live and
+returns what it asserts, canaries included.
+
+**A row-level fingerprint is enough for a fact that spans two rows.** A join writes an id to both
+ends, so both rows are written and the trigger fires twice; the first firing withdraws and the
+second finds nothing left to withdraw (`reapp_withdraw_approval` returns early when
+`quote_approved_at` is null), so **one** withdrawal row is written, not two. If the two pushes are
+separated — offline sync sends one run at a time — the first arrival withdraws while the id is
+still alone and therefore still priced as a free end: a withdrawal slightly *ahead* of the price
+move, which is the safe side. Every case where a member's geometry, angle, eligibility or
+membership count changes without its own joint columns changing is covered too, because that
+member's own row changed and its own fingerprint moved.
+
+**One hole this does not close, named rather than implied.** The fingerprint reads geometry only.
+Changing a run's `fence_type`, `color_or_finish` or `panel_height_ft` moves its material and post
+prices **today**, on an unjoined run, and the approval stands — `REAPPROVAL_RULE.md` lists
+`color_or_finish` as not material, which was true before height and colour became selection keys.
+That is wider than joins and older than this track, and closing it means putting those columns in
+the **base** fingerprint, which is the format change that would make the two pending withdrawals
+unrestorable. It needs its own file, its own decision about those two rows, and the owner told.
+Joins do not widen it: inside a joint the heights are in the tail.
+
+### 11.3 Drawing versions: what a restore produces now, and what must change
+
+`reapp_run_snapshot` writes six bar-joined parts — points, gates, closed, typed feet, typed
+corners, teardown — and carries no joints (verified live). A restore writes those columns back onto
+the run: the office's `patch` in `website/dashboard.html` (`points_encoded`, `gates_encoded`,
+`closed_loop`, and from a six-part record `manual_linear_feet`, `manual_corner_count`,
+`is_teardown`) and the phone's `RunSnapshot.appliedTo`. Neither writes a joint column.
+
+**Exactly what that produces**, in two parts:
+
+1. **Yesterday's points under today's joints.** The engine honours a join however far apart its
+   ends have drifted — the owner's decision beats the pixels (2.5) — so the restored drawing keeps
+   a shared post that the restored geometry does not have. The customer's restored price is
+   **one post lower** than the price she approved. It is also the case the drawing screen's
+   open-join warning (7.4.6) exists for, except that here nobody touched the drawing: the restore
+   did it.
+2. **The approval does not come back, and the reason given is wrong.**
+   `reapp_restores_approved_state` matches the recomputed fingerprint against the stored
+   `takeoff_before`. With PART A live, today's joints are in the recomputed value and yesterday's
+   in the stored one, so it cannot match; the office reports that the price must have moved and
+   names the drawing, when what actually differs is a joint that is invisible on screen. That is
+   the same shape of wrong cause that file's own header describes for typed footage.
+
+Worse than either, and the reason a gated snapshot is not enough on its own: **a join made after
+an approval could never be put back.** The withdrawal's snapshot, taken from the pre-join drawing,
+says nothing about joints; a restore from it leaves the join in place for ever.
+
+**What must change.** A **seventh** part on the snapshot, written only when the run carries a
+joint, holding `sj=<id>;ej=<id>` — a key=value list, not a positional field, so a later flag (the
+contested `is_transition`) adds a **key** and the readers' accepted counts change **once, ever**.
+Neither `;` nor `=` can occur in an existing part: points and gates are `:`-pairs joined by `,`,
+and the flags are `1` or `0`.
+
+The contract that makes an un-join restorable:
+
+| Parts | Means | A restore writes |
+|---|---|---|
+| 3 | outline only, as today — it never recorded the rest | nothing to the joint columns |
+| 6 | **both joints were empty** | `''` to `start_joint` and `end_joint` |
+| 7 | parts 1-6 as today; part 7 is `sj=<id>;ej=<id>`, both keys always present, either value possibly empty | the two ids as given |
+
+Six meaning "no joints" is true of every six-part record that can exist: those written before
+`supabase_a32_join_runs.sql` had no columns to record, and those written after it are gated on the
+joints being empty. That is what lets a restore **clear** a join, which is the whole point.
+
+**The writer normalises, and that was found by running it rather than reasoning about it.** PART B
+was tried against synthesised rows before it was written down, and the junk case came back as
+`sj=oops;ej=` — a seven-part snapshot the reader contract above has to refuse, which would leave
+that run's withdrawal **permanently unrestorable over a value the price already ignores**. So the
+snapshot uuid-checks both columns exactly as the fingerprint does: junk snapshots as **six** parts,
+a restore puts `''` back, and that is what the price already believes. The two functions therefore
+agree, field for field, on what counts as a joint — and a malformed value can only reach a reader
+from something that is not `reapp_run_snapshot`, which is precisely when refusing the row is right.
+Measured on the seven synthesised cases: unjoined → 6 parts and an unchanged fingerprint; joined
+and eligible → 7 parts and a moved fingerprint; joined but teardown, closed or empty → 7 parts and
+an **unchanged** fingerprint (the snapshot records it, the price ignores it, which is correct for
+both); joined with junk → 6 parts, unchanged; joined on a typed chain-link run → 7 parts and a
+moved fingerprint carrying `jfh=5.00`, honouring the join as 2.4 and D3 require.
+
+**The strict readers, named, both sides.** Both refuse any count but 3 or 6 today:
+
+* **Phone** — `parseRunSnapshot`, `app/src/main/java/com/fenceestimator/app/ui/jobs/JobDetailViewModel.kt`:
+  `if (parts.size != 3 && parts.size != 6) return null`. It must accept 7, put the two ids into
+  `RunSnapshot` / `DrawingSnapshot`, and include them in `appliedTo` — otherwise the
+  `alreadyBack` check (`snapshot.appliedTo(run) == run`) calls a run "already back" whose joints
+  are not, which is exactly the trap its own comment describes for typed footage.
+* **Office** — `reapprovalRestoreState`, `website/dashboard.html`:
+  `if (parts.length !== 3 && parts.length !== 6) return { kind: 'unreadable' }`. It must accept 7,
+  validate each value as empty-or-uuid with the same strictness it already applies to the flags and
+  the typed figures, ignore an unknown key with a well-formed value (so a later flag does not
+  break an older reader), and add the two columns to its `patch`.
+
+**The order is readers first, writer second.** Ship PART B before the readers and every snapshot
+written for a joined run comes back "unreadable" on both — the restore button dies on exactly the
+rows that need it. It fails safe, and it fails. An old phone meeting a seven-part snapshot refuses
+it, which is the right way round: that row cannot be restored from that phone, rather than being
+half-restored. `supabase_a56_join_reapproval_fingerprint.sql` carries PART B behind a
+*do-not-apply* marker and `tests/a56-join-decision-fingerprint.test.mjs` holds the order from both
+sides — red if the marker goes while a reader still refuses seven, red if both readers accept
+seven and the marker is still there.
+
+**One stale check this creates, in a file this phase does not own.**
+`supabase_r8_drawing_versions_full_snapshot.sql` has a proof row asserting that every live run's
+snapshot splits into exactly **6** parts. The day a run is joined that row reads false for a
+perfectly correct snapshot — a check that can only fail, which is how a good build was thrown away
+before (`CLAUDE.md`: "A check against UI text rots into a check that cannot pass"). It needs
+`in (6, 7)`. Whoever owns that file must relax it; it is a one-word change and it is harmless to
+make before PART B.
+
+### 11.4 No backfill. Confirmed by probe, and a tolerance would have moved a real quote.
+
+**Runs whose ends already coincide must not become joined.** A join removes a post from a price,
+and doing it behind him changes quotes he has already sent — and it is the opposite of what he
+said: a post is a corner *because he connected it*.
+
+Probed read-only on his company, aggregates only, with a positive control planted **inside** the
+matcher (two synthetic runs sharing an end exactly and two more 2 px apart, in a job of their own)
+so a zero on the real data could not be an empty-query artefact:
+
+| | |
+|---|---|
+| control: pairs exactly coincident | **1**, as planted |
+| control: pairs within 3 px | **2**, as planted |
+| his drawn, non-deleted runs / jobs holding them | 12 in 8 jobs (16 non-deleted runs in all) |
+| **pairs of ends exactly coincident** | **0** |
+| pairs of ends within 60 px | 0 |
+| closest pair of ends anywhere | 63.81 px |
+| **pairs within 1 ft at that job's own scale** | **1** — 63.81 px at 80 px/ft, **0.798 ft apart** |
+
+So **nothing of his would be joined by a backfill, and nothing is hidden.** The last row is the
+interesting one and it is an argument, not a footnote: a backfill with a *tolerance in feet* —
+which is the only honest unit, since 26 px is 1.3 ft on the grid and 6.5 ft on a satellite photo
+(1.2) — would have joined **one real pair on one real job**, removing a post from a quote he had
+already produced. One pair in twelve runs is not a rounding error; it is the feature doing the
+wrong thing on its first day. `supabase_a32_join_runs.sql` writes no row, and the new file writes
+no row; both carry a proof that no run is joined after they run.
+
+Also read while there, and worth his knowing: of the 8 jobs with drawn runs, **0 are approved
+right now**, 2 are already flagged needs-reapproval and 5 are signed. The canary confirms the zero
+is real (all 8 read as not-approved, so the count is not vacuous). That means the hazard in 11.2
+is not firing on live data **today** — it is a trap set for the first approved job someone joins
+runs on, which is why the fix goes in before the gesture and not after it.
+
+### 11.5 What the next phase needs from this one
+
+1. Apply `supabase_a32_join_runs.sql`, then
+   `supabase_a56_join_reapproval_fingerprint.sql` **PART A** — dev first, read the proof rows.
+   Do not build the gesture before PART A is live.
+2. Widen both snapshot readers to 3 / 6 / 7 per 11.3, ship them, **then** apply PART B.
+3. Relax `supabase_r8_drawing_versions_full_snapshot.sql`'s 6-part proof row to `in (6, 7)`.
+3b. **One red check, caused by this phase, one line to fix.** `tests/a33-join-arithmetic-posts.test.mjs`
+   check `7k-proposed` requires the header of `FenceGeometry.kt` to name every unapplied `.sql`
+   that mentions a joint column. The new file is one, and the header does not name it, so the
+   suite reads **124 ok, 1 FAIL** instead of 125 ok. The fix is to add
+   `supabase_a56_join_reapproval_fingerprint.sql` to the list of files that header already names
+   beside `supabase_a32_join_runs.sql`. **Not done here**: `FenceGeometry.kt` is not this phase's
+   to edit and a release build is queued. The check is right and worth keeping — a person reading
+   `RunJoinArithmetic` does need to know the fingerprint file exists.
+4. Engine wave: drop `sort_order` from the ownership tie-break (tallest, then lowest `sync_id`),
+   then delete the `|jso=` line from PART A. One line in `RunJoinArithmetic`, one in Appendix A's
+   `byOrder`, one policy test.
+5. Retire `run_joins` per the table in 11.1 — including the `SchemaV50` `DROP TABLE` migration,
+   which is not optional.
+6. Everything in 7.1, 7.3, 7.4 and 7.6 still stands; 7.2 is now written rather than proposed.
+7. Ask him Q4 (is there a transition product?) before any of section 6 is built.
 
 ---
 

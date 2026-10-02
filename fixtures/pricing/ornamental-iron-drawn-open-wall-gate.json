@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "engine": {
-    "version": "2026.10.4",
-    "generated_at": "2026-10-01T23:56:49.760251800Z"
+    "version": "2026.10.5",
+    "generated_at": "2026-10-02T01:40:27.008031800Z"
   },
   "case": "ornamental-iron-drawn-open-wall-gate",
   "note": "Ornamental iron with a wall-hung 5 ft gate: BLANK_POST has no catalog row (unmatched), hole plugs are universal.",
   "input": {
-    "engine_version": "2026.10.4",
+    "engine_version": "2026.10.5",
     "pixels_per_foot": 20.0,
     "job": {
       "calibration_pixels_per_foot": 20.0,
@@ -260,7 +260,7 @@
     "existing_items": []
   },
   "expected": {
-    "engine_version": "2026.10.4",
+    "engine_version": "2026.10.5",
     "linear_feet": 120.0,
     "teardown_linear_feet": 0.0,
     "billable_linear_feet": 120.0,
@@ -596,9 +596,23 @@
         "category": null
       },
       {
-        "sync_id": "1d762636-efcf-3f3f-b570-c1d7da9bd876",
+        "sync_id": "83089855-6e7b-3f89-b362-b4f8df97bff9",
         "fence_run_sync_id": "00000015-0000-4000-8000-000000000001",
         "sort_order": 7,
+        "description": "4\"x4\" Steel Post, 6', Black",
+        "quantity": 1.0,
+        "unit": "EA",
+        "unit_price": 32.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "BLANK_POST",
+        "auto_generated": true,
+        "category": null
+      },
+      {
+        "sync_id": "1d762636-efcf-3f3f-b570-c1d7da9bd876",
+        "fence_run_sync_id": "00000015-0000-4000-8000-000000000001",
+        "sort_order": 8,
         "description": "4\"x4\" Steel Post, 6', Black",
         "quantity": 1.0,
         "unit": "EA",
@@ -612,7 +626,7 @@
       {
         "sync_id": "f926c4b3-1225-3cce-ab06-147b4c0fefa4",
         "fence_run_sync_id": "00000015-0000-4000-8000-000000000001",
-        "sort_order": 8,
+        "sort_order": 9,
         "description": "5/8\" Hole Plug, White",
         "quantity": 4.0,
         "unit": "EA",
@@ -626,7 +640,7 @@
       {
         "sync_id": "62b11851-53ae-33fa-b590-0db37313060d",
         "fence_run_sync_id": "00000015-0000-4000-8000-000000000001",
-        "sort_order": 9,
+        "sort_order": 10,
         "description": "Concrete Mix 60lb Bag",
         "quantity": 21.0,
         "unit": "EA",
@@ -650,10 +664,6 @@
       {
         "run_sync_id": "00000015-0000-4000-8000-000000000001",
         "role": "STIFFENER"
-      },
-      {
-        "run_sync_id": "00000015-0000-4000-8000-000000000001",
-        "role": "BLANK_POST"
       }
     ],
     "zero_priced": [],
@@ -666,14 +676,15 @@
       "0a2d42c8-a089-3599-9af3-e7d5a24a6fcb",
       "e977f353-d0b6-3f69-81bc-5e6fdf27fc82",
       "531eef5a-2a34-3e5f-8957-521b5e546b53",
+      "83089855-6e7b-3f89-b362-b4f8df97bff9",
       "1d762636-efcf-3f3f-b570-c1d7da9bd876",
       "f926c4b3-1225-3cce-ab06-147b4c0fefa4",
       "62b11851-53ae-33fa-b590-0db37313060d"
     ],
     "totals": {
-      "materials_subtotal": 3857.35,
-      "taxable_subtotal": 3857.35,
-      "tax": 270.0145,
+      "materials_subtotal": 3889.35,
+      "taxable_subtotal": 3889.35,
+      "tax": 272.2545,
       "labor_cost": 920.0,
       "teardown_cost": 0.0,
       "trash_haul_fee": 0.0,
@@ -683,8 +694,8 @@
       "change_order_feet": 0.0,
       "markup_amount": 0.0,
       "discount_amount": 0.0,
-      "pre_markup_total": 5147.3645,
-      "grand_total": 5147.36,
+      "pre_markup_total": 5181.6044999999995,
+      "grand_total": 5181.6,
       "billable_linear_feet": 120.0
     }
   }

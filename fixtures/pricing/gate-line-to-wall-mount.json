@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "engine": {
-    "version": "2026.10.4",
-    "generated_at": "2026-10-01T23:56:49.760251800Z"
+    "version": "2026.10.5",
+    "generated_at": "2026-10-02T01:40:27.008031800Z"
   },
   "case": "gate-line-to-wall-mount",
   "note": "Line to wall: three end posts and 3.5 bags; gatePosts now counts 3 for this mounting (not the flat 2 every other mounting still takes), so POST_CAP bills all three -- the old undercount is fixed, not reproduced.",
   "input": {
-    "engine_version": "2026.10.4",
+    "engine_version": "2026.10.5",
     "pixels_per_foot": 20.0,
     "job": {
       "calibration_pixels_per_foot": 20.0,
@@ -380,7 +380,7 @@
     "existing_items": []
   },
   "expected": {
-    "engine_version": "2026.10.4",
+    "engine_version": "2026.10.5",
     "linear_feet": 100.0,
     "teardown_linear_feet": 0.0,
     "billable_linear_feet": 100.0,

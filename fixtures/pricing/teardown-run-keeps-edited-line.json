@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "engine": {
-    "version": "2026.10.4",
-    "generated_at": "2026-10-01T23:56:49.760251800Z"
+    "version": "2026.10.5",
+    "generated_at": "2026-10-02T01:40:27.008031800Z"
   },
   "case": "teardown-run-keeps-edited-line",
   "note": "A teardown run builds nothing: its generated WOOD_PICKET row goes, and the CONCRETE_BAG somebody typed onto it stays and counts. The teardown charge prices as in teardown-drawn-run.",
   "input": {
-    "engine_version": "2026.10.4",
+    "engine_version": "2026.10.5",
     "pixels_per_foot": 20.0,
     "job": {
       "calibration_pixels_per_foot": 20.0,
@@ -586,7 +586,7 @@
     ]
   },
   "expected": {
-    "engine_version": "2026.10.4",
+    "engine_version": "2026.10.5",
     "linear_feet": 100.0,
     "teardown_linear_feet": 60.0,
     "billable_linear_feet": 100.0,

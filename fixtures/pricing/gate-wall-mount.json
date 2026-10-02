@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "engine": {
-    "version": "2026.10.4",
-    "generated_at": "2026-10-01T23:56:49.760251800Z"
+    "version": "2026.10.5",
+    "generated_at": "2026-10-02T01:40:27.008031800Z"
   },
   "case": "gate-wall-mount",
   "note": "Wall-hung: blank post + end post + 4 hole plugs, one bag (latch side only).",
   "input": {
-    "engine_version": "2026.10.4",
+    "engine_version": "2026.10.5",
     "pixels_per_foot": 20.0,
     "job": {
       "calibration_pixels_per_foot": 20.0,
@@ -380,7 +380,7 @@
     "existing_items": []
   },
   "expected": {
-    "engine_version": "2026.10.4",
+    "engine_version": "2026.10.5",
     "linear_feet": 100.0,
     "teardown_linear_feet": 0.0,
     "billable_linear_feet": 100.0,
@@ -761,9 +761,23 @@
         "category": null
       },
       {
-        "sync_id": "67d4aa09-c6e6-3b2f-986f-3b7353080bee",
+        "sync_id": "7c53a78d-7ce8-3941-b71a-f9bf5633c8bb",
         "fence_run_sync_id": "0000001b-0000-4000-8000-000000000001",
         "sort_order": 11,
+        "description": "5\"x5\" Co-Ex Gate Post, White",
+        "quantity": 1.0,
+        "unit": "EA",
+        "unit_price": 16.56,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "BLANK_POST",
+        "auto_generated": true,
+        "category": null
+      },
+      {
+        "sync_id": "67d4aa09-c6e6-3b2f-986f-3b7353080bee",
+        "fence_run_sync_id": "0000001b-0000-4000-8000-000000000001",
+        "sort_order": 12,
         "description": "5\"x5\" Co-Ex Gate Post, White",
         "quantity": 1.0,
         "unit": "EA",
@@ -777,7 +791,7 @@
       {
         "sync_id": "c3270872-b446-3a03-9e75-ba15978daeed",
         "fence_run_sync_id": "0000001b-0000-4000-8000-000000000001",
-        "sort_order": 12,
+        "sort_order": 13,
         "description": "5/8\" Hole Plug, White",
         "quantity": 4.0,
         "unit": "EA",
@@ -791,7 +805,7 @@
       {
         "sync_id": "b6315c44-b4b4-3e07-9f29-9c4a9c070fba",
         "fence_run_sync_id": "0000001b-0000-4000-8000-000000000001",
-        "sort_order": 13,
+        "sort_order": 14,
         "description": "Concrete Mix 60lb Bag",
         "quantity": 17.0,
         "unit": "EA",
@@ -803,12 +817,7 @@
         "category": null
       }
     ],
-    "unmatched_roles": [
-      {
-        "run_sync_id": "0000001b-0000-4000-8000-000000000001",
-        "role": "BLANK_POST"
-      }
-    ],
+    "unmatched_roles": [],
     "zero_priced": [],
     "zero_priced_names": [],
     "totals_items": [
@@ -823,14 +832,15 @@
       "ca08cb91-1af2-3e73-8f4e-ded09ba133c6",
       "7703a1de-51b7-387c-a96b-cd6dd9073e1f",
       "5f3ad645-4e79-3f84-a6f0-fa4247f1954f",
+      "7c53a78d-7ce8-3941-b71a-f9bf5633c8bb",
       "67d4aa09-c6e6-3b2f-986f-3b7353080bee",
       "c3270872-b446-3a03-9e75-ba15978daeed",
       "b6315c44-b4b4-3e07-9f29-9c4a9c070fba"
     ],
     "totals": {
-      "materials_subtotal": 1489.2099999999996,
-      "taxable_subtotal": 1489.2099999999996,
-      "tax": 104.24469999999998,
+      "materials_subtotal": 1505.7699999999995,
+      "taxable_subtotal": 1505.7699999999995,
+      "tax": 105.40389999999998,
       "labor_cost": 768.0,
       "teardown_cost": 0.0,
       "trash_haul_fee": 0.0,
@@ -840,8 +850,8 @@
       "change_order_feet": 0.0,
       "markup_amount": 0.0,
       "discount_amount": 0.0,
-      "pre_markup_total": 2441.4546999999993,
-      "grand_total": 2441.45,
+      "pre_markup_total": 2459.1739,
+      "grand_total": 2459.17,
       "billable_linear_feet": 100.0
     }
   }

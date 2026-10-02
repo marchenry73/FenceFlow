@@ -365,7 +365,7 @@ test("contractKey fingerprints what the email states: the same contract has the 
 });
 
 test("maskEmail shows enough to recognise an address and not enough to learn it", () => {
-  assert.equal(maskEmail("jane.doe@gmail.com"), "j***@gmail.com");
+  assert.equal(maskEmail("jane.doe@mail.example.test"), "j***@mail.example.test");
   assert.equal(maskEmail("ünï@example.test"), "ü***@example.test");
   for (const bad of ["", "nope", "@x.test", null, undefined]) assert.equal(maskEmail(bad), "");
 });

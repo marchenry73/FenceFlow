@@ -71,6 +71,26 @@ const { privateKey: FCM_KEY } = generateKeyPairSync("rsa", { modulusLength: 2048
 const FIREBASE = JSON.stringify({ client_email: "fake@p-test.iam.example.test", private_key: FCM_KEY, project_id: "p-test" });
 const ALLOWED_DOMAIN = /\.example\.test$/;
 
+// The table the functions write to, as the (unapplied) migration defines it: a row the CHECK constraints or the
+// column list would refuse is a "could not even record that it failed" in production, so every test ends by
+// holding each row the functions wrote to the migration's own text.
+const MIGRATION = readFileSync(new URL("../supabase_a55_approval_emails.sql", import.meta.url), "utf8").replace(/--.*$/gm, "").replace(/\s+/g, " ");
+const TABLE_DEF = /create table if not exists public\.quote_approval_emails \((.*?)\); create index/.exec(MIGRATION)?.[1] ?? "";
+const COLUMNS = new Set([...TABLE_DEF.matchAll(/(?:^|,)\s*([a-z_]+) (?:uuid|text|timestamptz)\b/g)].map((m) => m[1]));
+const LEDGER_STATES = new Set(["sending", "sent", "failed", "unconfirmed", "no_address", "not_priced"]);
+function ledgerRowProblems(row) {
+  const out = [];
+  for (const k of Object.keys(row)) if (!COLUMNS.has(k)) out.push(`column ${k} is not in the table`);
+  if (!LEDGER_STATES.has(row.state)) out.push(`state ${row.state}`);
+  if (!/^[0-9a-f]{64}$/.test(String(row.contract_key))) out.push("contract_key");
+  if (row.reason_code != null && !/^[a-z0-9_]{1,60}$/.test(row.reason_code)) out.push(`reason_code ${row.reason_code}`);
+  if (row.reason != null && String(row.reason).length > 300) out.push("reason over 300");
+  if (row.sent_to != null && String(row.sent_to).length > 254) out.push("sent_to over 254");
+  if (row.lang != null && !["en", "es", "fr"].includes(row.lang)) out.push(`lang ${row.lang}`);
+  if (!row.company_id || !/^[0-9a-f-]{36}$/.test(String(row.job_sync_id))) out.push("company_id / job_sync_id");
+  return out;
+}
+
 // ------------------------------------------------------------------ the world
 const INGEST_KEYS = new Set([
   "folder_role", "source", "uidvalidity", "uid", "provider_message_id", "message_id_header", "parent_ids",
@@ -190,6 +210,7 @@ class Query {
   eq(k, v) { this.st.filters.push((r) => String(r[k]) === String(v)); this.st.filterText.push(`eq:${k}`); return this; }
   is(k, v) { this.st.filters.push((r) => (v === null ? r[k] == null : r[k] === v)); this.st.filterText.push(`is:${k}`); return this; }
   in(k, vs) { this.st.filters.push((r) => vs.map(String).includes(String(r[k]))); this.st.filterText.push(`in:${k}`); return this; }
+  not(k, op, v) { if (op === "is" && v === null) this.st.filters.push((r) => r[k] != null); this.st.filterText.push(`not:${k}`); return this; }
   order() { return this; }
   limit() { return this; }
   maybeSingle() { this.st.mode = "maybe"; return this.run(); }
@@ -316,13 +337,25 @@ function wall() {
     }
   }
   assert.deepEqual([...world.unknownIngestKeys], [], "a mail_ingest row key the SQL would silently ignore");
+  assert.ok(COLUMNS.size >= 12 && COLUMNS.has("contract_key"), "the migration's column list was not read");
+  for (const row of world.db.quote_approval_emails ?? []) assert.deepEqual(ledgerRowProblems(row), [], `a ledger row the migration would refuse: ${JSON.stringify(row)}`);
   assert.ok(world.created.every((c) => c.key === SERVICE_KEY), "a client other than the model service client was created");
 }
 
 const ledger = () => world.db.quote_approval_emails;
 const sentTo = (c) => c.body.to;
 const text = (c) => c.body.text;
-const tokensTold = () => world.fcm.map((m) => m.token).sort();
+/** The failure notices this feature sends (quote-view's own "Quote approved" push is a different message, asserted separately). */
+const notices = () => world.fcm.filter((m) => /^Contract email/.test(m.title));
+const tokensTold = () => notices().map((m) => m.token).sort();
+/** Waits for something that happens after an answer has gone out. */
+async function until(check, what, ms = 4000) {
+  const start = Date.now();
+  while (!check()) {
+    if (Date.now() - start > ms) assert.fail(`timed out waiting for ${what}`);
+    await new Promise((r) => setTimeout(r, 5));
+  }
+}
 
 // ============================================================ 0. the wall itself =====
 
@@ -333,6 +366,19 @@ test("the harness refuses the real Resend endpoint and any other host -- the gua
   }
   assert.deepEqual(world.refused, ["https://api.resend.com/emails", "https://example.com/", "http://localhost:9/"]);
   world.refused.length = 0; // expected here; the point was to prove it throws
+  wall();
+});
+
+test("PLANTED: the check every test ends with refuses a ledger row the migration would refuse, and accepts a real one", async () => {
+  resetWorld();
+  await send();
+  const good = ledger()[0];
+  assert.deepEqual(ledgerRowProblems(good), [], "a row the function really wrote passes");
+  for (const [name, bad] of Object.entries({
+    "an unknown column": { ...good, approval_email_sent_at: "x" }, "an unknown state": { ...good, state: "queued" },
+    "a short key": { ...good, contract_key: "abc" }, "a long reason": { ...good, reason: "x".repeat(301) },
+    "a bad code": { ...good, reason_code: "Not A Slug" }, "a bad language": { ...good, lang: "de" }, "no company": { ...good, company_id: null },
+  })) assert.ok(ledgerRowProblems(bad).length > 0, `not caught: ${name}`);
   wall();
 });
 
@@ -682,6 +728,19 @@ test("nothing a mail provider SAYS is copied into the row, the push or the answe
   wall();
 });
 
+test("secrets the function can read to decide something never leave it: the card processor's token, the provider key, the trigger secret, the service key", async () => {
+  resetWorld();
+  world.db.payment_connections.push({ company_id: COMPANY, processor: "square", external_id: "loc_fake", access_token: "SQUARE_ACCESS_TOKEN_DO_NOT_LEAK" });
+  const r = await send();
+  assert.equal(r.body.state, "sent");
+  assert.ok(text(world.resend[0]).includes("pay the deposit by card"), "CONTROL: the token's only effect is that a card checkout exists");
+  const everything = JSON.stringify([r.body, ledger(), world.fcm, world.db.mail_messages, world.resend.map((c) => c.body), consoleErrors]);
+  for (const secret of ["SQUARE_ACCESS_TOKEN_DO_NOT_LEAK", SECRET, SERVICE_KEY, FCM_KEY.slice(40, 80)]) assert.ok(!everything.includes(secret), `${secret.slice(0, 12)}... leaked`);
+  // The provider key travels only in the Authorization header of the one call to the provider.
+  assert.ok(!JSON.stringify(world.resend[0].body).includes(API_KEY));
+  wall();
+});
+
 test("if the send record cannot be written, NOTHING is sent (sent-twice would have no guard) and the office is told the feature is not set up", async () => {
   for (const planted of ["insert", (st) => (st.op === "insert" ? { code: "42P01", message: 'relation "public.quote_approval_emails" does not exist' } : null)]) {
     resetWorld();
@@ -946,6 +1005,22 @@ test("APPROVE: the customer approves and is emailed their contract; the page is 
   wall();
 });
 
+test("APPROVE: the existing 'Quote approved' push is untouched by the email, and a failed email is a SEPARATE push with its own words", async () => {
+  approvalWorld();
+  const ok = await approve(loadQuoteView());
+  assert.equal(ok.body.contractEmail.state, "sent");
+  const approvedPush = world.fcm.filter((m) => m.title === "Quote approved 🎉");
+  assert.ok(approvedPush.length > 0, "the approval push still goes out");
+  assert.ok(approvedPush.every((m) => m.body === "Pat Buyer approved the quote for Pat Buyer."), JSON.stringify(approvedPush));
+  assert.ok(!world.fcm.some((m) => /Contract email/.test(m.title)), "a successful email adds no notification");
+  // Now the same approval with the email failing: the approval push is word-for-word the same, and the failure rides in its own message.
+  approvalWorld({ email: "" });
+  await approve(loadQuoteView());
+  assert.ok(world.fcm.filter((m) => m.title === "Quote approved 🎉").every((m) => m.body === "Pat Buyer approved the quote for Pat Buyer."));
+  assert.deepEqual([...new Set(world.fcm.filter((m) => /Contract email/.test(m.title)).map((m) => m.token))].sort(), ["tok-manager", "tok-owner", "tok-sales"]);
+  wall();
+});
+
 test("APPROVE: the browser's language is used when the page does not say one", async () => {
   approvalWorld();
   const r = await approve(loadQuoteView(), { headers: { "Accept-Language": "fr-FR,fr;q=0.9" } });
@@ -978,12 +1053,13 @@ test("APPROVE: two approvals in flight at once land one approval and send one em
 
 test("APPROVE: whatever happens to the email, the approval STANDS and the answer is still ok -- the page never has a reason to make her approve twice", async () => {
   const outcomes = {
-    "sender not deployed (404)": { respond: async () => new Response("{}", { status: 404 }), state: "not_sent", row: "sender_unavailable" },
-    "sender secret does not match (401)": { respond: async () => new Response("{}", { status: 401 }), state: "not_sent", row: "sender_unavailable" },
-    "sender not configured (503)": { respond: async () => new Response("{}", { status: 503 }), state: "not_sent", row: "sender_unavailable" },
-    "sender crashing (500, twice)": { respond: async () => new Response("{}", { status: 500 }), state: "not_sent", row: null },
-    "sender unreachable (network error, twice)": { respond: async () => { throw new TypeError("fetch failed"); }, state: "not_sent", row: null },
-    "sender answering with something that is not JSON": { respond: async () => new Response("<html>", { status: 200 }), state: "not_sent", row: null },
+    "sender not deployed (404)": { respond: async () => new Response("{}", { status: 404 }), state: "not_sent", row: "sender_unavailable", title: "Contract email NOT sent" },
+    "sender secret does not match (401)": { respond: async () => new Response("{}", { status: 401 }), state: "not_sent", row: "sender_unavailable", title: "Contract email NOT sent" },
+    "sender not configured (503)": { respond: async () => new Response("{}", { status: 503 }), state: "not_sent", row: "sender_unavailable", title: "Contract email NOT sent" },
+    "sender crashing (500, twice)": { respond: async () => new Response("{}", { status: 500 }), state: "not_sent", row: null, title: "Contract email: could not confirm" },
+    "sender unreachable (network error, twice)": { respond: async () => { throw new TypeError("fetch failed"); }, state: "not_sent", row: null, title: "Contract email: could not confirm" },
+    "sender answering with something that is not JSON": { respond: async () => new Response("<html>", { status: 200 }), state: "not_sent", row: null, title: "Contract email: could not confirm" },
+    "sender answering 400 (it did not run)": { respond: async () => new Response("{}", { status: 400 }), state: "not_sent", row: "sender_unavailable", title: "Contract email NOT sent" },
   };
   for (const [name, o] of Object.entries(outcomes)) {
     approvalWorld();
@@ -996,11 +1072,25 @@ test("APPROVE: whatever happens to the email, the approval STANDS and the answer
     assert.equal(world.resend.length, 0, name);
     if (o.row) assert.deepEqual([ledger().length, ledger()[0]?.state, ledger()[0]?.reason_code], [1, "failed", o.row], `${name}: the row`);
     else assert.equal(ledger().length, 0, `${name}: a 5xx or a dropped connection may have reached the sender, so quote-view must not write a verdict for it`);
-    // A repeat after a server error or a dropped connection (safe: the sender claims first); not after a refusal.
     // One repeat after a server error or a dropped connection (safe: the sender claims first); none after a refusal or an answer.
-    assert.equal(world.senderCalls.length, /404|401|not JSON/.test(name) ? 1 : 2, `${name}: calls`);
+    assert.equal(world.senderCalls.length, /404|401|not JSON|400/.test(name) ? 1 : 2, `${name}: calls`);
+    // NOBODY ELSE WILL SAY SO, so quote-view does: the office's SEE_MONEY phones (and only them) are told, in words that match what is known.
+    assert.deepEqual(tokensTold(), ["tok-manager", "tok-owner", "tok-sales"], `${name}: the office was not told`);
+    assert.ok(notices().every((m) => m.title === o.title), `${name}: ${JSON.stringify(notices().map((m) => m.title))}`);
+    for (const m of notices()) assert.ok(!/\$|\d|@/.test(`${m.title} ${m.body}`), `${name}: a figure or address in the push`);
     wall();
   }
+});
+
+test("APPROVE: the alarm needs a Firebase account to push through; without one the approval still stands and the failure is still on the record", async () => {
+  approvalWorld();
+  delete ENV.FIREBASE_SERVICE_ACCOUNT;
+  routeToSender({ respond: async () => new Response("{}", { status: 404 }) });
+  const r = await approve(loadQuoteView());
+  assert.deepEqual(r.body, { ok: true, approvedBy: "Pat Buyer", contractEmail: { state: "not_sent" } });
+  assert.deepEqual(world.fcm, []);
+  assert.equal(ledger()[0].reason_code, "sender_unavailable");
+  wall();
 });
 
 test("APPROVE: with the trigger secret unset, the approval stands, nothing is sent, and the reason is written down for the office", async () => {
@@ -1045,7 +1135,7 @@ test("APPROVE: a send that fails after the approval tells the page 'not sent' --
   assert.equal(r.body.ok, true);
   assert.equal(r.body.contractEmail.state, "not_sent");
   assert.ok(world.db.jobs[0].quote_approved_at);
-  assert.equal(world.fcm.length, 3);
+  assert.equal(notices().length, 3);
   assert.equal(ledger()[0].state, "failed");
   wall();
 });
@@ -1057,9 +1147,11 @@ test("APPROVE: a slow send does not hold the customer up: past the wait the page
   const qv = loadQuoteView({ waitMs: 40 });
   const r = await approve(qv);
   assert.deepEqual(r.body, { ok: true, approvedBy: "Pat Buyer", contractEmail: { state: "pending" } });
+  await until(() => ledger()[0]?.state === "sending", "the claim");
+  assert.deepEqual(notices(), [], "a slow send is not a failed one: nobody is alarmed while it is still going");
   assert.equal(ledger()[0].state, "sending", "claimed, not yet settled");
   gate.resolve();
-  await new Promise((res) => setTimeout(res, 60));
+  await until(() => ledger()[0].state === "sent", "the email to finish after the answer went out");
   assert.equal(ledger()[0].state, "sent", "the email carried on after the answer");
   assert.equal(world.resend.length, 1);
   wall();
@@ -1070,8 +1162,11 @@ test("APPROVE: an unconfirmed send is 'pending' to the page, never 'sent' and ne
   world.resendMode = "500";
   const r = await approve(loadQuoteView());
   assert.deepEqual(r.body.contractEmail, { state: "pending" });
-  assert.equal(world.fcm.length, 3, "and the office is told it could not be confirmed");
-  assert.equal(world.fcm[0].title, "Contract email: could not confirm");
+  // The sender pushes before it answers; waiting here only guards against a machine so loaded that the page's
+  // own wait ran out first (the answer would still be "pending", and the push still comes).
+  await until(() => notices().length === 3, "the office to be told it could not be confirmed");
+  assert.equal(notices().length, 3, "and the office is told it could not be confirmed");
+  assert.equal(notices()[0].title, "Contract email: could not confirm");
   wall();
 });
 

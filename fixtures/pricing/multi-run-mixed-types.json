@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "engine": {
-    "version": "2026.10.4",
-    "generated_at": "2026-10-01T23:56:49.760251800Z"
+    "version": "2026.10.5",
+    "generated_at": "2026-10-02T01:40:27.008031800Z"
   },
   "case": "multi-run-mixed-types",
   "note": "Three runs of three types on one job: items concatenated in run order, sort_order restarting per run, totals summed in (sort_order, sync_id) order across runs.",
   "input": {
-    "engine_version": "2026.10.4",
+    "engine_version": "2026.10.5",
     "pixels_per_foot": 20.0,
     "job": {
       "calibration_pixels_per_foot": 20.0,
@@ -858,7 +858,7 @@
     "existing_items": []
   },
   "expected": {
-    "engine_version": "2026.10.4",
+    "engine_version": "2026.10.5",
     "linear_feet": 265.0,
     "teardown_linear_feet": 0.0,
     "billable_linear_feet": 265.0,
@@ -2042,9 +2042,23 @@
         "category": null
       },
       {
-        "sync_id": "8ca5633d-8305-3698-af69-67370a125387",
+        "sync_id": "f4a247c9-722c-336e-9a73-de8b12efeaa7",
         "fence_run_sync_id": "0000000c-0000-4000-8000-000000000003",
         "sort_order": 12,
+        "description": "2\" Galvanized Terminal Post, 8'",
+        "quantity": 1.0,
+        "unit": "EA",
+        "unit_price": 19.75,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "BLANK_POST",
+        "auto_generated": true,
+        "category": null
+      },
+      {
+        "sync_id": "8ca5633d-8305-3698-af69-67370a125387",
+        "fence_run_sync_id": "0000000c-0000-4000-8000-000000000003",
+        "sort_order": 13,
         "description": "2\" Galvanized Terminal Post, 8'",
         "quantity": 1.0,
         "unit": "EA",
@@ -2058,7 +2072,7 @@
       {
         "sync_id": "bd4520c6-745d-3fda-9da5-b72f9f06a257",
         "fence_run_sync_id": "0000000c-0000-4000-8000-000000000003",
-        "sort_order": 13,
+        "sort_order": 14,
         "description": "5/8\" Hole Plug, White",
         "quantity": 4.0,
         "unit": "EA",
@@ -2072,7 +2086,7 @@
       {
         "sync_id": "52b492df-7101-35d8-a5d9-900e02c19117",
         "fence_run_sync_id": "0000000c-0000-4000-8000-000000000003",
-        "sort_order": 14,
+        "sort_order": 15,
         "description": "Concrete Mix 60lb Bag",
         "quantity": 7.0,
         "unit": "EA",
@@ -2108,10 +2122,6 @@
       {
         "run_sync_id": "0000000c-0000-4000-8000-000000000003",
         "role": "STIFFENER"
-      },
-      {
-        "run_sync_id": "0000000c-0000-4000-8000-000000000003",
-        "role": "BLANK_POST"
       }
     ],
     "zero_priced": [],
@@ -2153,14 +2163,15 @@
       "4b162073-ab53-32c2-a951-1f97b3b887f9",
       "5375f6ad-e034-3513-a72e-ccae9f2996f7",
       "25821ef8-fe78-3e6a-ad67-e9686c99597a",
+      "f4a247c9-722c-336e-9a73-de8b12efeaa7",
       "8ca5633d-8305-3698-af69-67370a125387",
       "bd4520c6-745d-3fda-9da5-b72f9f06a257",
       "52b492df-7101-35d8-a5d9-900e02c19117"
     ],
     "totals": {
-      "materials_subtotal": 3422.22,
-      "taxable_subtotal": 3422.22,
-      "tax": 239.55540000000002,
+      "materials_subtotal": 3441.97,
+      "taxable_subtotal": 3441.97,
+      "tax": 240.9379,
       "labor_cost": 2032.0,
       "teardown_cost": 0.0,
       "trash_haul_fee": 0.0,
@@ -2170,8 +2181,8 @@
       "change_order_feet": 0.0,
       "markup_amount": 0.0,
       "discount_amount": 0.0,
-      "pre_markup_total": 5913.7754,
-      "grand_total": 5913.78,
+      "pre_markup_total": 5934.9079,
+      "grand_total": 5934.91,
       "billable_linear_feet": 265.0
     }
   }

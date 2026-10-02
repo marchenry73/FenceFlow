@@ -7,12 +7,16 @@
 -- Spec and reasoning: docs/JOINING_RUNS.md. Tests that wait for it:
 -- tests/a32-join-posts.test.mjs (PART 1) and tests/a32-join-transition.test.mjs (PART 2).
 --
--- READ FIRST: THIS IS ONE OF TWO DESIGNS FOR WHERE A JOIN LIVES.
---   This file is the COLUMNS design: two text columns on fence_runs. The same fact is also
---   recorded as ROWS in app/.../data/RunJoin.kt (a Room table, run_joins, schema 48). Both
---   cannot be the home of a join, and nothing syncs either yet, so choosing now is free and
---   choosing later is a migration. docs/JOINING_RUNS.md section 1.6 compares them and
---   recommends this one. If the table is chosen instead, do NOT apply this file.
+-- READ FIRST: THE STORAGE QUESTION IS SETTLED. THIS FILE IS THE ANSWER.
+--   There were two designs for where a join lives: these COLUMNS, and a Room table
+--   (run_joins, app/.../data/RunJoin.kt, schema 48). Decided 1 Oct 2026 in favour of the
+--   columns, with the reasons and the cost of retiring the table written out in
+--   docs/JOINING_RUNS.md section 11.1. Nothing else changes in this file as a result: it
+--   was already the columns design and it is still unapplied.
+--   The table has NOT been deleted yet, and must not be deleted as part of applying this.
+--   It is wired into AppDatabase.kt and Repository.kt and shipped in build 568, so removing
+--   it is a Room migration and a source change, not a file deletion -- 11.1 says exactly
+--   what it costs. Until then it is inert: nothing prices from it and no screen calls it.
 --
 -- KIND
 --   ADDITIVE ONLY. Columns on public.fence_runs. No row is read, rewritten or deleted, no
@@ -48,14 +52,20 @@
 --   is_transition (PART 2)   This run is the stepped or raked bay between two heights. Its
 --                            panel line is the TRANSITION_PANEL catalog item, not PANEL.
 --
--- NOT IN THIS FILE, and the order matters (docs/JOINING_RUNS.md 7.2):
---   * reapp_row_takeoff / reapp_run_takeoff (the re-approval fingerprint) do not read these
---     columns yet. Until a follow-up file teaches them, joining two runs on an APPROVED quote
---     would change its posts without withdrawing the approval. Do not ship the join UI before
---     that file. The last proof row below states this gap so it cannot be forgotten.
---   * reapp_run_snapshot (drawing versions) does not carry them, so a restore leaves the
---     current joints beside restored points. Its readers (the phone's parseRunSnapshot and the
---     office's reapprovalRestoreState, both strict about length) must change first.
+-- NOT IN THIS FILE, and the order matters (docs/JOINING_RUNS.md 7.2 and 11.2):
+--   THE FOLLOW-UP FILE NOW EXISTS: supabase_a56_join_reapproval_fingerprint.sql, also
+--   UNAPPLIED. It must run AFTER this one (it names these columns, and a function body that
+--   names a column that does not exist is refused at CREATE time). It has two parts:
+--   * PART A -- the re-approval fingerprint. reapp_row_takeoff does not read these columns
+--     today (verified live from pg_proc, 1 Oct 2026: the text 'start_joint' appears nowhere
+--     in it, nor in reapp_run_takeoff, reapp_job_takeoff or reapp_run_snapshot), and
+--     reapp_on_run_change returns early when a run's before and after fingerprints match.
+--     So joining two runs on an APPROVED quote changes its post count and the approval
+--     stands. Apply PART A before the join UI ships. The last proof row below is the gap.
+--   * PART B -- reapp_run_snapshot does not carry them, so a restore puts yesterday's points
+--     back under today's joints. PART B must NOT be applied until the phone's
+--     parseRunSnapshot and the office's reapprovalRestoreState accept a seven-part snapshot;
+--     both refuse anything but 3 or 6 parts today.
 --
 -- To undo: the columns can be dropped, but that discards every join anyone has made -- do not,
 --   once the join UI has shipped.
@@ -108,8 +118,10 @@ select 'CANARY: the same test on a planted joined row reads false (so it can fai
                as t(start_joint, end_joint)) = false
 union all
 -- KNOWN GAP, stated as a check so it is read on every run of this file. true = the gap is still
--- open (the fingerprint does not read the new columns); it turns false once the follow-up file lands.
-select 'KNOWN GAP (docs/JOINING_RUNS.md 7.2): the re-approval fingerprint does not read the joint columns yet',
+-- open (the fingerprint does not read the new columns); it turns false once
+-- supabase_a56_join_reapproval_fingerprint.sql has been applied. DO NOT SHIP THE JOIN UI while
+-- this still reads true -- that is the whole reason the row is here.
+select 'KNOWN GAP (docs/JOINING_RUNS.md 7.2): the re-approval fingerprint does not read the joint columns yet -- apply supabase_a56_join_reapproval_fingerprint.sql',
        (select bool_and(position('start_joint' in prosrc) = 0 and position('end_joint' in prosrc) = 0)
           from pg_proc
          where pronamespace = 'public'::regnamespace

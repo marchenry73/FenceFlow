@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "engine": {
-    "version": "2026.10.4",
-    "generated_at": "2026-10-01T23:56:49.760251800Z"
+    "version": "2026.10.5",
+    "generated_at": "2026-10-02T01:40:27.008031800Z"
   },
   "case": "multi-gate-whole-bags",
   "note": "1.25 bags per post and three mountings: 16.25 + 2.5 + 1.0 + 3.5 = 23.25 bags, rounded up once to 24.",
   "input": {
-    "engine_version": "2026.10.4",
+    "engine_version": "2026.10.5",
     "pixels_per_foot": 20.0,
     "job": {
       "calibration_pixels_per_foot": 20.0,
@@ -380,7 +380,7 @@
     "existing_items": []
   },
   "expected": {
-    "engine_version": "2026.10.4",
+    "engine_version": "2026.10.5",
     "linear_feet": 100.0,
     "teardown_linear_feet": 0.0,
     "billable_linear_feet": 100.0,
@@ -877,9 +877,23 @@
         "category": null
       },
       {
-        "sync_id": "96dc9cf3-867f-3553-85f6-c846759bcdf4",
+        "sync_id": "32277316-a102-36ae-a8c0-d822e16b094d",
         "fence_run_sync_id": "00000028-0000-4000-8000-000000000001",
         "sort_order": 12,
+        "description": "5\"x5\" Co-Ex Gate Post, White",
+        "quantity": 1.0,
+        "unit": "EA",
+        "unit_price": 16.56,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "BLANK_POST",
+        "auto_generated": true,
+        "category": null
+      },
+      {
+        "sync_id": "96dc9cf3-867f-3553-85f6-c846759bcdf4",
+        "fence_run_sync_id": "00000028-0000-4000-8000-000000000001",
+        "sort_order": 13,
         "description": "5/8\" Hole Plug, White",
         "quantity": 4.0,
         "unit": "EA",
@@ -893,7 +907,7 @@
       {
         "sync_id": "d137413b-b340-3336-b2ad-5e8b86540d98",
         "fence_run_sync_id": "00000028-0000-4000-8000-000000000001",
-        "sort_order": 13,
+        "sort_order": 14,
         "description": "Regular PVC Gate 6'H x 5'W, White",
         "quantity": 1.0,
         "unit": "EA",
@@ -907,7 +921,7 @@
       {
         "sync_id": "3ff820b0-beb1-39ac-92ee-776e60c88cb7",
         "fence_run_sync_id": "00000028-0000-4000-8000-000000000001",
-        "sort_order": 14,
+        "sort_order": 15,
         "description": "Concrete Mix 60lb Bag",
         "quantity": 24.0,
         "unit": "EA",
@@ -919,12 +933,7 @@
         "category": null
       }
     ],
-    "unmatched_roles": [
-      {
-        "run_sync_id": "00000028-0000-4000-8000-000000000001",
-        "role": "BLANK_POST"
-      }
-    ],
+    "unmatched_roles": [],
     "zero_priced": [],
     "zero_priced_names": [],
     "totals_items": [
@@ -940,14 +949,15 @@
       "3893c4ed-3bd5-3a24-8f46-31b20b1c405a",
       "8e87aea5-6de4-3ec6-b0ae-e515ca463127",
       "e0b506a1-0bc1-3537-9bff-a57da0adf155",
+      "32277316-a102-36ae-a8c0-d822e16b094d",
       "96dc9cf3-867f-3553-85f6-c846759bcdf4",
       "d137413b-b340-3336-b2ad-5e8b86540d98",
       "3ff820b0-beb1-39ac-92ee-776e60c88cb7"
     ],
     "totals": {
-      "materials_subtotal": 2055.5499999999993,
-      "taxable_subtotal": 2055.5499999999993,
-      "tax": 143.88849999999996,
+      "materials_subtotal": 2072.1099999999997,
+      "taxable_subtotal": 2072.1099999999997,
+      "tax": 145.0477,
       "labor_cost": 696.0,
       "teardown_cost": 0.0,
       "trash_haul_fee": 0.0,
@@ -957,8 +967,8 @@
       "change_order_feet": 0.0,
       "markup_amount": 0.0,
       "discount_amount": 0.0,
-      "pre_markup_total": 3155.4384999999993,
-      "grand_total": 3155.44,
+      "pre_markup_total": 3173.1576999999997,
+      "grand_total": 3173.16,
       "billable_linear_feet": 100.0
     }
   }

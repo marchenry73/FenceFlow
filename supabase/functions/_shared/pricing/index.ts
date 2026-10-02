@@ -109,8 +109,39 @@ export {
  * GATE_POST row loses its gate posts from the estimate entirely. That
  * fallback belongs in buildLineItems on both sides and MUST land in the same
  * commit as this bump. Anchored totals do not move, as above.
+ *
+ * Bumped 2026.10.4 -> 2026.10.5 (1 Oct 2026) because a BLANK_POST entry with no
+ * BLANK_POST row is now priced off the company's GATE_POST rows -- the owner's
+ * decision, taken knowing the cost (PRICING_FALLBACK_ROLE in line-items.ts /
+ * EstimateEngine.PRICING_FALLBACK_ROLE). BLANK_POST has never existed in any
+ * catalog anywhere -- not SeedData.kt, not supabase_r20's seed, not the office
+ * page's starting list, and zero rows across every company (read-only SELECT,
+ * 1 Oct 2026) -- while the takeoff asks for one on every WALL-mounted gate. So
+ * that post has been silently dropped from every wall-gate estimate ever
+ * written: the role went into unmatched_roles and no line appeared.
+ *
+ * THIS ONE IS NOT ADDITIVE, unlike 2026.10.2 and 2026.10.3, and it is the first
+ * bump here that is not. Every wall-gate quote in every company that has a
+ * GATE_POST row goes UP by one post plus tax -- on the owner's own catalog
+ * $17.72 for a 6 ft white vinyl gate ($16.56 + 7%), before markup; $17.93 at 4 ft
+ * ($16.75), and $10.16 wood, $21.14 chain link, $23.54 aluminum, $29.96 composite,
+ * $34.24 ornamental iron, $14.98 split rail on his rows for those types -- all
+ * measured with the real engine rather than multiplied out by hand, which is why
+ * three of them sit a cent off the row times 1.07: tax is taken on the whole
+ * taxable subtotal and each grand total is rounded to the cent, so the DIFFERENCE
+ * of two totals can land either side. Nothing
+ * else moves: a quote with no WALL gate is priced identically, and so is one in a
+ * catalog with no GATE_POST row (the fallback does NOT chain to END_POST).
+ * The 85 fixtures regenerate in the same commit; the wall-gate ones among them
+ * move upward by one post and the rest do not move at all.
+ *
+ * The LINE keeps role BLANK_POST and takes the chosen row's name, so a quote
+ * names the gate post it really billed rather than claiming a product he does
+ * not stock. unmatched_roles keeps its meaning -- nothing was billed for this
+ * role -- so BLANK_POST leaves it where a GATE_POST row carries the line and
+ * stays in it where neither row exists. Anchored totals do not move, as above.
  */
-export const PRICING_ENGINE_VERSION = "2026.10.4";
+export const PRICING_ENGINE_VERSION = "2026.10.5";
 
 // ---------------------------------------------------------------------------
 // Contract shapes (docs/PRICING_CONTRACT.md). Column names, never invented.

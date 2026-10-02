@@ -192,8 +192,42 @@ object EstimateEngine {
      * GATE_POST row loses its gate posts from the estimate entirely. That
      * fallback belongs in [buildLineItems] on both sides and MUST land in the
      * same commit as this bump. Anchored totals do not move, as above.
+     *
+     * Bumped 2026.10.4 -> 2026.10.5 (1 Oct 2026) because a BLANK_POST entry
+     * with no BLANK_POST row is now priced off the company's GATE_POST rows --
+     * the owner's decision, taken knowing the cost ([PRICING_FALLBACK_ROLE],
+     * and PRICING_FALLBACK_ROLE in line-items.ts). BLANK_POST has never existed
+     * in any catalog anywhere -- not [SeedData], not supabase_r20's seed, not
+     * the office page's starting list, and zero rows across every company
+     * (read-only SELECT, 1 Oct 2026) -- while [gateAreaEntries] asks for one on
+     * every WALL-mounted gate. So that post has been silently dropped from
+     * every wall-gate estimate ever written: the role went into
+     * [BuiltItems.unmatchedRoles] and no line appeared.
+     *
+     * THIS ONE IS NOT ADDITIVE, unlike 2026.10.2 and 2026.10.3, and it is the
+     * first bump here that is not. Every wall-gate quote in every company that
+     * has a GATE_POST row goes UP by one post plus tax -- on the owner's own
+     * catalog $17.72 for a 6 ft white vinyl gate ($16.56 + 7%), before markup;
+     * $17.93 at 4 ft ($16.75), and $10.16 wood, $21.14 chain link, $23.54
+     * aluminum, $29.96 composite, $34.24 ornamental iron, $14.98 split rail on
+     * his rows for those types -- all measured with the real engine rather than
+     * multiplied out by hand, which is why three of them sit a cent off the row
+     * times 1.07: tax is taken on the whole taxable subtotal and each grand
+     * total is rounded to the cent, so the DIFFERENCE of two totals can land
+     * either side. Nothing else moves: a quote with no WALL gate
+     * is priced identically, and so is one in a catalog with no GATE_POST row
+     * (the fallback does NOT chain to END_POST). The 85 fixtures regenerate in
+     * the same commit; the wall-gate ones among them move upward by one post
+     * and the rest do not move at all.
+     *
+     * The LINE keeps role BLANK_POST and takes the chosen row's name, so a
+     * quote names the gate post it really billed rather than claiming a product
+     * he does not stock. [BuiltItems.unmatchedRoles] keeps its meaning --
+     * nothing was billed for this role -- so BLANK_POST leaves it where a
+     * GATE_POST row carries the line and stays in it where neither row exists.
+     * Anchored totals do not move, as above.
      */
-    const val PRICING_ENGINE_VERSION = "2026.10.4"
+    const val PRICING_ENGINE_VERSION = "2026.10.5"
 
     /**
      * Money, to the cent: the ONE place a total is rounded.
@@ -779,6 +813,64 @@ object EstimateEngine {
         val zeroPricedNames: List<String>
     )
 
+    /**
+     * The role whose catalog rows a line may be priced off when the catalog
+     * holds NOTHING for the role the takeoff asked for.
+     *
+     * A fallback belongs HERE and not in the takeoff. The takeoff says what the
+     * build needs; this is where a need is turned into a row somebody sells.
+     * Moving it into the takeoff would change what is ASKED for, and on a wall
+     * gate that loses the one distinction that matters -- the hinge side is an
+     * undrilled post bolted through the wall, the latch side is a post set in
+     * concrete. The counts, the concrete and the hole plugs all follow from
+     * keeping them apart.
+     *
+     * BLANK_POST -> GATE_POST, the owner's decision of 1 Oct 2026. BLANK_POST
+     * has never existed in ANY catalog: not in [SeedData], not in
+     * supabase_r20's seed, not in the office page's starting list, and not in a
+     * single company's rows (read-only SELECT across every company, 1 Oct 2026:
+     * zero). [gateAreaEntries] asks for one on every WALL-mounted gate, so that
+     * post has been dropped from every wall-gate estimate ever written -- the
+     * role landed in [BuiltItems.unmatchedRoles] and no line appeared. His
+     * GATE_POST rows are the right rows to bill it against: two of his four
+     * vinyl ones are literally named "Blank Post" ("5x5 Co-Ex Utility Post
+     * White 8.5' - Blank" at $16.56, "5x5x102 HFS Blank Post White 6' Privacy"
+     * at $19.00), and he has a GATE_POST row for all seven fence types.
+     *
+     * THIS RAISES PRICES, and that is the point: a wall gate now bills a post
+     * it used to omit. On his catalog a 6 ft white vinyl wall gate goes up
+     * $17.72 ($16.56 plus 7% tax, before markup).
+     *
+     * PREFERENCE, NOT REPLACEMENT. A company that DOES price a BLANK_POST row
+     * gets its own row; this is consulted only when the real role matches
+     * nothing.
+     *
+     * IT DOES NOT CHAIN, and nothing here pretends otherwise: a catalog with no
+     * BLANK_POST row AND no GATE_POST row still reports BLANK_POST unmatched
+     * and bills nothing for it. The matching gap on the other side -- a
+     * GATE_POST entry on a catalog with no GATE_POST row, which loses its gate
+     * posts outright since 2026.10.4 -- is NOT wired here. The entry would be
+     * `MaterialRole.GATE_POST to MaterialRole.END_POST`; it is the owner's
+     * call, not a silent one, and tests/a53-gate-post-role.test.mjs block 5
+     * pins today's broken state so it cannot be forgotten.
+     *
+     * WHAT THE QUOTE SAYS. The line keeps `role = BLANK_POST` and takes its
+     * description from the row actually chosen, so a quote never claims to have
+     * billed a product he does not stock -- it names the gate post it really
+     * billed. [BuiltItems.unmatchedRoles] keeps its exact meaning, "nothing was
+     * billed for this role", so BLANK_POST drops out of it once a GATE_POST row
+     * carries the line. The gap that remains genuine -- neither row exists -- is
+     * still reported, under BLANK_POST's own name. What is NOT reported anywhere
+     * is that a substitution happened at all; saying so would need a new field
+     * on the pricing contract, which is a wider change than this one.
+     *
+     * The server port is `PRICING_FALLBACK_ROLE` in line-items.ts, same role,
+     * same single entry, consulted at the same point.
+     */
+    private val PRICING_FALLBACK_ROLE: Map<MaterialRole, MaterialRole> = mapOf(
+        MaterialRole.BLANK_POST to MaterialRole.GATE_POST
+    )
+
     fun buildLineItems(
         jobId: Long,
         fenceRunId: Long,
@@ -817,6 +909,17 @@ object EstimateEngine {
 
         mergedEntries.forEach { entry ->
             var candidates = candidatesByRole[entry.role].orEmpty()
+            // Nothing priced for the role itself: price it off the fallback
+            // role's rows if there is one ([PRICING_FALLBACK_ROLE]). Here,
+            // BEFORE the colour, manufacturer and height filters, so a borrowed
+            // row is then chosen by exactly the rules the real role's rows would
+            // have been chosen by -- the height filter below reads entry.role,
+            // which is unchanged, and BLANK_POST and GATE_POST are both in its
+            // list, so a borrowed gate post is still held to the run's height.
+            if (candidates.isEmpty()) {
+                val fallbackRole = PRICING_FALLBACK_ROLE[entry.role]
+                if (fallbackRole != null) candidates = candidatesByRole[fallbackRole].orEmpty()
+            }
             if (candidates.isEmpty()) {
                 unmatched += entry.role
                 return@forEach

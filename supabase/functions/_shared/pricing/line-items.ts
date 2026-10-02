@@ -68,6 +68,57 @@ function mergeKey(role: MaterialRole, coversFt: number | null): string {
   return role + "|" + (Object.is(coversFt, -0) ? "-0" : String(coversFt));
 }
 
+/**
+ * The role whose catalog rows a line may be priced off when the catalog holds
+ * NOTHING for the role the takeoff asked for.
+ *
+ * A fallback belongs HERE and not in the takeoff. The takeoff says what the
+ * build needs; this is where a need is turned into a row somebody sells. Moving
+ * it into the takeoff would change what is ASKED for, and on a wall gate that
+ * loses the one distinction that matters -- the hinge side is an undrilled post
+ * bolted through the wall, the latch side is a post set in concrete. The counts,
+ * the concrete and the hole plugs all follow from keeping them apart.
+ *
+ * BLANK_POST -> GATE_POST, the owner's decision of 1 Oct 2026. BLANK_POST has
+ * never existed in ANY catalog: not in SeedData.kt, not in supabase_r20's seed,
+ * not in the office page's starting list, and not in a single company's rows
+ * (read-only SELECT across every company, 1 Oct 2026: zero). The takeoff asks
+ * for one on every WALL-mounted gate, so that post has been dropped from every
+ * wall-gate estimate ever written -- the role landed in [BuiltItems.unmatchedRoles]
+ * and no line appeared. His GATE_POST rows are the right rows to bill it against:
+ * two of his four vinyl ones are literally named "Blank Post" ("5x5 Co-Ex Utility
+ * Post White 8.5' - Blank" at $16.56, "5x5x102 HFS Blank Post White 6' Privacy"
+ * at $19.00), and he has a GATE_POST row for all seven fence types.
+ *
+ * THIS RAISES PRICES, and that is the point: a wall gate now bills a post it
+ * used to omit. On his catalog a 6 ft white vinyl wall gate goes up $17.72
+ * ($16.56 plus 7% tax, before markup).
+ *
+ * PREFERENCE, NOT REPLACEMENT. A company that DOES price a BLANK_POST row gets
+ * its own row; this is consulted only when the real role matches nothing.
+ *
+ * IT DOES NOT CHAIN, and nothing here pretends otherwise: a catalog with no
+ * BLANK_POST row AND no GATE_POST row still reports BLANK_POST unmatched and
+ * bills nothing for it. The matching gap on the other side -- a GATE_POST entry
+ * on a catalog with no GATE_POST row, which loses its gate posts outright since
+ * 2026.10.4 -- is NOT wired here. The row would be `GATE_POST: "END_POST"`; it
+ * is the owner's call, not a silent one, and tests/a53-gate-post-role.test.mjs
+ * block 5 pins today's broken state so it cannot be forgotten.
+ *
+ * WHAT THE QUOTE SAYS. The line keeps `role: BLANK_POST` and takes its
+ * description from the row actually chosen, so a quote never claims to have
+ * billed a product he does not stock -- it names the gate post it really billed.
+ * [BuiltItems.unmatchedRoles] keeps its exact meaning, "nothing was billed for
+ * this role", so BLANK_POST drops out of it once a GATE_POST row carries the
+ * line. The gap that remains genuine -- neither row exists -- is still reported,
+ * under BLANK_POST's own name. What is NOT reported anywhere is that a
+ * substitution happened at all; saying so would need a new field on the pricing
+ * contract, which is a wider change than this one.
+ */
+const PRICING_FALLBACK_ROLE: Partial<Record<MaterialRole, MaterialRole>> = {
+  BLANK_POST: "GATE_POST",
+};
+
 export function buildLineItems(
   run: FenceRun,
   suggestions: EstimateSuggestions,
@@ -118,6 +169,17 @@ export function buildLineItems(
 
   for (const entry of mergedEntries) {
     let candidates = candidatesByRole.get(entry.role) ?? [];
+    // Nothing priced for the role itself: price it off the fallback role's rows
+    // if there is one ([PRICING_FALLBACK_ROLE]). Here, BEFORE the colour,
+    // manufacturer and height filters, so a borrowed row is then chosen by
+    // exactly the rules the real role's rows would have been chosen by -- the
+    // height filter below reads entry.role, which is unchanged, and BLANK_POST
+    // and GATE_POST are both in its list, so a borrowed gate post is still held
+    // to the run's height.
+    if (candidates.length === 0) {
+      const fallbackRole = PRICING_FALLBACK_ROLE[entry.role];
+      if (fallbackRole !== undefined) candidates = candidatesByRole.get(fallbackRole) ?? [];
+    }
     if (candidates.length === 0) {
       unmatched.push(entry.role);
       continue;
