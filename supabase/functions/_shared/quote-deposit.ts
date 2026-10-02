@@ -155,7 +155,14 @@ export function depositFigures(input: DepositInput): DepositFigures {
   const asked = total > 0 ? Math.min(requested, total) : requested;
 
   const netPaid = Math.max(0, num(input.amountPaid) - num(input.refundedAmount));
-  const due = Math.max(0, asked - netPaid);
+  // TO THE CENT. Both sides of the subtraction are cents-exact, but the
+  // subtraction itself is not: $2,119.99 less $500.01 is 1619.9799999999998 in
+  // doubles. That was harmless while every figure here was formatted for
+  // display, and stopped being harmless when a capped deposit became the price
+  // itself (suggestedDeposit below) -- the phone and this function then had to
+  // produce the SAME number for the same job, and float dust is not a number
+  // anybody agreed to. Same rounding as everywhere else: roundToCents.
+  const due = roundToCents(Math.max(0, asked - netPaid));
   // What is left on the WHOLE job, not just on the deposit.
   //
   // It is computed here rather than by whoever shows it because the customer's
@@ -165,7 +172,7 @@ export function depositFigures(input: DepositInput): DepositFigures {
   // On a job paid in full that produced a page reading "Paid in full -- thank
   // you" directly above "Balance due $15,364.00". Proved on the live link, not
   // reasoned about.
-  const balance = Math.max(0, total - netPaid);
+  const balance = roundToCents(Math.max(0, total - netPaid));
 
   return { asked, due, payable: due >= MIN_CHARGEABLE, total, netPaid, balance };
 }
@@ -212,8 +219,9 @@ export const DEPOSIT_PLUS = 100;
 
 /**
  * THE DEPOSIT RULE, in one sentence: the deposit is the materials still to be
- * bought, rounded up to the next $100, plus another $100 -- and never more than
- * is still owed on the job ([suggestedDeposit] applies that cap).
+ * bought, rounded up to the next $100, plus another $100 -- and what is left to
+ * collect on it is never more than is still owed on the job ([suggestedDeposit]
+ * caps the stored figure at the price, which comes to the same thing).
  *
  * The extra $100 pays for scheduling and transport. It is the contractor's
  * business and is deliberately NOT disclosed to the customer: it is folded
@@ -237,9 +245,12 @@ export function ruleDeposit(outstandingMaterials: number): number {
 
 export interface DepositSuggestionInput {
   /**
-   * What has to be bought for the job: the estimate's materials plus the
-   * materials on any change order. The app's materialCost, and the same
-   * figure its "Set deposit" button works from.
+   * What has to be bought for the job: the estimate's material lines, THE
+   * SALES TAX ON THEM, plus the materials on any change order. The app's
+   * JobMoney.materialsToBuy, and the same figure its "Set deposit" button
+   * works from. The tax belongs in it because he pays it at the counter; a
+   * materials figure without it is short by about 7% of the biggest number on
+   * the estimate.
    */
   materialCost: number | null | undefined;
   /** `jobs.amount_paid`. */
@@ -262,8 +273,8 @@ export interface DepositSuggestion {
 }
 
 /**
- * The deposit to offer: [ruleDeposit] of the materials still to be bought
- * (net of money already in), capped at what is still owed on [billableTotal].
+ * The deposit to STORE: money already in PLUS [ruleDeposit] of the materials
+ * still to be bought, capped at [billableTotal].
  *
  * The server's copy of the app's JobMoney.depositSuggestion -- same inputs,
  * same answer, pinned by tests/a29-deposit-rule-vectors.json. It only OFFERS a
@@ -273,13 +284,30 @@ export interface DepositSuggestion {
  * button is what turns this figure into a stored one; no server code calls this
  * yet.
  *
+ * WHICH COLUMN IS CUMULATIVE (changed 2 Oct 2026, and it moves real money).
+ * `jobs.deposit_amount` is CUMULATIVE: the whole deposit asked of this
+ * customer. [depositFigures] above, the quote page, the approval email, the
+ * payment link, the office readiness line and the phone all subtract payments
+ * from it themselves (`due = asked - netPaid`). [ruleDeposit] of
+ * `materialCost - netPaid` is INCREMENTAL: what is left to collect, with the
+ * money already in taken off. Storing the incremental figure in the cumulative
+ * column took the same payment off twice -- $2,449.10 of materials with $1,000
+ * in needs $1,600 more, the old code stored 1,600, and the customer's page
+ * then asked for $600, leaving him $1,000 short of the materials he was about
+ * to buy. So the stored figure is `netPaid + rule`, and every reader's own
+ * subtraction lands back on the $1,600 the rule asked for. With nothing paid
+ * the two are the same number, which is why this stayed invisible until
+ * somebody part-paid.
+ *
  * The cap is the existing one, for the existing reason: a deposit above the job
  * is a bill for money the customer never agreed to (a $3,963 deposit was once
  * stored against a $3,620 job). It bites on a small job -- materials of $120
  * on a $150 job rule to $300, which is more than the job, so the suggestion is
- * the $150 owed, i.e. the customer is asked for the whole job up front.
- * Nothing is added or invented on top of the price; the extra $100 is simply
- * not there to add when there is no room for it.
+ * the $150, i.e. the customer is asked for the whole job up front. Nothing is
+ * added or invented on top of the price; the extra $100 is simply not there to
+ * add when there is no room for it. `capped` bites on exactly the inputs it
+ * always did (`rule > owed`), and the capped figure -- `netPaid + owed` -- is
+ * the price to the cent, so `due` on a capped deposit is exactly the balance.
  */
 export function suggestedDeposit(input: DepositSuggestionInput): DepositSuggestion {
   const num = (v: number | null | undefined) => {
@@ -293,6 +321,7 @@ export function suggestedDeposit(input: DepositSuggestionInput): DepositSuggesti
   if (materialCost <= 0 || total <= 0) return none;
 
   const netPaid = Math.max(0, num(input.amountPaid) - num(input.refundedAmount));
+  // INCREMENTAL: what still has to be collected for the materials.
   const rule = ruleDeposit(materialCost - netPaid);
   if (rule <= 0) return none;
 
@@ -300,7 +329,10 @@ export function suggestedDeposit(input: DepositSuggestionInput): DepositSuggesti
   const owed = roundToCents(Math.max(0, total - netPaid));
   if (owed <= 0.005) return none;
 
-  return rule <= owed + 0.005 ? { amount: rule, capped: false } : { amount: owed, capped: true };
+  // CUMULATIVE: what to store, so `asked - netPaid` lands back on `rule`.
+  return rule <= owed + 0.005
+    ? { amount: roundToCents(netPaid + rule), capped: false }
+    : { amount: roundToCents(netPaid + owed), capped: true };
 }
 
 /**

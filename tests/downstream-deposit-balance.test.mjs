@@ -74,7 +74,23 @@ const ok = (label, cond, detail = "") => {
 // office does not have a transcription of. If the office ever starts suggesting
 // a deposit of its own, it has to match ruleDeposit, and this file is where that
 // comparison belongs.
-const JOB_MONEY_FINGERPRINT = "ce770636d29a85b0";
+// Moved 2 Oct 2026, ce770636d29a85b0 -> ef59d93ea2a44a3c, for "the deposit
+// means one thing on every surface" (tests/a66-deposit-one-meaning.test.mjs).
+// The pin fired as designed and the transcription below was re-read against
+// JobMoney.kt function by function before it was moved: netPaid, balance,
+// stillOwed, isAccepted, acceptedAt, extraWorkSinceAcceptance, anchoredTotal
+// and billableTotal -- every function THIS file transcribes -- are unchanged,
+// character for character in meaning. What changed in JobMoney.kt was:
+// depositAsked / depositStillDue / depositSettled (new: the one deposit cap,
+// what is left on the deposit, and the one meaning of "deposit received"),
+// nextRequestAmount and nextRequestLabel (now ask for the rest of the deposit
+// before the balance), depositSuggestion (now returns the CUMULATIVE figure to
+// store), and materialsToBuy (new: materials with their sales tax). None of
+// them is read by any check in this file.
+//
+// WORTH KNOWING FOR NEXT TIME: a66 transcribes the deposit half and compares
+// it against the office and the server, so new deposit checks belong there.
+const JOB_MONEY_FINGERPRINT = "ef59d93ea2a44a3c";
 const jobMoneyNow = createHash("sha256")
   .update(readFileSync("app/src/main/java/com/fenceestimator/app/estimate/JobMoney.kt", "utf8").split(String.fromCharCode(13)).join(""))
   .digest("hex").slice(0, 16);

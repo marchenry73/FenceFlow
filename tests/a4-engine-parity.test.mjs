@@ -128,16 +128,48 @@ console.log("\n1. Uncalibrated GRID run: labour now bills the same footage mater
     `labor_cost=${out.totals.labor_cost}, should be 100 * 8 = 800`);
 
   // What gets billed now vs. before: materials + tax + the once-missing $800
-  // labour, then the same $10-ceiling rounding computeTotals always applies
-  // (teardown/change-order/gate charge are all 0 on this fixture).
+  // labour (teardown/change-order/gate charge are all 0 on this fixture), and
+  // nothing else -- rounded to the CENT, not up to a ten.
+  //
+  // PIN MOVED 2120 -> 2176.93. Two deliberate changes moved it; neither is this
+  // finding, and this finding's own numbers (net_feet 100, labor_cost 800) have
+  // not moved at all:
+  //
+  //  (1) THE STARTING-CATALOG TAX FIX (commit 87639fc, "Fix the tax bug in the
+  //      STARTING catalog, not just in the live rows"). The seeded PANEL and
+  //      GATE_PANEL rows shipped with taxable = false; panels are taxable in
+  //      Florida. This fixture's catalog IS the seed, so its taxable base moved
+  //      396.90 -> 1286.85 (all of materials) and its tax 27.783 -> 90.0795.
+  //  (2) THE $10 ROUND-UP WAS REMOVED at PRICING_ENGINE_VERSION 2026.10.1 (the
+  //      owner's decision of 1 Oct 2026; see the comment on grandTotal in
+  //      pricing/totals.ts, which records what it cost him to give it up).
+  //      computeTotals rounded the final figure UP to the next ten and now
+  //      rounds it to the cent.
+  //
+  //      old: ceil((1286.85 + 27.783  + 800) / 10) * 10 = ceil(2114.633/10)*10 = 2120
+  //      new: roundToCents(1286.85 + 90.0795 + 800)     = roundToCents(2176.9295) = 2176.93
+  //
+  // Derived from the engine's own parts rather than re-pinned as a bare
+  // constant, so a future change to materials, tax or labour that is not
+  // reflected in the total fails HERE instead of being papered over by a new
+  // literal. The literal is kept beside it so the two must agree.
   const correctPreMarkup = out.totals.materials_subtotal + out.totals.tax + 800
     + out.totals.teardown_cost + out.totals.change_order_cost + out.totals.gate_charge;
-  const correctGrandTotal = Math.ceil(correctPreMarkup / 10) * 10;
+  const correctGrandTotal = Math.round(correctPreMarkup * 100) / 100;
   ok(`FIXED, in dollars actually billed: grand_total is $${out.totals.grand_total.toFixed(2)}, ` +
      `matching the $${correctGrandTotal.toFixed(2)} labour should have always included -- ` +
-     `the $${(correctGrandTotal - 1320).toFixed(2)} undercharge this fixture used to carry is gone`,
-    out.totals.grand_total === 2120 && correctGrandTotal === 2120,
+     `the $${(correctGrandTotal - 1376.93).toFixed(2)} undercharge this fixture used to carry is gone`,
+    out.totals.grand_total === 2176.93 && correctGrandTotal === 2176.93,
     `actual grand_total=${out.totals.grand_total} correct=${correctGrandTotal}`);
+
+  // The round-up's removal, asserted as its own fact so nobody reinstates it by
+  // accident: this is the exact fixture whose total used to be rounded, and
+  // 2176.93 is not a multiple of ten. ceil(2176.9295/10)*10 = 2180 is what the
+  // old rule would bill -- $3.07 of cushion the owner gave up knowingly.
+  ok("the $10 ceiling really is gone: this total is exact to the cent, and the old rule " +
+     "would have billed $2,180.00 for it",
+    out.totals.grand_total % 10 !== 0 && Math.ceil(correctPreMarkup / 10) * 10 === 2180,
+    `grand_total=${out.totals.grand_total} oldRule=${Math.ceil(correctPreMarkup / 10) * 10}`);
 }
 
 // CANARY: the ONLY thing that changes below is job.calibration_pixels_per_foot,
@@ -169,12 +201,16 @@ console.log("\n1. Uncalibrated GRID run: labour now bills the same footage mater
     `net_feet ${uncalibrated.runs[0].net_feet}->${calibrated.runs[0].net_feet}, ` +
     `materials ${uncalibrated.totals.materials_subtotal}->${calibrated.totals.materials_subtotal}`);
 
+  // PIN MOVED 2120 -> 2176.93, by the same two deliberate changes derived at the
+  // first grand_total check above (the starting-catalog tax fix, commit 87639fc,
+  // and the removal of the $10 round-up at 2026.10.1). The $800 labour -- the
+  // only figure this canary is really about -- has not moved.
   ok("CANARY: null calibration and calibration explicitly set to the grid's own 20 px/ft " +
-     "bill the identical $800.00 labour and $2,120.00 grand total -- the fix did not just " +
+     "bill the identical $800.00 labour and $2,176.93 grand total -- the fix did not just " +
      "move the bug, it made the two paths agree",
     uncalibrated.totals.labor_cost === calibrated.totals.labor_cost &&
     uncalibrated.totals.grand_total === calibrated.totals.grand_total &&
-    calibrated.totals.labor_cost === 800 && calibrated.totals.grand_total === 2120,
+    calibrated.totals.labor_cost === 800 && calibrated.totals.grand_total === 2176.93,
     `uncalibrated labor_cost=${uncalibrated.totals.labor_cost} grand_total=${uncalibrated.totals.grand_total}, ` +
     `calibrated labor_cost=${calibrated.totals.labor_cost} grand_total=${calibrated.totals.grand_total}`);
 }
@@ -211,22 +247,61 @@ console.log("\n2. LINE_TO_WALL gate: post caps now match physical posts exactly 
   const out = priceJob(input);
   const run = out.runs[0];
 
-  // Actual physical posts the takeoff itself decided to build: line + corner
-  // posts, plus every END_POST entry the engine emitted for this run (the
-  // fence's own two ends, and whatever the gate area added) -- read straight
+  // Actual physical posts the takeoff itself decided to build -- read straight
   // off entries, not re-derived, so this counts what the engine actually did.
-  const endPostQty = run.entries.filter((e) => e.role === "END_POST").reduce((s, e) => s + e.quantity, 0);
-  const physicalPosts = run.posts.line + run.posts.corner + endPostQty;
+  //
+  // RE-AIMED, and the measurement is what changed, not the answer. This used to
+  // read `posts.line + posts.corner + every END_POST`, which was a complete
+  // count of the post roles the takeoff emitted in September. It is not any
+  // more, because GATE POSTS ARE NOW BILLED AS GATE POSTS (engine 2026.10.4):
+  // the two posts standing at a gate opening used to be emitted as END_POST and
+  // are now emitted as GATE_POST, and a wall-hung gate emits a BLANK_POST for
+  // the side bolted to the wall. The posts did not move -- the ROLE on the
+  // entry did -- so a count that lists only three of the five post roles now
+  // undercounts by exactly the roles it forgot. All five are listed here, so
+  // this is a complete count again, and renaming a role in future will not
+  // silently shrink it: POST_ROLES is asserted against the engine's own enum
+  // further down.
+  const POST_ROLES = ["LINE_POST", "CORNER_POST", "END_POST", "GATE_POST", "BLANK_POST"];
+  const qtyOfRole = (role) =>
+    run.entries.filter((e) => e.role === role).reduce((s, e) => s + e.quantity, 0);
+  const endPostQty = qtyOfRole("END_POST");
+  const gatePostQty = qtyOfRole("GATE_POST");
+  const physicalPosts = POST_ROLES.reduce((s, r) => s + qtyOfRole(r), 0);
   const capEntry = run.entries.find((e) => e.role === "POST_CAP");
 
-  ok("fixture precondition: this really is the LINE_TO_WALL path (3 END_POST added by the gate area, not 2)",
-    endPostQty === 5, `END_POST entries sum to ${endPostQty} (expected 2 fence-end + 3 gate-end)`);
+  // PIN MOVED: END_POST 5 -> 3, and the gate area's share of it 3 -> 1.
+  // THE DELIBERATE CHANGES, both of them the owner's own words on 1 Oct 2026:
+  //   - GATE POSTS ARE BILLED AS GATE POSTS (engine 2026.10.4). LINE_TO_WALL
+  //     used to emit END_POST 3; it now emits GATE_POST 2 + END_POST 1. The
+  //     third post is the one where the fence line terminates at the wall, and
+  //     that one genuinely IS an end post -- see the comment on gateAreaEntries
+  //     in pricing/takeoff.ts, which spells out why the other two are not.
+  //   - the same change retired ten priced GATE_POST rows in his catalog that
+  //     nothing could previously reach.
+  // Arithmetic: 2 fence ends + 3 gate-area END_POST = 5, before;
+  //             2 fence ends + 1 gate-area END_POST = 3, now, with the two that
+  //             moved reappearing as GATE_POST 2. 3 + 2 = 5: no post was lost.
+  ok("fixture precondition: this really is the LINE_TO_WALL path (the gate area adds " +
+     "GATE_POST 2 + END_POST 1, so END_POST reads 2 fence-end + 1 gate-end)",
+    endPostQty === 3 && gatePostQty === 2,
+    `END_POST entries sum to ${endPostQty} (expected 2 fence-end + 1 gate-end), GATE_POST=${gatePostQty} (expected 2)`);
 
   ok(`FIXED: ${physicalPosts} physical posts stand on this job (${run.posts.line} line + ` +
-     `${run.posts.corner} corner + ${endPostQty} end) and exactly ${capEntry.quantity} post caps are ` +
-     `billed -- no shortfall`,
+     `${run.posts.corner} corner + ${endPostQty} end + ${gatePostQty} gate) and exactly ` +
+     `${capEntry.quantity} post caps are billed -- no shortfall`,
     physicalPosts === 19 && capEntry.quantity === 19 && physicalPosts === capEntry.quantity,
     `physicalPosts=${physicalPosts} capQty=${capEntry.quantity}`);
+
+  // The count above is only complete while POST_ROLES really is every post role.
+  // computePostCounts' own total is the engine's independent answer to the same
+  // question, so holding the two to each other catches a role added to the enum
+  // and left out of the list here -- which is exactly how this check went stale
+  // the first time.
+  ok("and that is EVERY post role: the five summed here equal computePostCounts' own total, " +
+     "so a new post role cannot quietly drop out of this count",
+    physicalPosts === run.posts.total,
+    `summed POST_ROLES=${physicalPosts} posts.total=${run.posts.total}`);
 
   const capCatalogRow = input.catalog.find((c) => c.role === "POST_CAP");
   const capLineItem = out.items.find((i) => i.role === "POST_CAP");
@@ -255,14 +330,32 @@ console.log("\n2. LINE_TO_WALL gate: post caps now match physical posts exactly 
 
   const out = priceJob(input);
   const run = out.runs[0];
-  const endPostQty = run.entries.filter((e) => e.role === "END_POST").reduce((s, e) => s + e.quantity, 0);
-  const physicalPosts = run.posts.line + run.posts.corner + endPostQty;
+  const qtyOfRole = (role) =>
+    run.entries.filter((e) => e.role === role).reduce((s, e) => s + e.quantity, 0);
+  const endPostQty = qtyOfRole("END_POST");
+  const gatePostQty = qtyOfRole("GATE_POST");
+  // Same five-role count as the section above, and for the same reason.
+  const physicalPosts = ["LINE_POST", "CORNER_POST", "END_POST", "GATE_POST", "BLANK_POST"]
+    .reduce((s, r) => s + qtyOfRole(r), 0);
   const capEntry = run.entries.find((e) => e.role === "POST_CAP");
 
-  ok("CANARY: the same gate mounted LINE instead needs only 2 end posts, and the billed " +
-     "cap count matches the physical post count exactly -- no shortfall, same as it never had one",
-    endPostQty === 4 && physicalPosts === 18 && physicalPosts === capEntry.quantity,
-    `endPostQty=${endPostQty} physicalPosts=${physicalPosts} capQty=${capEntry.quantity}`);
+  // PIN MOVED: END_POST 4 -> 2. THE DELIBERATE CHANGE is the same one as above --
+  // GATE POSTS ARE BILLED AS GATE POSTS (engine 2026.10.4). A LINE gate emits
+  // GATE_POST 2 where it used to emit END_POST 2, so this run's END_POST is now
+  // just the fence's own two ends.
+  // Arithmetic: 2 fence ends + 2 gate-area END_POST = 4, before;
+  //             2 fence ends + 0 gate-area END_POST = 2, now, with GATE_POST 2
+  //             alongside. 2 + 2 = 4: no post was lost.
+  // physicalPosts is UNCHANGED at 18, because this count now includes GATE_POST,
+  // and so is the billed cap count -- which is the point of the canary: this
+  // mounting never had a shortfall and still does not.
+  ok("CANARY: the same gate mounted LINE instead needs only 2 gate posts and no extra end " +
+     "post, and the billed cap count matches the physical post count exactly -- no shortfall, " +
+     "same as it never had one",
+    endPostQty === 2 && gatePostQty === 2 && physicalPosts === 18 &&
+    physicalPosts === capEntry.quantity && physicalPosts === run.posts.total,
+    `endPostQty=${endPostQty} gatePostQty=${gatePostQty} physicalPosts=${physicalPosts} ` +
+    `capQty=${capEntry.quantity} posts.total=${run.posts.total}`);
 }
 
 // ===========================================================================

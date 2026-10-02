@@ -176,7 +176,14 @@ data class CloudManufacturer(
  * on the handset for good, with nothing to say so. So the Attach tool must not
  * be offered until the column exists and this is true.
  */
-internal const val JOIN_COLUMNS_LIVE = false
+// TRUE since 2026-10-02. Both columns exist on public.fence_runs (verified from
+// information_schema, with a control and a canary, not from the .sql file), and
+// price-job/index.ts already selects them. Flipped in the SAME build as
+// SurveyViewModel.JOIN_STORAGE_READY, which the ordering note above requires:
+// this one has to be true before a joint can be made, or the first join pushes
+// a run without it, the cloud clock then matches, and the joint is stranded on
+// the handset for good.
+internal const val JOIN_COLUMNS_LIVE = true
 
 @Serializable
 data class CloudFenceRun(
@@ -2444,6 +2451,10 @@ object EntitySync {
                 // that is can only be worked out once the supplier is in the
                 // local table.
                 val suppliersPull = async { runCatching { netGate.withPermit { pullManufacturers(repository, companyId) } } }
+                // Likewise named, because pullJobChildren waits for it: see the
+                // comment beside pullJobChildren below for what happened when
+                // nothing did.
+                val runsPull = async { runCatching { netGate.withPermit { pullFenceRuns(repository, companyId) } } }
                 listOf(
                     async { runCatching { netGate.withPermit { pullEmployees(repository, companyId, employeePayScope) } } },
                     suppliersPull,
@@ -2471,13 +2482,50 @@ object EntitySync {
                             if (scope == MoneyScope.UNKNOWN) 0 else pullCatalog(repository, companyId, scope)
                         } }
                     },
-                    async { runCatching { netGate.withPermit { pullFenceRuns(repository, companyId) } } },
+                    // Held in a name for the same reason the suppliers' pull
+                    // above is: a line item names its fence run by sync id, and
+                    // which Room id that is can only be worked out once the run
+                    // is in the local table.
+                    runsPull,
                     // Called for every scope, UNKNOWN included: punch list,
                     // job steps, site markers and field changes carry no
                     // money and must keep arriving even when the door itself
                     // could not be asked about. Only its internal line-item,
                     // expense and change-order blocks gate on scope.
-                    async { runCatching { netGate.withPermit { pullJobChildren(repository, companyId, scope, employeePayScope) } } },
+                    //
+                    // WAITS FOR THE RUNS PULL (above) BEFORE asking for a
+                    // permit, never while holding one -- exactly the shape
+                    // pullCatalog uses for its dependency on the suppliers.
+                    //
+                    // Why the barrier exists at all, 2026-10-01: these two were
+                    // launched side by side with nothing ordering them, and
+                    // pullJobChildren reads its map of runs AFTER its own
+                    // network read of the line items -- so on a phone that had
+                    // the jobs but not yet the runs (a fresh install, a
+                    // reinstall, a phone that got a job before its runs) the
+                    // map came back empty and every line arrived naming a run
+                    // this device could not resolve. The insert then dropped
+                    // the run on the floor and the orphan reaper tombstoned the
+                    // CLOUD copy: 64 priced lines across 6 jobs destroyed in 19
+                    // seconds, signed jobs among them. The insert below no
+                    // longer orphans anything whatever the order, and the
+                    // reaper no longer reaches the cloud -- this barrier is the
+                    // third layer, and the one that keeps the common case
+                    // arriving in ONE pass instead of two.
+                    //
+                    // The latency it costs is one paged read of fence_runs,
+                    // not the whole pass: employees, tiers, catalog, suppliers
+                    // and templates still overlap it, and the permit is only
+                    // taken once the wait is over. Measured against the
+                    // alternative -- every line item on a new phone waiting a
+                    // whole extra sync, and the price on screen being wrong
+                    // until it arrives -- it is not close.
+                    async {
+                        runsPull.join()
+                        runCatching { netGate.withPermit {
+                            pullJobChildren(repository, companyId, scope, employeePayScope)
+                        } }
+                    },
                     async { runCatching { netGate.withPermit { pullBuildTemplates(repository, companyId) } } }
                 ).awaitAll()
             }
@@ -2794,6 +2842,12 @@ object EntitySync {
      * Restores the records that hang off a job. A child whose job isn't on this
      * device yet is skipped rather than orphaned -- the next pass picks it up
      * once the job itself has come down.
+     *
+     * THE SAME RULE NOW HOLDS FOR THE RUN, not just for the job. It did not,
+     * and that is what destroyed 64 priced lines in one burst on 2026-10-01 --
+     * 100 in all since 2026-08-18: the doctrine
+     * in the sentence above was applied to the job and quietly not applied to
+     * the fence run one line further down. See the insert branch below.
      */
     private suspend fun pullJobChildren(
         repository: Repository,
@@ -2819,6 +2873,17 @@ object EntitySync {
             // into "Other Items" because it discarded the run. Only auto-generated,
             // role-bearing lines are removed -- anything typed by hand has no role
             // and is left exactly where it is.
+            //
+            // LOCAL ONLY since 2026-10-02. It used to tombstone the cloud copy of
+            // every row it removed, and that is the delete that destroyed 100
+            // priced lines, 64 of them in one 18.7-second burst on 2026-10-01:
+            // a line this phone could not place was taken as a line
+            // that no longer existed anywhere. The insert below no longer makes
+            // such a line, so on a current build this call should find nothing;
+            // it stays for the rows the OLD build already wrote into the local
+            // database, and clearing those locally is now self-healing -- the
+            // line comes back correctly attached on a later pass. See
+            // Repository.deleteOrphanedGeneratedLineItems for the full argument.
             repository.deleteOrphanedGeneratedLineItems()
 
             // Paged. This is the table that reaches a thousand first: about
@@ -2846,6 +2911,16 @@ object EntitySync {
             // before line items carried their run; re-inserting it just recreates
             // the stray item, and the cleanup and the pull chase each other forever.
             // Hand-typed extras have role NONE or none at all, and still come down.
+            //
+            // This is now the ONLY place a pull tombstones a line item, and the
+            // distinction is the whole lesson of 2026-10-01: here the CLOUD ROW
+            // ITSELF says it has no run -- fence_run_sync_id is null in the row we
+            // just read -- which is positive evidence about the record. The reaper
+            // this block used to feed was judging on the opposite thing: the
+            // absence of a run on THIS PHONE, which is indistinguishable from "not
+            // pulled yet" and was in fact exactly that 100 times out of 100. An
+            // absence here is never grounds for a cloud delete; a statement in the
+            // row is. (Live count of such rows as of 2026-10-02: zero.)
             val (legacyOrphans, usable) = lineItems.partition { row ->
                 row.fenceRunSyncId == null && row.role != null && row.role != "NONE"
             }
@@ -2870,11 +2945,69 @@ object EntitySync {
                 // up next pass (see pullMayWriteLine).
                 if (!pullMayWriteLine(existing)) return@forEach
                 if (existing == null) {
+                    // THE LINE THAT COST 64 PRICED LINES, 2026-10-01.
+                    //
+                    // This used to read, with no fallback and no guard:
+                    //
+                    //     fenceRunId = row.fenceRunSyncId?.let { runIdBySyncId[it] }
+                    //
+                    // The UPDATE branch below has always had `?: existing.fenceRunId`,
+                    // so a line this phone already held was safe. A line arriving
+                    // for the FIRST time was not: if the run had not landed yet,
+                    // runIdBySyncId had no entry, and the line was inserted with
+                    // fenceRunId = NULL. Repository.deleteOrphanedGeneratedLineItems
+                    // -- called at the top of this very block, so pass 1 made the
+                    // orphans and pass 2 read them -- then matched
+                    // `fenceRunId IS NULL AND role != 'NONE'` and tombstoned the
+                    // CLOUD row. Gone for every device and for the office. Measured
+                    // from the live table on 2026-10-02: 100 rows across 10 jobs
+                    // (77 on the 7 that still exist), 2026-08-18 to 2026-10-01, 64
+                    // of them in one 18.7-second burst, and ALL 100 named a run STILL LIVE
+                    // in the cloud -- not one of them was an orphan at all.
+                    //
+                    // There is a second route to the same ending, closed by the
+                    // same guard: once a null-run line exists locally, an edit
+                    // marks it pendingPush, EstimateLineItem.toCloud maps
+                    // `fenceRunId?.let { ... }` to a NULL fence_run_sync_id, and
+                    // the legacyOrphans partition above then tombstones it on the
+                    // next pull. The fix is not to add a fallback in two places,
+                    // it is to never create the orphan.
+                    //
+                    // So: a line that NAMES a run this phone cannot resolve is
+                    // SKIPPED, exactly as a child whose job is not here yet is
+                    // skipped. It is not lost -- the run arrives (usually in this
+                    // same pass now, since pullJobChildren waits for the runs
+                    // pull) and the line comes down whole on the next one.
+                    //
+                    // Deliberately NOT narrowed to the auto-generated flag or to
+                    // the money scope: a line whose run this device cannot name
+                    // cannot be shown in the right group, cannot be pushed back up
+                    // without nulling the cloud's own reference, and is one reaper
+                    // pass away from being destroyed. None of that gets better by
+                    // writing it down wrong.
+                    //
+                    // role == NONE is the one exception, and it is not an
+                    // exception to the rule so much as a different row: a
+                    // hand-typed extra belongs to the JOB, "Other Items" is its
+                    // correct home, and nothing in the app ever reaps it (every
+                    // orphan query here is `role != 'NONE'`). Skipping those
+                    // would hide a line the owner typed, for ever, on the one
+                    // phone that had lost its run.
+                    val namedRun = row.fenceRunSyncId
+                    val resolvedRun = namedRun?.let { runIdBySyncId[it] }
+                    if (namedRun != null && resolvedRun == null && role != MaterialRole.NONE) {
+                        android.util.Log.i(
+                            "EntitySync",
+                            "line ${row.syncId} names a fence run this device has not got yet -- " +
+                                "skipped, not orphaned; it comes down once the run does"
+                        )
+                        return@forEach
+                    }
                     // A job (or run) gone mid-pass skips the row: see OrphanRows.
                     skipIfOrphaned { repository.saveLineItemFromCloud(
                         EstimateLineItem(
                             syncId = row.syncId, jobId = jobId,
-                            fenceRunId = row.fenceRunSyncId?.let { runIdBySyncId[it] },
+                            fenceRunId = resolvedRun,
                             sortOrder = row.sortOrder, description = row.description,
                             quantity = row.quantity, unit = row.unit,
                             unitPrice = if (scope == MoneyScope.ALLOWED) row.unitPrice else 0.0,

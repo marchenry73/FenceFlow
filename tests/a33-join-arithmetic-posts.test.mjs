@@ -10,10 +10,14 @@
 // -- a pure function that, given every run of a job and the joints the owner has
 // explicitly made between run ends, says how each run's post counts move.
 //
-//   * IT IS NOT CALLED BY THE ENGINE. Neither EstimateEngine.kt nor the server
-//     takeoff reaches it, and no joint is stored anywhere. A job priced today is
-//     priced exactly as before. Section 7 asserts that claim stays true: the day
-//     someone wires it in, this file goes red until the Kotlin header is updated.
+//   * IT IS NOW CALLED BY BOTH ENGINES, at engine version 2026.10.8:
+//     EstimateEngine.joinAdjustments on the phone and priceJob on the server
+//     (whose port of it is supabase/functions/_shared/pricing/joins.ts). Section
+//     7h is what held the Kotlin header honest while that happened, and
+//     tests/a61-corner-post-pricing.test.mjs is the file that checks the WIRING
+//     -- that a joint actually moves a post, a cap, a bag of concrete and a
+//     catalog row, and that a job with no joint does not move at all. No run
+//     anywhere carries a joint id, so no price has moved yet.
 //   * THIS FILE CANNOT RUN KOTLIN. Node has no Kotlin. Sections 1-6 run
 //     adjustJoins() below, which is a LINE-FOR-LINE TRANSCRIPTION of the Kotlin
 //     object (and, once the server needs it, the shape of the TypeScript port).
@@ -1362,7 +1366,7 @@ for (const deg of [-179, -135, -90, -45, -20, -15.01, -14.99, -5, 0, 4, 10, 14, 
 console.log("\n----------------------------------------------------------------------");
 console.log(`${passed} ok, ${failed} FAIL`);
 if (failed > 0) { console.log(`FAILED: ${failedIds.join(", ")}`); process.exitCode = 1; }
-else console.log("Every join-arithmetic check passed. (The engine does not call this yet; see the header of FenceGeometry.kt.)");
+else console.log("Every join-arithmetic check passed. (Both engines now call this; the WIRING is checked by tests/a61-corner-post-pricing.test.mjs.)");
 
 // =============================================================================
 // The Kotlin cross-check.

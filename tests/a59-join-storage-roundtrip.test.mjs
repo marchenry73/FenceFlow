@@ -380,16 +380,44 @@ test("6. the gates are pinned to each other, so a join cannot be offered before 
   assert.ok(!officeReads || columnsLive,
     "price-job selects start_joint/end_joint but the column does not exist (JOIN_COLUMNS_LIVE is false): every price-job read would fail");
 
-  // TEETH. These are implications -- they pass trivially while the tool is off -- so the
-  // mutation that violates each one is run here and asserted to violate it. The same
-  // expressions, on a mutant source, must come out false.
-  const flipped = /const val JOIN_STORAGE_READY = (true|false)/.exec(
-    SRC.vm.replace("const val JOIN_STORAGE_READY = false", "const val JOIN_STORAGE_READY = true"))[1] === "true";
-  assert.equal(flipped, true, "teeth: the gate probe cannot see the flag flipped");
-  assert.equal(!flipped || columnsLive, false,
-    "teeth: the stranding assertion still passes with the tool switched on and the column absent, so it is not checking anything");
-  assert.equal(!flipped || officeReads, false,
-    "teeth: the office-reads assertion still passes with the tool switched on and RUN_COLUMNS unchanged");
+  // TEETH. The three rules above are IMPLICATIONS, so they pass trivially whenever
+  // their antecedent is false. Each one therefore has to be shown to fail against a
+  // source that violates it, or it is guarding nothing.
+  //
+  // REWRITTEN 2026-10-02, when both flags went true in one build. The old teeth built
+  // their mutant by flipping JOIN_STORAGE_READY false -> true and asserting the
+  // stranding rule then broke. That only worked while JOIN_COLUMNS_LIVE was false: once
+  // the column is live, switching the tool on violates nothing -- correctly -- so the
+  // teeth failed while every real rule passed. The fix is to mutate the OTHER side.
+  //
+  // The distinction matters and is why this was not simply deleted: a red gate after a
+  // deliberate flip can mean the test now forbids the correct behaviour, and the cure is
+  // to move the pin and say why -- never to drop the check and lose the guard with it.
+  const mutantColumnsOff = SRC.sync.replace(
+    /internal const val JOIN_COLUMNS_LIVE = true/, "internal const val JOIN_COLUMNS_LIVE = false");
+  const mutantOfficeBlind = SRC.priceJob
+    .replace(/\bstart_joint\b/g, "zz_no_such_column").replace(/\bend_joint\b/g, "zz_no_such_column");
+  assert.notEqual(mutantColumnsOff, SRC.sync,
+    "teeth: could not build the column-off mutant, so the stranding assertion is unproven");
+  assert.notEqual(mutantOfficeBlind, SRC.priceJob,
+    "teeth: could not build the office-blind mutant, so the office-reads assertion is unproven");
+
+  const mutantColumnsLive =
+    /internal const val JOIN_COLUMNS_LIVE = (true|false)/.exec(mutantColumnsOff)[1] === "true";
+  const mutantOfficeReads =
+    /\bstart_joint\b/.test(mutantOfficeBlind) && /\bend_joint\b/.test(mutantOfficeBlind);
+
+  // The tool IS offered (toolOffered is true above), so each implication must now break.
+  assert.equal(toolOffered, true,
+    "teeth below assume the tool is on; if it has been switched back off, flip these to " +
+    "mutate JOIN_STORAGE_READY instead and say why in this comment");
+  assert.equal(!toolOffered || mutantColumnsLive, false,
+    "teeth: the stranding assertion still passes with the tool on and the column off, so it is not checking anything");
+  assert.equal(!toolOffered || mutantOfficeReads, false,
+    "teeth: the office-reads assertion still passes with the tool on and price-job blind to the joint");
+  assert.equal(!mutantOfficeReads || mutantColumnsLive, true,
+    "control: with price-job blind AND the column off, the third rule is vacuously true -- " +
+    "if this is false the rule is inverted");
 });
 
 // =============================================================================

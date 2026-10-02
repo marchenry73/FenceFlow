@@ -60,8 +60,17 @@ class SettingsViewModel(
             // gets the same setup. This used to fail silently -- the "Saved"
             // snackbar fired from the local write alone, so a failed push here
             // was invisible until someone noticed the other phone never got it.
+            // SettingsSync.push already catches everything and ANSWERS with a
+            // Result, so it does not throw. Wrapping it in another runCatching
+            // asked the wrong question: `runCatching { push() }` is a
+            // Result<Result<Unit>> whose isSuccess is true whenever the call
+            // RETURNED -- including when what it returned was a failure. Every
+            // failed push therefore reported "Saved", and the
+            // set_saved_not_synced message ("saved on this phone only") could
+            // not be reached at all. Ask the Result that push actually hands
+            // back.
             val synced = if (SupabaseModule.isConfigured) {
-                runCatching { SettingsSync.push(profile) }.isSuccess
+                SettingsSync.push(profile).isSuccess
             } else {
                 true // Nothing to sync to, so the local save is the whole story.
             }

@@ -71,16 +71,54 @@ t.ok("the patch is built in ppPatchFor and has no updated_at, no deleted_at, no 
 
 console.log("\n-- no new dependency on a single static page");
 t.eq("the page loads exactly the two scripts it loaded before", [...src.matchAll(/<script[^>]*\bsrc="([^"]+)"/g)].map((m) => m[1]), ["vendor/purify.min.js", "config.js"]);
-t.ok("the section imports nothing and fetches nothing", !/\bimport\s*\(|\bimport\s+[\w{*]|\bfetch\(|XMLHttpRequest|https?:\/\//.test(region.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "")));
+// RE-AIMED 2 Oct 2026. This asserted the section imports nothing at all, which was true while a
+// PDF was REFUSED. The PDF price-list reader has since been built (a45-pdf-*.test.mjs), and it
+// loads PDF.js at the moment the first PDF is added -- one dynamic import, of bytes it fetched
+// itself and checked against a pinned SHA-384 first (ppPdfFetchVerified). So the old assertion
+// could only fail. Re-aimed to the thing it was protecting -- a single static page with no build
+// step must not grow dependencies it did not choose -- by allowing exactly that one loader and
+// nothing else, and by pinning the integrity check that makes it safe. A second import, an
+// XMLHttpRequest, or a fetch anywhere but the verified loader still fails here.
+{
+  const code = region.replace(/\/\*[\s\S]*?\*\//g, "").replace(/\/\/[^\n]*/g, "");
+  const imports = [...code.matchAll(/\bimport\s*\(|\bimport\s+[\w{*]/g)].map((m) => m[0]);
+  t.eq("the section has exactly one dynamic import, and no static ones", imports, ["import("]);
+  t.ok("and it is the PDF.js loader, from bytes already fetched into a Blob URL",
+    /const lib = await import\(asUrl\(bufs\[0\]\)\);/.test(code));
+  t.ok("nothing in the section uses XMLHttpRequest", !/XMLHttpRequest/.test(code));
+  // The only network call is ppPdfFetchVerified, and it refuses bytes whose fingerprint does not
+  // match the page's own constant -- so what gets imported above cannot be swapped by the CDN.
+  const fetches = [...code.matchAll(/(?:\b|\()fetch\s*[(),]/g)].map(() => 1);
+  t.eq("fetch is reached from exactly one place", fetches.length, 1);
+  t.ok("that place is ppPdfFetchVerified, which checks a SHA-384 before returning the bytes",
+    /const res = await \(fetchFn \|\| fetch\)\(url, \{ mode: 'cors', credentials: 'omit', referrerPolicy: 'no-referrer' \}\);/.test(grab("ppPdfFetchVerified"))
+    && /if\(\(await ppPdfSha384\(buf\)\) !== sha384\) throw new Error\('fingerprint'\);/.test(grab("ppPdfFetchVerified")));
+  t.ok("positive control: the import check does see a second import", /\bimport\s*\(/.test("const x = await import('./evil.js');"));
+  // The URLs it may reach are two pinned constants, not anything the page composes at run time.
+  const urls = [...region.matchAll(/'(https?:\/\/[^']+)'/g)].map((m) => m[1]).sort();
+  t.eq("and the only absolute URLs in the section are the two pinned PDF.js files", urls,
+    ["https://cdn.jsdelivr.net/npm/pdfjs-dist@4.6.82/build/pdf.min.mjs",
+      "https://cdn.jsdelivr.net/npm/pdfjs-dist@4.6.82/build/pdf.worker.min.mjs"]);
+}
 t.ok("it reaches DecompressionStream through globalThis, so a browser without it is detected rather than crashing", /globalThis\.DecompressionStream/.test(grab("ppZipRead")));
 
 console.log("\n-- a PDF and an old .xls are refused, with a way forward");
 {
   const f = grab("ppOnFile");
-  t.ok("a PDF is refused before any parser sees it", /kind === 'pdf'\)\s*\{\s*refuse\('ppPdfRefused'\)/.test(f));
+  // RE-AIMED 2 Oct 2026: this asserted `kind === 'pdf'` went straight to refuse('ppPdfRefused').
+  // The PDF reader has since been built (a45-pdf-*), so a PDF is now READ -- a45-pdf-page's own
+  // check is "the stale refusal in ppOnFile is gone". Re-aimed to what still matters here: a PDF
+  // is routed to the PDF reader and NOWHERE near the text/spreadsheet parsers, and a PDF the
+  // reader cannot read is still refused with a reason rather than imported as an empty list.
+  t.ok("a PDF is handed to the PDF reader, and returns before the text parsers",
+    /kind === 'pdf'\)\{/.test(f) && /const read = await ppPdfRead\(bytes\);/.test(f)
+    && f.indexOf("ppPdfRead") < f.indexOf("ppDecodeText") && f.indexOf("ppPdfRead") < f.indexOf("ppXlsxOpen"));
+  t.ok("a PDF the reader refuses shows the reason and imports nothing",
+    /if\(!read\.ok\)\{ msg\('ppMsg', ppTr\(read\.refuse,[^)]*\), 'err'\); return; \}/.test(f));
+  t.ok("ppPdfRefused is still a real string the reader can reach", /return \{ ok: false, refuse: 'ppPdfRefused' \}/.test(src));
   t.ok("an OLE container (old .xls, password-protected .xlsx) is refused", /kind === 'ole'\)\s*\{\s*refuse\('ppXlsRefused'\)/.test(f));
   t.ok("binary or markup is refused", /kind === 'other'\)\s*\{\s*refuse\('ppNotText'\)/.test(f));
-  t.ok("the refusals come before the file is decoded or parsed", f.indexOf("ppPdfRefused") < f.indexOf("ppDecodeText") && f.indexOf("ppXlsRefused") < f.indexOf("ppXlsxOpen"));
+  t.ok("the refusals come before the file is decoded or parsed", f.indexOf("ppXlsRefused") < f.indexOf("ppDecodeText") && f.indexOf("ppXlsRefused") < f.indexOf("ppXlsxOpen"));
   t.ok("the file's size is capped before it is read", f.indexOf("PP_MAX_BYTES") > 0 && f.indexOf("PP_MAX_BYTES") < f.indexOf("arrayBuffer"));
 }
 {

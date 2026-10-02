@@ -17,16 +17,36 @@ import java.io.File
  * screen that carries the site rules.
  *
  * Read from source, because a Compose legend has no seam to call: what is
- * checked is that no LegendDot in the file is handed a literal. The key
+ * checked is that no FencePlanLegendDot in the file is handed a literal. The key
  * itself is covered twice over elsewhere -- the build cannot resolve
  * R.string for a key missing from values/, and StringResourceSanityTest
  * refuses a key that is in one language and not another.
+ *
+ * WHERE THE LEGEND LIVES. It was a private `Legend` / `LegendDot` pair inside
+ * CrewFencePlanScreen.kt; it moved, unchanged, to
+ * ui/components/FencePlanView.kt as `FencePlanLegend` / `FencePlanLegendDot` so
+ * the crew pull sheet shows the same legend beside the same canvas. This test
+ * is re-aimed at that file and that symbol -- the legend it guards is still the
+ * crew plan legend, and the check still refuses a literal label. The move was
+ * compared line by line against `git show HEAD:...CrewFencePlanScreen.kt` and
+ * is byte-identical apart from the rename.
  */
 class CrewPlanLegendLocalizedTest {
 
-    private fun screenSource(): String {
+    private fun legendSource(): String {
         // Unit tests usually run with the module as the working directory;
         // fall back to the repo layout when run from the root.
+        val bases = listOf(
+            File("src/main/java/com/fenceestimator/app/ui/components/FencePlanView.kt"),
+            File("app/src/main/java/com/fenceestimator/app/ui/components/FencePlanView.kt")
+        )
+        val file = bases.firstOrNull { it.isFile }
+            ?: error("could not locate FencePlanView.kt from ${File(".").absolutePath}")
+        return file.readText()
+    }
+
+    /** The crew screen itself, to prove it is still the shared legend the crew see. */
+    private fun crewSource(): String {
         val bases = listOf(
             File("src/main/java/com/fenceestimator/app/ui/crew/CrewFencePlanScreen.kt"),
             File("app/src/main/java/com/fenceestimator/app/ui/crew/CrewFencePlanScreen.kt")
@@ -37,14 +57,14 @@ class CrewPlanLegendLocalizedTest {
     }
 
     /**
-     * The argument text of every LegendDot CALL in [source]. The declaration
-     * (`fun LegendDot(...)`) is not a call and is left out -- it is the one
-     * place the word appears with a `label: String` parameter rather than a
-     * value.
+     * The argument text of every FencePlanLegendDot CALL in [source]. The
+     * declaration (`fun FencePlanLegendDot(...)`) is not a call and is left
+     * out -- it is the one place the word appears with a `label: String`
+     * parameter rather than a value.
      */
     private fun legendDotCalls(source: String): List<String> {
         val calls = mutableListOf<String>()
-        val token = "LegendDot("
+        val token = "FencePlanLegendDot("
         var from = 0
         while (true) {
             val at = source.indexOf(token, from)
@@ -107,10 +127,10 @@ class CrewPlanLegendLocalizedTest {
         // A positive control: without it, a reader that silently found
         // nothing would let every assertion below pass on an empty list.
         val sample = """
-            private fun LegendDot(color: Color, label: String) { }
-            LegendDot(PlanColors.fenceLine, stringResource(R.string.crew_plan_legend_build))
-            LegendDot(PlanColors.gate, "Gate")
-            pair.forEach { kind -> LegendDot(PlanColors.marker(kind), kind.label()) }
+            private fun FencePlanLegendDot(color: Color, label: String) { }
+            FencePlanLegendDot(PlanColors.fenceLine, stringResource(R.string.crew_plan_legend_build))
+            FencePlanLegendDot(PlanColors.gate, "Gate")
+            pair.forEach { kind -> FencePlanLegendDot(PlanColors.marker(kind), kind.label()) }
         """.trimIndent()
         assertEquals(
             listOf("stringResource(R.string.crew_plan_legend_build)", "\"Gate\"", "kind.label()"),
@@ -120,19 +140,45 @@ class CrewPlanLegendLocalizedTest {
 
     @Test
     fun `every legend dot is labelled from the resources`() {
-        val source = screenSource()
+        val source = legendSource()
         val labels = labels(source)
         // The legend has a build dot, a teardown dot, a gate dot and the
         // marker kinds. Fewer than four means the reader lost its footing,
         // not that the legend shrank.
-        assertTrue("found only ${labels.size} LegendDot calls", labels.size >= 4)
+        assertTrue("found only ${labels.size} FencePlanLegendDot calls in FencePlanView.kt", labels.size >= 4)
         val literal = labels.filter { !it.contains("stringResource(") && !it.endsWith(".label()") }
         assertTrue("legend labels that are not looked up: $literal", literal.isEmpty())
     }
 
+    /**
+     * The anchor the re-aim was missing.
+     *
+     * While the legend lived in CrewFencePlanScreen.kt, reading that file WAS
+     * proof that the dots checked above are the dots the crew see. Pointing the
+     * reader at the shared FencePlanView.kt kept the literal check but dropped
+     * that proof: a hand-rolled legend growing back inside the crew screen
+     * would leave every assertion above green. PlanExtentTest gained exactly
+     * this anchor for the canvas in the same move; the legend was left without
+     * one, so it is added here.
+     */
+    @Test
+    fun `the crew screen shows the shared legend and keeps none of its own`() {
+        val crew = crewSource()
+        assertTrue(
+            "the crew plan no longer shows the shared legend",
+            crew.contains("FencePlanLegend(drawn, markers)")
+        )
+        // Declaration text, not a bare symbol, so the note recording where the
+        // legend went does not fail its own test.
+        assertTrue(
+            "a legend has grown back inside CrewFencePlanScreen.kt",
+            !crew.contains("private fun Legend(") && !crew.contains("private fun LegendDot(")
+        )
+    }
+
     @Test
     fun `the gate dot names the gate string`() {
-        val source = screenSource()
+        val source = legendSource()
         val gate = legendDotCalls(source)
             .map { topLevelArgs(it) }
             .filter { it[0] == "PlanColors.gate" }

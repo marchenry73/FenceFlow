@@ -115,10 +115,18 @@ class DepositWarningCoherenceTest {
     @Test
     fun `part paid is told what is actually being fronted, not what was intended`() {
         // A deposit is set AND is larger than the materials, but only $500 has
-        // landed. The app stops asking for the deposit the moment any payment
-        // arrives (JobMoney.nextRequestAmount asks for the balance), so the
-        // 3,000 is an intention and the 500 is the money. Buying materials
-        // today costs him 2,328.48 of his own.
+        // landed, so the 3,000 is an intention and the 500 is the money.
+        // Buying materials today costs him 2,328.48 of his own.
+        //
+        // THE RULE IS UNCHANGED AND THE REASON IT USED TO GIVE IS NOT. This
+        // comment said the app "stops asking for the deposit the moment any
+        // payment arrives (JobMoney.nextRequestAmount asks for the balance)",
+        // which stopped being true on 2 Oct 2026: the phone now asks for the
+        // rest of the deposit first, because the customer's own page always
+        // did and the two were on screen side by side. The warning is still
+        // right, for a different reason -- what this line answers is "what
+        // would buying the materials cost me TODAY", and the answer is cash in
+        // hand, not money somebody has promised.
         val found = warnings(deposit = 3000.0, paid = 500.0, materials = 2828.48)
         val fronting = found.first { it.textRes == R.string.warn_fronting_material }
         assertEquals(listOf("500.00", "2828.48", "2328.48"), fronting.args)

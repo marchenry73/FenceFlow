@@ -14,6 +14,9 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import vm from "node:vm";
 import { parseAddressList, cleanLine, mailTimeLabel } from "../website/js/lib/mail-render.mjs";
+// The REAL refusal strings, not a copy: updateJobMailBtn puts one in the quote button's
+// tooltip, and a test that hardcoded them would keep passing after they were reworded.
+import { REFUSAL_REASON as QUOTE_REFUSAL_REASON } from "../website/js/lib/quote-email.mjs";
 
 const PAGE = readFileSync("website/dashboard.html", "utf8");
 const SQL = readFileSync("supabase_mail.sql", "utf8");
@@ -69,12 +72,17 @@ function el(tag = "div", { display = "", classes = [] } = {}) {
 }
 
 /** The panel's section, evaluated with fakes for everything it reaches. */
-function harness({ src = SECTION, canUseMail = true, canEdit = true, rpc = null } = {}) {
+function harness({ src = SECTION, canUseMail = true, canEdit = true, rpc = null, quoteBlock = "", runs = [] } = {}) {
   const els = new Map();
   const add = (id, e) => els.set(id, e);
   add("panelMail", el("div", { display: "none" }));
   add("jobMailRows", el());
   add("jobMailBtn", el("button"));
+  // "Email the quote", added to this panel on 2 Oct 2026. The page guards it with
+  // `if (qb)`, but this harness's $ THROWS on an id it does not know -- deliberately,
+  // so the registry cannot drift unnoticed -- which is how its absence surfaced as
+  // "no element #jobQuoteMailBtn" from inside renderJobMail. See elementDrift() below.
+  add("jobQuoteMailBtn", el("button"));
   add("jobMailNote", el("span"));
   add("jobOverlay", el("div", { classes: ["on"] }));
   for (const k of J_TEXT) add("j_" + k, el(k === "notes" ? "textarea" : "input"));
@@ -91,6 +99,15 @@ function harness({ src = SECTION, canUseMail = true, canEdit = true, rpc = null 
     tr, esc, parseAddressList, cleanLine, mailTimeLabel,
     plainError: (s) => String(s),
     J_TEXT, J_NUM, J_SEL, LANG: "en",
+    // The quote button's two gates. quoteSendBlock() itself is lifted from the page with
+    // the rest of SECTION and runs for real; what is doubled here is only what IT reads,
+    // because the gates' own logic lives outside this panel and is proven by its own
+    // files (a18-zero-quote-photo-gate, a19-office-zero-quote-photo-lock). The doubles
+    // are driven by `quoteBlock` so a check can turn a gate ON and see the button refuse
+    // -- a permanently-open double would make the wiring check below vacuous.
+    QUOTE_REFUSAL_REASON, runs,
+    zeroQuoteBlockedOn: () => quoteBlock === "zero",
+    unverifiedPricesOn: () => (quoteBlock === "unverified" ? ["Vinyl Panel 6x6"] : []),
     canUseMail, openJob: null,
     canEdit: () => canEdit,
     askAnswer: false,
@@ -117,6 +134,41 @@ const JOB = {
   id: 1, sync_id: "11111111-1111-4111-8111-111111111111", customer_name: "Pat\nLee",
   email: "Pat@Example.com", notes: "Gate on the left.\r\nDog in yard.", status: "ACCEPTED",
 };
+
+// ---------------------------------------------------------------------------
+// The harness's own registry, checked against the panel it is standing in for.
+//
+// WHY. "Email the quote" was added to this panel and updateJobMailBtn began reaching
+// $('jobQuoteMailBtn'). The page tolerates a missing element (`if (qb)`); this harness
+// throws. So three unrelated checks -- Open in Email, the unsaved-edit prompt, the send
+// refresh -- went red with "no element #jobQuoteMailBtn", from inside renderJobMail,
+// saying nothing about what was actually wrong. That is a harness that cannot report its
+// own drift, which is the worst kind: the failure message pointed at the wrong code.
+//
+// This reads every id the panel's own source asks $ for and insists the harness knows
+// it. The next element added here fails HERE, by name, before anything else runs.
+// ---------------------------------------------------------------------------
+
+/** Every id SECTION passes to $(), as the source spells them. */
+function idsReached(src = SECTION) {
+  return [...new Set([...src.matchAll(/\$\('([A-Za-z_][\w-]*)'\)/g)].map((m) => m[1]))].sort();
+}
+
+test("the harness registers every element the panel reaches -- no silent drift", () => {
+  const h = harness();
+  const missing = idsReached().filter((id) => !h.els.has(id));
+  assert.deepEqual(
+    missing, [],
+    "the panel reaches element(s) this harness does not provide, so a check here fails " +
+    "with 'no element #<id>' from inside whichever function happened to touch it first. " +
+    "Add them to harness() -- and if one is new, check whether it needs a case of its own."
+  );
+  // PLANTED: an id the harness does not know must be reported, or this proves nothing.
+  const h2 = harness();
+  assert.deepEqual(idsReached("$('jobNotAThing')").filter((id) => !h2.els.has(id)), ["jobNotAThing"]);
+  // PLANTED, the other way: the scan must actually be finding ids, not returning [].
+  assert.ok(idsReached().includes("jobMailBtn"), "the id scan found nothing -- the regex no longer matches the page");
+});
 
 // ---------------------------------------------------------------------------
 // The markup.
@@ -272,6 +324,49 @@ test("with no usable address the button is off and says why", async () => {
   // PLANTED: a press anyway (the button re-enabled by hand) still opens nothing.
   h.ctx.jobMailCompose();
   assert.deepEqual(h.calls.compose, []);
+});
+
+// ---------------------------------------------------------------------------
+// "Email the quote" -- the button added to this panel on 2 Oct 2026.
+//
+// The GATES themselves (the zero-quote photo lock, unverified seeded prices) are not this
+// file's subject and are proven by a18-zero-quote-photo-gate / a19-office-zero-quote-photo-lock.
+// What is this file's subject is that the panel OBEYS them: a quote the office must not
+// send cannot be sent from here, and the button says why instead of going quiet.
+// ---------------------------------------------------------------------------
+
+test("Email the quote is off without an address, without a link, or when a gate blocks -- and says which", () => {
+  // Positive control first: everything in order, so a refusal below is a gate and not a
+  // harness that can only ever disable the button.
+  const ok = harness();
+  openJobLike(ok, { ...JOB, quote_token: "tok-1" });
+  assert.equal(ok.els.get("jobQuoteMailBtn").disabled, false, "a sendable quote must be sendable");
+  assert.equal(ok.els.get("jobQuoteMailBtn").title, "");
+
+  // No quote link: there is nothing to send, and the reason is the shared one.
+  const noLink = harness();
+  openJobLike(noLink, { ...JOB, quote_token: null });
+  assert.equal(noLink.els.get("jobQuoteMailBtn").disabled, true);
+  assert.equal(noLink.els.get("jobQuoteMailBtn").title, QUOTE_REFUSAL_REASON.en.no_link);
+
+  // No usable address.
+  const noAddr = harness();
+  openJobLike(noAddr, { ...JOB, email: "", quote_token: "tok-1" });
+  assert.equal(noAddr.els.get("jobQuoteMailBtn").disabled, true);
+  assert.equal(noAddr.els.get("jobQuoteMailBtn").title, TL.en.jobMailNoEmail);
+
+  // A $0 quote drawn on an uncalibrated photo: the lock the phone has, on this door too.
+  const zero = harness({ quoteBlock: "zero" });
+  openJobLike(zero, { ...JOB, quote_token: "tok-1" });
+  assert.equal(zero.els.get("jobQuoteMailBtn").disabled, true, "the zero-quote photo lock is not obeyed here");
+  assert.equal(zero.els.get("jobQuoteMailBtn").title, TL.en.qBlockZero);
+
+  // A line still priced from a seeded, unverified price: named, not just refused.
+  const unver = harness({ quoteBlock: "unverified" });
+  openJobLike(unver, { ...JOB, quote_token: "tok-1" });
+  assert.equal(unver.els.get("jobQuoteMailBtn").disabled, true, "the unverified-price gate is not obeyed here");
+  assert.match(unver.els.get("jobQuoteMailBtn").title, /Vinyl Panel 6x6/,
+    "the tooltip must name the line to check, or 'why can't I email this' has no answer");
 });
 
 // ---------------------------------------------------------------------------

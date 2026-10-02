@@ -189,9 +189,25 @@ function pricingFlag(text) {
       : "JOIN_STORAGE_READY is true while FenceRun has no joint field. An attachment would be lost the moment the app closed, and would never reach the office.");
   ok("2a-canary", "canary: the probe really is reading Entities.kt and FenceRun",
     /data class FenceRun\(/.test(entitiesSrc) && /val pointsEncoded: String/.test(entitiesSrc));
-  ok("2b-teeth", "TEETH: the same probe demands the flag be flipped once a joint column lands on the entity",
-    entityHasJointField(entitiesSrc.replace("val pointsEncoded: String", "val startJoint: String = \"\",\n    val pointsEncoded: String")) === true &&
-      entityHasJointField(entitiesSrc) === false);
+  // RETIRED AND REPLACED 2026-10-02, when storage landed and both gates went
+  // true in one build.
+  //
+  // This used to read `entityHasJointField(entitiesSrc) === false` -- it proved
+  // the probe had teeth by showing it said "no joint field" about the real
+  // entity and "yes" about a doctored one. That was the correct shape while
+  // FenceRun carried no joint field. It now carries two, so the old assertion
+  // asserts the opposite of the truth and could only ever fail.
+  //
+  // Deleting it would have been the wrong cure. A probe with no teeth check is
+  // a probe nobody can trust, and a red gate after a deliberate flip is exactly
+  // when someone is tempted to delete rather than re-aim. So the teeth are
+  // re-aimed: strip the fields out and the probe must say so.
+  ok("2b-teeth", "TEETH: the probe notices if the joint fields are taken OFF the entity",
+    entityHasJointField(entitiesSrc) === true &&
+      entityHasJointField(
+        entitiesSrc.replace(/val startJoint: String[^\n]*\n/, "").replace(/val endJoint: String[^\n]*\n/, "")
+      ) === false,
+    "the probe cannot tell an entity with joint fields from one without, so 2a is guarding nothing");
 
   const screenCode = stripComments(screenSrc);
   ok("2c", "the Attach tool is ABSENT from the mode switcher while an attachment cannot be kept, rather than present and refusing",
@@ -200,14 +216,36 @@ function pricingFlag(text) {
 
   const vmCode = stripComments(vmSrc);
   const write = bodyOf(vmCode, "private suspend fun writeJointIds(");
-  ok("2d", "writeJointIds writes NOTHING: no repository, no database, no file -- it answers false, and the screen says so out loud",
-    write !== null && !/repository\.|runJoinDao|db\.|File\(|prefs/.test(write) && /return false/.test(write));
-  ok("2d-teeth", "TEETH: the same probe catches a write smuggled into that one function",
-    write !== null && /repository\./.test(write.replace("return false", "repository.updateFenceRun(run); return false")));
-
   const reads = bodyOf(vmCode, "private fun jointIdsOf(");
-  ok("2e", "jointIdsOf reads no joint either, so every run reaches the gesture with two free ends",
-    reads !== null && /"" to ""/.test(reads));
+
+  // RETIRED AND REPLACED 2026-10-02. 2d asserted writeJointIds wrote NOTHING
+  // ("no repository, no database, no file -- it answers false") and 2e that
+  // jointIdsOf returned `"" to ""` for every run. Both were true, and were the
+  // right guard, for exactly as long as there was nowhere to keep an
+  // attachment: they stopped the Attach tool shipping as a control that looked
+  // like it worked.
+  //
+  // Storage landed (SchemaV50, both columns on fence_runs, the sync carrying
+  // them in both directions), so both now assert the opposite of the truth.
+  // THE DETAIL MOVED, it was not dropped: tests/a59-join-storage-roundtrip.test.mjs
+  // owns it in nine checks -- the entity fields, the migration chain, the
+  // Postgres half being additive, the sync in BOTH directions, un-joining
+  // travelling as '' rather than being absent, validate-on-read erring toward
+  // MORE posts, the two gates pinned to each other, and ONE write path with the
+  // retired run_joins table untouched. What stays here is only what this file is
+  // about: that the seam exists and is the one the gesture calls.
+  ok("2d", "writeJointIds IS the write seam, and it reaches the repository rather than inventing its own store",
+    write !== null && /repository\./.test(write) && !/runJoinDao|File\(|prefs/.test(write),
+    "writeJointIds either no longer writes, or writes somewhere other than the repository -- " +
+    "run_joins and a file are both designs that lost; see docs/JOINING_RUNS.md 11.1");
+  ok("2d-teeth", "TEETH: the same probe would catch the store being swapped for the retired table",
+    write !== null && /runJoinDao/.test(write.replace("repository.", "runJoinDao.")));
+  ok("2e", "jointIdsOf reads the stored joint rather than answering two free ends for every run",
+    reads !== null && /startJoint|endJoint/.test(reads) && !/^\s*return "" to ""\s*$/m.test(reads),
+    "jointIdsOf still returns a hardcoded pair of free ends, so an attachment could be " +
+    "written and never read back -- which is the shape of a tool that silently does nothing");
+  ok("2e-teeth", "TEETH: that probe would catch it reverting to a hardcoded free pair",
+    reads !== null && !/startJoint|endJoint/.test('    return "" to ""'));
 
   const confirm = bodyOf(vmCode, "fun confirmJoinOffer(");
   ok("2f", "a confirmation that could not be kept reports NO_STORAGE: the attachment is refused, never accepted and quietly lost",

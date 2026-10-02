@@ -74,7 +74,25 @@ class GateAreaTest {
                 listOf(GateMarker(500f, 0f, 4f, GateMounting.LINE))
             )
         )
-        assertEquals(2.0, qty(run, MaterialRole.END_POST), 0.001)
+        //
+        // RE-AIMED, not relaxed: the two posts at the opening are billed as
+        // GATE_POST now rather than END_POST (EstimateEngine.gateAreaEntries,
+        // GateMounting.LINE), because a post standing at an opening is not an
+        // end of a fence -- and the owner's catalog prices GATE_POST rows that
+        // nothing could reach while the takeoff asked for END_POST. So the pin
+        // moved END_POST 2.0 -> 0.0 with a GATE_POST 2.0 taking its place. The
+        // gate still stands exactly two posts; they are a different catalog row.
+        //
+        // Zero END_POST is doubly right here: this run has no fence line at
+        // all, so there is no end of one to bill. Cross-checked against
+        // fixtures/pricing/gate-only-run.json (engine 2026.10.8, the same
+        // shape) and the TypeScript port run live on it:
+        // posts {line 0, corner 0, end 0, gate 2, total 2}, POST_CAP 2.
+        assertEquals("the gate still stands two posts", 2.0, qty(run, MaterialRole.GATE_POST), 0.001)
+        assertEquals("no fence line, so no end of one", 0.0, qty(run, MaterialRole.END_POST), 0.001)
+        // Teeth kept: a standalone gate sale is not refused for want of fence.
+        // Two posts in the ground, a cap on each, its stiffener and its concrete.
+        assertEquals(2.0, qty(run, MaterialRole.POST_CAP), 0.001)
         assertTrue(qty(run, MaterialRole.STIFFENER) >= 1.0)
         assertTrue(qty(run, MaterialRole.CONCRETE_BAG) >= 1.0)
     }

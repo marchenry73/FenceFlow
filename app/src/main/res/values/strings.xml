@@ -23,6 +23,7 @@
     <string name="posts_why_ends">Of those, ends</string>
     <string name="posts_why_line">Line posts</string>
     <string name="posts_why_gate_posts">Gate posts, two per gate</string>
+    <string name="posts_why_shared">Shared where two sides meet</string>
     <string name="posts_why_total">Total posts</string>
     <string name="posts_why_footer">Corners and ends are not extra posts — they are posts the line already counted, standing in particular places. Change the post spacing on this run to change the count.</string>
     <string name="action_add">Add</string>
@@ -674,8 +675,8 @@
     <string name="jd_set_deposit_capped">Set deposit to $%1$s (all that is still owed)</string>
     <string name="jd_accepted_price">Accepted price</string>
     <string name="jd_accepted_vs_estimate">The estimate now comes to $%1$s. The customer is billed the price they accepted -- a change goes through a signed change order or a new approval.</string>
-    <string name="jd_materials_partly_paid">Materials come to $%1$s and $%2$s has been paid, so $%3$s is still needed to cover them. Rounded up to the next $10.</string>
-    <string name="jd_materials_come_to">Materials on this estimate come to $%1$s. Rounded up to the next $10.</string>
+    <string name="jd_materials_partly_paid">Materials with tax come to $%1$s and $%2$s has been paid, so $%3$s is still needed to cover them. The deposit covers that, rounded up to the next $100, plus $100 — and it includes the $%2$s already received, so what is left to collect is right.</string>
+    <string name="jd_materials_come_to">Materials with tax on this estimate come to $%1$s. The deposit covers that, rounded up to the next $100, plus $100.</string>
     <string name="jd_contract_total">Contract total (from the estimate)</string>
     <string name="jd_paid_in_total">Paid in total</string>
     <string name="jd_refunded">Refunded</string>
@@ -1587,7 +1588,7 @@
     <string name="enum_role_barbed_wire_arm">Barbed wire arm</string>
     <string name="enum_role_privacy_slat">Privacy slat</string>
     <string name="enum_payment_unpaid">Unpaid</string>
-    <string name="enum_payment_deposit_paid">Deposit paid</string>
+    <string name="enum_payment_deposit_paid">Part paid</string>
     <string name="enum_payment_paid_in_full">Paid in full</string>
     <string name="enum_method_card">Card</string>
     <string name="enum_method_cash">Cash</string>
@@ -1668,7 +1669,7 @@
     <string name="enum_pipeline_lead">New Lead</string>
     <string name="enum_pipeline_estimating">Estimating</string>
     <string name="enum_pipeline_quote_sent">Quote Sent</string>
-    <string name="enum_pipeline_deposit_paid">Deposit Paid</string>
+    <string name="enum_pipeline_deposit_paid">Part paid</string>
     <string name="enum_pipeline_scheduled">Scheduled</string>
     <string name="enum_pipeline_installed">Installed</string>
     <string name="enum_pipeline_paid_in_full">Paid in Full</string>
@@ -1808,7 +1809,7 @@
     <string name="eng2_locate_msg_expires_in_many">Clear to dig. Expires in %1$d days -- call it in again if the job runs past that.</string>
     <string name="eng2_stage_quote_sent">Quote sent</string>
     <string name="eng2_stage_quote_approved">Quote approved</string>
-    <string name="eng2_stage_deposit_received">Deposit received</string>
+    <string name="eng2_stage_deposit_received">Deposit collected in full</string>
     <string name="eng2_stage_hoa_cleared">HOA / permit cleared</string>
     <string name="eng2_stage_scheduled">Installation scheduled</string>
     <string name="eng2_stage_complete">Installation complete</string>
@@ -2213,4 +2214,43 @@
     <string name="attach_refused_at_another_point">Both of those ends already meet other sides, at two different posts. Detach one of them first.</string>
     <string name="attach_refused_not_found">That side is no longer on this job.</string>
     <string name="attach_refused_no_storage">Nothing was attached. This build cannot save an attachment yet, and one that could not be saved would be lost the moment you leave the drawing.</string>
+    <!-- How customers can pay you (phone half of the office panel; see
+         data/PaymentMethods.kt). No limit is supplied, suggested or defaulted
+         anywhere in here: blank is the default and blank shows nothing. -->
+    <string name="pm_title">How customers can pay you</string>
+    <string name="pm_explain">Switch on the ways you want on the customer\'s quote page and type your own details. Anything left empty is not shown to the customer at all.</string>
+    <string name="pm_cashapp_label">Cash App</string>
+    <string name="pm_cashapp_hint">Your $cashtag</string>
+    <string name="pm_zelle_label">Zelle</string>
+    <string name="pm_zelle_hint">The phone number or email your Zelle is registered to</string>
+    <string name="pm_wire_label">Bank wire</string>
+    <string name="pm_wire_hint">Paste the wire instructions exactly as your bank gave them</string>
+    <string name="pm_cash_label">Cash</string>
+    <string name="pm_limit_hint">Most you can take in one go (optional)</string>
+    <string name="pm_limit_support">Leave blank to say nothing about a limit. This is what her bank will let her send, not a limit of yours.</string>
+    <string name="pm_limit_line">Her bank may cap one payment at about %1$s. If it does, ask about splitting it or use another way.</string>
+    <string name="pm_limit_not_shown_yet">The limit is saved, and it is NOT on the customer\'s page yet. Showing it to her needs the quote page updating first.</string>
+    <string name="pm_review_and_save">Review what the customer will see</string>
+    <string name="pm_confirm_title">This is what the customer will see</string>
+    <string name="pm_confirm_explain">Check every character. Money sent to a wrong tag or number cannot be got back, and nothing here can check that a handle is really yours.</string>
+    <string name="pm_confirm_nothing">Nothing would be shown to the customer. Switch a way on and fill it in, or save this to show her nothing.</string>
+    <string name="pm_confirm_warning">Read it against your own app or bank before you save it.</string>
+    <string name="pm_confirm_save">Yes, that is right</string>
+    <string name="pm_go_back">Go back</string>
+    <string name="pm_refused_title">Not saved</string>
+    <string name="pm_err_cashapp">A Cash App tag is letters, numbers, dots, dashes or underscores, up to 30. Nothing was saved.</string>
+    <string name="pm_err_zelle">That does not look like a phone number or an email address. Nothing was saved.</string>
+    <string name="pm_err_zelle_long">That Zelle address is longer than %1$d characters. Nothing was saved, and nothing was shortened.</string>
+    <string name="pm_err_wire_long">Those wire instructions are longer than %1$d characters. Nothing was saved, and nothing was cut: half an account number is a payment sent nowhere.</string>
+    <string name="pm_err_on_but_empty">%1$s is switched on with nothing in it. Fill it in or switch it off.</string>
+    <string name="pm_err_limit">The limit for %1$s has to be an amount of money, or empty.</string>
+    <string name="pm_summary_none">Nothing shown to customers yet</string>
+    <string name="pm_summary_on">Customers see: %1$s</string>
+    <string name="pm_never_loaded">Could not read your payment details from the office, so they cannot be changed here yet. Saving now could write blanks over what is really there. Try again with a signal.</string>
+    <string name="pm_offline_copy">Showing the last copy this phone read. It could not check with the office just now.</string>
+    <string name="pm_pending">Saved on this phone and NOT sent to the office yet. It stays here until it goes.</string>
+    <string name="pm_send_now">Send it now</string>
+    <string name="pm_saved">Saved, and read back from the office to be sure.</string>
+    <string name="pm_verify_failed">The office did not store what was sent. Nothing has been changed here. Check and try again.</string>
+    <string name="pm_server_refused">The office refused the change. Your login may not be allowed to change company settings.</string>
 </resources>

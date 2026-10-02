@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "engine": {
-    "version": "2026.10.6",
-    "generated_at": "2026-10-02T03:33:16.202157300Z"
+    "version": "2026.10.8",
+    "generated_at": "2026-10-02T14:02:40.744264200Z"
   },
   "case": "multi-run-mixed-types",
   "note": "Three runs of three types on one job: items concatenated in run order, sort_order restarting per run, totals summed in (sort_order, sync_id) order across runs.",
   "input": {
-    "engine_version": "2026.10.6",
+    "engine_version": "2026.10.8",
     "pixels_per_foot": 20.0,
     "job": {
       "calibration_pixels_per_foot": 20.0,
@@ -261,21 +261,6 @@
         "color_or_finish": "Black",
         "unit": "BOX",
         "unit_price": 25.87,
-        "supplier_unit_price": null,
-        "taxable": true,
-        "covers_ft": null,
-        "is_active": true,
-        "manufacturer_sync_id": null
-      },
-      {
-        "sync_id": "2f92872d-7084-399f-9f35-c837a1bccc5f",
-        "name": "7\" SS Gate Handle (box of 50)",
-        "category": "HARDWARE",
-        "role": "HANDLE",
-        "fence_type": "VINYL",
-        "color_or_finish": "Black",
-        "unit": "BOX",
-        "unit_price": 5.0,
         "supplier_unit_price": null,
         "taxable": true,
         "covers_ft": null,
@@ -851,6 +836,21 @@
         "covers_ft": null,
         "is_active": true,
         "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "d3c19f75-9574-351a-9796-3bed07c6a46f",
+        "name": "7\" SS Gate Handle (box of 50)",
+        "category": "HARDWARE",
+        "role": "HANDLE",
+        "fence_type": "UNIVERSAL",
+        "color_or_finish": "Black",
+        "unit": "BOX",
+        "unit_price": 5.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
       }
     ],
     "manufacturers": [],
@@ -858,7 +858,7 @@
     "existing_items": []
   },
   "expected": {
-    "engine_version": "2026.10.6",
+    "engine_version": "2026.10.8",
     "linear_feet": 265.0,
     "teardown_linear_feet": 0.0,
     "billable_linear_feet": 265.0,
@@ -1169,18 +1169,6 @@
             "covers_linear_ft": null
           },
           {
-            "role": "BRACE",
-            "quantity": 1.0,
-            "prefer_covers_ft": null,
-            "covers_linear_ft": null
-          },
-          {
-            "role": "STIFFENER",
-            "quantity": 1.0,
-            "prefer_covers_ft": null,
-            "covers_linear_ft": null
-          },
-          {
             "role": "GATE_POST",
             "quantity": 2.0,
             "prefer_covers_ft": null,
@@ -1274,18 +1262,6 @@
           },
           {
             "label": "Gate handles",
-            "quantity": 1.0,
-            "unit": "",
-            "group": "GATES"
-          },
-          {
-            "label": "Gate braces",
-            "quantity": 1.0,
-            "unit": "",
-            "group": "GATES"
-          },
-          {
-            "label": "Econo stiffeners",
             "quantity": 1.0,
             "unit": "",
             "group": "GATES"
@@ -1389,18 +1365,6 @@
           },
           {
             "role": "HANDLE",
-            "quantity": 1.0,
-            "prefer_covers_ft": null,
-            "covers_linear_ft": null
-          },
-          {
-            "role": "BRACE",
-            "quantity": 1.0,
-            "prefer_covers_ft": null,
-            "covers_linear_ft": null
-          },
-          {
-            "role": "STIFFENER",
             "quantity": 1.0,
             "prefer_covers_ft": null,
             "covers_linear_ft": null
@@ -1511,18 +1475,6 @@
           },
           {
             "label": "Gate handles",
-            "quantity": 1.0,
-            "unit": "",
-            "group": "GATES"
-          },
-          {
-            "label": "Gate braces",
-            "quantity": 1.0,
-            "unit": "",
-            "group": "GATES"
-          },
-          {
-            "label": "Econo stiffeners",
             "quantity": 1.0,
             "unit": "",
             "group": "GATES"
@@ -1846,9 +1798,23 @@
         "category": null
       },
       {
-        "sync_id": "dbaf53fd-bd8d-31e5-96bd-95d1369a83ed",
+        "sync_id": "bd7a155b-7a0c-327b-8ba0-96bbc1c56762",
         "fence_run_sync_id": "0000000c-0000-4000-8000-000000000002",
         "sort_order": 9,
+        "description": "7\" SS Gate Handle (box of 50)",
+        "quantity": 1.0,
+        "unit": "BOX",
+        "unit_price": 5.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "HANDLE",
+        "auto_generated": true,
+        "category": null
+      },
+      {
+        "sync_id": "dbaf53fd-bd8d-31e5-96bd-95d1369a83ed",
+        "fence_run_sync_id": "0000000c-0000-4000-8000-000000000002",
+        "sort_order": 10,
         "description": "4x4x8' Pressure-Treated Post",
         "quantity": 2.0,
         "unit": "EA",
@@ -1862,7 +1828,7 @@
       {
         "sync_id": "e3e8250e-75b8-39fc-b6b5-3bfa8bdb296d",
         "fence_run_sync_id": "0000000c-0000-4000-8000-000000000002",
-        "sort_order": 10,
+        "sort_order": 11,
         "description": "Concrete Mix 60lb Bag",
         "quantity": 16.0,
         "unit": "EA",
@@ -2042,9 +2008,23 @@
         "category": null
       },
       {
-        "sync_id": "f4a247c9-722c-336e-9a73-de8b12efeaa7",
+        "sync_id": "948cf669-fb9f-3ca1-a6a1-0459f4b6184a",
         "fence_run_sync_id": "0000000c-0000-4000-8000-000000000003",
         "sort_order": 12,
+        "description": "7\" SS Gate Handle (box of 50)",
+        "quantity": 1.0,
+        "unit": "BOX",
+        "unit_price": 5.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "HANDLE",
+        "auto_generated": true,
+        "category": null
+      },
+      {
+        "sync_id": "f4a247c9-722c-336e-9a73-de8b12efeaa7",
+        "fence_run_sync_id": "0000000c-0000-4000-8000-000000000003",
+        "sort_order": 13,
         "description": "2\" Galvanized Terminal Post, 8'",
         "quantity": 1.0,
         "unit": "EA",
@@ -2058,7 +2038,7 @@
       {
         "sync_id": "bd4520c6-745d-3fda-9da5-b72f9f06a257",
         "fence_run_sync_id": "0000000c-0000-4000-8000-000000000003",
-        "sort_order": 13,
+        "sort_order": 14,
         "description": "5/8\" Hole Plug, White",
         "quantity": 4.0,
         "unit": "EA",
@@ -2072,7 +2052,7 @@
       {
         "sync_id": "52b492df-7101-35d8-a5d9-900e02c19117",
         "fence_run_sync_id": "0000000c-0000-4000-8000-000000000003",
-        "sort_order": 14,
+        "sort_order": 15,
         "description": "Concrete Mix 60lb Bag",
         "quantity": 7.0,
         "unit": "EA",
@@ -2084,32 +2064,7 @@
         "category": null
       }
     ],
-    "unmatched_roles": [
-      {
-        "run_sync_id": "0000000c-0000-4000-8000-000000000002",
-        "role": "HANDLE"
-      },
-      {
-        "run_sync_id": "0000000c-0000-4000-8000-000000000002",
-        "role": "BRACE"
-      },
-      {
-        "run_sync_id": "0000000c-0000-4000-8000-000000000002",
-        "role": "STIFFENER"
-      },
-      {
-        "run_sync_id": "0000000c-0000-4000-8000-000000000003",
-        "role": "HANDLE"
-      },
-      {
-        "run_sync_id": "0000000c-0000-4000-8000-000000000003",
-        "role": "BRACE"
-      },
-      {
-        "run_sync_id": "0000000c-0000-4000-8000-000000000003",
-        "role": "STIFFENER"
-      }
-    ],
+    "unmatched_roles": [],
     "zero_priced": [],
     "zero_priced_names": [],
     "totals_items": [
@@ -2142,21 +2097,23 @@
       "eaf063a0-bac1-37cd-8e10-cff48631c15d",
       "21319708-7124-3071-94bc-d6d85bbd0249",
       "6c6cb001-f6fb-3620-8ec9-2bb9e3fff800",
-      "dbaf53fd-bd8d-31e5-96bd-95d1369a83ed",
+      "bd7a155b-7a0c-327b-8ba0-96bbc1c56762",
       "4f2a6090-bea7-3cb6-a461-9548ac29cca1",
       "61f966bc-ba56-31b3-973e-a582890c99dc",
-      "e3e8250e-75b8-39fc-b6b5-3bfa8bdb296d",
+      "dbaf53fd-bd8d-31e5-96bd-95d1369a83ed",
       "4b162073-ab53-32c2-a951-1f97b3b887f9",
       "5375f6ad-e034-3513-a72e-ccae9f2996f7",
+      "e3e8250e-75b8-39fc-b6b5-3bfa8bdb296d",
       "25821ef8-fe78-3e6a-ad67-e9686c99597a",
+      "948cf669-fb9f-3ca1-a6a1-0459f4b6184a",
       "f4a247c9-722c-336e-9a73-de8b12efeaa7",
       "bd4520c6-745d-3fda-9da5-b72f9f06a257",
       "52b492df-7101-35d8-a5d9-900e02c19117"
     ],
     "totals": {
-      "materials_subtotal": 3441.97,
-      "taxable_subtotal": 3441.97,
-      "tax": 240.9379,
+      "materials_subtotal": 3451.97,
+      "taxable_subtotal": 3451.97,
+      "tax": 241.6379,
       "labor_cost": 2032.0,
       "teardown_cost": 0.0,
       "trash_haul_fee": 0.0,
@@ -2166,8 +2123,8 @@
       "change_order_feet": 0.0,
       "markup_amount": 0.0,
       "discount_amount": 0.0,
-      "pre_markup_total": 5934.9079,
-      "grand_total": 5934.91,
+      "pre_markup_total": 5945.6079,
+      "grand_total": 5945.61,
       "billable_linear_feet": 265.0
     }
   }

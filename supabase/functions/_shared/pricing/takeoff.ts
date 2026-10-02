@@ -14,6 +14,8 @@
 import { ceilRoundToInt, coerceAtLeast, doubleSum, f32 } from "./f32.ts";
 import { analyze, decodeGates, decodePoints } from "./geometry.ts";
 import type { FenceGeometryResult, GateMarker } from "./geometry.ts";
+import { applyJoinAdjustment } from "./joins.ts";
+import type { RunPostAdjustment } from "./joins.ts";
 import type { FenceRun, FenceType, MaterialRole } from "./types.ts";
 
 /** One suggested catalog role + quantity, optionally preferring an item covering a specific width/height. */
@@ -81,6 +83,59 @@ export interface EstimateSuggestions {
 const FRAME_KIT_GATE_TYPES: ReadonlySet<FenceType> = new Set(["WOOD", "CHAIN_LINK", "SPLIT_RAIL", "COMPOSITE"]);
 
 /**
+ * Fence types whose gate leaf needs a STIFFENER -- the vertical that stops the
+ * leaf racking out of square.
+ *
+ * VINYL alone, and for a physical reason rather than a seeding accident. A
+ * vinyl gate arrives as a hollow extruded leaf, and the part that stiffens it
+ * is sized to the post it bolts to: the one in every catalog here is a 5" econo
+ * stiffener (an H-frame 5x5x96, both suppliers' own wording -- see
+ * SUPPLIER_QUOTES_2026-10-01.md), which fits a 5x5 vinyl post and fits nothing
+ * else. Every other type's gate is already rigid when it reaches site:
+ * CHAIN_LINK is a welded tube frame, ALUMINUM and ORNAMENTAL_IRON arrive as a
+ * welded factory gate panel, and WOOD, SPLIT_RAIL and COMPOSITE are built on a
+ * GATE_FRAME_KIT (FRAME_KIT_GATE_TYPES) -- the seeded wood one is literally
+ * "Steel-Reinforced", which IS the member that keeps the leaf square.
+ *
+ * The takeoff asked all seven for one anyway, and six of them had nothing to
+ * price it against: the role landed in unmatched_roles and billed nothing.
+ * Seeding a stiffener for those six instead would have been the dishonest fix
+ * -- a 5x5 vinyl H-frame on a chain-link quote is a part he would order and
+ * could not fit.
+ *
+ * The phone's copy is EstimateEngine.STIFFENED_GATE_TYPES.
+ */
+const STIFFENED_GATE_TYPES: ReadonlySet<FenceType> = new Set(["VINYL"]);
+
+/**
+ * Fence types whose gate needs a BRACE -- the diagonal that stops the leaf
+ * sagging on its hinges.
+ *
+ * Deliberately a SECOND set with the same single member as
+ * STIFFENED_GATE_TYPES and not one shared constant: a stiffener and a brace
+ * answer different problems (racking against sagging) and the day a type needs
+ * one and not the other, one list cannot say so.
+ *
+ * VINYL, for the same reason: the seeded "Gate Support Brace, 8'" is a vinyl
+ * part, not a generic one. It is White, it is 8 ft, and the equivalent on the
+ * other supplier's list is a "V-brace white bevelled gate brace 8'" -- a
+ * bevelled white extrusion that goes inside a vinyl gate frame. Neither
+ * supplier quotes it on anything but vinyl.
+ *
+ * A WOOD gate does need bracing, and that is exactly why it is not here: its
+ * brace is not this product. It comes in the steel-reinforced GATE_FRAME_KIT
+ * the takeoff already asks for, so asking for a BRACE as well would bill the
+ * same function twice -- and on the starting catalog it would bill it against a
+ * white vinyl extrusion. Same for SPLIT_RAIL and COMPOSITE, whose kits carry
+ * their own structure, and for CHAIN_LINK, ALUMINUM and ORNAMENTAL_IRON, whose
+ * gates arrive welded. (CHAIN_LINK's BRACE_BAND is a terminal-post fitting and
+ * an unrelated role; it is seeded and asked for already.)
+ *
+ * The phone's copy is EstimateEngine.BRACED_GATE_TYPES.
+ */
+const BRACED_GATE_TYPES: ReadonlySet<FenceType> = new Set(["VINYL"]);
+
+/**
  * Roles bought by length or by the piece, where an extra cut-and-waste
  * allowance makes sense. Posts, caps, and hardware are deliberately absent:
  * you buy those as whole units off an exact count.
@@ -110,15 +165,26 @@ const GATE_LATCH_BAGS = 1.0;
 
 /**
  * @param wastePercent extra allowance applied to cut-and-waste roles only.
+ * @param joinAdjustment how THIS run's post counts move because of the
+ *   joints the owner has made between its ends and other runs' ends. Null is
+ *   "no joint touches this run" and prices exactly as before joints existed.
+ *   The caller computes it ONCE over every run of the job (`adjustJoins` in
+ *   joins.ts) and hands each run its own slice, because the run billed a
+ *   shared post is chosen across runs -- see priceJob in index.ts.
  */
-export function suggestQuantities(run: FenceRun, pixelsPerFoot: number, wastePercent = 0.0): EstimateSuggestions {
+export function suggestQuantities(
+  run: FenceRun,
+  pixelsPerFoot: number,
+  wastePercent = 0.0,
+  joinAdjustment: RunPostAdjustment | null = null,
+): EstimateSuggestions {
   const gates = decodeGates(run.gatesEncoded);
   const geometry = resolveGeometry(run, pixelsPerFoot);
   // sumOf { it.widthFt.toDouble() }.toFloat()
   const gateWidthTotal = f32(doubleSum(gates.map((g) => g.widthFt)));
   const netFt = coerceAtLeast(f32(geometry.totalLinearFeet - gateWidthTotal), 0);
 
-  const postCounts = computePostCounts(geometry, gates, run.postSpacingFt, netFt);
+  const postCounts = computePostCounts(geometry, gates, run.postSpacingFt, netFt, joinAdjustment);
 
   let entries: QtyEntry[] = [];
   switch (run.fenceType) {
@@ -260,11 +326,20 @@ function applyWaste(entries: QtyEntry[], wastePercent: number): QtyEntry[] {
   });
 }
 
+/**
+ * @param joinAdjustment applied LAST, to the finished counts, and only when
+ *   the owner has attached this run's end to another run's end. It is not fed
+ *   into the estimate below: corner and end posts are CARVED OUT of one fixed
+ *   pool (`standardPostEstimate`) and line posts are whatever is left, so
+ *   lowering the end count before that runs hands the same number back as
+ *   line posts and the total does not move at all. See joins.ts.
+ */
 export function computePostCounts(
   geometry: FenceGeometryResult,
   gates: readonly GateMarker[],
   postSpacingFt: number,
   netFt: number,
+  joinAdjustment: RunPostAdjustment | null = null,
 ): PostCounts {
   const gateCount = gates.length;
   // Two end posts per gate, except LINE_TO_WALL, which ends the fence line a
@@ -300,7 +375,7 @@ export function computePostCounts(
   const linePosts = coerceAtLeast(standardPostEstimate - cornerPosts - endPosts, 0);
   const totalPosts = linePosts + cornerPosts + endPosts + gatePosts;
 
-  return {
+  const counts: PostCounts = {
     linePosts,
     cornerPosts,
     endPosts,
@@ -308,6 +383,10 @@ export function computePostCounts(
     terminalPosts: cornerPosts + endPosts + gatePosts,
     totalPosts,
   };
+  // Two sides the owner has joined share ONE post, so the second one -- and
+  // its cap, and its bag of concrete -- come off here, and the two end posts
+  // that met become one corner post, which is a different catalog row.
+  return joinAdjustment === null ? counts : applyJoinAdjustment(counts, joinAdjustment);
 }
 
 /** Vinyl, aluminum, ornamental iron: fence built from discrete panels. */
@@ -372,10 +451,25 @@ function chainLinkEntries(run: FenceRun, netFt: number, posts: PostCounts): QtyE
 }
 
 /**
- * Every gate gets its hinges, latch, handle, and brace regardless of fence
- * type -- forgetting one of those is what sends a crew back to the supply
- * house mid-install. Anything the contractor doesn't want is removed on the
- * estimate and stays removed (see FenceRun.suppressedRoles).
+ * Every gate gets its hinges, latch and handle whatever the fence is made of
+ * -- forgetting one of those is what sends a crew back to the supply house
+ * mid-install. Anything the contractor doesn't want is removed on the estimate
+ * and stays removed (see FenceRun.suppressedRoles).
+ *
+ * The BRACE is NOT one of the three. It used to be, for all seven types, and
+ * six of them had nothing in any catalog to price it against -- the role was
+ * reported unmatched and billed nothing. See BRACED_GATE_TYPES for why the
+ * honest fix is to stop asking rather than to seed a white vinyl extrusion for
+ * a chain-link gate. HINGE_SET, LATCH and HANDLE stay universal because they
+ * genuinely are: a hinge, a catch and a pull fit any leaf, and every fence
+ * type's starting catalog already prices a hinge set and a latch.
+ *
+ * Order is load-bearing, not style. A line item's sort order follows the order
+ * a role is first seen in these entries, so the branches below are arranged to
+ * leave a VINYL gate's sequence byte for byte what it was -- panel, hinges,
+ * latch, handle, brace, (second brace, second hinge set), trim. Only the
+ * non-vinyl types, which never had a brace line to begin with, see anything
+ * change.
  */
 function gateEntries(fenceType: FenceType, gate: GateMarker): QtyEntry[] {
   const panelRole: MaterialRole = FRAME_KIT_GATE_TYPES.has(fenceType) ? "GATE_FRAME_KIT" : "GATE_PANEL";
@@ -383,29 +477,44 @@ function gateEntries(fenceType: FenceType, gate: GateMarker): QtyEntry[] {
   entries.push(qty("HINGE_SET", 1.0));
   entries.push(qty("LATCH", 1.0));
   entries.push(qty("HANDLE", 1.0));
-  entries.push(qty("BRACE", 1.0));
-  // A wide gate sags without a second brace and a heavier hinge set.
+  const braced = BRACED_GATE_TYPES.has(fenceType);
+  if (braced) entries.push(qty("BRACE", 1.0));
+  // A wide gate sags without a second brace and a heavier hinge set. The
+  // heavier hinge set is wanted whatever the leaf is made of; the second brace
+  // only where the first one was asked for at all.
   if (gate.widthFt >= 8) {
-    entries.push(qty("BRACE", 1.0));
+    if (braced) entries.push(qty("BRACE", 1.0));
     entries.push(qty("HINGE_SET", 1.0));
   }
   if (fenceType === "VINYL") {
     entries.push(qty("TRIM", 4.0));
   }
-  return entries.concat(gateAreaEntries(gate));
+  return entries.concat(gateAreaEntries(fenceType, gate));
 }
 
 /**
  * What the gate area itself is built from, which depends on where the gate
  * hangs rather than on the fence type.
  *
- * Every gate takes one econo stiffener. After that the three cases are
- * genuinely different builds, and treating them alike is a truck going back
- * to the yard:
+ * A VINYL gate takes one econo stiffener, and only a vinyl one does --
+ * STIFFENED_GATE_TYPES has the reason, which is that the part is sized to a
+ * 5x5 vinyl post and every other type's gate reaches site already rigid. This
+ * asked for one on all seven types; the other six had nothing to price it
+ * against, so the role was reported unmatched and billed nothing. The posts,
+ * plugs and concrete below are unchanged and still depend only on where the
+ * gate hangs.
+ *
+ * After that the three cases are genuinely different builds, and treating
+ * them alike is a truck going back to the yard:
  *
  *  - **On the wall**: the hinge side bolts through a blank post. Four 5/8"
- *    holes are drilled through the stiffener into that post, so it needs
- *    plugs to close them. Nothing is set in the ground, so **no concrete** --
+ *    holes are drilled through the leaf (through the stiffener, where there is
+ *    one) into that post, so it needs plugs to close them -- which is why the
+ *    plugs do NOT follow the stiffener out on a non-vinyl wall gate: the holes
+ *    are in the post either way. Whether a 5/8" plug is the right part for a
+ *    steel or timber post is a separate question nobody has put to him;
+ *    HOLE_PLUG is seeded UNIVERSAL and has always billed on every type.
+ *    Nothing is set in the ground, so **no concrete** --
  *    this is the case the old code got most wrong, since it charged concrete
  *    for every gate regardless. Takes a blank post plus the latch post.
  *  - **In the line**: two posts at the opening, set in concrete -- two bags.
@@ -449,8 +558,9 @@ function gateEntries(fenceType: FenceType, gate: GateMarker): QtyEntry[] {
  * Gate posts are counted separately by computePostCounts; these are the
  * posts the gate area needs on top of that.
  */
-function gateAreaEntries(gate: GateMarker): QtyEntry[] {
-  const entries: QtyEntry[] = [qty("STIFFENER", 1.0)];
+function gateAreaEntries(fenceType: FenceType, gate: GateMarker): QtyEntry[] {
+  const entries: QtyEntry[] = [];
+  if (STIFFENED_GATE_TYPES.has(fenceType)) entries.push(qty("STIFFENER", 1.0));
   switch (gate.mounting) {
     case "WALL":
       entries.push(qty("BLANK_POST", 1.0));

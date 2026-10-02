@@ -178,6 +178,32 @@ function freshDb(statements) {
   return db;
 }
 
+/**
+ * Room's CURRENT @Database version. A PIN, deliberately hardcoded rather than read out of
+ * AppDatabase.kt: read from the source it could never disagree with the source, and the whole
+ * point of the chain check below is that the version and the list of migrations must agree.
+ *
+ * MOVED 48 -> 50 on 2 Oct 2026. Not a loosening -- SchemaV48 and the run_joins table it builds are
+ * BYTE-FOR-BYTE UNCHANGED (the check above still compares them to the entity field by field, and
+ * "the new migration is additive..." still pins SchemaV48 at its four statements). Two later
+ * migrations landed on top of it:
+ *   49  material_items.heightFt -- how tall a catalog panel is, so a 6 ft run stops being priced
+ *       with the 4 ft panel (engine 2026.10.2, posts and panels matched to fence height).
+ *   50  fence_runs.startJoint / endJoint -- the shared post two run ends stand at, which is how
+ *       two sides joined at a corner bill ONE corner post instead of two end posts.
+ * Bump this line, and nothing else here, when a 51 lands.
+ *
+ * WHY THIS FILE IS STILL LOAD-BEARING even though the run_joins TABLE lost the design argument
+ * (docs/JOINING_RUNS.md 11.1 chose the two columns on fence_runs; a59-join-storage-roundtrip check 7
+ * pins that the table stays inert and that there is one write path). The table has NOT been dropped:
+ * `RunJoin::class` is still in the @Database entity list, and Room validates EVERY registered entity
+ * against the real schema when it opens the database. So an inert run_joins that stops matching its
+ * entity is still an app that cannot open on upgrade. The day the owed SchemaV51 DROP TABLE lands and
+ * RunJoin::class leaves that list, THIS file is replaced by a59-join-storage-roundtrip.test.mjs -- do
+ * not retire it before then.
+ */
+const DB_VERSION = 50;
+
 /** Differences between the RunJoin entity and a SQLite built from the migration's statements, plus the wiring. Empty is good. */
 function schemaViolations(runJoinKt, appDatabaseKt) {
   const bad = [];
@@ -200,29 +226,29 @@ function schemaViolations(runJoinKt, appDatabaseKt) {
   const haveFk = fk.map((f) => `${f.table}|${f.from}->${f.to}|${f.on_delete}|${f.on_update}`).sort();
   if (JSON.stringify(wantFk) !== JSON.stringify(haveFk)) bad.push(`${want.table}: foreign keys differ\n  entity:    ${wantFk}\n  migration: ${haveFk}`);
 
-  // Wired in: version 48, the entity registered, the dao exposed, the migration declared and added to the builder.
+  // Wired in: the current version, the entity registered, the dao exposed, the migration declared and added to the builder.
   const code = stripKt(appDatabaseKt);
-  if (!/version\s*=\s*48\b/.test(code)) bad.push("the database version is not 48");
+  if (!new RegExp(`version\\s*=\\s*${DB_VERSION}\\b`).test(code)) bad.push(`the database version is not ${DB_VERSION}`);
   if (!/EnquiryCapturePhoto::class,\s*RunJoin::class\s*\]/.test(code)) bad.push("RunJoin is not registered in @Database");
   if (!/abstract fun runJoinDao\(\): RunJoinDao/.test(code)) bad.push("the dao is not exposed");
   if (!/private val MIGRATION_47_48 = object : Migration\(47, 48\)/.test(code)) bad.push("MIGRATION_47_48 is not a Migration(47, 48)");
   if (!/SchemaV48\.MIGRATION_47_48_STATEMENTS\.forEach\s*\{\s*db\.execSQL\(it\)\s*\}/.test(code)) bad.push("MIGRATION_47_48 does not run SchemaV48's statements");
-  // The chain: every step 4 -> 48 declared exactly once, named for what it does, and handed to the builder exactly once.
+  // The chain: every step 4 -> DB_VERSION declared exactly once, named for what it does, and handed to the builder exactly once.
   const added = (code.match(/addMigrations\(([^)]*)\)/) || [])[1];
   if (!added) bad.push("no addMigrations( call found");
   else {
     const listed = [...added.matchAll(/MIGRATION_(\d+)_(\d+)/g)].map((m) => `${m[1]}_${m[2]}`);
-    for (let n = 4; n <= 47; n++) {
+    for (let n = 4; n < DB_VERSION; n++) {
       const name = `${n}_${n + 1}`;
       if (listed.filter((x) => x === name).length !== 1) bad.push(`MIGRATION_${name} is not handed to the builder exactly once`);
       if (!new RegExp(`private val MIGRATION_${name} = object : Migration\\(${n}, ${n + 1}\\)`).test(code)) bad.push(`MIGRATION_${name} is not declared as Migration(${n}, ${n + 1})`);
     }
-    if (listed.length !== 44) bad.push(`the builder lists ${listed.length} migrations, expected the 44 steps from 4 to 48`);
+    if (listed.length !== DB_VERSION - 4) bad.push(`the builder lists ${listed.length} migrations, expected the ${DB_VERSION - 4} steps from 4 to ${DB_VERSION}`);
   }
   return bad;
 }
 
-test("the migration builds exactly the table the RunJoin entity describes, and 48 is wired in with no gap in the chain", () => {
+test(`the migration builds exactly the table the RunJoin entity describes, and 48 is wired into the 4 -> ${DB_VERSION} chain with no gap`, () => {
   assert.deepEqual(schemaViolations(read(KT + "data/RunJoin.kt"), read(KT + "data/AppDatabase.kt")), []);
 });
 
@@ -257,8 +283,11 @@ test("TEETH: a column missing from the migration, an extra entity field, a lost 
   assert.ok(schemaViolations(mutate(rj, "    val jointId: String? = null,", "    val jointId: String? = null,\n    val extra: String = \"\","), db).some((v) => /columns differ/.test(v)));
   assert.ok(schemaViolations(rj, mutate(db, '"CREATE UNIQUE INDEX IF NOT EXISTS `index_run_joins_jointId_runId` ON `run_joins` (`jointId`, `runId`)"', '"CREATE INDEX IF NOT EXISTS `index_run_joins_jointId_runId` ON `run_joins` (`jointId`, `runId`)"')).some((v) => /indices differ/.test(v)));
   assert.ok(schemaViolations(rj, mutate(db, "`fence_runs`(`id`) ON UPDATE NO ACTION ON DELETE CASCADE )", "`fence_runs`(`id`) ON UPDATE NO ACTION ON DELETE NO ACTION )")).some((v) => /foreign keys differ/.test(v)));
-  assert.ok(schemaViolations(rj, mutate(db, "    version = 48,", "    version = 47,")).some((v) => /version is not 48/.test(v)));
-  assert.ok(schemaViolations(rj, mutate(db, "MIGRATION_46_47, MIGRATION_47_48)", "MIGRATION_46_47)")).some((v) => /MIGRATION_47_48 is not handed|builder lists 43/.test(v)));
+  // The version anchor and the builder's tail both follow DB_VERSION; see the note on it for why 48 -> 50.
+  assert.ok(schemaViolations(rj, mutate(db, `    version = ${DB_VERSION},`, `    version = ${DB_VERSION - 1},`)).some((v) => new RegExp(`version is not ${DB_VERSION}`).test(v)));
+  // Drop 47_48 out of the builder while leaving it declared: a gap in the middle of the chain, which is
+  // the case the chain check exists for (a new table left off a list is this repository's oldest bug).
+  assert.ok(schemaViolations(rj, mutate(db, "MIGRATION_47_48, MIGRATION_48_49", "MIGRATION_48_49")).some((v) => new RegExp(`MIGRATION_47_48 is not handed|builder lists ${DB_VERSION - 5}`).test(v)));
   assert.ok(schemaViolations(rj, mutate(db, "EnquiryCapturePhoto::class, RunJoin::class", "EnquiryCapturePhoto::class")).some((v) => /not registered/.test(v)));
 });
 

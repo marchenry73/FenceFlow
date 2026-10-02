@@ -74,7 +74,18 @@ class EstimateViewModel(
     val takeoff: StateFlow<Map<Long, List<TakeoffLine>>> =
         combine(job, runs) { currentJob, currentRuns ->
             if (currentJob == null) emptyMap()
-            else currentRuns.associate { r ->
+            else {
+                // Worked out ONCE for the whole job, outside the per-run map:
+                // two sides at one joint share ONE post, and which run is
+                // billed for it is decided ACROSS runs (the taller fence
+                // first). Must match what the office does (priceJob, engine
+                // 2026.10.8) or the phone and the office quote a different
+                // number of posts for the same drawing.
+                val joins = EstimateEngine.joinAdjustments(
+                    currentRuns,
+                    currentJob.calibrationPixelsPerFoot ?: SurveyViewModel.PIXELS_PER_FOOT_GRID,
+                )
+                currentRuns.associate { r ->
                 r.id to runCatching {
                     // The same refusal [TakeoffRefresher.refreshRun] applies
                     // before it (re)writes a run's stored line items: a run
@@ -95,9 +106,11 @@ class EstimateViewModel(
                             pixelsPerFoot = currentJob.calibrationPixelsPerFoot
                                 ?: SurveyViewModel.PIXELS_PER_FOOT_GRID,
                             wastePercent = currentJob.wastePercent,
+                            joinAdjustment = joins.forRun(r.syncId),
                         ).takeoff
                     }
                 }.getOrDefault(emptyList())
+            }
             }
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
@@ -114,10 +127,17 @@ class EstimateViewModel(
     fun postWorkings(run: FenceRun): PostWorkings? {
         val currentJob = job.value ?: return null
         if (TakeoffRefresher.blockedByUncalibratedPhoto(currentJob, run)) return null
+        val pxPerFt = currentJob.calibrationPixelsPerFoot ?: SurveyViewModel.PIXELS_PER_FOOT_GRID
         return runCatching {
+            // The same adjustment [takeoff] above prices with, so the sheet
+            // explains the number actually billed. Without it the workings
+            // would add up to a post count the estimate does not use, which
+            // is worse than no explanation: it teaches a formula the product
+            // does not follow.
             EstimateEngine.explainPosts(
                 run,
-                currentJob.calibrationPixelsPerFoot ?: SurveyViewModel.PIXELS_PER_FOOT_GRID,
+                pxPerFt,
+                joinAdjustment = EstimateEngine.joinAdjustments(runs.value, pxPerFt).forRun(run.syncId),
             )
         }.getOrNull()
     }
@@ -249,10 +269,18 @@ class EstimateViewModel(
             return
         }
 
+        // Every run of the job, because the shared post at a joint is billed
+        // to exactly one of them and that choice is made across runs. The
+        // same call the automatic refresh (TakeoffRefresher) and the office
+        // (priceJob) make, so pressing Suggest cannot produce a different
+        // post count from leaving it alone.
+        val joinScale = pxPerFt ?: SurveyViewModel.PIXELS_PER_FOOT_GRID
+        val joins = EstimateEngine.joinAdjustments(runs.value, joinScale)
         val suggestions = EstimateEngine.suggestQuantities(
             run = run,
-            pixelsPerFoot = pxPerFt ?: SurveyViewModel.PIXELS_PER_FOOT_GRID,
-            wastePercent = job.value?.wastePercent ?: 0.0
+            pixelsPerFoot = joinScale,
+            wastePercent = job.value?.wastePercent ?: 0.0,
+            joinAdjustment = joins.forRun(run.syncId)
         )
         val built = EstimateEngine.buildLineItems(
             jobId = jobId,

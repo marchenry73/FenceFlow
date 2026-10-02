@@ -1,0 +1,57 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  French strings for the pull sheet. Same key set as values/strings_pullsheet.xml
+  and values-es/strings_pullsheet.xml; tests/strings-xml-wellformed.test.mjs fails
+  if any key is missing from one locale.
+
+  Every apostrophe is escaped as \' because aapt refuses the build on a bare one
+  in any string resource, and French has one in almost every line. No double
+  hyphen inside any comment.
+-->
+<resources>
+    <string name="pull_sheet_title">Feuille de ramassage</string>
+    <string name="pull_sheet_back">Retour</string>
+    <string name="pull_sheet_untitled_job">Chantier sans nom</string>
+    <string name="pull_sheet_not_on_phone">Ce chantier n\'est pas encore sur ce téléphone.</string>
+    <string name="pull_sheet_no_money_note">Seulement les quantités, les types et les dimensions. Il n\'y a aucun prix sur cette page.</string>
+    <string name="pull_sheet_drawing_heading">La clôture telle que dessinée</string>
+
+    <string name="pull_sheet_section_posts">Poteaux</string>
+    <string name="pull_sheet_section_panels">Panneaux, lisses et planches</string>
+    <string name="pull_sheet_section_caps">Capuchons et finitions</string>
+    <string name="pull_sheet_section_concrete">Béton</string>
+    <string name="pull_sheet_section_gates">Quincaillerie de portail</string>
+    <string name="pull_sheet_section_other">Tout le reste</string>
+
+    <string name="pull_sheet_qty_line">%1$s %2$s  %3$s</string>
+    <string name="pull_sheet_for_fence_height">Pour la clôture de %1$s pi</string>
+    <string name="pull_sheet_for_runs">Sections : %1$s</string>
+    <string name="pull_sheet_total_posts">Poteaux au total : %1$s</string>
+    <string name="pull_sheet_loaded_count">%1$d sur %2$d chargés</string>
+    <string name="pull_sheet_start_over">Recommencer</string>
+    <string name="pull_sheet_hand_added">Ajouté à la main, pas issu du calcul des matériaux.</string>
+    <string name="pull_sheet_no_height_declared">Le catalogue ne dit pas pour quelle hauteur de clôture c\'est.</string>
+    <string name="pull_sheet_ticks_local_only">Les coches et les notes restent sur ce téléphone. Elles fonctionnent sans réseau et le bureau ne les voit pas.</string>
+    <string name="pull_sheet_teardown_excluded">Les sections à démolir ne sont pas sur cette feuille. On n\'achète pas de matériaux pour une clôture qu\'on enlève.</string>
+
+    <string name="pull_sheet_doubt_not_in_catalog">DEMANDEZ AU COMPTOIR. La quantité est bonne, mais ce produit n\'est plus dans votre catalogue, donc ce n\'est peut-être pas le bon produit.</string>
+    <string name="pull_sheet_doubt_filing">DEMANDEZ AU COMPTOIR. La quantité est bonne, mais cet article a été importé et personne n\'a vérifié ce qu\'il est, donc ce n\'est peut-être pas le bon produit.</string>
+    <string name="pull_sheet_doubt_wrong_height">DEMANDEZ AU COMPTOIR. La quantité est bonne, mais ce produit se vend pour une clôture de %1$s pi et cette section fait %2$s pi.</string>
+
+    <string name="pull_sheet_empty_no_runs">Rien n\'a encore été dessiné ni mesuré sur ce chantier, il n\'y a donc rien à ramasser.</string>
+    <string name="pull_sheet_empty_only_teardown">Rien à acheter. Toutes les sections de ce chantier sont des démolitions, et on n\'achète pas de matériaux pour une clôture qu\'on enlève.</string>
+    <string name="pull_sheet_empty_no_takeoff">CE N\'EST PAS ENCORE UNE LISTE DE MATÉRIAUX. Le calcul des matériaux n\'a pas été fait pour ce chantier, donc rien ci-dessous n\'a été calculé. Sections en attente : %1$s. Ne chargez rien en vous fiant à cette page.</string>
+    <string name="pull_sheet_empty_not_measurable">CE CHANTIER NE PEUT PAS ENCORE ÊTRE MESURÉ. Il a été dessiné sur une photo dont personne n\'a fixé l\'échelle, donc il n\'y a aucune quantité fiable à ramasser. Sections en attente : %1$s.</string>
+    <string name="pull_sheet_partial">CETTE FEUILLE N\'EST PAS TOUT LE CHANTIER. Ces sections n\'ont pas de calcul des matériaux et rien ci-dessous ne les couvre : %1$s.</string>
+    <string name="pull_sheet_partial_not_measurable">CETTE FEUILLE N\'EST PAS TOUT LE CHANTIER. Ces sections sont sur une photo sans échelle et ne peuvent pas être mesurées : %1$s.</string>
+
+    <string name="pull_sheet_substitution_title">Qu\'avez-vous pris à la place ?</string>
+    <string name="pull_sheet_substitution_hint">Ce que vous avez vraiment pris</string>
+    <string name="pull_sheet_substitution_add">Noter un remplacement</string>
+    <string name="pull_sheet_substitution_edit">Modifier le remplacement</string>
+    <string name="pull_sheet_substitution_shown">Pris à la place : %1$s</string>
+    <string name="pull_sheet_substitution_local_only">Cette note reste sur ce téléphone. Elle ne change ni le chantier, ni les quantités, ni le prix, et le bureau ne la voit pas. Dites-le vous-même si c\'est important.</string>
+    <string name="pull_sheet_substitution_save">Enregistrer la note</string>
+    <string name="pull_sheet_substitution_cancel">Annuler</string>
+    <string name="pull_sheet_open_button">Feuille de ramassage</string>
+</resources>

@@ -114,12 +114,33 @@ class PlanExtentTest {
 
     @Test
     fun `the crew plan keeps gate-only runs and sizes their gates like the drawing`() {
-        val src = source("ui/crew/CrewFencePlanScreen.kt")
+        val crew = source("ui/crew/CrewFencePlanScreen.kt")
         assertTrue(
             "the crew plan filters runs by something other than PlanExtent.hasSomethingToDraw",
-            src.contains("val drawn = runs.filter { PlanExtent.hasSomethingToDraw(it) }")
+            crew.contains("val drawn = runs.filter { PlanExtent.hasSomethingToDraw(it) }")
         )
-        val canvas = src.substringAfter("private fun PlanCanvas(").substringBefore("private fun Legend(")
+        // THE CANVAS MOVED. PlanCanvas was a private composable in
+        // CrewFencePlanScreen.kt; it now lives in ui/components/FencePlanView.kt
+        // as FencePlanCanvas, so the crew pull sheet draws the SAME picture
+        // instead of a second renderer that would drift. This check is re-aimed
+        // at its new home, not relaxed: the gate rules below are still the gate
+        // rules, and the crew screen is additionally held to drawing THROUGH the
+        // shared canvas -- without that line the rest of this test could pass
+        // while the crew's own screen showed no plan at all.
+        assertTrue(
+            "the crew plan no longer draws through the shared canvas",
+            crew.contains("FencePlanCanvas(currentJob, drawn, markers)")
+        )
+
+        val view = source("ui/components/FencePlanView.kt")
+        // substringAfter/substringBefore return the WHOLE string when the
+        // delimiter is missing, so a canvas that moves again would leave the
+        // contains() checks below reading an unrelated file and reporting a
+        // bare `false`. Fail on the delimiter itself, by name, so the next move
+        // says what to re-point rather than what looks like a lost feature.
+        assertTrue("FencePlanView.kt has no FencePlanCanvas to read", view.contains("fun FencePlanCanvas("))
+        assertTrue("FencePlanView.kt has no FencePlanLegend to stop at", view.contains("fun FencePlanLegend("))
+        val canvas = view.substringAfter("fun FencePlanCanvas(").substringBefore("fun FencePlanLegend(")
         assertTrue(canvas.contains("DrawingScale.of(job)"))
         assertTrue(canvas.contains("PlanExtent.standaloneGateSpans(listOf(it), drawingScale)"))
         assertTrue("a standalone gate's posts are not fitted", canvas.contains("listOf(span.start, span.end)"))

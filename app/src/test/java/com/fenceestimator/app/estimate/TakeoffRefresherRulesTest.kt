@@ -104,7 +104,19 @@ class TakeoffRefresherRulesTest {
         "panelWidthFt", "panelHeightFt", "aluminumStyle", "woodStyle", "woodRailCount", "picketWidthIn",
         "picketGapIn", "fabricHeightFt", "includeTopRail", "includeTensionWire", "includeBarbedWireArms",
         "includePrivacySlats", "splitRailCount", "postSpacingFt", "concreteBagsPerPost", "manualLinearFeet",
-        "manualCornerCount", "suppressedRolesCsv"
+        "manualCornerCount", "suppressedRolesCsv",
+        // Two columns added with the run-join work, classified rather than
+        // excused. PRICED, and not merely because pricingSignature happens to
+        // include them: joining two sides at a corner makes their two end posts
+        // ONE shared corner post, which is a cap and a bag of concrete off the
+        // job (the owner's 198 ft job went 38 posts -> 36, $4,595.26 ->
+        // $4,548.07). This refresher is the thing that has to notice:
+        // TakeoffRefresher.kt feeds EstimateEngine.joinAdjustments into the
+        // re-price it performs, so attaching or detaching a run's end changes
+        // the takeoff and MUST re-price. Leaving them out of both sets is what
+        // failed this assertion; putting them in notPriced would have made the
+        // attach gesture change the price with nothing re-pricing.
+        "startJoint", "endJoint"
     )
 
     private fun columns() = FenceRun::class.java.declaredFields

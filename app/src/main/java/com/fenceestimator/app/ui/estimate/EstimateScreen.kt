@@ -694,10 +694,22 @@ private fun TotalsCard(
             // plus signed extra work. Against the live estimate, a material
             // price moving after acceptance quietly changed the balance due
             // on a job already under contract.
-            if (job != null && job.depositAmount > 0.0) {
+            //
+            // The deposit row prints what the customer may be ASKED for --
+            // JobMoney.depositAsked, the stored figure capped at the price --
+            // not the raw stored number. This card and the contract PDF were
+            // the two surfaces that printed it uncapped while the quote page,
+            // the approval email, the pay link and the office all capped it,
+            // so a $3,963 deposit on a $3,620 job read $3,963 here and
+            // $3,620 on the customer's own page. One decision now, in
+            // JobMoney, which also says why it is capped and not refused.
+            if (job != null) {
                 val billable = JobMoney.billableTotal(job, totals.grandTotal, changeOrders)
-                TotalRow(stringResource(R.string.est2_deposit_asked), Money.format(job.depositAmount))
-                TotalRow(stringResource(R.string.est2_balance_due), Money.format(JobMoney.balance(job, billable)))
+                val depositAsked = JobMoney.depositAsked(job, billable)
+                if (depositAsked > 0.0) {
+                    TotalRow(stringResource(R.string.est2_deposit_asked), Money.format(depositAsked))
+                    TotalRow(stringResource(R.string.est2_balance_due), Money.format(JobMoney.balance(job, billable)))
+                }
             }
 
             if (job != null && totals.grandTotal <= job!!.minimumJobCharge && job!!.minimumJobCharge > 0.0) {
@@ -805,8 +817,35 @@ private fun ExportSection(
     // unnoticed. Locking the button the same way a stale signature already
     // does ([needsResign]) is the one answer that makes it impossible to
     // send by accident rather than merely easy to miss having been warned.
+    // A65: a STORED calibration of zero, a negative number or NaN reaches the
+    // same $0 quote by a different road, and that road was not blocked.
+    // EstimateEngine.footageOf reads calibrationPixelsPerFoot raw
+    // (`?: PIXELS_PER_FOOT_GRID` only replaces null), and
+    // FenceGeometryEngine.analyze returns an empty result for
+    // `pixelsPerFoot <= 0f` -- so every side measures zero feet and the total
+    // is $0. Meanwhile hasUnmeasurablePhotoWork tests
+    // `calibrationPixelsPerFoot == null`, which such a job is NOT, so this
+    // refusal stayed false and both send buttons stayed live on a $0 contract.
+    // It hits GRID jobs as well as photo jobs, which is why it cannot just be
+    // folded into the photo test.
+    //
+    // Deliberately a UI REFUSAL and not a widening of
+    // TakeoffRefresher.blockedByUncalibratedPhoto, which is where it
+    // structurally belongs. That predicate is mirrored by the office in
+    // supabase/functions/_shared/pricing/load.ts (isUncalibratedPhotoJob),
+    // whose own comment says in as many words that `<= 0` or non-finite is
+    // deliberately NOT treated as uncalibrated and that widening it is a
+    // separate change. Widening it on the phone alone would make the two
+    // engines disagree about the price of a real job and start writing
+    // pricing_drift rows, and the office half cannot be deployed or its parity
+    // fixtures regenerated tonight. This changes no price on either side: it
+    // only refuses to SEND a total that is already $0 on both.
+    //
+    // Same rule as DrawingScale.of's own `it > 0f && it.isFinite()`.
+    val storedScaleUnusable = job.calibrationPixelsPerFoot
+        ?.let { it <= 0f || !it.isFinite() } == true
     val zeroQuoteBlocked = totals.grandTotal <= 0.005 &&
-        EstimateEngine.hasUnmeasurablePhotoWork(job, runs)
+        (EstimateEngine.hasUnmeasurablePhotoWork(job, runs) || storedScaleUnusable)
 
     Column {
         if (needsResign) {
@@ -1291,6 +1330,15 @@ private fun PostWorkingsDialog(
                 if (w.endPosts > 0) WorkingRow(stringResource(R.string.posts_why_ends), "${w.endPosts}")
                 WorkingRow(stringResource(R.string.posts_why_line), "${w.linePosts}")
                 if (w.gatePosts > 0) WorkingRow(stringResource(R.string.posts_why_gate_posts), "+${w.gatePosts}")
+                // Where two sides are attached they share ONE post instead of
+                // ending in two, so the total comes down. Without this row the
+                // sheet's own addition stops adding up on any joined run --
+                // corners + ends + line + gate would not reach the bold total
+                // below, and nothing would say why. He checks this sheet with a
+                // pencil; a figure he cannot reconcile is worse than no sheet.
+                if (w.postsSharedAtJoints > 0) {
+                    WorkingRow(stringResource(R.string.posts_why_shared), "-${w.postsSharedAtJoints}")
+                }
                 Divider(Modifier.padding(vertical = Space.xs))
                 WorkingRow(stringResource(R.string.posts_why_total), "${w.totalPosts}", bold = true)
                 Text(

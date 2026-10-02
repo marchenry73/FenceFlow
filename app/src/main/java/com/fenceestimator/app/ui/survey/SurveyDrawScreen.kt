@@ -147,8 +147,25 @@ import kotlin.math.min
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> Unit) {
+fun SurveyDrawScreen(
+    jobId: Long,
+    onBack: () -> Unit,
+    onGoToEstimate: (Long) -> Unit,
+    /**
+     * The run to open on, from the route's `runId` query parameter
+     * (com.fenceestimator.app.ui.nav.Routes.survey), or null for the old
+     * "first run" behaviour.
+     *
+     * Default null so the job-only caller compiles and behaves unchanged.
+     */
+    openRunId: Long? = null
+) {
     val app = currentApp()
+    // Keyed on the JOB only, deliberately NOT on openRunId. The view model
+    // holds this job's Undo and Redo history, and keying it on the run would
+    // hand out a fresh, empty history every time the drawing was opened on a
+    // different side -- so arriving from side 2's screen would throw away the
+    // Undo stack for side 1.
     val viewModel: SurveyViewModel = viewModel(
         key = "survey_$jobId",
         factory = GenericViewModelFactory { SurveyViewModel(app.repository, jobId, app) }
@@ -231,6 +248,17 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
     )
     val pendingCalibration by viewModel.pendingCalibrationPoints.collectAsState()
     val context = LocalContext.current
+
+    // Lodged once per visit, before any ensureSelection can run, and keyed on
+    // the run asked for rather than on `runs`: this must not be re-lodged on
+    // every database emission, or hand-picking a different side on the run
+    // chips would be undone by the next sync.
+    //
+    // The request OUTLIVES this effect inside the view model, because `runs`
+    // is empty on the first frame and only fills in when Room answers -- see
+    // SurveyViewModel.resolveRunSelection rule 2 for why answering an empty
+    // list as though the run were missing is the original bug again.
+    LaunchedEffect(openRunId) { viewModel.requestRun(openRunId) }
 
     LaunchedEffect(runs) { viewModel.ensureSelection() }
 
@@ -434,6 +462,29 @@ fun SurveyDrawScreen(jobId: Long, onBack: () -> Unit, onGoToEstimate: (Long) -> 
     val lengthRefusedMessage = stringResource(R.string.seg_len_refused)
     LaunchedEffect(Unit) {
         viewModel.lengthRefused.collect { snackbarHostState.showSnackbar(lengthRefusedMessage) }
+    }
+    // A65: the calibration distance is the one number on this screen that can
+    // price the WHOLE fence at zero on its own, because every side is measured
+    // through it. SurveyViewModel.applyCalibration used to return silently on
+    // a bad one (and let NaN past the guard entirely), so the dialog closed
+    // and the scale looked set. Now it says which mistake it was.
+    val calibrationRefusedTitle = stringResource(R.string.num_calibration_refused_title)
+    // All four resolved up front, by hand. The snackbar is shown from a
+    // suspend collect, which cannot call stringResource, so every message a
+    // refusal could need has to already be a String by the time the flow
+    // emits. Written out rather than built in a loop so the compiler fails
+    // here if a NumberRefusal case is ever added without a sentence for it.
+    val calibrationRefusedMessages: Map<SurveyViewModel.NumberRefusal, String> = mapOf(
+        SurveyViewModel.NumberRefusal.BLANK to stringResource(R.string.num_blank),
+        SurveyViewModel.NumberRefusal.NOT_A_NUMBER to stringResource(R.string.num_not_a_number),
+        SurveyViewModel.NumberRefusal.NOT_FINITE to stringResource(R.string.num_not_finite),
+        SurveyViewModel.NumberRefusal.NOT_POSITIVE to stringResource(R.string.num_not_positive)
+    )
+    LaunchedEffect(Unit) {
+        viewModel.calibrationRefused.collect { reason ->
+            val detail = calibrationRefusedMessages[reason] ?: return@collect
+            snackbarHostState.showSnackbar("$calibrationRefusedTitle: $detail")
+        }
     }
     // The survey photo's own refusals. Each says what happened and that nothing
     // changed, rather than a control that looks dead.
@@ -3168,6 +3219,25 @@ private fun RunSelector(runs: List<FenceRun>, selectedRunId: Long?, onSelect: (L
 @Composable
 private fun CalibrationDialog(onConfirm: (Float) -> Unit, onDismiss: () -> Unit) {
     var text by remember { mutableStateOf("") }
+    // A65 finding 2, the half the first pass left behind. The Set scale button
+    // was still
+    //   text.replace(',', '.').toFloatOrNull()?.let(onConfirm)
+    // which is the same two-directional wrong the gate dialog above was fixed
+    // for: it did NOTHING for "5ft", "5'" or "5 feet" (the let simply did not
+    // run, so the dialog sat there and the button looked dead with no reason
+    // on screen), and it handed 0, a negative number, "NaN" and "Infinity"
+    // straight to [SurveyViewModel.applyCalibration].
+    //
+    // applyCalibration does refuse all four -- checkPositive before the
+    // division, then isUsableCalibration on the quotient -- so nothing bad was
+    // ever STORED by this road. What was missing is the half that costs
+    // nothing and is the whole point of refusing at the keyboard: saying so
+    // while the person is still looking at the number they typed, instead of
+    // raising the refusal from a view model two screens of state away. Same
+    // evaluation as the gate dialog, same shared sentences, so a measurement
+    // typed with its unit on it is described the same way wherever it is typed.
+    val entry = SurveyViewModel.readPositiveMeasure(text)
+    val refusalText = entry.refusal?.let { stringResource(numberRefusalMessage(it)) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.draw_known_distance)) },
@@ -3175,11 +3245,31 @@ private fun CalibrationDialog(onConfirm: (Float) -> Unit, onDismiss: () -> Unit)
             Column {
                 Text(stringResource(R.string.draw_distance_question))
                 Spacer(Modifier.height(Space.sm))
-                OutlinedTextField(value = text, onValueChange = { text = it }, label = { Text(stringResource(R.string.draw_feet)) })
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    label = { Text(stringResource(R.string.draw_feet)) },
+                    // An empty box on first open is not a mistake yet, so the
+                    // BLANK refusal is not shouted at somebody who has not
+                    // typed anything -- the button is disabled either way.
+                    isError = refusalText != null && text.isNotBlank(),
+                    // Always supplied, rendering nothing when there is no
+                    // refusal, so the dialog does not jump as the message
+                    // appears and disappears while they retype. Same reason as
+                    // GateWidthDialog's.
+                    supportingText = {
+                        if (refusalText != null && text.isNotBlank()) {
+                            Text(refusalText, color = MaterialTheme.colorScheme.error)
+                        }
+                    }
+                )
             }
         },
         confirmButton = {
-            Button(onClick = { text.replace(',', '.').toFloatOrNull()?.let(onConfirm) }) { Text(stringResource(R.string.draw_set_scale)) }
+            Button(
+                enabled = entry.value != null,
+                onClick = { entry.value?.let(onConfirm) }
+            ) { Text(stringResource(R.string.draw_set_scale)) }
         },
         dismissButton = { OutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } }
     )
@@ -3193,6 +3283,27 @@ private fun GateWidthDialog(
     var text by remember { mutableStateOf("5") }
     var mounting by remember { mutableStateOf(GateMounting.LINE) }
     var swing by remember { mutableStateOf(com.fenceestimator.app.geometry.GateSwing.IN) }
+
+    // A65 finding 2. The Add button used to be
+    //   text.replace(',', '.').toFloatOrNull()?.let { onConfirm(it, ...) }
+    // which is wrong in two opposite directions at once:
+    //
+    //  - It ACCEPTED 0, a negative number, and (because parseFloat's grammar
+    //    includes those literals) "NaN", "Infinity" and "-Infinity". All five
+    //    went straight into the drawing, and a non-finite or zero gate width
+    //    takes the panel, line post, cap and concrete lines off the quote and
+    //    nulls the contract total when the office next commits it.
+    //  - It silently did NOTHING for "5ft" or 5 with a quote mark after it,
+    //    which is how a person actually writes a measurement. The let simply
+    //    did not run: the dialog sat there, the button appeared dead, and
+    //    nothing said why.
+    //
+    // Now evaluated on every keystroke so the reason is on screen before the
+    // button is pressed, and the button is disabled rather than inert, so
+    // "nothing happened" is never the answer.
+    val entry = SurveyViewModel.readPositiveMeasure(text)
+    val refusalText = entry.refusal?.let { stringResource(numberRefusalMessage(it)) }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.draw_gate)) },
@@ -3200,7 +3311,25 @@ private fun GateWidthDialog(
             Column {
                 Text(stringResource(R.string.draw_gate_width_question))
                 Spacer(Modifier.height(Space.sm))
-                OutlinedTextField(value = text, onValueChange = { text = it }, label = { Text(stringResource(R.string.draw_feet)) })
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { text = it },
+                    label = { Text(stringResource(R.string.draw_feet)) },
+                    isError = refusalText != null,
+                    // Always supplied, rendering nothing when there is no
+                    // refusal, rather than a nullable composable lambda: the
+                    // slot then reserves its line either way, so the dialog
+                    // does not jump as the message appears and disappears
+                    // under the person's thumb while they retype.
+                    supportingText = {
+                        if (refusalText != null) {
+                            Text(
+                                refusalText + " " + stringResource(R.string.num_gate_width_refused),
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                    }
+                )
                 Spacer(Modifier.height(Space.lg))
 
                 // Asked here rather than left to the estimate, because it
@@ -3221,10 +3350,30 @@ private fun GateWidthDialog(
             }
         },
         confirmButton = {
-            Button(onClick = { text.replace(',', '.').toFloatOrNull()?.let { onConfirm(it, mounting, swing) } }) { Text(stringResource(R.string.draw_add_gate)) }
+            Button(
+                enabled = entry.value != null,
+                onClick = { entry.value?.let { onConfirm(it, mounting, swing) } }
+            ) { Text(stringResource(R.string.draw_add_gate)) }
         },
         dismissButton = { OutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } }
     )
+}
+
+/**
+ * The sentence for each way a typed number can be refused.
+ *
+ * One mapping, in one place, shared by the gate width dialog, the calibration
+ * refusal and RunEditScreen's spec fields, so the same mistake is described
+ * the same way wherever it is made. Each reason gets its OWN sentence on
+ * purpose: "0" and "" and "5ft" are three different mistakes with three
+ * different fixes, and a single "invalid number" leaves a person retyping
+ * exactly what they typed the first time.
+ */
+internal fun numberRefusalMessage(refusal: SurveyViewModel.NumberRefusal): Int = when (refusal) {
+    SurveyViewModel.NumberRefusal.BLANK -> R.string.num_blank
+    SurveyViewModel.NumberRefusal.NOT_A_NUMBER -> R.string.num_not_a_number
+    SurveyViewModel.NumberRefusal.NOT_FINITE -> R.string.num_not_finite
+    SurveyViewModel.NumberRefusal.NOT_POSITIVE -> R.string.num_not_positive
 }
 
 /**

@@ -192,10 +192,50 @@ class AcceptedPriceTest {
         // 2449.10 of materials less 1000 in is 1449.10 to cover: up to 1500, plus
         // 100. (It was 1450 -- the next ten -- until 1 Oct 2026; the rule is
         // pinned in JobMoneyDepositRuleTest and the shared vectors.)
+        //
+        // THIS PIN MOVED ON 2 OCT 2026, from 1600 to 2600, and the money asked
+        // for did not move at all. jobs.deposit_amount is CUMULATIVE -- every
+        // reader works out what is left as `asked - netPaid` -- so storing the
+        // rule's 1600 took the same 1000 off twice and the customer's page
+        // asked for 600 against 1449.10 of materials he had not bought yet.
+        // The stored figure is now `netPaid + rule`, and the figure anybody is
+        // actually asked for is still the rule's 1600, asserted below through
+        // the same subtraction the server's depositFigures() makes. The old
+        // expectation of 1600 for the STORED column was a test pinning a bug.
         val part = signedJob(paid = 1000.0)
-        assertEquals(1600.0, JobMoney.suggestedMaterialsDeposit(part, 2449.10, 9710.0), 0.001)
-        // Planted: the old rule on the same figures.
+        assertEquals(2600.0, JobMoney.suggestedMaterialsDeposit(part, 2449.10, 9710.0), 0.001)
+        // What the customer is asked for, which is what the rule asked for.
+        val stored = part.copy(depositAmount = JobMoney.suggestedMaterialsDeposit(part, 2449.10, 9710.0))
+        assertEquals(1600.0, JobMoney.depositStillDue(stored, 9710.0), 0.001)
+        // Planted: storing the incremental figure instead asks for 600.
+        val wrong = part.copy(depositAmount = JobMoney.ruleDeposit(2449.10 - 1000.0))
+        assertEquals(600.0, JobMoney.depositStillDue(wrong, 9710.0), 0.001)
+        // Planted: the old next-ten rule on the same figures.
         assertEquals(1450.0, kotlin.math.ceil((2449.10 - 1000.0) / 10.0) * 10.0, 0.001)
+    }
+
+    @Test
+    fun `the phone asks for the rest of the deposit, not the whole balance`() {
+        // THIS PIN MOVED ON 2 OCT 2026 (see JobMoney.nextRequestAmount). The
+        // phone used to ask for the whole remaining balance the moment any
+        // money arrived, while the customer's own page went on asking for the
+        // rest of the deposit -- $4,154.47 against $2,500.00 on the same job.
+        // The fence is not built when the deposit is part paid, so the page is
+        // right and the phone follows it now.
+        val j = Job(
+            id = 11,
+            customerName = "Test",
+            depositAmount = 3000.0,
+            amountPaid = 500.0
+        )
+        assertEquals(2500.0, JobMoney.nextRequestAmount(j, 4654.47), 0.001)
+        assertEquals("deposit", JobMoney.nextRequestLabel(j, 4654.47))
+        // Once the deposit is in, the balance is the next thing to ask for.
+        val settled = j.copy(amountPaid = 3000.0)
+        assertEquals(1654.47, JobMoney.nextRequestAmount(settled, 4654.47), 0.001)
+        assertEquals("balance", JobMoney.nextRequestLabel(settled, 4654.47))
+        // Planted: the old rule on the same job.
+        assertEquals(4154.47, JobMoney.stillOwed(j, 4654.47), 0.001)
     }
 
     @Test

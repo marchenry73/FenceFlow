@@ -1,0 +1,56 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Spanish strings for the pull sheet. Same key set as values/strings_pullsheet.xml
+  and values-fr/strings_pullsheet.xml; tests/strings-xml-wellformed.test.mjs fails
+  if any key is missing from one locale.
+
+  Apostrophes are escaped, because aapt refuses the build on a bare one in any
+  string resource. No double hyphen inside any comment.
+-->
+<resources>
+    <string name="pull_sheet_title">Hoja de recogida</string>
+    <string name="pull_sheet_back">Atrás</string>
+    <string name="pull_sheet_untitled_job">Trabajo sin nombre</string>
+    <string name="pull_sheet_not_on_phone">Este trabajo todavía no está en este teléfono.</string>
+    <string name="pull_sheet_no_money_note">Solo cantidades, tipos y medidas. En esta página no hay precios.</string>
+    <string name="pull_sheet_drawing_heading">La cerca según el plano</string>
+
+    <string name="pull_sheet_section_posts">Postes</string>
+    <string name="pull_sheet_section_panels">Paneles, rieles y tablillas</string>
+    <string name="pull_sheet_section_caps">Tapas y remates</string>
+    <string name="pull_sheet_section_concrete">Concreto</string>
+    <string name="pull_sheet_section_gates">Herrajes de puerta</string>
+    <string name="pull_sheet_section_other">Todo lo demás</string>
+
+    <string name="pull_sheet_qty_line">%1$s %2$s  %3$s</string>
+    <string name="pull_sheet_for_fence_height">Para la cerca de %1$s pies</string>
+    <string name="pull_sheet_for_runs">Tramos: %1$s</string>
+    <string name="pull_sheet_total_posts">Postes en total: %1$s</string>
+    <string name="pull_sheet_loaded_count">%1$d de %2$d cargados</string>
+    <string name="pull_sheet_start_over">Empezar de nuevo</string>
+    <string name="pull_sheet_hand_added">Agregado a mano, no viene del cálculo de materiales.</string>
+    <string name="pull_sheet_no_height_declared">El catálogo no dice para qué altura de cerca es.</string>
+    <string name="pull_sheet_ticks_local_only">Las marcas y las notas se quedan en este teléfono. Funcionan sin señal y la oficina no las ve.</string>
+    <string name="pull_sheet_teardown_excluded">Los tramos de demolición no están en esta hoja. No se compra material para una cerca que se va a quitar.</string>
+
+    <string name="pull_sheet_doubt_not_in_catalog">PREGUNTE EN EL MOSTRADOR. La cantidad está bien, pero este producto ya no está en su catálogo, así que puede ser el producto equivocado.</string>
+    <string name="pull_sheet_doubt_filing">PREGUNTE EN EL MOSTRADOR. La cantidad está bien, pero este artículo se importó y nadie ha revisado qué es, así que puede ser el producto equivocado.</string>
+    <string name="pull_sheet_doubt_wrong_height">PREGUNTE EN EL MOSTRADOR. La cantidad está bien, pero este producto se vende para una cerca de %1$s pies y este tramo es de %2$s pies.</string>
+
+    <string name="pull_sheet_empty_no_runs">En este trabajo todavía no se ha dibujado ni medido nada, así que no hay nada que recoger.</string>
+    <string name="pull_sheet_empty_only_teardown">Nada que comprar. Todos los tramos de este trabajo son de demolición, y no se compra material para una cerca que se va a quitar.</string>
+    <string name="pull_sheet_empty_no_takeoff">ESTO TODAVÍA NO ES UNA LISTA DE MATERIALES. No se ha hecho el cálculo de materiales de este trabajo, así que abajo no hay nada calculado. Tramos pendientes: %1$s. No cargue nada con esta página.</string>
+    <string name="pull_sheet_empty_not_measurable">ESTE TRABAJO TODAVÍA NO SE PUEDE MEDIR. Se dibujó sobre una foto cuya escala nadie ha fijado, así que no hay cantidades confiables que recoger. Tramos pendientes: %1$s.</string>
+    <string name="pull_sheet_partial">ESTA HOJA NO ES TODO EL TRABAJO. Estos tramos no tienen cálculo de materiales y nada de lo de abajo los cubre: %1$s.</string>
+    <string name="pull_sheet_partial_not_measurable">ESTA HOJA NO ES TODO EL TRABAJO. Estos tramos están sobre una foto sin escala y no se pueden medir: %1$s.</string>
+
+    <string name="pull_sheet_substitution_title">¿Qué se llevó en su lugar?</string>
+    <string name="pull_sheet_substitution_hint">Lo que de verdad se llevó</string>
+    <string name="pull_sheet_substitution_add">Anotar un cambio</string>
+    <string name="pull_sheet_substitution_edit">Editar el cambio</string>
+    <string name="pull_sheet_substitution_shown">Se llevó en su lugar: %1$s</string>
+    <string name="pull_sheet_substitution_local_only">Esta nota se queda en este teléfono. No cambia el trabajo, ni las cantidades, ni el precio, y la oficina no la ve. Avíseles usted si importa.</string>
+    <string name="pull_sheet_substitution_save">Guardar nota</string>
+    <string name="pull_sheet_substitution_cancel">Cancelar</string>
+    <string name="pull_sheet_open_button">Hoja de recogida</string>
+</resources>

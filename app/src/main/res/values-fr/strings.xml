@@ -21,6 +21,7 @@
     <string name="posts_why_ends">Dont extrémités</string>
     <string name="posts_why_line">Poteaux de ligne</string>
     <string name="posts_why_gate_posts">Poteaux de portail, deux par portail</string>
+    <string name="posts_why_shared">Partagés à la jonction de deux côtés</string>
     <string name="posts_why_total">Total des poteaux</string>
     <string name="posts_why_footer">Les angles et les extrémités ne sont pas des poteaux supplémentaires : ce sont des poteaux déjà comptés par la ligne, placés à des endroits précis. Modifiez l\'écartement des poteaux de cette section pour changer le total.</string>
     <string name="action_add">Ajouter</string>
@@ -642,8 +643,8 @@
     <string name="jd_set_deposit_capped">Fixer l\'acompte à %1$s $ (tout ce qui reste dû)</string>
     <string name="jd_accepted_price">Prix accepté</string>
     <string name="jd_accepted_vs_estimate">Le devis s\'élève maintenant à %1$s $. Le client est facturé au prix qu\'il a accepté ; tout changement passe par un avenant signé ou une nouvelle approbation.</string>
-    <string name="jd_materials_partly_paid">Les matériaux s\'élèvent à %1$s $ et %2$s $ ont été payés, il manque donc %3$s $ pour les couvrir. Arrondi aux 10 $ supérieurs.</string>
-    <string name="jd_materials_come_to">Les matériaux de ce devis s\'élèvent à %1$s $. Arrondi aux 10 $ supérieurs.</string>
+    <string name="jd_materials_partly_paid">Les matériaux avec la taxe s\'élèvent à %1$s $ et %2$s $ ont été payés, il manque donc %3$s $ pour les couvrir. L\'acompte couvre cela, arrondi aux 100 $ supérieurs, plus 100 $, et il inclut les %2$s $ déjà reçus, donc ce qui reste à encaisser est juste.</string>
+    <string name="jd_materials_come_to">Les matériaux avec la taxe de ce devis s\'élèvent à %1$s $. L\'acompte couvre cela, arrondi aux 100 $ supérieurs, plus 100 $.</string>
     <string name="jd_contract_total">Total du contrat (d\'après le devis)</string>
     <string name="jd_paid_in_total">Payé au total</string>
     <string name="jd_refunded">Remboursé</string>
@@ -1537,7 +1538,7 @@
     <string name="enum_role_barbed_wire_arm">Bras pour fil barbelé</string>
     <string name="enum_role_privacy_slat">Lamelle d\'occultation</string>
     <string name="enum_payment_unpaid">Impayé</string>
-    <string name="enum_payment_deposit_paid">Acompte versé</string>
+    <string name="enum_payment_deposit_paid">Paiement partiel</string>
     <string name="enum_payment_paid_in_full">Payé en totalité</string>
     <string name="enum_method_card">Carte</string>
     <string name="enum_method_cash">Espèces</string>
@@ -1618,7 +1619,7 @@
     <string name="enum_pipeline_lead">Nouveau prospect</string>
     <string name="enum_pipeline_estimating">Devis en cours</string>
     <string name="enum_pipeline_quote_sent">Devis envoyé</string>
-    <string name="enum_pipeline_deposit_paid">Acompte versé</string>
+    <string name="enum_pipeline_deposit_paid">Paiement partiel</string>
     <string name="enum_pipeline_scheduled">Planifié</string>
     <string name="enum_pipeline_installed">Installé</string>
     <string name="enum_pipeline_paid_in_full">Payé en totalité</string>
@@ -1753,7 +1754,7 @@
     <string name="eng2_locate_msg_expires_in_many">Vous pouvez creuser. Expire dans %1$d jours -- redemandez le repérage si le chantier se prolonge au-delà.</string>
     <string name="eng2_stage_quote_sent">Devis envoyé</string>
     <string name="eng2_stage_quote_approved">Devis approuvé</string>
-    <string name="eng2_stage_deposit_received">Acompte reçu</string>
+    <string name="eng2_stage_deposit_received">Acompte encaissé en entier</string>
     <string name="eng2_stage_hoa_cleared">HOA / permis réglé</string>
     <string name="eng2_stage_scheduled">Installation planifiée</string>
     <string name="eng2_stage_complete">Installation terminée</string>
@@ -2143,4 +2144,42 @@
     <string name="attach_refused_at_another_point">Ces deux extrémités rejoignent déjà d’autres côtés, sur deux poteaux différents. Détachez-en une d’abord.</string>
     <string name="attach_refused_not_found">Ce côté n’est plus sur ce chantier.</string>
     <string name="attach_refused_no_storage">Rien n’a été relié. Cette version ne peut pas encore enregistrer une liaison, et une liaison impossible à enregistrer serait perdue dès que vous quittez le dessin.</string>
+    <!-- Comment les clients peuvent vous payer. Aucune limite n\'est inventee :
+         vide est la valeur par defaut et vide n\'affiche rien. -->
+    <string name="pm_title">Comment les clients peuvent vous payer</string>
+    <string name="pm_explain">Activez les moyens que vous voulez sur la page de devis du client et saisissez vos propres coordonnées. Ce qui reste vide n\'est pas montré au client.</string>
+    <string name="pm_cashapp_label">Cash App</string>
+    <string name="pm_cashapp_hint">Votre $cashtag</string>
+    <string name="pm_zelle_label">Zelle</string>
+    <string name="pm_zelle_hint">Le téléphone ou l\'e-mail auquel votre Zelle est enregistré</string>
+    <string name="pm_wire_label">Virement bancaire</string>
+    <string name="pm_wire_hint">Collez les instructions de virement exactement comme votre banque les a données</string>
+    <string name="pm_cash_label">Espèces</string>
+    <string name="pm_limit_hint">Maximum que vous pouvez recevoir en une fois (facultatif)</string>
+    <string name="pm_limit_support">Laissez vide pour ne rien dire sur une limite. C\'est ce que SA banque lui permettra d\'envoyer, pas une limite à vous.</string>
+    <string name="pm_limit_line">Sa banque peut plafonner un paiement à environ %1$s. Si c\'est le cas, proposez de le diviser ou un autre moyen.</string>
+    <string name="pm_limit_not_shown_yet">La limite est enregistrée et elle n\'est PAS encore sur la page du client. Pour la lui montrer, il faut d\'abord mettre à jour la page de devis.</string>
+    <string name="pm_review_and_save">Vérifier ce que le client verra</string>
+    <string name="pm_confirm_title">Voici ce que le client verra</string>
+    <string name="pm_confirm_explain">Vérifiez chaque caractère. De l\'argent envoyé à un mauvais identifiant ou numéro ne peut pas être récupéré, et rien ici ne peut vérifier qu\'un identifiant est bien le vôtre.</string>
+    <string name="pm_confirm_nothing">Rien ne serait montré au client. Activez un moyen et remplissez-le, ou enregistrez ainsi pour ne rien lui montrer.</string>
+    <string name="pm_confirm_warning">Comparez-le avec votre propre application ou banque avant d\'enregistrer.</string>
+    <string name="pm_confirm_save">Oui, c\'est exact</string>
+    <string name="pm_go_back">Retour</string>
+    <string name="pm_refused_title">Non enregistré</string>
+    <string name="pm_err_cashapp">Un identifiant Cash App se compose de lettres, chiffres, points, tirets ou traits de soulignement, jusqu\'à 30. Rien n\'a été enregistré.</string>
+    <string name="pm_err_zelle">Cela ne ressemble pas à un numéro de téléphone ni à une adresse e-mail. Rien n\'a été enregistré.</string>
+    <string name="pm_err_zelle_long">Cette adresse Zelle dépasse %1$d caractères. Rien n\'a été enregistré et rien n\'a été raccourci.</string>
+    <string name="pm_err_wire_long">Ces instructions de virement dépassent %1$d caractères. Rien n\'a été enregistré et rien n\'a été coupé : la moitié d\'un numéro de compte est un paiement envoyé nulle part.</string>
+    <string name="pm_err_on_but_empty">%1$s est activé et vide. Remplissez-le ou désactivez-le.</string>
+    <string name="pm_err_limit">La limite pour %1$s doit être un montant, ou vide.</string>
+    <string name="pm_summary_none">Rien n\'est encore montré aux clients</string>
+    <string name="pm_summary_on">Les clients voient : %1$s</string>
+    <string name="pm_never_loaded">Impossible de lire vos coordonnées de paiement depuis le bureau, elles ne peuvent donc pas encore être modifiées ici. Enregistrer maintenant pourrait écrire du vide par-dessus ce qui existe vraiment. Réessayez avec du réseau.</string>
+    <string name="pm_offline_copy">Affichage de la dernière copie lue par ce téléphone. Il n\'a pas pu vérifier auprès du bureau à l\'instant.</string>
+    <string name="pm_pending">Enregistré sur ce téléphone et PAS encore envoyé au bureau. Cela reste ici jusqu\'au départ.</string>
+    <string name="pm_send_now">Envoyer maintenant</string>
+    <string name="pm_saved">Enregistré, et relu depuis le bureau pour en être sûr.</string>
+    <string name="pm_verify_failed">Le bureau n\'a pas enregistré ce qui a été envoyé. Rien n\'a été modifié ici. Vérifiez et réessayez.</string>
+    <string name="pm_server_refused">Le bureau a refusé la modification. Votre compte n\'a peut-être pas le droit de changer les réglages de l\'entreprise.</string>
 </resources>

@@ -701,7 +701,53 @@ class Repository(private val db: AppDatabase) {
      */
     suspend fun createFenceRunFromCloud(run: FenceRun): Long = fenceRunDao.insert(run)
     suspend fun updateFenceRunFromCloud(run: FenceRun) = fenceRunDao.update(run)
-    suspend fun deleteFenceRun(run: FenceRun) = deleteSynced(run.syncId, "fence_runs") { fenceRunDao.delete(run) }
+    /**
+     * Deletes a run, and tombstones the line items that go with it.
+     *
+     * The Room foreign key on EstimateLineItem.fenceRunId is ON DELETE CASCADE,
+     * so SQLite takes the run's lines out in the same transaction -- with no
+     * PendingDeletion for any of them. Their CLOUD rows therefore survived,
+     * with their run tombstoned out from under them, and nothing in the app was
+     * ever going to collect them. The orphan reaper looked like it was doing
+     * that job and was not: it judged on a null run in the LOCAL table, which
+     * on a sync client mostly means "not pulled yet", and on 2026-10-01 it
+     * destroyed 66 live priced rows on that reasoning (see
+     * [deleteOrphanedGeneratedLineItems]).
+     *
+     * This is where the job actually belongs. The device whose user just
+     * deleted the run is the one party that positively knows those lines are
+     * gone; everyone else is guessing from an absence. Read first, delete, then
+     * queue -- in that order:
+     *
+     *  - read first because the cascade is about to destroy the rows and their
+     *    sync ids with them;
+     *  - queue AFTER the local delete so a failure part-way through leaves a
+     *    live line with no queued delete (recoverable, and
+     *    pendingDeletionsForSync cancels a stale entry anyway) rather than a
+     *    queued delete sitting on a line that is still alive. That order is
+     *    also what keeps the guest guard honest: [deleteSynced] goes through
+     *    guardWrite, which THROWS on a guest session, so a refused delete
+     *    never reaches these queue entries.
+     *
+     * A crew phone reaching here queues deletions the cloud's own policies may
+     * refuse; that is not new (the legacy-orphan path in
+     * EntitySync.pullJobChildren already queues estimate_line_items deletions
+     * from a DENIED-scope pull) and it fails safe -- the queue entry is
+     * retried, the cloud row stays, and nothing is lost. The better long-term
+     * home for this is a cloud-side cascade on the fence_runs tombstone, which
+     * no device could get wrong; that is a migration and is not in this change.
+     *
+     * Not called by any wipe path -- the three callers are all a person
+     * deleting one run on screen (FenceRunListViewModel, RunEditViewModel,
+     * SurveyViewModel). The pull-side removal of a run another device deleted
+     * goes through deleteLocalRowsBySyncId instead and must NOT come here: that
+     * device is not the one deciding, and the deleter has already queued these.
+     */
+    suspend fun deleteFenceRun(run: FenceRun) {
+        val goingWithIt = lineItemDao.allForRun(run.id).map { it.syncId }
+        deleteSynced(run.syncId, "fence_runs") { fenceRunDao.delete(run) }
+        goingWithIt.forEach { syncId -> queueDeletion(syncId, "estimate_line_items") }
+    }
 
     /**
      * Puts run ends at a shared post, or takes them off one, as ONE change.
@@ -1053,25 +1099,76 @@ class Repository(private val db: AppDatabase) {
         }
     }
     /**
-     * Removes takeoff lines that lost their fence run, and tombstones them so
-     * the cloud copy goes too.
+     * Removes takeoff lines THIS PHONE holds with no fence run. Locally, and
+     * locally only.
      *
-     * Deleting them locally alone did nothing lasting: the cloud rows survived,
-     * the next pull saw sync ids it no longer recognised, and inserted them
-     * straight back. That is why the stray items kept reappearing -- and why
-     * they multiplied, since every device did this independently.
+     * IT NO LONGER TOMBSTONES THE CLOUD COPY, and that removal is the fix for
+     * the worst data loss this project has had. Read the whole of this before
+     * putting it back.
+     *
+     * What it used to do: read every local line matching
+     * `fenceRunId IS NULL AND role != 'NONE'`, queue a PendingDeletion for
+     * each, then delete them. The queued deletion tombstones the row in
+     * Supabase -- so it is gone for every device and for the office, not just
+     * for the phone that could not place it.
+     *
+     * MEASURED AGAINST THE LIVE TABLE ON 2026-10-02, and larger than the first
+     * count said: 100 rows across 10 jobs, not 66 across 7. The fingerprint is
+     * deleted_by = '' -- only the phone writes an empty deleter, his own deletes
+     * carry his email -- and it runs from 2026-08-18 to 2026-10-01, in ones and
+     * twos for six weeks and then 64 of them inside one
+     * 18.7-second burst, on signed jobs, leaving one customer able to approve at
+     * a fraction of her quoted price. Measured against the live table afterwards:
+     * ALL 100 named a fence run that is STILL LIVE in the cloud today. Not one
+     * of them was an orphan. 77 of the 100 are on the 7 jobs that still exist,
+     * and every one of those 7 jobs now has NO live line items at all -- not
+     * some of the takeoff, all of it. $34,502.18 of priced work on live jobs,
+     * $32,316.70 of it on 5 jobs already signed or approved; the largest is a
+     * signed contract of $35,240 whose line items now total $0.
+     *
+     * EntitySync.pullJobChildren's insert had written them
+     * with a null run because the concurrent fence-runs pull had not landed yet
+     * (fixed there, and the two pulls are ordered now) -- and this method read
+     * that null as proof the run was gone.
+     *
+     * THE RULE THAT FOLLOWS FROM IT: a local absence is never sufficient grounds
+     * to tombstone a cloud row. "I cannot find the run" and "the run does not
+     * exist" are different statements, and on a sync client the first one is
+     * usually just "not yet".
+     *
+     * Could it be made evidence-based instead of being narrowed? No -- not here.
+     * An orphaned row carries fenceRunId = null and nothing else: the SYNC ID of
+     * the run it lost is not stored on the line locally (only the cloud row has
+     * fence_run_sync_id). So this method cannot even name the run it would be
+     * accusing, let alone establish that the cloud no longer has it. A judgement
+     * it is structurally incapable of making is one it must not make.
+     *
+     * Who cleans up the cloud, then? The device that actually deletes the run,
+     * which positively knows -- see [deleteFenceRun], where the tombstones for a
+     * deleted run's lines are now queued. That is the owner of the run deciding,
+     * which is the only party entitled to.
+     *
+     * Is a local-only delete still worth doing? Yes, and it is self-healing now.
+     * The old objection -- "deleting locally did nothing lasting, the next pull
+     * put them straight back" -- was an objection to the OLD pull, which
+     * re-inserted the row with a null run and recreated the stray item. The pull
+     * now SKIPS a role-bearing line whose run it cannot resolve, so clearing the
+     * local row removes a line that was in the wrong group, and the line returns
+     * correctly attached on the pass after the run arrives. The chase is over
+     * because the other end of it stopped running.
      *
      * Hand-typed extras have role NONE and are never touched.
+     *
+     * @return how many local rows were cleared. Nothing is sent to the cloud.
      */
     suspend fun deleteOrphanedGeneratedLineItems(): Int {
         val orphans = lineItemDao.orphanedGenerated()
-        orphans.forEach { item ->
-            pendingDeletionDao.insert(
-                PendingDeletion(syncId = item.syncId, tableName = "estimate_line_items")
-            )
-        }
         lineItemDao.deleteOrphanedGenerated()
-        // Tombstoned on purpose: a revival still waiting would undo it.
+        // Still forgotten, for a different reason than before. It used to be
+        // "we tombstoned these, and a revival still waiting would undo it".
+        // Nothing is tombstoned now; but the local row is gone, so there is no
+        // row left for a revival to carry up, and an entry nobody can satisfy
+        // would sit in the list making the reaper spare a sync id for ever.
         lineItemResurrections.forget(orphans.map { it.syncId })
         return orphans.size
     }

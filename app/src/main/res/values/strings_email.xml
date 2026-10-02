@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The "here is your quote" email, as the phone sends it.
+
+  GENERATED. Do not edit by hand: these sentences are the ones in
+  supabase/functions/_shared/email-templates.ts, and
+  tests/a72-quote-email.test.mjs regenerates this file and fails if it
+  differs by a character, so an edit here is a red test, not a change.
+  To change the wording, change the template module and re-run this
+  generator with its write flag; the generator's own usage line spells it.
+
+
+  THERE IS NO PRICE IN THIS EMAIL, deliberately. It goes out before the
+  customer has accepted anything and the job's total is still moving, so
+  the quote page owns every figure. See the template module's header.
+-->
+<resources>
+  <!-- %1$s = company -->
+  <string name="quote_email_subject">Your fence quote from %1$s</string>
+  <!-- %1$s = customerName -->
+  <string name="quote_email_hello">Hi %1$s,</string>
+  <string name="quote_email_hello_blank">Hello,</string>
+  <!-- %1$s = company, %2$s = address -->
+  <string name="quote_email_intro">Here is your quote from %1$s for the fence at %2$s.</string>
+  <!-- %1$s = company -->
+  <string name="quote_email_intro_no_address">Here is your fence quote from %1$s.</string>
+  <!-- %1$s = url -->
+  <string name="quote_email_open">Open it here: %1$s</string>
+  <string name="quote_email_whats_on_it">The page shows the price, what is included, and your fence drawn in 3D so you can see it before anything is built.</string>
+  <!-- %1$s = company -->
+  <string name="quote_email_approving">If it looks right, you can approve and sign it on the page, and %1$s will be in touch to arrange the work.</string>
+  <string name="quote_email_page_is_live">The page is live, so it always shows the current price. Open it again any time.</string>
+  <!-- %1$s = company, %2$s = phone -->
+  <string name="quote_email_questions">Questions? Just reply to this email, or call %1$s at %2$s.</string>
+  <string name="quote_email_questions_no_phone">Questions? Just reply to this email.</string>
+</resources>

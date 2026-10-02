@@ -263,6 +263,13 @@ const L = {
     depositToBegin: 'Deposit to begin',
     depositPaidSoFar: '%s of it is already paid — %s left before we start.',
     depositPaidInFull: 'Paid in full — thank you. %s received.',
+    /* WHAT the deposit is for, in his own words: "let the customer [know] the
+       deposit is to put you on the schedule and to get the materials, the rest
+       is for labor". The purpose, never the arithmetic -- no figure, no second
+       amount, no basis. And a PLACE in the queue, not a date: he schedules the
+       work himself and the weather moves it. Shown only when a deposit is
+       actually asked for. */
+    depositPurpose: 'Your deposit reserves your place on the schedule and pays for the materials. The rest covers the labor.',
     balanceDue: 'Left to pay',
     nothingLeftToPay: 'Nothing left to pay',
     totalLength: '%s ft total',
@@ -303,6 +310,7 @@ const L = {
     phoneLast4Locked: 'Too many attempts. Please wait a few minutes and try again.',
     reapprovalNotice: 'We updated your drawing on %s. Please review it and approve again.',
     reapprovalNoticeRun: 'We updated your drawing on %s — the %s line changed. Please review it and approve again.',
+    approveBlocked: 'We can’t take an approval on this quote right now — the price shown here doesn’t match what was agreed. Your contractor has been told and will be in touch. Nothing you had already agreed to has changed.',
     viewDetails: 'View full breakdown',
     hideDetails: 'Hide full breakdown',
     downloadCopy: 'Download a copy',
@@ -338,6 +346,7 @@ const L = {
     pmSelected: 'Selected. Press and hold the text, then choose Copy.',
     pmSkipCard: 'Paying by %s skips the card checkout and goes straight to your contractor.',
     pmNameNote: 'Please put your name in the payment note so we can match it to this quote.',
+    dlPayAsOf: 'The amounts above are as of %s. If you have paid since, ask your contractor what is still due.',
   },
   es: {
     loading: 'Abriendo su presupuesto…',
@@ -357,6 +366,7 @@ const L = {
     depositToBegin: 'Depósito para empezar',
     depositPaidSoFar: 'Ya se pagó %s — faltan %s antes de empezar.',
     depositPaidInFull: 'Pagado por completo — gracias. Recibimos %s.',
+    depositPurpose: 'Su depósito aparta su turno en la agenda y paga los materiales. El resto cubre la mano de obra.',
     balanceDue: 'Queda por pagar',
     nothingLeftToPay: 'Nada pendiente de pago',
     totalLength: '%s pies en total',
@@ -397,6 +407,7 @@ const L = {
     phoneLast4Locked: 'Demasiados intentos. Espere unos minutos e inténtelo de nuevo.',
     reapprovalNotice: 'Actualizamos su plano el %s. Revíselo y apruébelo de nuevo.',
     reapprovalNoticeRun: 'Actualizamos su plano el %s — cambió el tramo %s. Revíselo y apruébelo de nuevo.',
+    approveBlocked: 'Ahora mismo no podemos registrar una aprobación en este presupuesto: el precio que aparece aquí no coincide con lo acordado. Su contratista ya está avisado y se pondrá en contacto. Nada de lo que usted ya había aceptado ha cambiado.',
     viewDetails: 'Ver el detalle completo',
     hideDetails: 'Ocultar el detalle completo',
     downloadCopy: 'Descargar una copia',
@@ -430,6 +441,7 @@ const L = {
     pmSelected: 'Seleccionado. Mantenga pulsado el texto y elija Copiar.',
     pmSkipCard: 'Si paga con %s, no pasa por el pago con tarjeta y el dinero va directo a su contratista.',
     pmNameNote: 'Escriba su nombre en la nota del pago para que podamos asociarlo con este presupuesto.',
+    dlPayAsOf: 'Los importes de arriba son al %s. Si ya ha pagado desde entonces, pregunte a su contratista cuánto falta.',
   },
   fr: {
     loading: 'Ouverture de votre devis…',
@@ -449,6 +461,7 @@ const L = {
     depositToBegin: 'Acompte pour démarrer',
     depositPaidSoFar: '%s déjà versé — il reste %s avant de commencer.',
     depositPaidInFull: 'Intégralement versé — merci. %s reçu.',
+    depositPurpose: 'Votre acompte réserve votre place dans le planning et paie les matériaux. Le reste couvre la main-d’œuvre.',
     balanceDue: 'Reste à payer',
     nothingLeftToPay: 'Rien à payer',
     totalLength: '%s pi au total',
@@ -489,6 +502,7 @@ const L = {
     phoneLast4Locked: 'Trop de tentatives. Merci de patienter quelques minutes puis de réessayer.',
     reapprovalNotice: 'Nous avons mis à jour votre plan le %s. Veuillez le vérifier et l\'approuver à nouveau.',
     reapprovalNoticeRun: 'Nous avons mis à jour votre plan le %s — le tronçon %s a changé. Veuillez le vérifier et l\'approuver à nouveau.',
+    approveBlocked: 'Nous ne pouvons pas enregistrer de validation sur ce devis pour le moment : le prix affiché ici ne correspond pas à ce qui a été convenu. Votre entreprise a été prévenue et vous contactera. Rien de ce que vous aviez déjà accepté n’a changé.',
     viewDetails: 'Voir le détail complet',
     hideDetails: 'Masquer le détail complet',
     downloadCopy: 'Télécharger une copie',
@@ -522,6 +536,7 @@ const L = {
     pmSelected: 'Sélectionné. Appuyez longuement sur le texte, puis choisissez Copier.',
     pmSkipCard: 'Payer par %s évite le paiement par carte : l’argent va directement à votre entreprise.',
     pmNameNote: 'Indiquez votre nom dans la note du paiement afin que nous puissions le rattacher à ce devis.',
+    dlPayAsOf: 'Les montants ci-dessus sont ceux du %s. Si vous avez déjà payé depuis, demandez à votre entreprise ce qu’il reste à payer.',
   },
 };
 
@@ -635,6 +650,19 @@ function setLang(code) {
       <p class="sub" data-t="howToPayLead">Any of these works. Use the amounts shown above.</p>
       <div class="paym" id="payMethods"></div>
       <div id="payNotes"></div>
+    </div>
+
+    <!-- quote-view says approving would be REFUSED (approvalBlocked): the
+         price on this quote has fallen below a figure already agreed. Shown
+         INSTEAD of the approve panel below, never beside it -- a button that
+         can only answer 409 is the fake control this project keeps writing
+         rules against, and on two of the three affected jobs the customer has
+         already opened her link. No figures: she is not the one who can judge
+         which price is right (see priceShortfall in quote-view/index.ts). -->
+    <div class="approve" id="approveBlockedBox" style="display:none">
+      <div style="background:rgba(230,168,45,.16);border:1px solid rgba(230,168,45,.5);
+           color:#F0C572;border-radius:9px;padding:12px 14px;font-size:14px"
+           id="approveBlockedText"></div>
     </div>
 
     <div class="approve" id="approveBox" style="display:none">
@@ -872,6 +900,24 @@ function render(){
         ? tr('depositPaidSoFar', money(depositPaid), money(depositDue))
         : tr('depositPaidInFull', money(depositPaid)))+'</span></div>');
     }
+    // WHAT the deposit is for, under the figure it explains.
+    //
+    // Inside this block on purpose: five of his jobs ask for no deposit at
+    // all, and a sentence explaining one that is not being asked for is
+    // noise. The gate is the block, not a second condition that can drift
+    // away from it.
+    //
+    // A .depnote row, not a totals row -- it is a note about the deposit, not
+    // another figure in the money column (the same reasoning as the paid-so-far
+    // line above). That class is also one of the handful buildQuoteDocument
+    // carries into the saved copy's own <style>, so the sentence lands in the
+    // file she keeps looking like it does here, with no extra styling.
+    //
+    // It states the PURPOSE and no arithmetic: no figure, no second amount,
+    // no percentage and no basis for the deposit. tests/a67-deposit-purpose-
+    // sentence.test.mjs holds it to that on all three languages and all four
+    // surfaces.
+    rows.push('<div class="depnote"><span>'+esc(tr('depositPurpose'))+'</span></div>');
   }
   // OUTSIDE the deposit block on purpose. A job with no deposit asked for
   // showed no balance at all -- the same defect with the opposite sign.
@@ -905,6 +951,23 @@ function render(){
     // Already approved on an earlier visit: the deposit is the only thing
     // left, so it stands on its own.
     if(dueNow()) showPayButton();
+  } else if(q.approvalBlocked){
+    // The server would refuse this approval (quote-view's priceShortfall):
+    // the price here is below something already agreed. Say so, and do not
+    // draw the approve panel at all -- not a disabled button, not a hidden
+    // one behind a notice. There is nothing she can do on this page to make
+    // it go through, and the contractor has already been told.
+    $('approveBlockedBox').style.display='';
+    $('approveBlockedText').textContent=tr('approveBlocked');
+    // And take the ways-to-pay panel back down. renderHowToPay above has
+    // already drawn it from the balance, which is the right rule everywhere
+    // else -- but the amount she would be paying against here is the one the
+    // server just refused, so a Cash App tag beside that figure is an
+    // invitation to send the wrong money. Emptied as well as hidden, so the
+    // list is not still sitting there for anything that reads it.
+    payList=[];
+    $('payMethods').innerHTML=''; $('payNotes').innerHTML='';
+    $('payHow').style.display='none';
   } else {
     $('approveBox').style.display='';
     // The drawing option only ever appears once the server itself says it
@@ -1329,7 +1392,41 @@ function buildQuoteDocument(d){
     +'.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}'
     +'.sub{font-size:14px;color:var(--muted)}'
     +'</style>';
+  // The saved copy's "How to pay" section (d.pay, built by payDocModel below).
+  // null means the live page is not showing that section -- nothing filled in,
+  // or nothing left to pay -- and then NOTHING is emitted, not even the heading.
+  // A row is kept only if it carries text or is the value-less cash row: an
+  // empty line in a file she keeps cannot be refreshed away.
+  //
+  // Every style is inline, for the reason the totals rules above are not: this
+  // part has to look right in a file opened with no page script and pasted into
+  // mail, where a <style> block is the first thing to go. There is deliberately
+  // no <button>, no <a> and no script. The live panel's Copy buttons would do
+  // nothing in a saved file, and a control that does nothing in a document she
+  // may act on is worse than none: the value is plain, selectable text. No
+  // amount is restated here either; the Pricing section above is the one copy.
+  const payRows=((d.pay&&d.pay.rows)||[]).filter(r=>r&&(r.value===null
+    ||(typeof r.value==='string'&&r.value.trim()!=='')));
+  const payBlock=payRows.length
+    ? '<h2 '+h2+'>'+esc(d.pay.heading)+'</h2>'
+      +'<p style="color:#5C6672;margin:0 0 10px;font-size:14px">'+esc(d.pay.lead)+'</p>'
+      +payRows.map(r=>'<div style="margin:0 0 10px;padding:12px 14px;border:1px solid #E1E5E1;'
+        +'border-radius:10px;break-inside:avoid;page-break-inside:avoid">'
+        +'<div style="font-size:11.5px;font-weight:600;text-transform:uppercase;'
+          +'letter-spacing:.09em;color:#5C6672;margin-bottom:6px">'+esc(r.name)+'</div>'
+        +(r.value===null
+          ? '<div style="font-size:14.5px">'+esc(r.how||'')+'</div>'
+          : '<div style="font-size:16.5px;font-weight:500;line-height:1.4;white-space:pre-wrap;'
+            +'overflow-wrap:anywhere;word-break:break-word;-webkit-user-select:text;'
+            +'user-select:text">'+esc(r.value)+'</div>')
+        +'</div>').join('')
+      +(d.pay.notes||[]).map(n=>'<p style="color:#5C6672;margin:10px 0 0;font-size:14px">'+esc(n)+'</p>').join('')
+    : '';
   return '<!doctype html><html lang="'+esc(d.lang)+'"><head><meta charset="utf-8">'
+    // Without this a phone lays the file out 980px wide and shrinks it to a
+    // third: the Cash App tag she came here to copy would be unreadable until
+    // she pinched. The body below is already a 640px reading column.
+    +'<meta name="viewport" content="width=device-width,initial-scale=1">'
     +'<title>'+esc(d.title)+'</title>'
     +style
     +'</head>'
@@ -1344,8 +1441,17 @@ function buildQuoteDocument(d){
     +d.scopeHtml
     +'<h2 '+h2+'>'+esc(d.totalsHeading)+'</h2>'
     +'<div class="totals">'+d.totalsHtml+'</div>'
+    +payBlock
     +(d.approvalText?'<div style="margin-top:26px;padding:14px 16px;background:#F1F9F6;'
       +'border:1px solid #BFE0D8;border-radius:10px;color:#0A6353">'+esc(d.approvalText)
+      // WHAT HAPPENS NEXT, in the file she keeps. It was on screen the moment
+      // she approved (the #nextSteps line) and then was the one thing the
+      // saved copy dropped -- so the copy answered "what did I agree to" and
+      // "what do I owe" but not "what happens now". Existing page text,
+      // carried over the same way approvalText is; nothing new is asserted
+      // and no date is promised, because nothing customer-facing holds one
+      // (see docs/AFTER_APPROVAL.md, question 2).
+      +(d.nextStepsText?'<div style="margin-top:8px">'+esc(d.nextStepsText)+'</div>':'')
       // signatureDataUrl is ALWAYS a data: URI here, never the signed URL
       // quote-view hands the live page -- that URL expires in an hour, and
       // this file may be opened months later with no network at all (see the
@@ -1382,6 +1488,46 @@ async function signatureForDownload(){
   }catch(e){ return null; }
 }
 
+/* What the saved copy says about how to pay, in the language she is reading.
+
+   It is built from the list the live How to pay panel is showing RIGHT NOW (the
+   module's payList, which renderHowToPay empties whenever it hides the panel),
+   so the file and the screen cannot disagree about which methods exist: the
+   same payMethodsFrom filter decided both, a method he left blank is in
+   neither, and a quote with nothing left to pay gets no section in the file
+   just as it gets none on screen. Returns null for "say nothing at all".
+
+   Differences from the panel, each deliberate:
+   - No card row. The card button does not exist in a file, so a row pointing
+     at "the payment button below" would point at nothing.
+   - No Copy buttons and no "selected" messages: nothing in a saved file runs.
+   - No sentence about skipping the card checkout, for the same reason.
+   - One added sentence, the date. A saved copy is a snapshot and the live page
+     is not: the Pricing section above is what was owed WHEN SHE SAVED IT, and
+     "use the amounts shown above" read months later could send her to pay a
+     figure that has since changed. asOf is that date, already formatted by the
+     caller so this stays free of the clock.
+   Every word is existing page text except that one sentence (dlPayAsOf), and no
+   figure of the contractor's is restated. */
+function payDocModel(methods, asOf){
+  if(!methods || !methods.length) return null;
+  return {
+    heading: tr('howToPayHead'),
+    lead: tr('howToPayLead'),
+    rows: methods.map(p=>({
+      name: tr(PAY_NAME_KEY[p.key]),
+      value: p.value,
+      how: p.value===null ? tr('pmCashHow') : '',
+    })),
+    notes: [].concat(
+      // Same rule as the live panel's nameNote: naming yourself in the note
+      // makes no sense for handing over cash.
+      methods.some(p=>p.key!=='cash') ? [tr('pmNameNote')] : [],
+      asOf ? [tr('dlPayAsOf', asOf)] : []
+    ),
+  };
+}
+
 /* Saves what the buttons above only ever showed on screen: gathered from the
    live quote object and the page's own rendered markup at the moment the
    customer asks for it, never from a server round trip -- there is nothing
@@ -1403,8 +1549,10 @@ async function downloadQuoteCopy(){
     totalsHeading: tr('totalsHeading'),
     totalsHtml: $('totals').innerHTML,
     approvalText: $('approvedText').textContent||'',
+    nextStepsText: $('nextSteps').textContent||'',
     signatureDataUrl,
     signatureAlt: tr('signatureAlt'),
+    pay: payDocModel(payList, new Date().toLocaleDateString(LANG)),
   });
   const fileBase=(quote.customerName||'fence-quote').toLowerCase()
     .replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'') || 'fence-quote';

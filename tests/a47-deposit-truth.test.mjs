@@ -353,12 +353,23 @@ const ts = read("supabase/functions/_shared/quote-deposit.ts");
 // the same five facts; the vectors prove the numbers, this proves the shape
 // cannot be quietly edited on one side (a different cap, the cents dropped,
 // the payments forgotten) without the other.
+// Re-pinned 2 Oct 2026, by the skeptic pass, NOT by the change that moved it.
+// The Kotlin parameter was renamed materialCost -> materialsToBuy and the local
+// rule figure rule -> toCollect, which silently broke three of the five Kotlin
+// regexes below: this guard sat RED while the change that renamed them reported
+// every money test green. The facts are the same facts; only the identifiers
+// moved. A sixth fact has been ADDED, because the same change introduced the
+// decision that actually moves money (the stored column is cumulative: what has
+// already been paid, plus the rule's figure) and nothing cross-language pinned
+// it. Storing the rule's figure alone is the bug that asked a customer for $600
+// when the materials needed $1,600 -- so it is now a planted mutant below.
 const SHAPE = [
-  ["net of what has been paid before the rule is applied", /ruleDeposit\(materialCost-netPaid\(job\)\)/, /ruleDeposit\(materialCost-netPaid\)/],
+  ["net of what has been paid before the rule is applied", /valcollected=netPaid\(job\)valtoCollect=ruleDeposit\(materialsToBuy-collected\)/, /ruleDeposit\(materialCost-netPaid\)/],
   ["the owed figure is taken to cents", /roundToCents\(stillOwed\(job,billableTotal\)\)/, /roundToCents\(Math\.max\(0,total-netPaid\)\)/],
   ["nothing owed means nothing to suggest", /owed<=0\.005/, /owed<=0\.005/],
-  ["the cap: the rule is kept only while it fits what is still owed, with a half-cent of slack", /rule<=owed\+0\.005/, /rule<=owed\+0\.005/],
-  ["no materials or no price means nothing to suggest", /materialCost<=0\.0\|\|billableTotal<=0\.0/, /materialCost<=0\|\|total<=0/],
+  ["the cap: the rule is kept only while it fits what is still owed, with a half-cent of slack", /toCollect<=owed\+0\.005/, /rule<=owed\+0\.005/],
+  ["no materials or no price means nothing to suggest", /materialsToBuy<=0\.0\|\|billableTotal<=0\.0/, /materialCost<=0\|\|total<=0/],
+  ["the stored figure is CUMULATIVE: money already in, plus the rule's figure", /roundToCents\(collected\+toCollect\)/, /roundToCents\(netPaid\+rule\)/],
 ];
 
 test("Kotlin depositSuggestion and TypeScript suggestedDeposit have the same shape", () => {
@@ -375,18 +386,146 @@ test("PLANTED: each shape check fails on a body with that fact changed", () => {
   const t = tsBody(ts, "suggestedDeposit");
   const breakIt = (s, from, to) => { assert.ok(s.includes(from), `fixture lost ${from}`); return s.replace(from, to); };
   const kMutants = [
-    breakIt(k, "ruleDeposit(materialCost-netPaid(job))", "ruleDeposit(materialCost)"),
-    breakIt(k, "rule<=owed+0.005", "rule<owed"),
+    breakIt(k, "ruleDeposit(materialsToBuy-collected)", "ruleDeposit(materialsToBuy)"),
+    breakIt(k, "toCollect<=owed+0.005", "toCollect<owed"),
     breakIt(k, "EstimateEngine.roundToCents(stillOwed(job,billableTotal))", "stillOwed(job,billableTotal)"),
+    // The incremental write into the cumulative column: $1,600 stored where
+    // $2,600 was needed, so the page asked $600.
+    breakIt(k, "roundToCents(collected+toCollect)", "roundToCents(toCollect)"),
   ];
   const tMutants = [
     breakIt(t, "ruleDeposit(materialCost-netPaid)", "ruleDeposit(materialCost)"),
     breakIt(t, "rule<=owed+0.005", "rule<owed"),
     breakIt(t, "roundToCents(Math.max(0,total-netPaid))", "Math.max(0,total-netPaid)"),
+    breakIt(t, "roundToCents(netPaid+rule)", "roundToCents(rule)"),
   ];
   const caught = (body, which) => SHAPE.some(([, kRe, tRe]) => !(which === "k" ? kRe : tRe).test(body));
   for (const m of kMutants) assert.ok(caught(m, "k"), "a Kotlin mutant was not caught");
   for (const m of tMutants) assert.ok(caught(m, "t"), "a TypeScript mutant was not caught");
+});
+
+// ================= 3b. the three deposit decisions a FINGERPRINT was holding ==
+//
+// Added 2 Oct 2026 by the skeptic pass over "the deposit means one thing on
+// every surface", because the gap was MEASURED rather than suspected.
+//
+// The cap in depositAsked, the deposit-before-balance rule in
+// nextRequestAmount and the one meaning of depositSettled are the three
+// decisions that change what a customer is asked for. On the node side they
+// were pinned ONLY by the JobMoney.kt fingerprint in
+// tests/a66-deposit-one-meaning.test.mjs and
+// tests/downstream-deposit-balance.test.mjs. Each one was reverted to its
+// pre-2-Oct behaviour in a scratch copy of this tree: a66 went red, and went
+// GREEN again the moment the pin was moved to the mutant. "Re-read the
+// transcription, THEN move the pin" is the right instruction; a pin is not a
+// guard when the person moving it is the person who broke the thing.
+//
+// The arithmetic itself is pinned in JobMoneyTest.kt (the cap, depositStillDue
+// to the cent, depositSettled, and "a job part way through its deposit asks
+// for the rest of the deposit"), which needs a JVM and a Gradle run. This file
+// runs on node, which is what a sweep on this machine actually executes.
+//
+// Same form as SHAPE above: one fact per row, in each side's own words, with a
+// planted mutant below proving the row can fail.
+const DEPOSIT_SHAPE = [
+  ["the cap is one decision: the stored figure capped at the price, uncapped only when there is no price",
+   /returnif\(billableTotal>0\.0\)minOf\(requested,billableTotal\)elserequested/,
+   /constasked=total>0\?Math\.min\(requested,total\):requested;/],
+  ["what is left ON THE DEPOSIT: asked less what has actually been paid, floored, to the cent",
+   /EstimateEngine\.roundToCents\(\(depositAsked\(job,billableTotal\)-netPaid\(job\)\)\.coerceAtLeast\(0\.0\)\)/,
+   /constdue=roundToCents\(Math\.max\(0,asked-netPaid\)\);/],
+];
+
+test("the Kotlin deposit cap and the server's cap are the same decision", () => {
+  const kAsked = kotlinBody(kt, "depositAsked", "/**");
+  const kDue = kotlinBody(kt, "depositStillDue", "/**");
+  const t = tsBody(ts, "depositFigures");
+  assert.match(kAsked, DEPOSIT_SHAPE[0][1], "Kotlin: " + DEPOSIT_SHAPE[0][0]);
+  assert.match(t, DEPOSIT_SHAPE[0][2], "TypeScript: " + DEPOSIT_SHAPE[0][0]);
+  assert.match(kDue, DEPOSIT_SHAPE[1][1], "Kotlin: " + DEPOSIT_SHAPE[1][0]);
+  assert.match(t, DEPOSIT_SHAPE[1][2], "TypeScript: " + DEPOSIT_SHAPE[1][0]);
+});
+
+test("the phone asks for the rest of the deposit before the balance, and 'received' means all of it", () => {
+  // The measured disagreement: a $3,000 deposit on a $4,654.47 job with $500
+  // in. The phone offered to bill $4,154.47 while her page asked $2,500.00.
+  // The phone's rule is the deposit-left branch below; the page's is dueNow().
+  const kNext = kotlinBody(kt, "nextRequestAmount", "/** What to call");
+  assert.match(
+    kNext,
+    /valdepositLeft=depositStillDue\(job,contractTotal\)if\(depositLeft>0\.005\)returnminOf\(depositLeft,owed\)/,
+    "the phone must ask for the rest of the deposit while any of it is outstanding",
+  );
+  // CANARY: and it must no longer be able to fall straight through to the
+  // whole balance once any money has arrived.
+  assert.ok(
+    !/if\(owed<=0\.005\)return0\.0returnowed\}/.test(kNext),
+    "nextRequestAmount is back to asking for the whole balance",
+  );
+  // The customer's page, the other half of that pair: the rest of the deposit
+  // while there is one. Read out of the shipped page, not retyped.
+  const quoteSrc = code(read("website/quote.html")).replace(/\s+/g, "");
+  assert.match(
+    quoteSrc,
+    /constdue=\(quote\.depositDue!=null\)\?quote\.depositDue:quote\.deposit;return\(due>0\.005\)\?due:0;/,
+    "the quote page's pay button must offer what is left on the deposit",
+  );
+  // "Deposit received" is one question with one answer: nothing outstanding.
+  const kSettled = kotlinBody(kt, "depositSettled", "/**");
+  assert.match(
+    kSettled,
+    /depositStillDue\(job,billableTotal\)<=0\.005/,
+    "depositSettled must mean the whole deposit is in, not that any money is in",
+  );
+  assert.ok(!/netPaid\(job\)>0/.test(kSettled), "depositSettled is back to 'any money in'");
+});
+
+test("PLANTED: each of those three decisions fails on a body with it changed", () => {
+  const kAsked = kotlinBody(kt, "depositAsked", "/**");
+  const kDue = kotlinBody(kt, "depositStillDue", "/**");
+  const kNext = kotlinBody(kt, "nextRequestAmount", "/** What to call");
+  const kSettled = kotlinBody(kt, "depositSettled", "/**");
+  const t = tsBody(ts, "depositFigures");
+  const breakIt = (s, from, to) => {
+    assert.ok(s.includes(from), `fixture lost ${from}`);
+    return s.replace(from, to);
+  };
+  // The cap taken off, on each side: the $3,963 deposit printed under a
+  // $3,620 price.
+  assert.ok(
+    !DEPOSIT_SHAPE[0][1].test(breakIt(kAsked, "returnif(billableTotal>0.0)minOf(requested,billableTotal)elserequested", "returnrequested")),
+    "the Kotlin cap could be removed without this file noticing",
+  );
+  assert.ok(
+    !DEPOSIT_SHAPE[0][2].test(breakIt(t, "constasked=total>0?Math.min(requested,total):requested;", "constasked=requested;")),
+    "the server cap could be removed without this file noticing",
+  );
+  // The payments forgotten, which asks for a paid deposit a second time.
+  assert.ok(
+    !DEPOSIT_SHAPE[1][1].test(breakIt(kDue, "-netPaid(job)", "")),
+    "the Kotlin subtraction could be dropped without this file noticing",
+  );
+  assert.ok(
+    !DEPOSIT_SHAPE[1][2].test(breakIt(t, "constdue=roundToCents(Math.max(0,asked-netPaid));", "constdue=roundToCents(asked);")),
+    "the server subtraction could be dropped without this file noticing",
+  );
+  // The old phone rule: the whole balance the moment any money arrived.
+  const oldNext = breakIt(
+    kNext,
+    "valdepositLeft=depositStillDue(job,contractTotal)if(depositLeft>0.005)returnminOf(depositLeft,owed)returnowed",
+    "returnowed",
+  );
+  assert.ok(
+    !/valdepositLeft=depositStillDue\(job,contractTotal\)/.test(oldNext) &&
+      /if\(owed<=0\.005\)return0\.0returnowed\}/.test(oldNext),
+    "the old whole-balance rule is not detectable",
+  );
+  // The old "any money in" reading of a received deposit.
+  const oldSettled = breakIt(kSettled, "depositStillDue(job,billableTotal)<=0.005", "netPaid(job)>0.0");
+  assert.ok(
+    !/depositStillDue\(job,billableTotal\)<=0\.005/.test(oldSettled) && /netPaid\(job\)>0/.test(oldSettled),
+    "the old any-money-in reading is not detectable",
+  );
 });
 
 test("both languages hold the same two constants, and the engine versions are equal (no formula changed, so nothing to regenerate)", () => {

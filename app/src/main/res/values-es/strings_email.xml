@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The "here is your quote" email, as the phone sends it.
+
+  GENERATED. Do not edit by hand: these sentences are the ones in
+  supabase/functions/_shared/email-templates.ts, and
+  tests/a72-quote-email.test.mjs regenerates this file and fails if it
+  differs by a character, so an edit here is a red test, not a change.
+  To change the wording, change the template module and re-run this
+  generator with its write flag; the generator's own usage line spells it.
+
+
+  THERE IS NO PRICE IN THIS EMAIL, deliberately. It goes out before the
+  customer has accepted anything and the job's total is still moving, so
+  the quote page owns every figure. See the template module's header.
+-->
+<resources>
+  <!-- %1$s = company -->
+  <string name="quote_email_subject">Su presupuesto de cerca con %1$s</string>
+  <!-- %1$s = customerName -->
+  <string name="quote_email_hello">Hola %1$s,</string>
+  <string name="quote_email_hello_blank">Hola,</string>
+  <!-- %1$s = company, %2$s = address -->
+  <string name="quote_email_intro">Aquí tiene su presupuesto de %1$s para la cerca en %2$s.</string>
+  <!-- %1$s = company -->
+  <string name="quote_email_intro_no_address">Aquí tiene su presupuesto de cerca con %1$s.</string>
+  <!-- %1$s = url -->
+  <string name="quote_email_open">Ábralo aquí: %1$s</string>
+  <string name="quote_email_whats_on_it">En la página verá el precio, lo que incluye y su cerca dibujada en 3D, para verla antes de construir nada.</string>
+  <!-- %1$s = company -->
+  <string name="quote_email_approving">Si le parece bien, puede aprobarlo y firmarlo en la misma página, y %1$s se pondrá en contacto para coordinar el trabajo.</string>
+  <string name="quote_email_page_is_live">La página está en línea, así que siempre muestra el precio actual. Ábrala cuando quiera.</string>
+  <!-- %1$s = company, %2$s = phone -->
+  <string name="quote_email_questions">¿Preguntas? Responda a este correo, o llame a %1$s al %2$s.</string>
+  <string name="quote_email_questions_no_phone">¿Preguntas? Responda a este correo.</string>
+</resources>

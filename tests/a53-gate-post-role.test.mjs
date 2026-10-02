@@ -9,9 +9,24 @@
 // posts, which are separate SKUs from their end posts. His gate post and end post happen to cost
 // the same $16.56, so no money had moved yet -- luck, not design.
 //
+// RE-AIMED 2 Oct 2026 for TWO deliberate changes that landed after it was written. Neither is a
+// regression and neither number below was chosen to make this file pass:
+//
+//   (D) A WALL GATE'S LATCH POST IS AN END POST, not a gate post -- the owner's own words on
+//       1 Oct: "if it's against the wall, it's a blank post, and then an end post for the fence
+//       line that the gate latches to." (commit 3c0b3df, EstimateEngine.gateAreaEntries carries
+//       his sentence verbatim.) The reasoning: on a WALL gate the fence runs up to the latch post
+//       and STOPS, so that post IS the end of the line; on a LINE gate the fence carries on past
+//       both posts, so neither is. So WALL is BLANK_POST 1 + END_POST 1 from the gate area, and
+//       asks for NO gate post at all. Every WALL expectation here moved for that reason.
+//   (E) THE BLANK POST NOW HAS A ROW TO BILL (engine 2026.10.5, PRICING_FALLBACK_ROLE
+//       BLANK_POST -> GATE_POST, pinned in full by a58-blank-post-fallback). So "BLANK_POST is
+//       unmatched on every wall gate" -- block 6b's whole subject -- is CLOSED, and block 6b is
+//       re-aimed onto the closure rather than deleted.
+//
 // WHAT THIS FILE PINS
 //   1. THE ROLES, per mounting, and that they follow the physical build:
-//        WALL          BLANK_POST 1 + GATE_POST 1      (hinge bolts to the wall; latch is a post)
+//        WALL          BLANK_POST 1 + END_POST 1        (hinge bolts to the wall; latch ENDS the line)
 //        LINE          GATE_POST 2                      (both posts stand at the opening)
 //        LINE_TO_WALL  GATE_POST 2 + END_POST 1         (the third is where the RUN terminates)
 //      The third post on a LINE_TO_WALL is a genuine end post, not a gate post: it is where the
@@ -118,25 +133,39 @@ const WHITE = { color_or_finish: "White" };
 const quote = (mounting, rows = CATALOG, run = {}, job = {}) =>
   price(runRow({ ...WHITE, gates_encoded: GATE[mounting], ...run }), rows, job);
 
-test("harness: the real engine prices this catalog with nothing unmatched but the blank post, in every mounting", () => {
+test("harness: the real engine prices this catalog with nothing unmatched, in every mounting", () => {
+  // WAS: WALL expected ["BLANK_POST"] unmatched, because no catalog anywhere stocked one.
+  // NOW: []. Change (E) above -- a BLANK_POST entry with no BLANK_POST row is priced off the
+  // company's GATE_POST rows, and this catalog has one. Not a pin moved to go green: the
+  // description of that line is asserted to be the gate-post row's name in block 6b below, so
+  // "nothing unmatched" cannot be satisfied by a blank post appearing out of nowhere.
   for (const m of ["LINE", "WALL", "LINE_TO_WALL"]) {
     const out = quote(m);
     assert.equal(out.engine_version, PRICING_ENGINE_VERSION);
-    assert.deepEqual(unmatchedOf(out), m === "WALL" ? ["BLANK_POST"] : [],
-      m + ": something other than BLANK_POST is unmatched -- the catalog above is incomplete, fix it before reading any number here");
+    assert.deepEqual(unmatchedOf(out), [],
+      m + ": something is unmatched -- the catalog above is incomplete, fix it before reading any number here");
     assert.ok(out.totals.grand_total > 0, m + ": no money came out");
   }
+  // CONTROL: the reader is not blind. Take the gate post away and WALL has nothing left to bill
+  // a blank post off, so the role is named again.
+  assert.deepEqual(unmatchedOf(quote("WALL", without(CATALOG, "GATE_POST"))), ["BLANK_POST"]);
 });
 
 // =============================================== 1. THE ROLES, PER MOUNTING ==
 
-test("THE ROLES: a gate asks for GATE_POST, and only the post where the RUN terminates is an END_POST", () => {
-  // WALL: the hinge side is the blank post bolted through; the latch side is a post at the
-  // opening, so it is a gate post. END_POST here is the run's own two open ends, nothing else.
+test("THE ROLES: a gate asks for GATE_POST, and every post where a RUN terminates is an END_POST", () => {
+  // WALL: the hinge side is the blank post bolted through. The latch side is where the fence
+  // line STOPS, so it is an END_POST -- change (D) at the top of this file, the owner's own
+  // correction of 1 Oct. WAS: GATE_POST 1 + END_POST 2 (the run's two open ends). NOW:
+  // GATE_POST 0 + END_POST 3 (those two open ends plus the latch post). The sum is unchanged at
+  // FOUR posts asked for (1 + 1 + 2 before, 1 + 0 + 3 now), so nothing was added or lost -- one
+  // of them changed which role, and so which catalog row, it bills.
   const wall = quote("WALL");
-  assert.equal(entryQty(wall, "GATE_POST"), 1, "WALL: the latch-side post is not a GATE_POST");
+  assert.equal(entryQty(wall, "GATE_POST"), 0, "WALL: a wall gate asks for no gate post -- its hinge side is the wall and its latch side ends the line");
   assert.equal(entryQty(wall, "BLANK_POST"), 1, "WALL: the hinge side is still a blank post");
-  assert.equal(entryQty(wall, "END_POST"), 2, "WALL: END_POST should now be the run's two ends alone");
+  assert.equal(entryQty(wall, "END_POST"), 3, "WALL: the run's two ends plus the post the gate latches to");
+  assert.equal(entryQty(wall, "BLANK_POST") + entryQty(wall, "END_POST") + entryQty(wall, "GATE_POST"), 4,
+    "WALL: the NUMBER of posts asked for has moved, not just their roles -- change (D) was a re-labelling, not an addition");
 
   // LINE: both posts stand at the opening. Neither is an end of the fence.
   const line = quote("LINE");
@@ -156,14 +185,22 @@ test("THE ROLES: a gate asks for GATE_POST, and only the post where the RUN term
   assert.equal(entryQty(none, "END_POST"), 2, "control: a gateless open run has two end posts");
 });
 
-test("THE ROLES reach the QUOTE, not just the takeoff: a priced GATE_POST line appears, off his own row", () => {
-  for (const [m, n] of [["WALL", 1], ["LINE", 2], ["LINE_TO_WALL", 2]]) {
-    const gp = itemOf(quote(m), "GATE_POST");
-    assert.ok(gp !== undefined, m + ": no GATE_POST line on the quote");
-    assert.equal(gp.quantity, n, m + ": wrong gate-post count on the quote");
-    assert.equal(gp.description, GATE_POST_ROW.name, m + ": the gate post was billed off some other row");
+test("THE ROLES reach the QUOTE, not just the takeoff: a priced line off his own GATE_POST row appears", () => {
+  // WAS: a GATE_POST line in all three mountings, quantity 1 / 2 / 2.
+  // NOW: WALL has no GATE_POST line (change D -- it asks for none). His GATE_POST row is still
+  //      reached on a wall gate, but under BLANK_POST, through the fallback of change (E). So
+  //      the point of this test -- a hand-priced GATE_POST row is no longer unreachable
+  //      inventory -- is asserted in all three, with WALL naming the role that now carries it.
+  for (const [m, role, n] of [["WALL", "BLANK_POST", 1], ["LINE", "GATE_POST", 2], ["LINE_TO_WALL", "GATE_POST", 2]]) {
+    const gp = itemOf(quote(m), role);
+    assert.ok(gp !== undefined, m + ": no " + role + " line on the quote");
+    assert.equal(gp.quantity, n, m + ": wrong post count on the quote");
+    assert.equal(gp.description, GATE_POST_ROW.name, m + ": the post was billed off some other row than his GATE_POST row");
     assert.equal(gp.unit_price, 16.56);
+    assert.equal(gp.role, role, m + ": the role on the line was rewritten, so the quote no longer says which post this is");
   }
+  assert.equal(itemOf(quote("WALL"), "GATE_POST"), undefined,
+    "WALL: a GATE_POST line is back on a wall gate -- change (D) says its two posts are a blank post and an end post");
   // CONTROL: this is new. Under 2026.10.3 no fence type, no mounting, no catalog produced one.
   assert.ok(PRICING_ENGINE_VERSION > "2026.10.3",
     "the engine version did not move: this change bills a different catalog row and is a formula change");
@@ -284,8 +321,12 @@ test("HIS CATALOG: with all four of his GATE_POST rows and all three of his END_
     const asItWas = quote(m, modelFallback(without(HIS_CATALOG, "GATE_POST")));
     assert.equal(now.totals.grand_total, asItWas.totals.grand_total,
       m + ": HIS grand total moved");
-    // the 6 ft run picks a 6 ft post on both roles, at $16.56, not the 4 ft row and not the $19 one
-    assert.equal(itemOf(now, "GATE_POST").unit_price, 16.56, m + ": his gate post was billed at the wrong price");
+    // the 6 ft run picks a 6 ft post on every role, at $16.56, not the 4 ft row and not the $19 one.
+    // WAS: GATE_POST and END_POST on all three mountings. NOW: a wall gate carries his gate-post
+    // row under BLANK_POST instead (changes D and E), so the role to read differs by mounting --
+    // the price asserted is the same $16.56 either way.
+    const gatePostRole = m === "WALL" ? "BLANK_POST" : "GATE_POST";
+    assert.equal(itemOf(now, gatePostRole).unit_price, 16.56, m + ": his gate post was billed at the wrong price");
     assert.equal(itemOf(now, "END_POST").unit_price, 16.56, m + ": his end post was billed at the wrong price");
   }
   // CONTROL: the same comparison DOES see a move when one of his gate-post rows is re-priced,
@@ -315,9 +356,15 @@ test("THE TEETH: price the GATE_POST row differently and the quote DOES move, by
 
 // ============================ 5. THE MISSING HALF: NO GATE_POST ROW LOSES THE POSTS ==
 
-test("THE MISSING HALF: a catalog with NO GATE_POST row loses its gate posts outright -- the matcher fallback has NOT landed", () => {
+// STILL TRUE, and still the whole risk: the fallback that landed is BLANK_POST -> GATE_POST
+// (change E), NOT GATE_POST -> END_POST. So a company with no GATE_POST row still loses the gate
+// posts of a LINE or LINE_TO_WALL gate outright, and nothing on the estimate looks wrong.
+// WALL has LEFT this loop, because change (D) means a wall gate asks for no gate post at all --
+// there is nothing for it to lose. What WALL loses with no GATE_POST row is its BLANK_POST, and
+// that is asserted separately below (and in a58's "NO CHAINING").
+test("THE MISSING HALF: a catalog with NO GATE_POST row loses the gate posts of a LINE gate outright -- the GATE_POST fallback has NOT landed", () => {
   const bare = without(CATALOG, "GATE_POST");
-  for (const [m, lost] of [["WALL", 1], ["LINE", 2], ["LINE_TO_WALL", 2]]) {
+  for (const [m, lost] of [["LINE", 2], ["LINE_TO_WALL", 2]]) {
     const out = quote(m, bare);
     assert.ok(unmatchedOf(out).includes("GATE_POST"),
       m + ": GATE_POST is no longer reported unmatched. If the role preference has LANDED in " +
@@ -333,6 +380,16 @@ test("THE MISSING HALF: a catalog with NO GATE_POST row loses its gate posts out
   }
   // THE SIZE OF IT, on his own prices: $16.56 a post, before markup, with 7% tax.
   assert.equal(money(2 * 16.56 * 1.07), 35.44);
+  // WALL, the case that left the loop: no gate post is ASKED for, so none is lost -- but the
+  // blank post that borrows that row is, and it is reported under its own name.
+  const wall = quote("WALL", bare);
+  assert.equal(entryQty(wall, "GATE_POST"), 0, "WALL asks for a gate post again");
+  assert.deepEqual(unmatchedOf(wall), ["BLANK_POST"], "WALL: with no gate post to borrow, the blank post must be named");
+  assert.equal(billedQty(wall, "BLANK_POST"), 0, "WALL: a blank post was billed with no row to bill");
+  assert.ok(wall.totals.grand_total < quote("WALL", CATALOG).totals.grand_total,
+    "WALL: the estimate is SHORT and nothing on it looks wrong");
+  assert.equal(money(quote("WALL", CATALOG).totals.grand_total - wall.totals.grand_total), 17.72,
+    "WALL: one post at $16.56 plus 7% tax");
 });
 
 // ======================= 6. THE DESIGNED FALLBACK, AS A REFERENCE MODEL (NOT THE ENGINE) ==
@@ -358,14 +415,17 @@ function modelFallback(rows) {
 
 test("THE FALLBACK, modelled: a catalog with no GATE_POST row prices EXACTLY as 2026.10.3 did -- item for item, penny for penny", () => {
   const bare = without(CATALOG, "GATE_POST");
-  for (const m of ["LINE", "WALL", "LINE_TO_WALL"]) {
+  // WALL has left this loop for the same reason as block 5: change (D) means it asks for no gate
+  // post, so there is no GATE_POST line for the model to produce. It is still checked below, for
+  // the thing the model DOES reach there -- the blank post.
+  for (const m of ["LINE", "LINE_TO_WALL"]) {
     const fixed = quote(m, modelFallback(bare));
     // the gate post is billed off the END_POST row, by name and by price
     const gp = itemOf(fixed, "GATE_POST");
     assert.ok(gp !== undefined, m + ": the model did not produce a gate-post line");
     assert.equal(gp.description, '5"x5" Co-Ex End Post, White', m + ": the fallback chose some other row");
     assert.equal(gp.unit_price, 16.56);
-    assert.deepEqual(unmatchedOf(fixed), m === "WALL" ? ["BLANK_POST"] : [], m + ": something is still unmatched");
+    assert.deepEqual(unmatchedOf(fixed), [], m + ": something is still unmatched");
 
     // and the money is the money a catalog WITH a gate post at the same price produces
     const withRow = quote(m, CATALOG);
@@ -376,6 +436,24 @@ test("THE FALLBACK, modelled: a catalog with no GATE_POST row prices EXACTLY as 
       billedQty(withRow, "GATE_POST") + billedQty(withRow, "END_POST"),
       m + ": the post total under the fallback is wrong");
   }
+  // WALL, the case that left the loop. Its blank post borrows whatever GATE_POST rows exist, so
+  // under the model it borrows the END_POST copies -- same row, same name, same money as the
+  // gate-post-present quote. That is the same additivity claim, read through the role WALL uses.
+  {
+    const fixed = quote("WALL", modelFallback(bare));
+    const withRow = quote("WALL", CATALOG);
+    const bp = itemOf(fixed, "BLANK_POST");
+    assert.ok(bp !== undefined, "WALL: the model left the blank post with nothing to bill");
+    assert.equal(bp.description, '5"x5" Co-Ex End Post, White', "WALL: the fallback chose some other row");
+    assert.equal(bp.unit_price, 16.56);
+    assert.equal(itemOf(fixed, "GATE_POST"), undefined, "WALL: a gate-post line appeared on a mounting that asks for none");
+    assert.deepEqual(unmatchedOf(fixed), [], "WALL: something is still unmatched");
+    assert.equal(fixed.totals.grand_total, withRow.totals.grand_total,
+      "WALL: the modelled fallback does not reproduce the gate-post-present quote");
+    assert.equal(billedQty(fixed, "BLANK_POST") + billedQty(fixed, "END_POST"),
+      billedQty(withRow, "BLANK_POST") + billedQty(withRow, "END_POST"),
+      "WALL: the post total under the fallback is wrong");
+  }
   // CONTROL: the model is inert where a GATE_POST row already exists, so block 3 and block 4 are
   // not quietly measuring the model instead of the catalog.
   assert.equal(modelFallback(CATALOG), CATALOG);
@@ -385,30 +463,54 @@ test("THE FALLBACK, modelled: a catalog with no GATE_POST row prices EXACTLY as 
 
 // =================================== 6b. THE WALL GATE'S UNMATCHED ROLE: BLANK_POST ==
 
-test("THE WALL GATE'S OTHER HOLE: BLANK_POST is asked for and NO catalog has a row -- unmatched before this change and after", () => {
-  // Reproduced, and the role named: BLANK_POST, on WALL only.
-  assert.deepEqual(unmatchedOf(quote("WALL")), ["BLANK_POST"]);
-  assert.deepEqual(unmatchedOf(quote("LINE")), [], "control: a LINE gate needs no blank post, and reports none");
+// RE-AIMED 2 Oct 2026. This block's subject was a HOLE: BLANK_POST was asked for on every wall
+// gate and no catalog anywhere stocked one, so it was unmatched and billed nothing -- one post
+// missing from every wall-gate estimate, with nothing on screen looking wrong.
+//
+// THE HOLE IS CLOSED (engine 2026.10.5, change E at the top of this file): a BLANK_POST entry
+// with no BLANK_POST row is priced off the company's GATE_POST rows -- which is where two of his
+// three blank-post SKUs are actually typed in. So the old assertions could only fail. Re-aimed
+// onto the closure, keeping every tooth: that it fires, that the line still says BLANK_POST, that
+// it names the row it really billed, that it does not chain any further, and that it is a
+// PREFERENCE -- a real BLANK_POST row still wins. a58-blank-post-fallback is the full pin; this
+// is the wall-gate-shaped half of it, kept here so block 6b cannot go quiet.
+test("THE WALL GATE'S OTHER HOLE IS CLOSED: BLANK_POST is asked for, has no row of its own, and is billed off his GATE_POST row", () => {
+  // Still asked for, on WALL only, exactly one.
   assert.equal(entryQty(quote("WALL"), "BLANK_POST"), 1, "the takeoff does ask for one");
-  assert.equal(billedQty(quote("WALL"), "BLANK_POST"), 0, "and nothing is billed for it");
+  assert.equal(entryQty(quote("LINE"), "BLANK_POST"), 0, "control: a LINE gate needs no blank post");
+  assert.ok(!CATALOG.some((r) => r.role === "BLANK_POST"),
+    "this catalog grew a BLANK_POST row -- the assertions below no longer mean anything");
 
-  // It is NOT this change: removing the gate post entirely leaves BLANK_POST unmatched just the same.
-  assert.ok(unmatchedOf(quote("WALL", modelFallback(without(CATALOG, "GATE_POST")))).includes("BLANK_POST"),
-    "BLANK_POST is unmatched independently of the gate-post role change");
+  // And now billed, off the gate post, under its OWN role and the row's real name.
+  const bp = itemOf(quote("WALL"), "BLANK_POST");
+  assert.ok(bp !== undefined, "the blank post is unmatched again -- the fallback of 2026.10.5 has gone");
+  assert.equal(bp.quantity, 1);
+  assert.equal(bp.unit_price, 16.56);
+  assert.equal(bp.description, GATE_POST_ROW.name,
+    "the line must name the row it ACTUALLY billed, not a blank-post product he does not stock");
+  assert.equal(bp.role, "BLANK_POST", "the role was rewritten, so the quote no longer says which post this is");
+  assert.deepEqual(unmatchedOf(quote("WALL")), [], "nothing should be left unmatched on a wall gate");
 
-  // WHAT IT WOULD COST: one post per wall gate, at the price of the blank post he already has
-  // typed in -- under GATE_POST, where two of the three rows are literally named "Blank Post".
-  // Flori $16.56, Hartford 6' $19.00. Not fixed here: which row a BLANK_POST should bill is his
-  // call, not a guess made in a takeoff.
+  // NO CHAINING: with neither a blank post nor a gate post, the role is named and bills nothing.
+  // END_POST is NOT borrowed for it -- that pair is deliberately not in PRICING_FALLBACK_ROLE.
+  const neither = quote("WALL", without(without(CATALOG, "GATE_POST"), "BLANK_POST"));
+  assert.deepEqual(unmatchedOf(neither), ["BLANK_POST"], "the gap signal went quiet with nothing to bill");
+  assert.equal(billedQty(neither, "BLANK_POST"), 0, "a blank post was billed off an end post -- the fallback chained");
+  assert.ok(neither.items.some((i) => i.role === "END_POST"), "control: this catalog still has an end post to have chained to");
+
+  // PREFERENCE, NOT REPLACEMENT: a company that does price its own blank post gets that row.
+  const withBlank = quote("WALL", CATALOG.concat([
+    { name: '5"x5" Co-Ex Blank Post, White', category: "POST", role: "BLANK_POST", unit_price: 11.11, color_or_finish: "White", height_ft: 6 },
+  ]));
+  assert.deepEqual(unmatchedOf(withBlank), []);
+  assert.equal(itemOf(withBlank, "BLANK_POST").quantity, 1);
+  assert.equal(itemOf(withBlank, "BLANK_POST").unit_price, 11.11, "his own blank post lost to the borrowed gate post");
+  assert.equal(itemOf(withBlank, "BLANK_POST").description, '5"x5" Co-Ex Blank Post, White');
+
+  // WHAT IT IS WORTH, on his own prices: one post per wall gate. Measured against the estimate
+  // that has nothing to bill it off, which is what every wall gate looked like before 2026.10.5.
   assert.equal(money(16.56 * 1.07), 17.72);
   assert.equal(money(19.0 * 1.07), 20.33);
-
-  // CONTROL that the unmatched reader works at all: plant a blank post and it goes quiet.
-  const withBlank = quote("WALL", CATALOG.concat([
-    { name: '5"x5" Co-Ex Blank Post, White', category: "POST", role: "BLANK_POST", unit_price: 16.56, color_or_finish: "White", height_ft: 6 },
-  ]));
-  assert.deepEqual(unmatchedOf(withBlank), [], "control: with a BLANK_POST row nothing is unmatched");
-  assert.equal(itemOf(withBlank, "BLANK_POST").quantity, 1);
-  assert.equal(money(withBlank.totals.grand_total - quote("WALL").totals.grand_total), 17.72,
-    "the cost of the missing blank post, measured: one post plus tax");
+  assert.equal(money(quote("WALL").totals.grand_total - quote("WALL", without(CATALOG, "GATE_POST")).totals.grand_total),
+    17.72, "the blank post the fallback recovers, measured: one post plus tax");
 });

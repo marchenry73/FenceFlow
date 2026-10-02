@@ -27,6 +27,13 @@
 // with only totals.ts swapped back to its git-HEAD, pre-fix version --
 // nothing in the working tree was reverted to get that reading).
 //
+// The grand_total in that last line is now 2176.93, not 2120, and the footage
+// and labour figures beside it have not moved at all. Two later deliberate
+// changes moved the TOTAL without touching this file's subject: the
+// starting-catalog tax fix (commit 87639fc) and the removal of the $10
+// round-up (PRICING_ENGINE_VERSION 2026.10.1). The derivation, old to new, is
+// written out at the assertion itself rather than here.
+//
 // CROSS-LANGUAGE PARITY: app/src/test/java/com/fenceestimator/app/estimate/
 // UncalibratedLabourTest.kt asserts the identical case and identical
 // expected numbers by hand (same fixture input, same arithmetic), because
@@ -86,8 +93,38 @@ console.log("\n1. priceJob() on fixtures/pricing/drawn-uncalibrated.json (the au
   ok("FIXED: labor_cost is $800.00 (100 ft @ $8/ft), not $0.00",
     out.totals.labor_cost === 800, `labor_cost=${out.totals.labor_cost}`);
 
-  ok("FIXED: grand_total is $2,120 (materials $1,286.85 + tax $27.78 + labour $800, rounded up to the next $10)",
-    out.totals.grand_total === 2120, `grand_total=${out.totals.grand_total}`);
+  // PIN MOVED 2120 -> 2176.93, by TWO deliberate changes, neither of them this file's fix.
+  // This file's own subject -- that an uncalibrated drawn run bills labour on the footage it
+  // already sold materials off -- is UNCHANGED and still asserted above: labor_cost is $800.
+  //
+  //  (1) THE STARTING-CATALOG TAX FIX (commit 87639fc, "Fix the tax bug in the STARTING
+  //      catalog, not just in the live rows"). The seeded PANEL and GATE_PANEL rows carried
+  //      taxable = false; panels are taxable in Florida. This fixture's catalog is the seed,
+  //      so its taxable base moved 396.90 -> 1286.85 (the whole of materials) and its tax
+  //      moved 27.783 -> 90.0795. Nothing about footage or labour moved.
+  //  (2) THE $10 ROUND-UP WAS REMOVED (PRICING_ENGINE_VERSION 2026.10.1, the owner's
+  //      decision of 1 Oct 2026 -- see the comment on grandTotal in pricing/totals.ts).
+  //      computeTotals rounded the final figure UP to the next ten; it now rounds to the
+  //      cent and nothing else.
+  //
+  // The arithmetic, old to new:
+  //      old: ceil((1286.85 + 27.783 + 800) / 10) * 10 = ceil(2114.633 / 10) * 10 = 2120
+  //      new: roundToCents(1286.85 + 90.0795 + 800)    = roundToCents(2176.9295) = 2176.93
+  // Teardown, change orders, the gate charge, markup and the discount are all 0 here, so
+  // those three terms are the whole sum on both sides.
+  ok("FIXED: grand_total is $2,176.93 (materials $1,286.85 + tax $90.0795 + labour $800.00), " +
+     "exact to the cent since the $10 round-up went in 2026.10.1",
+    out.totals.grand_total === 2176.93, `grand_total=${out.totals.grand_total}`);
+
+  // Kept with teeth rather than left as a bare constant: the total must still be the sum of
+  // its own parts. A future change that moves tax, materials or labour and quietly re-pins
+  // the total above would pass the line above and fail this one.
+  const parts = out.totals.materials_subtotal + out.totals.tax + out.totals.labor_cost
+    + out.totals.teardown_cost + out.totals.change_order_cost + out.totals.gate_charge;
+  ok("and that total is exactly its own parts, rounded to the cent and NOT up to a ten " +
+     "(the round-up would read 2180 here)",
+    out.totals.grand_total === Math.round(parts * 100) / 100 && Math.ceil(parts / 10) * 10 === 2180,
+    `parts=${parts} grand_total=${out.totals.grand_total}`);
 }
 
 // ===========================================================================

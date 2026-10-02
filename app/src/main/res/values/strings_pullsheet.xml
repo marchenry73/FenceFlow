@@ -1,0 +1,61 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Strings for the pull sheet. A NEW FILE on purpose: strings.xml is held by
+  another wave right now, and Android merges every resource file inside one
+  values folder into a single flat namespace, so adding a file is identical to
+  adding to strings.xml and cannot collide with an edit to it.
+
+  Three locales, same as the rest of the app. tests/strings-xml-wellformed.test.mjs
+  compares the resource names across values, values-es and values-fr, so all
+  three files carry exactly the same keys.
+
+  No double hyphen inside any comment in this file: XML forbids it and it has
+  killed mergeReleaseResources here twice.
+-->
+<resources>
+    <string name="pull_sheet_title">Pull sheet</string>
+    <string name="pull_sheet_back">Back</string>
+    <string name="pull_sheet_untitled_job">Job with no name</string>
+    <string name="pull_sheet_not_on_phone">This job is not on this phone yet.</string>
+    <string name="pull_sheet_no_money_note">Quantities, types and sizes only. There are no prices on this page.</string>
+    <string name="pull_sheet_drawing_heading">The fence as drawn</string>
+
+    <string name="pull_sheet_section_posts">Posts</string>
+    <string name="pull_sheet_section_panels">Panels, rails and pickets</string>
+    <string name="pull_sheet_section_caps">Caps and trim</string>
+    <string name="pull_sheet_section_concrete">Concrete</string>
+    <string name="pull_sheet_section_gates">Gate hardware</string>
+    <string name="pull_sheet_section_other">Everything else</string>
+
+    <string name="pull_sheet_qty_line">%1$s %2$s  %3$s</string>
+    <string name="pull_sheet_for_fence_height">For the %1$s ft fence</string>
+    <string name="pull_sheet_for_runs">Runs: %1$s</string>
+    <string name="pull_sheet_total_posts">Posts in all: %1$s</string>
+    <string name="pull_sheet_loaded_count">%1$d of %2$d loaded</string>
+    <string name="pull_sheet_start_over">Start over</string>
+    <string name="pull_sheet_hand_added">Added by hand, not from the takeoff.</string>
+    <string name="pull_sheet_no_height_declared">The catalog does not say which fence height this is for.</string>
+    <string name="pull_sheet_ticks_local_only">Ticks and notes stay on this phone. They work with no signal, and the office does not see them.</string>
+    <string name="pull_sheet_teardown_excluded">Teardown runs are not on this sheet. You do not buy material for a fence you are taking out.</string>
+
+    <string name="pull_sheet_doubt_not_in_catalog">ASK AT THE COUNTER. The count is right, but this product is no longer in your catalog, so the product may be wrong.</string>
+    <string name="pull_sheet_doubt_filing">ASK AT THE COUNTER. The count is right, but this item was imported and nobody has checked what it is, so the product may be wrong.</string>
+    <string name="pull_sheet_doubt_wrong_height">ASK AT THE COUNTER. The count is right, but this product is sold for a %1$s ft fence and this run is %2$s ft.</string>
+
+    <string name="pull_sheet_empty_no_runs">Nothing has been drawn or measured on this job yet, so there is nothing to pick up.</string>
+    <string name="pull_sheet_empty_only_teardown">Nothing to buy. Every run on this job is a tear out, and you do not buy material for a fence you are taking out.</string>
+    <string name="pull_sheet_empty_no_takeoff">THIS IS NOT A MATERIAL LIST YET. The takeoff has not been run for this job, so nothing below has been worked out. Runs waiting: %1$s. Do not load against this page.</string>
+    <string name="pull_sheet_empty_not_measurable">THIS JOB CANNOT BE MEASURED YET. It was drawn on a survey photo nobody has set the scale on, so there are no honest quantities to pick up. Runs waiting: %1$s.</string>
+    <string name="pull_sheet_partial">THIS SHEET IS NOT THE WHOLE JOB. These runs have no takeoff and nothing below covers them: %1$s.</string>
+    <string name="pull_sheet_partial_not_measurable">THIS SHEET IS NOT THE WHOLE JOB. These runs are on an uncalibrated photo and cannot be measured: %1$s.</string>
+
+    <string name="pull_sheet_substitution_title">What did you take instead?</string>
+    <string name="pull_sheet_substitution_hint">What you actually took</string>
+    <string name="pull_sheet_substitution_add">Note a substitution</string>
+    <string name="pull_sheet_substitution_edit">Edit substitution</string>
+    <string name="pull_sheet_substitution_shown">Took instead: %1$s</string>
+    <string name="pull_sheet_substitution_local_only">This note stays on this phone. It does not change the job, the quantities or the price, and the office does not see it. Tell them yourself if it matters.</string>
+    <string name="pull_sheet_substitution_save">Save note</string>
+    <string name="pull_sheet_substitution_cancel">Cancel</string>
+    <string name="pull_sheet_open_button">Pull sheet</string>
+</resources>

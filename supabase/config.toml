@@ -97,6 +97,18 @@ verify_jwt = false
 [functions.quote-view]
 verify_jwt = false
 
+# Called by quote-view, server to server, once a customer's approval has landed
+# -- to email them their contract. The caller is another function, not a person,
+# so there is no JWT to verify. What replaces the gateway's check is the door
+# send-follow-ups, notify-job-change and attention-sweep already use: the shared
+# secret NOTIFY_TRIGGER_SECRET in x-fenceflow-trigger, compared in constant time
+# before the body is read, an unset secret refusing everything. The recipient,
+# the figures and every word come from the database, never from the request, so
+# even a caller holding the secret can only cause the one email for an approval
+# that really happened, to the address already on that job, once.
+[functions.quote-approval-email]
+verify_jwt = false
+
 # Public imagery and geocoding proxy for the 3D quote page; nothing behind
 # it is sensitive and its callers hold no JWT.
 [functions.quote-map]

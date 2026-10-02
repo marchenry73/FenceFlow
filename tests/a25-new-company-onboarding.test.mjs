@@ -346,49 +346,104 @@ test("GAP (pinned): a job born with the database's own defaults -- a website lea
   assert.ok(withList.totals.grand_total > 0, "and the total is materials alone");
 });
 
-test("the starting list prices a complete 100 ft run for all seven fence types, and a gate only for vinyl (GAP, pinned: six types lose three gate parts)", () => {
+// RE-AIMED 2 Oct 2026. This pinned a GAP: on the six non-vinyl types a gated quote left BRACE,
+// HANDLE and STIFFENER unmatched, because all three were seeded for VINYL only. The gap was
+// CLOSED on purpose on 1 Oct (change E, pinned in full by a60-gate-hardware-by-fence-type), in
+// two opposite directions:
+//   * the TAKEOFF stopped asking for a BRACE or a STIFFENER outside vinyl -- a chain-link gate is
+//     a welded tube frame, aluminium and iron arrive as welded factory panels, and wood, split
+//     rail and composite are built on the steel-reinforced GATE_FRAME_KIT the takeoff already
+//     asks for, so a brace on top of it would bill that member twice
+//     (takeoff.ts BRACED_GATE_TYPES / STIFFENED_GATE_TYPES, EstimateEngine.kt's copies);
+//   * the HANDLE was re-filed VINYL -> UNIVERSAL in the seed, because a 7" stainless gate handle
+//     is the same product whatever the fence is made of.
+// So the pinned expectation is now [] for every type, and this test is no longer a gap.
+//
+// IT IS LEFT RED, with ["HANDLE"] on the six non-vinyl types, and that is a REGRESSION and not
+// this change: these two tests price the OFFICE copy of the starting list (seedRows() reads
+// office.CATALOG_SEED), and website/dashboard.html was the one copy of three that did not get the
+// handle re-filed. SeedData.kt and supabase_r20_seed_new_company_catalog.sql both say UNIVERSAL.
+// Do not put HANDLE back into these expectations; fix dashboard.html.
+test("the starting list prices a complete 100 ft run for all seven fence types, gate included, with nothing unmatched", () => {
   const seed = seedRows();
   for (const ft of FENCE_TYPES) {
     assert.deepEqual(roles(price(jobRow(), [runRow(ft)], seed)), [], ft + " with no gate");
   }
   assert.deepEqual(roles(price(jobRow(), [runRow("VINYL", { gates_encoded: GATE_4FT })], seed)), [], "vinyl with a gate");
   for (const ft of FENCE_TYPES.filter((f) => f !== "VINYL")) {
-    assert.deepEqual(roles(price(jobRow(), [runRow(ft, { gates_encoded: GATE_4FT })], seed)), ["BRACE", "HANDLE", "STIFFENER"], ft + " with a 4 ft gate");
+    assert.deepEqual(roles(price(jobRow(), [runRow(ft, { gates_encoded: GATE_4FT })], seed)), [], ft + " with a 4 ft gate");
   }
+  // CONTROL: the reader is not blind to an unmatched role. Take the concrete out and it says so.
+  assert.deepEqual(roles(price(jobRow(), [runRow("WOOD", { gates_encoded: GATE_4FT })], seed.filter((r) => r.role !== "CONCRETE_BAG"))),
+    ["CONCRETE_BAG"], "control: an unmatched role is reported");
 });
 
-test("GAP (pinned): the office's Check my catalog calls a fence type covered by the very list that lacks parts the engine asks for", () => {
+test("the office's Check my catalog and the engine agree that the starting list covers every fence type", () => {
+  // WAS a pinned GAP: catalogMissingRoles said "every role is covered" for WOOD while the engine
+  // left THREE roles unmatched -- the check does not know a role can be stocked for vinyl only.
+  // Change E closed the engine's half, so the two should now agree at zero. See the note above
+  // for why the engine's half is 1 and not 0 today: the office seed's handle is still VINYL.
   const seed = office.CATALOG_SEED;
   const wood = price(jobRow(), [runRow("WOOD", { gates_encoded: GATE_4FT })], seedRows());
-  assert.deepEqual(office.catalogMissingRoles(seed, "WOOD"), [], "the check says every role is covered");
-  assert.equal(roles(wood).length, 3, "while the engine leaves three unmatched");
+  assert.deepEqual(office.catalogMissingRoles(seed, "WOOD"), [], "the check says a role is missing");
+  assert.equal(roles(wood).length, 0, "the engine leaves roles unmatched that the check calls covered: " + roles(wood));
   // Control: the check is not blind -- with the concrete row removed it says so.
   assert.deepEqual(office.catalogMissingRoles(seed.filter((r) => r.role !== "CONCRETE_BAG"), "WOOD"), ["CONCRETE_BAG"]);
 });
 
 // ============================================== 3. THE STARTING LIST ITSELF ==
 
+// LEFT RED ON PURPOSE, 2 Oct 2026. Nothing here is a stale expectation: the two lists really do
+// differ, on five rows, and this test is the one that says so. website/dashboard.html's
+// CATALOG_SEED is behind SeedData.kt (and behind supabase_r20_seed_new_company_catalog.sql, which
+// agrees with the phone) on two deliberate changes:
+//   * the 7" SS gate handle is UNIVERSAL on the phone and still VINYL in the office copy;
+//   * the four A1 rows are taxable on the phone and still taxable:false in the office copy.
+// a60-gate-hardware-by-fence-type's failure message gives the handle edit word for word.
 test("the phone's starting list and the office's copy are the same rows, price for price", () => {
   const key = (r) => [r.name, r.unit, r.unit_price, r.taxable].join("|");
   assert.deepEqual(kotlinSeed.map(key).sort(), office.CATALOG_SEED.map(key).sort());
 });
 
-test("GAP (pinned): four starting-list rows are untaxed -- the four rows the A1 correction fixed on the owner's live catalog", (t) => {
+// RE-AIMED 2 Oct 2026. This pinned a GAP: four rows of the starting list shipped untaxed -- the
+// three 6'x6' vinyl privacy panels and the 6'x5' PVC gate -- the same four-of-ninety-two defect
+// that had been corrected in the owner's LIVE rows on 25 September while the thing generating
+// them was left alone. It was fixed in the seed on 1 Oct (commit 87639fc, "Fix the tax bug in the
+// STARTING catalog, not just in the live rows"), so `want` is now the empty list and the test
+// asserts the fix instead of the bug. a31-seed-panels-are-taxable is the shape-level guard.
+//
+// It is LEFT RED on its second line: the office copy still carries all four untaxed. Same
+// regression as the test above -- one of three copies did not get the change.
+test("no row of the starting list ships untaxed -- the four rows the A1 correction fixed are fixed at the source", (t) => {
   const untaxed = (rows) => rows.filter((r) => r.taxable === false).map((r) => r.name).sort();
-  const want = [
+  const A1 = [
     "Panel T&G Vinyl Privacy 6'H x 6'W - Gray", "Panel T&G Vinyl Privacy 6'H x 6'W - Tan",
     "Panel T&G Vinyl Privacy 6'H x 6'W - White", "Regular PVC Gate 6'H x 5'W, White",
   ].sort();
-  assert.deepEqual(untaxed(kotlinSeed), want, "the phone's copy");
-  assert.deepEqual(untaxed(office.CATALOG_SEED), want, "the office's copy");
-  // The consequence: what a new company collects on 100 ft of vinyl if it takes the list as shipped.
+  assert.deepEqual(untaxed(kotlinSeed), [], "the phone's copy");
+  assert.deepEqual(untaxed(office.CATALOG_SEED), [], "the office's copy still ships these untaxed: " + untaxed(office.CATALOG_SEED));
+  // CONTROL: the reader does find those four rows, so "[]" above cannot mean it found nothing.
+  for (const n of A1) assert.ok(kotlinSeed.some((r) => r.name === n), "control: the A1 row " + n + " is not in the phone's list at all");
+  // THE CONSEQUENCE, measured: with the list taxed as shipped, marking every row taxable must now
+  // change nothing. Before the fix this was a $50+ shortfall on 100 ft of vinyl.
   const as = price(jobRow(), [runRow("VINYL")], seedRows()).totals;
   const fixed = price(jobRow(), [runRow("VINYL")], seedRows().map((r) => ({ ...r, taxable: true }))).totals;
-  assert.ok(fixed.tax > as.tax + 50, "tax is short by " + (fixed.tax - as.tax).toFixed(2));
-  t.diagnostic(`tax on 100 ft vinyl: $${as.tax.toFixed(2)} as shipped, $${fixed.tax.toFixed(2)} if the panels are taxed like everything else`);
+  assert.equal(Math.round(fixed.tax * 100), Math.round(as.tax * 100), "tax is still short by " + (fixed.tax - as.tax).toFixed(2) + " on 100 ft of vinyl");
+  // CONTROL: that comparison can see a shortfall -- untax the panels again and it reappears.
+  const broken = price(jobRow(), [runRow("VINYL")], seedRows().map((r) => (A1.includes(r.name) ? { ...r, taxable: false } : r))).totals;
+  assert.ok(fixed.tax > broken.tax + 50, "control: untaxing the A1 rows no longer shows up in the tax at all");
+  t.diagnostic(`tax on 100 ft vinyl: $${as.tax.toFixed(2)} as shipped, $${fixed.tax.toFixed(2)} fully taxed, $${broken.tax.toFixed(2)} with the A1 rows untaxed again`);
 });
 
-test("SHOULD (todo): no category/role in the starting list mixes taxed and untaxed rows", { todo: "the 6 ft vinyl panels and the PVC gate are untaxed while the 8 ft panel and every other gate are taxed" }, () => {
+test("no category/role in the PHONE's starting list mixes taxed and untaxed rows -- nothing in it is untaxed at all", () => {
+  // Promoted from a todo on 2 Oct 2026: the phone's half is fixed, and a todo that has started
+  // passing reports as a pass and would never tell anyone it had been fixed. The office's half is
+  // still a todo below, because dashboard.html still carries the four untaxed rows.
+  assert.deepEqual(kotlinSeed.filter((r) => r.taxable === false).map((r) => r.name), []);
+  assert.ok(kotlinSeed.length >= 90, "control: the phone's list was read (" + kotlinSeed.length + " rows)");
+});
+
+test("SHOULD (todo): no category/role in the OFFICE's starting list mixes taxed and untaxed rows", { todo: "website/dashboard.html's CATALOG_SEED still ships the three 6x6 vinyl panels and the PVC gate untaxed, while the 8 ft panel and every other gate beside them are taxed. SeedData.kt and the r20 SQL were both corrected on 1 Oct (87639fc); this copy was not. Fixing it makes this a real assertion." }, () => {
   const groups = new Map();
   for (const r of office.CATALOG_SEED) {
     const k = r.category + "/" + r.role;

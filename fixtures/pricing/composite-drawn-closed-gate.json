@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "engine": {
-    "version": "2026.10.6",
-    "generated_at": "2026-10-02T03:33:16.202157300Z"
+    "version": "2026.10.8",
+    "generated_at": "2026-10-02T14:02:40.744264200Z"
   },
   "case": "composite-drawn-closed-gate",
   "note": "Composite, drawn closed, one 4 ft line gate (frame kit).",
   "input": {
-    "engine_version": "2026.10.6",
+    "engine_version": "2026.10.8",
     "pixels_per_foot": 20.0,
     "job": {
       "calibration_pixels_per_foot": 20.0,
@@ -238,6 +238,21 @@
         "covers_ft": null,
         "is_active": true,
         "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "d3c19f75-9574-351a-9796-3bed07c6a46f",
+        "name": "7\" SS Gate Handle (box of 50)",
+        "category": "HARDWARE",
+        "role": "HANDLE",
+        "fence_type": "UNIVERSAL",
+        "color_or_finish": "Black",
+        "unit": "BOX",
+        "unit_price": 5.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
       }
     ],
     "manufacturers": [],
@@ -245,7 +260,7 @@
     "existing_items": []
   },
   "expected": {
-    "engine_version": "2026.10.6",
+    "engine_version": "2026.10.8",
     "linear_feet": 280.0,
     "teardown_linear_feet": 0.0,
     "billable_linear_feet": 280.0,
@@ -376,18 +391,6 @@
             "covers_linear_ft": null
           },
           {
-            "role": "BRACE",
-            "quantity": 1.0,
-            "prefer_covers_ft": null,
-            "covers_linear_ft": null
-          },
-          {
-            "role": "STIFFENER",
-            "quantity": 1.0,
-            "prefer_covers_ft": null,
-            "covers_linear_ft": null
-          },
-          {
             "role": "GATE_POST",
             "quantity": 2.0,
             "prefer_covers_ft": null,
@@ -475,18 +478,6 @@
           },
           {
             "label": "Gate handles",
-            "quantity": 1.0,
-            "unit": "",
-            "group": "GATES"
-          },
-          {
-            "label": "Gate braces",
-            "quantity": 1.0,
-            "unit": "",
-            "group": "GATES"
-          },
-          {
-            "label": "Econo stiffeners",
             "quantity": 1.0,
             "unit": "",
             "group": "GATES"
@@ -608,9 +599,23 @@
         "category": null
       },
       {
-        "sync_id": "7f456795-077f-3e73-9d91-42094f504d36",
+        "sync_id": "037f2a05-4129-3907-acb5-6292eb503257",
         "fence_run_sync_id": "00000019-0000-4000-8000-000000000001",
         "sort_order": 8,
+        "description": "7\" SS Gate Handle (box of 50)",
+        "quantity": 1.0,
+        "unit": "BOX",
+        "unit_price": 5.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "HANDLE",
+        "auto_generated": true,
+        "category": null
+      },
+      {
+        "sync_id": "7f456795-077f-3e73-9d91-42094f504d36",
+        "fence_run_sync_id": "00000019-0000-4000-8000-000000000001",
+        "sort_order": 9,
         "description": "4x4 Composite Post w/ Aluminum Insert, 8'",
         "quantity": 2.0,
         "unit": "EA",
@@ -624,7 +629,7 @@
       {
         "sync_id": "b13e263b-bcbe-3cb7-86c2-25d79510eefd",
         "fence_run_sync_id": "00000019-0000-4000-8000-000000000001",
-        "sort_order": 9,
+        "sort_order": 10,
         "description": "Concrete Mix 60lb Bag",
         "quantity": 37.0,
         "unit": "EA",
@@ -636,20 +641,7 @@
         "category": null
       }
     ],
-    "unmatched_roles": [
-      {
-        "run_sync_id": "00000019-0000-4000-8000-000000000001",
-        "role": "HANDLE"
-      },
-      {
-        "run_sync_id": "00000019-0000-4000-8000-000000000001",
-        "role": "BRACE"
-      },
-      {
-        "run_sync_id": "00000019-0000-4000-8000-000000000001",
-        "role": "STIFFENER"
-      }
-    ],
+    "unmatched_roles": [],
     "zero_priced": [],
     "zero_priced_names": [],
     "totals_items": [
@@ -661,13 +653,14 @@
       "8e015ccb-a6c2-3acd-aef9-e897e10f64ec",
       "1b51ba52-0579-3a05-8ef5-96c4efa645e0",
       "bf2b12ae-43f8-31da-a655-00389bdf69e1",
+      "037f2a05-4129-3907-acb5-6292eb503257",
       "7f456795-077f-3e73-9d91-42094f504d36",
       "b13e263b-bcbe-3cb7-86c2-25d79510eefd"
     ],
     "totals": {
-      "materials_subtotal": 9100.0,
-      "taxable_subtotal": 9100.0,
-      "tax": 637.0000000000001,
+      "materials_subtotal": 9105.0,
+      "taxable_subtotal": 9105.0,
+      "tax": 637.35,
       "labor_cost": 2208.0,
       "teardown_cost": 0.0,
       "trash_haul_fee": 0.0,
@@ -677,8 +670,8 @@
       "change_order_feet": 0.0,
       "markup_amount": 0.0,
       "discount_amount": 0.0,
-      "pre_markup_total": 12025.0,
-      "grand_total": 12025.0,
+      "pre_markup_total": 12030.35,
+      "grand_total": 12030.35,
       "billable_linear_feet": 280.0
     }
   }

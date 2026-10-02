@@ -11,9 +11,13 @@
 // is his own business and the customer must NEVER see it taken apart. The email
 // states ONE deposit figure. So, in all three languages the quote page speaks:
 //
-//   1. no sentence the email can print mentions scheduling, transport, rounding,
-//      a surcharge, a fee, or the materials -- every template is read, not just
-//      the ones a fixture happens to reach;
+//   1. no sentence the email can print gives the rule away -- every template is
+//      read, not just the ones a fixture happens to reach. Two tiers, because
+//      the owner also asked for the deposit's PURPOSE to be told (a67): words
+//      that can only come from the rule (transport, surcharge, rounding, a fee,
+//      a lone hundred) are banned outright, and the purpose words (schedule,
+//      materials) are banned in the same sentence as a figure or a derivation,
+//      which is the only form in which they leak anything;
 //   2. every dollar figure in a finished email is the total, the deposit, or
 //      (only when part of the deposit is already in) what has been received and
 //      what is left -- nothing else, never the materials, never the rounded
@@ -67,23 +71,100 @@ const BASE = Object.freeze({
 const facts = (over = {}) => ({ ...structuredClone(BASE), ...over });
 const textOf = (f, lang) => buildApprovalEmail(f, lang).text;
 
-/** Wording that would explain the extra hundred, the rounding or the basis of the deposit -- English, Spanish and French. */
+/* Wording that would explain the extra hundred, the rounding or the BASIS of
+   the deposit -- English, Spanish and French.
+
+   -------------------------------------------------------------------------
+   WHY THIS IS TWO TIERS AND NOT ONE LIST
+   -------------------------------------------------------------------------
+   It was one list, and that list banned the bare words "schedule" and
+   "materials" (and programación / agenda / calendario / planification /
+   calendrier / matériaux / matériel). That was too blunt in one specific way:
+   the owner asked, in his own words, for the customer to be TOLD WHAT THE
+   DEPOSIT IS FOR -- "the deposit is to put you on the schedule and to get the
+   materials, the rest is for labor" -- and the only honest way to say that
+   uses those two words, in all three languages. Measured: the one-list
+   version rejected the real sentence on /schedul/ and /materials?/ in
+   English, on /agend/ and /materiales/ in Spanish, and on /matériaux/ in
+   French. (tests/a47-deposit-truth.test.mjs already had the narrow form of
+   the scheduling pattern and passed the same sentence untouched.)
+
+   The distinction the guard has to draw, from the owner's own two rules:
+
+     the PURPOSE is his to tell     -- what the money buys
+     the ARITHMETIC is not          -- what the figure was worked out FROM
+
+   A customer reading "it pays for the materials" cannot derive the hundred.
+   A customer reading "it is the cost of the materials, rounded up" can. So:
+
+   TIER A (ALWAYS) -- words that can only have come from the rule. Unchanged
+   from the one-list version, minus the two purpose families. A sentence that
+   says transport, surcharge, mobilisation, a fee or charge, a lone $100 (or
+   "100 $", the French order), an extra/additional amount, "plus", any
+   rounding, or "the next hundred" is rejected wherever it appears.
+
+   TIER B (IN CONTEXT) -- the two purpose families, rejected when the SAME
+   SENTENCE also carries a figure or a derivation. That is the form, and the
+   only form, in which they give something away:
+
+     "Includes $100 for scheduling and transport"     figure + schedule
+     "Comprend 100 $ pour le planning"                figure + schedule
+     "Based on the cost of materials"                 derivation + materials
+     "El depósito se calcula sobre los materiales"    derivation + materials
+     "Basé sur le coût du matériaux"                  derivation + materials
+     "the materials subtotal"                         derivation + materials
+
+   and NOT in this form, which is what he asked for:
+
+     "pays for the materials. The rest covers the labor"
+     "reserves your place on the schedule"
+
+   Per SENTENCE, not per string, so a figure three sentences away from the
+   word cannot make a clean sentence fail -- and cannot excuse a dirty one.
+   "pay", "paid" and "covers" are deliberately NOT derivations: they say what
+   the money does, which is the whole point. What Tier B still catches is
+   listed above and planted below; what it no longer catches is a purpose
+   sentence, which is the only thing that changed. */
 const WORDING = [
   /transport/i, /transporte|traslado|desplaz/i,
   /surcharge|recargo|suppl[eé]ment|majoration/i,
   /mobili[sz]ation|movilizaci[oó]n/i,
-  /schedul/i,
-  /program(ar|aci[oó]n|ado)|agend|calendario/i,
-  /planifi|calendrier|ordonnanc/i,
   /\bfees?\b|\bcharges?\b|tarifa|\bfrais\b|cargo adicional/i,
   /\$\s?100(\.00)?\b/,
+  /\b100(\.00)?\s?\$/,
   /\b(extra|additional|adicional|suppl[eé]mentaire)\b/i,
   /\bplus\b/i,
   /round(ed|ing)?\b|redonde|arrondi/i,
   /next\s+(\$\s?)?hundred|siguiente\s+cien|centaine/i,
+];
+
+/** Tier B: the purpose words, and the two things that turn one into a leak. */
+const PURPOSE_WORDS = [
+  /schedul|program(ar|aci[oó]n|ado)|agend|calendario|planifi|planning|calendrier|ordonnanc/i,
   /materials?|materiales?|mat[eé]riaux|mat[eé]riel/i,
 ];
-const wordingProblems = (s) => WORDING.filter((re) => re.test(s)).map(String);
+/** Any amount, count or percentage: "$100", "100 $", "1,630", "hundred", "7%". */
+const A_FIGURE = /\$\s?\d|\d[\d.,]*\s?\$|\b\d{2,}\b|\bhundreds?\b|\bcien(to)?s?\b|\bcentaines?\b|\d\s?%/i;
+/** Saying what the figure was worked out FROM. Never "pay", "paid" or "cover". */
+const A_DERIVATION =
+  /\bcost(s|ed|ing)?\b|\bprice[ds]?\b|\bbased\s+on\b|\bcalculat|\bcomput|\bworked\s+out\b|\bsubtotal\b|\bincludes?\b|\bincluding\b|\bequals?\b|\bamount\s+of\b|\bvalue\s+of\b|costo|coste|\bprecio|basad|\bcalcul|\bimporte\s+de\b|co[uû]t|\bprix\b|comprend|\binclu|\bmontant\s+d/i;
+
+/** One string, cut into sentences. Keeps the figure beside its own words. */
+const sentencesOf = (s) => String(s).split(/(?<=[.!?;:\n])|\n/).filter((x) => x.trim() !== "");
+
+const wordingProblems = (s) => {
+  const found = WORDING.filter((re) => re.test(s)).map(String);
+  for (const sentence of sentencesOf(s)) {
+    const figure = A_FIGURE.test(sentence);
+    const derivation = A_DERIVATION.test(sentence);
+    if (!figure && !derivation) continue;
+    for (const re of PURPOSE_WORDS) {
+      if (!re.test(sentence)) continue;
+      found.push(`${re} with ${figure ? "a figure" : "a derivation"} in: ${sentence.trim()}`);
+    }
+  }
+  return found;
+};
 
 /** Every "$1,234.56" in a text, as a number. A "$Tag" is not a figure. */
 const figuresIn = (s) => [...s.matchAll(/\$(\d{1,3}(?:,\d{3})*(?:\.\d\d)?)/g)].map((m) => Number(m[1].replace(/,/g, "")));
@@ -136,6 +217,43 @@ test("PLANTED: the wording scan catches each way the extra hundred could be expl
   for (const s of planted) assert.ok(wordingProblems(s).length > 0, `not caught: ${s}`);
   // And the real, clean sentences are not flagged by the same scan.
   for (const lang of LANGS) assert.deepEqual(wordingProblems(ALL_WORDS[lang].deposit), [], lang);
+});
+
+test("PLANTED: Tier B alone catches the leaks that carry no banned word at all", () => {
+  // Each of these passes every Tier A pattern -- no transport, no surcharge,
+  // no "rounded", no lone hundred -- and is caught ONLY by a purpose word
+  // sitting in a sentence with a figure or a derivation. Without Tier B the
+  // narrowing would be a hole.
+  const tierBOnly = [
+    "Your deposit is the cost of the materials for your fence.",
+    "The deposit is based on the materials we have to buy.",
+    "Deposit: the materials subtotal, then a little over.",
+    "We take 1,700 for the materials and the balance on completion.",
+    "Comprend 250 $ pour le planning.",
+    "El depósito se calcula sobre los materiales.",
+    "Basé sur le coût des matériaux.",
+    "El importe de los materiales es de 1,630.",
+    "Le montant des matériaux.",
+    "Your materials come to $1,630.00.",
+  ];
+  for (const s of tierBOnly) {
+    assert.deepEqual(WORDING.filter((re) => re.test(s)).map(String), [],
+      `this case is supposed to slip past Tier A, so it proves Tier B: ${s}`);
+    assert.ok(wordingProblems(s).length > 0, `Tier B did not catch: ${s}`);
+  }
+  // CONTROL: the purpose sentence itself, in all three languages, passes BOTH
+  // tiers. If this ever starts failing, the guard has gone blunt again.
+  for (const lang of LANGS) {
+    assert.deepEqual(wordingProblems(ALL_WORDS[lang].depositPurpose), [], `${lang}: ${ALL_WORDS[lang].depositPurpose}`);
+    assert.ok(/schedul|agend|planning/i.test(ALL_WORDS[lang].depositPurpose)
+      || /materials?|materiales|mat[eé]riaux/i.test(ALL_WORDS[lang].depositPurpose),
+      `${lang} purpose sentence no longer uses a purpose word, so the control above is vacuous`);
+  }
+  // CONTROL: a figure landing in the SAME sentence as the purpose word is
+  // caught, so the per-sentence split is not a way round the guard.
+  assert.ok(wordingProblems("Your deposit pays for the materials, which come to 1,630.").length > 0);
+  // ...and a figure in a NEIGHBOURING sentence does not condemn a clean one.
+  assert.deepEqual(wordingProblems("Total price: $9,710.00. Your deposit pays for the materials."), []);
 });
 
 // =================================================== 2. a finished email =====

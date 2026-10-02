@@ -116,6 +116,25 @@ export interface FenceRun {
   manualCornerCount: number;
   /** Roles the user deleted off this run's estimate; the takeoff skips them. Already parsed from the CSV. */
   suppressedRoles: ReadonlySet<MaterialRole>;
+
+  /**
+   * The joint this run's FIRST point stands at, or '' for a free end.
+   *
+   * `fence_runs.start_joint` (supabase_a32_join_runs.sql, text NOT NULL
+   * default ''), mirroring `FenceRun.startJoint` on the phone. Runs whose
+   * ends carry the SAME id share one post in the ground: joining two sides
+   * takes one post, one cap and one bag of concrete off the job, and turns
+   * the two end posts that met into one corner post.
+   *
+   * ALREADY VALIDATED by `readJointId` in joins.ts when the row was read, so
+   * anything that was not a uuid is '' by the time it gets here. A joint that
+   * ends up with fewer than two live members is then ignored by the
+   * arithmetic itself -- both routes land on today's dearer answer, never a
+   * cheaper one.
+   */
+  startJointId: string;
+  /** The joint this run's LAST point stands at, or ''. See [startJointId]. */
+  endJointId: string;
 }
 
 /** The Job fields the engine reads. Money is Double; the calibration is Float. */

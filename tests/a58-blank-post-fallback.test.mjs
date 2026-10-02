@@ -121,9 +121,21 @@ const quote = (mounting, rows = CATALOG, run = {}, job = {}) =>
 const asItWas = (mounting, rows = CATALOG, run = {}, job = {}) =>
   quote(mounting, rows, { suppressed_roles: "BLANK_POST", ...run }, job);
 
-test("harness: the engine is at the version this file is about, and prices this catalog with nothing unmatched", () => {
-  assert.equal(PRICING_ENGINE_VERSION, "2026.10.5",
-    "the engine version moved without this file moving -- re-read it before trusting a number below");
+test("harness: the engine is at or past the version this file is about, and prices this catalog with nothing unmatched", () => {
+  // RE-AIMED 2 Oct 2026. This pinned the exact string "2026.10.5", the release the fallback
+  // shipped in, so that the numbers below could not be read against a different engine. Three
+  // later formula changes bumped it (the shared corner post, .6 through .8), and the pin could
+  // only fail -- while the whole FILE had in fact been re-read, which is what it was asking for.
+  // It now asserts the version is at or past 2026.10.5, compared component by component the way
+  // JobSync decides which engine is stale ("2026.10.8" is not greater than "2026.9.10" as a
+  // string). The real guard against a formula change shipping unregenerated is elsewhere and is
+  // stronger: ParityFixtureCheck requires engine == fixtures/pricing/manifest.json.
+  const parts = (v) => v.split(".").map((n) => Number(n));
+  const cmp = (a, b) => parts(a).map((n, i) => n - (parts(b)[i] ?? 0)).find((d) => d !== 0) ?? 0;
+  assert.ok(cmp(PRICING_ENGINE_VERSION, "2026.10.5") >= 0,
+    `the engine is ${PRICING_ENGINE_VERSION}, BEHIND the 2026.10.5 that added the fallback -- the numbers below are not about this engine`);
+  assert.ok(cmp("2026.10.8", "2026.10.5") > 0 && cmp("2026.09.3", "2026.10.5") < 0,
+    "control: the comparison is component-wise, not a string compare");
   for (const m of ["LINE", "WALL", "LINE_TO_WALL"]) {
     const out = quote(m);
     assert.equal(out.engine_version, PRICING_ENGINE_VERSION);
@@ -134,7 +146,15 @@ test("harness: the engine is at the version this file is about, and prices this 
   // and the model of "before" really does remove the blank post and nothing else
   assert.equal(entryQty(asItWas("WALL"), "BLANK_POST"), 0, "the model did not suppress the role");
   assert.equal(entryQty(quote("WALL"), "BLANK_POST"), 1, "the takeoff stopped asking for a blank post");
-  assert.equal(entryQty(asItWas("WALL"), "GATE_POST"), 1, "the model suppressed more than the one role");
+  // WAS: GATE_POST 1 -- a wall gate's latch post used to be a gate post. NOW: END_POST 3, which
+  // is the run's two open ends plus that latch post, because the owner corrected the role on
+  // 1 Oct ("if it's against the wall, it's a blank post, and then an end post for the fence line
+  // that the gate latches to" -- EstimateEngine.gateAreaEntries, commit 3c0b3df; a53 block 1
+  // pins the shape). What this assertion is for is unchanged: the model must suppress BLANK_POST
+  // and leave the gate area's OTHER post alone, whatever role that post now carries.
+  assert.equal(entryQty(asItWas("WALL"), "GATE_POST"), 0, "a wall gate asks for a gate post again -- a53 block 1 is the pin to read");
+  assert.equal(entryQty(asItWas("WALL"), "END_POST"), 3, "the model suppressed more than the one role");
+  assert.equal(entryQty(quote("WALL"), "END_POST"), 3, "suppressing BLANK_POST changed the end posts");
   assert.equal(entryQty(asItWas("WALL"), "HOLE_PLUG"), entryQty(quote("WALL"), "HOLE_PLUG"), "the model moved the hole plugs");
   assert.equal(entryQty(asItWas("WALL"), "CONCRETE_BAG"), entryQty(quote("WALL"), "CONCRETE_BAG"), "the model moved the concrete");
 });
@@ -217,12 +237,22 @@ test("HIS CATALOG, per fence type: what the change costs him on a wall gate, mea
   // A minimal catalog per type -- just the gate post, so the measurement is of THAT row and
   // nothing else. Every other role goes unmatched, which is fine here: an unmatched role bills
   // nothing on both sides of the comparison, so the difference is the blank post alone.
-  // Every figure here came OUT of the engine, not out of a calculator. Three of the seven are a
-  // cent off the row times 1.07, and that is the engine being right rather than wrong: tax is
-  // taken on the whole taxable subtotal and each grand total is rounded to the cent, so the
-  // DIFFERENCE of two totals can land either side of the per-line arithmetic.
+  // Every figure here came OUT of the engine, not out of a calculator.
+  //
+  // RE-AIMED 2 Oct 2026. Three of the seven moved by one cent, and the cause is change (D) of
+  // 1 Oct -- a wall gate's latch post became an END_POST instead of a GATE_POST (a53 block 1).
+  // These catalogs hold ONE row, a GATE_POST, so the "before" side used to bill that latch post
+  // as well; now the latch post is an END_POST, the catalog has none, and the "before" side
+  // bills nothing at all ($860 of labour, measured). With no other taxable line left, the
+  // difference is now exactly one row's price plus 7% rounded ONCE, instead of the difference of
+  // two separately-rounded totals. So:
+  //        WOOD 10.16 -> 10.17   (9.50 x 1.07 = 10.165, rounds up)
+  //  CHAIN_LINK 21.14 -> 21.13   (19.75 x 1.07 = 21.1325, rounds down)
+  //   4 ft VINYL 17.93 -> 17.92  (16.75 x 1.07 = 17.9225, rounds down)
+  // The other four were already exact and did not move. Every figure is still re-derived from
+  // the billed row below, and the direction is still asserted to be UP.
   const expected = {
-    VINYL: 17.72, WOOD: 10.16, CHAIN_LINK: 21.14,
+    VINYL: 17.72, WOOD: 10.17, CHAIN_LINK: 21.13,
     ALUMINUM: 23.54, ORNAMENTAL_IRON: 34.24, SPLIT_RAIL: 14.98, COMPOSITE: 29.96,
   };
   for (const [ft, cost] of Object.entries(expected)) {
@@ -237,7 +267,10 @@ test("HIS CATALOG, per fence type: what the change costs him on a wall gate, mea
     // to the cent, for the rounding reason above
     const billed = itemOf(quote("WALL", rows, run), "BLANK_POST").unit_price;
     // Compared in whole cents: |21.14 - 21.13| is 0.010000000000001563 as a double, so a
-    // "<= 0.01" on the subtraction fails on float dust rather than on money.
+    // "<= 0.01" on the subtraction fails on float dust rather than on money. Since change (D)
+    // every one of the seven is EXACT (<= 0 cents), but the one-cent tolerance is kept: it is
+    // the honest bound for a difference of two rounded totals, and tightening it to zero would
+    // make this re-derivation fail the next time any other taxable line enters the baseline.
     assert.ok(Math.round(Math.abs(moved - money(billed * 1.07)) * 100) <= 1,
       ft + ": the move (" + moved + ") is not that row's price plus 7% tax (" + money(billed * 1.07) + ")");
   }
@@ -245,8 +278,9 @@ test("HIS CATALOG, per fence type: what the change costs him on a wall gate, mea
   const vinylRows = HIS_GATE_POSTS.filter(([t]) => t === "VINYL")
     .map(([, name, unit_price, height_ft]) => ({ name, category: "POST", role: "GATE_POST", unit_price, height_ft, color_or_finish: "White" }));
   const four = { color_or_finish: "White", panel_height_ft: 4 };
+  // 17.93 -> 17.92 for the same reason as WOOD and CHAIN_LINK above: 16.75 x 1.07 = 17.9225.
   assert.equal(money(quote("WALL", vinylRows, four).totals.grand_total - asItWas("WALL", vinylRows, four).totals.grand_total),
-    17.93, "the 4 ft vinyl figure has moved");
+    17.92, "the 4 ft vinyl figure has moved");
   // CONTROL: the measurement responds to the price. Double his vinyl rows and the cost doubles.
   const vinyl = HIS_GATE_POSTS.filter(([t]) => t === "VINYL")
     .map(([, name, unit_price, height_ft]) => ({ name, category: "POST", role: "GATE_POST", unit_price: unit_price * 2, height_ft, color_or_finish: "White" }));
@@ -362,9 +396,21 @@ test("FENCE TYPE STILL SCOPES IT: a vinyl run does not borrow a wood gate post",
 
 test("THE GAP SIGNAL: a role that truly has nothing is still named, and the billed line names the row it used", () => {
   // Genuine gap: no gate post anywhere -> BLANK_POST is still reported, under its OWN name.
-  // GATE_POST is in that list too and belongs there -- a wall gate asks for one of those as
-  // well, and nothing is wired to fall back FOR it (see a53 block 5). Both named, neither hidden.
-  assert.deepEqual(unmatchedOf(quote("WALL", without(CATALOG, "GATE_POST"))), ["BLANK_POST", "GATE_POST"]);
+  //
+  // RE-AIMED 2 Oct 2026. This expected ["BLANK_POST", "GATE_POST"], on the reasoning in the
+  // comment it replaced: "a wall gate asks for one of those as well". It no longer does --
+  // change (D) of 1 Oct made a wall gate's latch post an END_POST (a53 block 1), so a WALL
+  // gate asks for no GATE_POST at all and nothing is left to report it for.
+  // The tooth that mattered -- that nothing is wired to fall back FOR a GATE_POST, so a company
+  // with no gate-post row still loses the posts of a LINE gate -- has NOT changed, and is moved
+  // onto the mounting that still asks for one rather than dropped.
+  assert.deepEqual(unmatchedOf(quote("WALL", without(CATALOG, "GATE_POST"))), ["BLANK_POST"],
+    "a wall gate's own two posts are a blank post and an end post, so GATE_POST should not be named here");
+  assert.equal(entryQty(quote("WALL"), "GATE_POST"), 0, "control: a wall gate asks for a gate post again");
+  assert.deepEqual(unmatchedOf(quote("LINE", without(CATALOG, "GATE_POST"))), ["GATE_POST"],
+    "a LINE gate DOES ask for gate posts, and nothing falls back for them -- that gap is still open");
+  assert.equal(billedQty(quote("LINE", without(CATALOG, "GATE_POST")), "GATE_POST"), 0,
+    "a GATE_POST line was billed with no row to bill -- the fallback table grew an entry");
   // Other roles are unaffected: strip the latch and it is still reported.
   assert.deepEqual(unmatchedOf(quote("WALL", without(CATALOG, "LATCH"))), ["LATCH"],
     "the fallback is interfering with the gap list for other roles");
@@ -396,10 +442,26 @@ const BODY = {
   CHAIN_LINK: ["CHAIN_FABRIC", "LINE_POST", "CORNER_POST", "END_POST", "POST_CAP", "TENSION_BAND",
     "BRACE_BAND", "TOP_RAIL", "RAIL_END", "TENSION_WIRE", "BARBED_WIRE_ARM", "PRIVACY_SLAT"],
 };
+const TAKEOFF = read("supabase/functions/_shared/pricing/takeoff.ts");
+/** Fence types whose GATE asks for a stiffener and a brace. RE-AIMED 2 Oct 2026: this list used
+    to be every type. Change (E) of 1 Oct made both VINYL-ONLY in the takeoff -- a chain-link gate
+    is a welded tube frame, aluminium and iron arrive as welded factory panels, and wood, split
+    rail and composite are built on the steel-reinforced GATE_FRAME_KIT the takeoff already asks
+    for, so a BRACE on top of it would bill the stiffener twice. Read out of takeoff.ts below
+    rather than retyped, because this file's whole job is to compare what is ASKED FOR against
+    what is STOCKED, and a hand copy of one side silently answers the wrong question. */
+const setFrom = (name) => {
+  const m = new RegExp(name + ': ReadonlySet<FenceType> = new Set\\(\\[([^\\]]*)\\]\\)').exec(TAKEOFF);
+  assert.ok(m, "control: " + name + " was not found in takeoff.ts");
+  return new Set([...m[1].matchAll(/"([A-Z_]+)"/g)].map((x) => x[1]));
+};
+const STIFFENED = setFrom("STIFFENED_GATE_TYPES");
+const BRACED = setFrom("BRACED_GATE_TYPES");
 const askedBy = (t) => new Set([...BODY[t],
   FRAME_KIT.has(t) ? "GATE_FRAME_KIT" : "GATE_PANEL",
-  "HINGE_SET", "LATCH", "HANDLE", "BRACE", ...(t === "VINYL" ? ["TRIM"] : []),
-  "STIFFENER", "BLANK_POST", "GATE_POST", "HOLE_PLUG", "END_POST", "CONCRETE_BAG"]);
+  "HINGE_SET", "LATCH", "HANDLE", ...(BRACED.has(t) ? ["BRACE"] : []), ...(t === "VINYL" ? ["TRIM"] : []),
+  ...(STIFFENED.has(t) ? ["STIFFENER"] : []),
+  "BLANK_POST", "GATE_POST", "HOLE_PLUG", "END_POST", "CONCRETE_BAG"]);
 const ROLES = read("supabase/functions/_shared/pricing/types.ts")
   .match(/MATERIAL_ROLES = \[([\s\S]*?)\] as const/)[1].match(/"([A-Z_]+)"/g).map((s) => s.replaceAll('"', ""));
 
@@ -435,12 +497,26 @@ test("THE SWEEP, direction A: which roles the takeoff asks for that no starting 
     // Never stocked for ANY type: BLANK_POST, and only BLANK_POST.
     assert.deepEqual(ROLES.filter((r) => askedAnywhere.has(r) && !stockedAnywhere.has(r)), ["BLANK_POST"],
       which + ": the set of roles asked for and stocked nowhere has changed");
-    // Per fence type. Vinyl is clean apart from the blank post; the other six are also missing
-    // the three gate-hardware roles that are seeded for VINYL only -- stocked, but not for them.
+    // Per fence type. RE-AIMED 2 Oct 2026: this expected ["BLANK_POST","BRACE","HANDLE",
+    // "STIFFENER"] for the six non-vinyl types. Change (E) of 1 Oct closed all three of those
+    // gate-hardware gaps on purpose, and in opposite directions:
+    //   * BRACE and STIFFENER are no longer ASKED FOR outside vinyl (takeoff.ts
+    //     BRACED_GATE_TYPES / STIFFENED_GATE_TYPES, read into askedBy above), so they cannot be
+    //     missing. Proven by a60 to move his price by zero cents across all 11 live jobs.
+    //   * HANDLE is now STOCKED for every type -- it was re-filed VINYL -> UNIVERSAL in the
+    //     seed, because a 7" stainless gate handle is a 7" stainless gate handle.
+    // So the only role asked for and not stocked, for every type, is BLANK_POST -- and that one
+    // is now billed off the company's GATE_POST row, which is what this whole file is about.
     for (const t of TYPES) {
       const stocked = new Set([...(m[t] ?? []), ...(m.UNIVERSAL ?? [])]);
       const gap = [...askedBy(t)].filter((r) => !stocked.has(r)).sort();
-      assert.deepEqual(gap, t === "VINYL" ? ["BLANK_POST"] : ["BLANK_POST", "BRACE", "HANDLE", "STIFFENER"],
+      // LEFT RED ON PURPOSE, 2 Oct 2026: "office dashboard.html / <non-vinyl>" fails with
+      // ["BLANK_POST","HANDLE"], because change (E) was applied to only TWO of the three copies
+      // of the starting catalog. SeedData.kt and supabase_r20_seed_new_company_catalog.sql both
+      // file the handle UNIVERSAL; website/dashboard.html's CATALOG_SEED still files it VINYL.
+      // That is the drift this expectation exists to catch -- do NOT put HANDLE back into it.
+      // The fix is in dashboard.html, and a60's own failure message spells it out exactly.
+      assert.deepEqual(gap, ["BLANK_POST"],
         which + " / " + t + ": this type's missing roles have changed");
     }
   }
@@ -489,7 +565,14 @@ test("BOTH SIDES: the fallback table and its call site exist in Kotlin as well, 
     "EstimateEngine.kt's call site does not read the table the way line-items.ts does");
   assert.match(ts, /const fallbackRole = PRICING_FALLBACK_ROLE\[entry\.role\];\s*\n\s*if \(fallbackRole !== undefined\) candidates = candidatesByRole\.get\(fallbackRole\) \?\? \[\];/,
     "line-items.ts's call site does not read the table the way EstimateEngine.kt does");
-  // and the version constant moved on both
-  assert.match(kt, /const val PRICING_ENGINE_VERSION = "2026\.10\.5"/, "EstimateEngine.kt's engine version did not move");
-  assert.equal(PRICING_ENGINE_VERSION, "2026.10.5");
+  // and the version constant moved on both, and is the SAME on both -- which is the thing that
+  // matters, because a phone and the office comparing different versions each think the other is
+  // stale. RE-AIMED 2 Oct 2026 off the exact "2026.10.5" for the reason in the harness test.
+  const ktVer = /const val PRICING_ENGINE_VERSION = "([0-9.]+)"/.exec(kt);
+  assert.ok(ktVer, "EstimateEngine.kt's engine version constant was not found at all");
+  assert.equal(ktVer[1], PRICING_ENGINE_VERSION,
+    "the phone and the server report DIFFERENT engine versions -- each will think the other is out of date");
+  const parts = (v) => v.split(".").map((n) => Number(n));
+  const cmp = (a, b) => parts(a).map((n, i) => n - (parts(b)[i] ?? 0)).find((d) => d !== 0) ?? 0;
+  assert.ok(cmp(ktVer[1], "2026.10.5") >= 0, `EstimateEngine.kt is at ${ktVer[1]}, behind the 2026.10.5 that added this fallback`);
 });

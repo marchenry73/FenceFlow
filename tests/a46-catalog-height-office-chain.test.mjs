@@ -106,9 +106,17 @@ test("control: price-job's CATALOG_COLUMNS is readable and is the string that pi
   assert.match(cols, /unit_price/);
   assert.equal([...read("supabase/functions/price-job/index.ts").matchAll(/\.select\(CATALOG_COLUMNS\)/g)].length, 2, "and both catalog reads (a job, and a sample) use it");
 });
-test("SHOULD (todo): price-job selects height_ft, so a height set on the catalog page reaches the OFFICE re-price",
-  { todo: "supabase/functions/price-job/index.ts CATALOG_COLUMNS does not name height_ft, and it selects catalog columns BY NAME. Until it does -- and the function is deployed, after supabase_a40_material_height.sql (the column exists on the live project, checked 1 Oct 2026) -- the office engine prices every PANEL and GATE_PANEL as if no height were set, whatever this page saves. The phone engine does read it." },
-  () => { assert.match(catalogColumns(), /height_ft/); });
+// Was a todo while CATALOG_COLUMNS did not name height_ft. FIXED IN THE SOURCE on 2 Oct 2026, so it is a real
+// assertion now -- a todo that has started passing reports as a pass and would never tell anyone it had been fixed.
+//
+// STILL NOT TRUE OF THE DEPLOYED FUNCTION: price-job in production is version 12 of 5 Sep 2026 (supabase functions
+// list, read 2 Oct 2026), which predates both this column and the height rule itself. Until it is redeployed the
+// office keeps pricing every panel and post as if no height were set, whatever this page saves and whatever this
+// file asserts about the source. docs/OFFICE_DEPLOY_PENDING.md is the one-page version of that, and
+// tests/a63-office-height-parity.test.mjs measures what the difference is worth.
+test("price-job selects height_ft, so a height set on the catalog page reaches the OFFICE re-price", () => {
+  assert.match(catalogColumns(), /height_ft/);
+});
 
 // ============================================ the places a row still lands with no height ==
 test("GAP (pinned): the Jobs-page price-list import creates catalog rows with no height_ft, no covers_ft and no supplier", () => {

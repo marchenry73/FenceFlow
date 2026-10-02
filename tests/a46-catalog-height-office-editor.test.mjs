@@ -193,12 +193,41 @@ const checkRoles = (mk = () => fresh()) => {
   const { H } = mk();
   assert.ok(ROLE_OPTIONS.length >= 25 && ROLE_OPTIONS.includes("PANEL") && ROLE_OPTIONS.includes("CHAIN_FABRIC"), "control: the whole role dropdown was read, " + ROLE_OPTIONS.length);
   const applies = ROLE_OPTIONS.filter((r) => H.catalogHeightApplies(r)).sort();
-  // The set the ENGINES read a height on, read out of their own source: a role added to one and not the other, or to the box and not the engines, fails here.
-  const ts = read("supabase/functions/_shared/pricing/line-items.ts").match(/if \(entry\.role === "PANEL" \|\| entry\.role === "GATE_PANEL"\) \{/);
-  assert.ok(ts, "control: the TypeScript engine's height step was found with exactly these two roles");
-  const kt = read("app/src/main/java/com/fenceestimator/app/estimate/EstimateEngine.kt").match(/if \(entry\.role == MaterialRole\.PANEL \|\| entry\.role == MaterialRole\.GATE_PANEL\) \{/);
-  assert.ok(kt, "control: the Kotlin engine's height step was found with exactly these two roles");
+  // The set the ENGINES read a height on, read out of their own source: a role added to one and
+  // not the other, or to the box and not the engines, fails here.
+  //
+  // RE-AIMED 2 Oct 2026. These two controls matched a literal two-role condition. Engine
+  // 2026.10.2/.3/.4/.5 deliberately widened the height rule to the POST roles as well -- a 6 ft
+  // fence had been given a 4 ft post -- so it now reads PANEL, GATE_PANEL, LINE_POST, END_POST,
+  // CORNER_POST, GATE_POST and BLANK_POST. The controls now read WHATEVER roles each engine
+  // names and require the two engines to agree, which is the thing that mattered.
+  //
+  // THE EDITOR WAS NOT WIDENED WITH THEM, and that is a GAP, pinned here rather than papered
+  // over: the engines choose a post row by height, but nobody can TYPE a height on a post row
+  // from this page. A post row added here lands with height_ft null, and the rule drops a
+  // null-height row whenever a same-width sibling declares the run's height -- so a new, cheaper
+  // post can be silently passed over. The phone editor has the same gap (CatalogFields.kt
+  // sizeFieldsFor); a46-catalog-height-phone-editor pins it there.
+  const heightRoles = (src, re) => {
+    const m = re.exec(src);
+    return m ? [...m[1].matchAll(/\b([A-Z][A-Z_]+)\b/g)].map((x) => x[1]).sort() : null;
+  };
+  const ts = heightRoles(read("supabase/functions/_shared/pricing/line-items.ts"),
+    /if \(\s*((?:entry\.role === "[A-Z_]+"\s*(?:\|\|\s*)?)+)\)\s*\{\s*const current = candidates;/);
+  assert.ok(ts && ts.length >= 2, "control: the TypeScript engine's height step was not found");
+  const kt = heightRoles(read("app/src/main/java/com/fenceestimator/app/estimate/EstimateEngine.kt"),
+    /if \(\s*((?:entry\.role == MaterialRole\.[A-Z_]+\s*(?:\|\|\s*)?)+)\)\s*\{\s*val current = candidates/);
+  assert.ok(kt && kt.length >= 2, "control: the Kotlin engine's height step was not found");
+  assert.deepEqual(kt, ts, "the two engines read a height on DIFFERENT roles -- the phone and the office would price a post differently");
+  assert.deepEqual(ts, ["BLANK_POST", "CORNER_POST", "END_POST", "GATE_PANEL", "GATE_POST", "LINE_POST", "PANEL"],
+    "the set of roles the engines read a height on has changed -- decide whether the height box should follow before touching this list");
+  // The box itself: still the two panel roles, and a strict subset of what the engines read.
   assert.deepEqual(applies, ["GATE_PANEL", "PANEL"]);
+  assert.deepEqual(ts.filter((r) => !applies.includes(r)),
+    ["BLANK_POST", "CORNER_POST", "END_POST", "GATE_POST", "LINE_POST"],
+    "GAP (pinned): the five post roles the engines height-match but this page offers no height box for");
+  assert.deepEqual(applies.filter((r) => !ts.includes(r)), [],
+    "the box is offered for a role no engine reads a height on, which would store a number nothing uses");
   assert.equal(H.catalogHeightApplies(undefined), false);
   assert.equal(H.catalogHeightApplies(""), false);
   assert.equal(H.catalogHeightApplies("panel"), false, "role values are compared exactly, as the engines compare them");

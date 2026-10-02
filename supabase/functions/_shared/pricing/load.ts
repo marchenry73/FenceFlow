@@ -160,6 +160,22 @@ export function fenceRunRowToInput(row: DbFenceRunRow): FenceRunRow {
     suppressed_roles: row.suppressed_roles,
     is_teardown: row.is_teardown,
     sort_order: row.sort_order,
+    // The joints the owner has made between this run's ends and other runs'
+    // ends. Two sides at one joint share ONE post, so if these did not reach
+    // the engine the OFFICE would bill two end posts for a corner the PHONE
+    // bills one of -- the two halves of this product disagreeing about how
+    // many posts a job needs, which is the exact failure the single shared
+    // engine exists to prevent.
+    //
+    // `?? ""` rather than a bare read because not every caller selects these
+    // two columns: price-job does (JOIN_COLUMNS_LIVE there, true since the
+    // columns were proved to exist in production), `buildSampleRun` below
+    // invents a run that has no joints at all, and a future caller may select
+    // a narrower list. Absent and null read as NOT JOINED, which is the old,
+    // DEARER price; `readJointId` in joins.ts then refuses anything that is
+    // not a uuid. Bad or missing join data must never make a job cheaper.
+    start_joint: row.start_joint ?? "",
+    end_joint: row.end_joint ?? "",
   };
 }
 

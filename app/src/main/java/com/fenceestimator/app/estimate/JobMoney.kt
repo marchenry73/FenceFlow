@@ -13,9 +13,19 @@ import com.fenceestimator.app.data.Job
  * because its fallback was "the deposit" rather than "whatever is left".
  *
  * The rule everything hangs off: **the customer owes the contract total minus
- * what they have actually paid, net of refunds.** Never the original deposit,
- * never a figure captured earlier. "The contract total" means [billableTotal]:
- * the price the customer accepted once they have, the live estimate until then.
+ * what they have actually paid, net of refunds.** Never a figure captured
+ * earlier. "The contract total" means [billableTotal]: the price the customer
+ * accepted once they have, the live estimate until then.
+ *
+ * WHAT TO ASK FOR NEXT is a second question, and the answer changed on 2 Oct
+ * 2026: **the rest of the deposit while any of it is outstanding, then the
+ * balance** ([nextRequestAmount]). Asking for the whole balance the moment a
+ * first payment arrived -- which is what this did -- billed the labour on a
+ * fence that had not been built, and disagreed with the figure the customer's
+ * own quote page was showing her at the same moment. What it must never do,
+ * and never did, is fall back to the ORIGINAL deposit after money has arrived:
+ * that bills the same money twice. The deposit asked for is itself always
+ * capped at the price ([depositAsked]).
  */
 object JobMoney {
 
@@ -61,28 +71,114 @@ object JobMoney {
         if (contractTotal <= 0.0) netPaid(job)
         else (netPaid(job) - contractTotal).coerceAtLeast(0.0)
 
+    // ---- the deposit as a figure every surface reads the same way ----
+    //
+    // THE ONE CAP DECISION. jobs.deposit_amount is what the contractor typed
+    // or tapped; what any surface may ASK FOR is that figure capped at the
+    // price the job is billed against. The cap used to live in five places
+    // (quote page, approval email, pay link, office job sheet, office
+    // re-price) and nowhere in three (the contract PDF's deposit row, the
+    // {DEPOSIT} in its terms, the phone's estimate card), so a signed
+    // contract could state a deposit LARGER than the price the same customer
+    // page showed -- a deposit of 3,963 was once stored on a 3,620 job.
+    // [depositAsked] is that decision, in the same arithmetic as the server's
+    // depositFigures().asked in _shared/quote-deposit.ts.
+    //
+    // WHY A DEPOSIT ABOVE THE PRICE IS CAPPED RATHER THAN REFUSED: a stored
+    // deposit over the price is almost always a price that MOVED underneath a
+    // figure that was right when it was typed -- a takeoff regenerated, lines
+    // lost and rebuilt, a discount applied after the deposit was set. Refusing
+    // (printing nothing, or blocking the document) would stop a contract going
+    // out over a data condition the customer has nothing to do with, and would
+    // hide money the contractor is owed. Capping prints the largest figure the
+    // customer could honestly be asked for -- the whole price -- and the phone
+    // still says so out loud on the job screen (depositOverContract) so he can
+    // correct it. Nothing is ever asked for above the price.
+
+    /**
+     * The deposit this job may ask for: the stored figure, never more than
+     * [billableTotal]. Zero means no deposit was asked for.
+     *
+     * Not capped when the job has no price at all ([billableTotal] zero or
+     * less): a job priced at zero has not been priced, not been made free, and
+     * capping against it would silently erase a deposit the contractor typed.
+     * Same rule, same guard, as depositFigures().asked.
+     */
+    fun depositAsked(job: Job, billableTotal: Double): Double {
+        val requested = job.depositAmount.coerceAtLeast(0.0)
+        return if (billableTotal > 0.0) minOf(requested, billableTotal) else requested
+    }
+
+    /**
+     * What is still owed ON THE DEPOSIT: [depositAsked] less what has actually
+     * been paid, floored at zero. The server's depositFigures().due, to the
+     * cent, and the figure the customer's own quote page prints.
+     */
+    fun depositStillDue(job: Job, billableTotal: Double): Double =
+        // To the cent. Both sides are cents-exact and the subtraction is not:
+        // 2,119.99 less 500.01 is 1619.9799999999998 in doubles. The server
+        // rounds the same way (depositFigures().due), because the two have to
+        // produce the same number for the same job.
+        EstimateEngine.roundToCents(
+            (depositAsked(job, billableTotal) - netPaid(job)).coerceAtLeast(0.0)
+        )
+
+    /**
+     * THE ONE MEANING OF "DEPOSIT RECEIVED": the whole deposit that was asked
+     * for is in, or none was asked for.
+     *
+     * It used to mean two things at once. The phone's project stages and the
+     * payment-status column read "any money has arrived"; the office's
+     * readiness checklist read "the whole deposit is collected". So a job with
+     * $500 of a $3,000 deposit in showed "Deposit received" on the phone and
+     * "Asked $3,000.00, collected $500.00" in the office, on the same job, on
+     * the same afternoon. The office reading is the one that answers the
+     * question the stage is actually for -- can the materials be bought and the
+     * job put on the schedule -- so it is the one that survives. The other
+     * reading is no longer called a deposit anywhere: the payment-status value
+     * that is set by any payment now reads "Part paid".
+     *
+     * Identical to the office's `dep <= 0.005 || paid >= dep - 0.005`
+     * (dashboard.html jobReadiness), written through [depositStillDue] so
+     * there is one subtraction rather than two.
+     */
+    fun depositSettled(job: Job, billableTotal: Double): Boolean =
+        depositStillDue(job, billableTotal) <= 0.005
+
     /**
      * What the next payment request should be for.
      *
-     * The order matters, and getting it wrong is what put "Request $5730.00
-     * deposit" on a job that was already paid. Once any money has arrived, the
-     * only correct figure is what remains -- falling back to the deposit would
-     * bill someone a second time for the same money.
+     * THE REST OF THE DEPOSIT FIRST, THEN THE BALANCE -- and this is where the
+     * pin moved on 2 Oct 2026. It used to ask for the whole remaining balance
+     * the moment any money arrived, while the customer's own quote page went
+     * on asking for the rest of the deposit: on a job with a $3,000 deposit
+     * and a $4,654.47 total, $500 in, the phone offered to bill $4,154.47 and
+     * her page said $2,500.00 was due. Both were deliberate, both were tested,
+     * and they were on screen side by side.
+     *
+     * The page is right FOR THIS TRADE. The deposit buys the materials and the
+     * slot on the schedule; the balance is labour, and the labour has not
+     * happened yet. Asking a customer for the whole balance after one part
+     * payment is asking to be paid for a fence that is not built, which is the
+     * one thing a contractor cannot defend on the phone. So the request is the
+     * rest of the deposit while any of it is outstanding ([depositStillDue],
+     * the server's own `due`), and the remaining balance only once the deposit
+     * is settled.
+     *
+     * Never more than is owed on the whole job: [depositStillDue] is already
+     * capped at the price, so the floor is belt and braces.
      */
     fun nextRequestAmount(job: Job, contractTotal: Double): Double {
         val owed = stillOwed(job, contractTotal)
         if (owed <= 0.005) return 0.0
-        // Nothing paid yet and a deposit is set: ask for the deposit, but never
-        // for more than the job is worth.
-        if (netPaid(job) <= 0.005 && job.depositAmount > 0.005) {
-            return minOf(job.depositAmount, owed)
-        }
+        val depositLeft = depositStillDue(job, contractTotal)
+        if (depositLeft > 0.005) return minOf(depositLeft, owed)
         return owed
     }
 
     /** What to call that request, so the customer sees the right word on the link. */
     fun nextRequestLabel(job: Job, contractTotal: Double): String =
-        if (netPaid(job) <= 0.005 && job.depositAmount > 0.005) "deposit" else "balance"
+        if (depositStillDue(job, contractTotal) > 0.005) "deposit" else "balance"
 
     /**
      * Whether the paid figure came from a processor and so must not be typed over.
@@ -218,8 +314,10 @@ object JobMoney {
 
     /**
      * THE DEPOSIT RULE, in one sentence: the deposit is the materials still to
-     * be bought, rounded up to the next $100, plus another $100 -- and never
-     * more than is still owed on the job ([depositSuggestion] applies that cap).
+     * be bought, rounded up to the next $100, plus another $100 -- and what is
+     * left to collect on it is never more than is still owed on the job
+     * ([depositSuggestion] caps the stored figure at the price, which comes to
+     * the same thing).
      *
      * The extra $100 pays for scheduling and transport. It is the contractor's
      * business and is deliberately NOT disclosed to the customer: it is folded
@@ -259,19 +357,80 @@ object JobMoney {
     }
 
     /**
-     * The "Set deposit" suggestion: [ruleDeposit] of the materials still to be
-     * bought (net of money already in), never more than is still owed on
-     * [billableTotal].
+     * WHAT A MATERIALS FIGURE MEANS, in one definition, because three phone
+     * surfaces each had their own and none of them paid the sales tax.
+     *
+     * "Materials still to be bought" is cash he has to put out before the
+     * fence can be built: the estimate's material lines, PLUS THE SALES TAX
+     * ON THEM, plus the materials on any change order. He pays Florida sales
+     * tax at the counter, so a materials figure without it is short by the tax
+     * on every job -- about 7% of the largest number on the estimate.
+     *
+     * The three that disagreed, before this:
+     *  - the "Set deposit" suggestion: lines + change-order materials, no tax;
+     *  - the note under that button: the same figure, described as "Materials
+     *    come to ... Rounded up to the next $10", which was neither the basis
+     *    nor the rule;
+     *  - the estimate's own affordability warning (EstimateEngine's
+     *    warn_deposit_short / warn_fronting_material): totals.materialsSubtotal
+     *    alone -- no tax AND no change-order materials, so a job whose extra
+     *    work was all material read as covered when it was not.
+     *
+     * Change-order materials carry no tax here because the engine does not tax
+     * them either (they are a cost the contractor types, not a priced line), so
+     * this adds exactly the tax the engine charged and no tax it did not.
+     *
+     * [EstimateEngine.Totals.tax] is the tax on the taxable material lines and
+     * nothing else -- labour and gates are not in its base -- so adding it does
+     * not drag anything but materials into the figure.
+     */
+    fun materialsToBuy(totals: EstimateEngine.Totals, changeOrders: List<ChangeOrder>): Double =
+        EstimateEngine.roundToCents(
+            totals.materialsSubtotal + totals.tax + changeOrders.sumOf { it.materialCost }
+        )
+
+    /**
+     * The "Set deposit" suggestion: the deposit to STORE, which is money
+     * already in PLUS [ruleDeposit] of the materials still to be bought,
+     * never more than [billableTotal].
+     *
+     * WHICH COLUMN IS CUMULATIVE, AND WHY THIS CHANGED ON 2 OCT 2026. This
+     * moves real money, so the reasoning is written out rather than implied:
+     *
+     *  - `jobs.deposit_amount` is CUMULATIVE. It is the whole deposit asked of
+     *    this customer. Every reader subtracts payments from it themselves:
+     *    the server's depositFigures() returns `due = asked - netPaid`, the
+     *    quote page prints "X of it is already paid -- Y left before we start",
+     *    the office readiness line reads "Asked X, collected Y", and
+     *    [depositStillDue] above does the same subtraction on the phone.
+     *  - [ruleDeposit] of `materialsToBuy - netPaid` is INCREMENTAL. It is what
+     *    still has to be COLLECTED, with the money already in taken off.
+     *
+     * Writing the incremental figure into the cumulative column subtracted the
+     * same payment twice. Measured: $2,449.10 of materials, $1,000 already in,
+     * on a $9,710 job. The rule needs $1,449.10 more, which rounds to $1,600.
+     * The old suggestion stored 1,600, and the customer's page then asked for
+     * `1,600 - 1,000 = 600`. He is $1,000 short of the materials on a job he is
+     * about to buy for. The same arithmetic in the other direction made the
+     * office report the wrong amount received against the deposit.
+     *
+     * So the suggestion is `netPaid + rule`, and every reader's own
+     * subtraction then lands on exactly the incremental figure the rule asked
+     * for: `asked - netPaid = 2,600 - 1,000 = 1,600`. On a job with nothing
+     * paid the two are the same number, which is why this was invisible until
+     * somebody part-paid.
      *
      * THE CAP, and what the customer sees where it bites. A deposit above the
      * job is a bill for money the customer never agreed to (a $3,963 deposit
-     * was once stored against a $3,620 job), so the suggestion stops at what is
-     * still owed. On a small job that is the whole job: materials of $120 on a
-     * $150 job rule to $300, so the suggestion is the $150 -- the customer is
-     * asked for the whole price up front, as one ordinary deposit figure with
+     * was once stored against a $3,620 job), so the suggestion stops at the
+     * price. On a small job that is the whole job: materials of $120 on a $150
+     * job rule to $300, so the suggestion is the $150 -- the customer is asked
+     * for the whole price up front, as one ordinary deposit figure with
      * nothing added on top of it. There is simply no room for the extra $100.
-     * The capped amount is taken to cents, because the total is now exact to
-     * the cent and the cap is the balance.
+     * Capped, the figure is the price to the cent, which is also
+     * `netPaid + stillOwed` -- so [depositStillDue] on a capped deposit is
+     * exactly the balance, and the cap bites on the same inputs it always did
+     * (`rule > stillOwed`), so `capped` has not changed for any case.
      *
      * Only ever offered, never written by itself -- see [depositToSeed] for the
      * one narrow case where writing it is safe. It used to be written
@@ -282,20 +441,31 @@ object JobMoney {
      *
      * Same inputs and same answer as the server's suggestedDeposit in
      * quote-deposit.ts: non-finite inputs read as nothing to suggest on both.
+     *
+     * @param materialsToBuy [materialsToBuy] -- materials with their tax.
      */
-    fun depositSuggestion(job: Job, materialCost: Double, billableTotal: Double): DepositSuggestion {
-        if (!materialCost.isFinite() || !billableTotal.isFinite()) return DepositSuggestion.NONE
-        if (materialCost <= 0.0 || billableTotal <= 0.0) return DepositSuggestion.NONE
-        val rule = ruleDeposit(materialCost - netPaid(job))
-        if (rule <= 0.0) return DepositSuggestion.NONE
+    fun depositSuggestion(job: Job, materialsToBuy: Double, billableTotal: Double): DepositSuggestion {
+        if (!materialsToBuy.isFinite() || !billableTotal.isFinite()) return DepositSuggestion.NONE
+        if (materialsToBuy <= 0.0 || billableTotal <= 0.0) return DepositSuggestion.NONE
+        val collected = netPaid(job)
+        // INCREMENTAL: what still has to be collected for the materials.
+        val toCollect = ruleDeposit(materialsToBuy - collected)
+        if (toCollect <= 0.0) return DepositSuggestion.NONE
         val owed = EstimateEngine.roundToCents(stillOwed(job, billableTotal))
         if (owed <= 0.005) return DepositSuggestion.NONE
-        return if (rule <= owed + 0.005) DepositSuggestion(rule, false) else DepositSuggestion(owed, true)
+        // CUMULATIVE: what to store, so every reader's own `asked - netPaid`
+        // lands back on [toCollect]. Capped, that is the price to the cent,
+        // which is the same figure as collected + owed.
+        return if (toCollect <= owed + 0.005) {
+            DepositSuggestion(EstimateEngine.roundToCents(collected + toCollect), false)
+        } else {
+            DepositSuggestion(EstimateEngine.roundToCents(collected + owed), true)
+        }
     }
 
     /** [depositSuggestion]'s amount. Kept under its old name for the callers that only want the figure. */
-    fun suggestedMaterialsDeposit(job: Job, materialCost: Double, billableTotal: Double): Double =
-        depositSuggestion(job, materialCost, billableTotal).amount
+    fun suggestedMaterialsDeposit(job: Job, materialsToBuy: Double, billableTotal: Double): Double =
+        depositSuggestion(job, materialsToBuy, billableTotal).amount
 
     /**
      * Whether the customer is in it, so the deposit must stop following the
@@ -328,12 +498,19 @@ object JobMoney {
      * what [depositSuggestion] already offers. Wiring it also needs a decision
      * about the database trigger: deposit_follows_price scales a stored
      * deposit in proportion to every re-price, which turns a whole-hundred
-     * deposit into one that is not.
+     * deposit into one that is not. (That trigger was DROPPED on 1 Oct 2026
+     * after it rescaled deposits behind the owner's back on a re-price; two
+     * of his jobs still carry the figures it left. See
+     * docs/DEPOSIT_DATA_PENDING.md.)
+     *
+     * Only reached with nothing paid (customerIsInIt refuses once netPaid is
+     * above zero), so the cumulative and incremental figures are the same
+     * number here and the seed is the rule's own answer.
      */
-    fun depositToSeed(job: Job, materialCost: Double, billableTotal: Double): Double? {
+    fun depositToSeed(job: Job, materialsToBuy: Double, billableTotal: Double): Double? {
         if (job.depositAmount > 0.005) return null
         if (customerIsInIt(job)) return null
-        return depositSuggestion(job, materialCost, billableTotal).amount.takeIf { it > 0.0 }
+        return depositSuggestion(job, materialsToBuy, billableTotal).amount.takeIf { it > 0.0 }
     }
 
     /**

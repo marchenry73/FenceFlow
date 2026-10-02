@@ -89,15 +89,64 @@ class EstimateEngineTest {
             vinylRun(feet = 24f, gates = listOf(GateMarker(0f, 0f, 4f))), pixelsPerFoot = 0f
         )
 
-        // A gate hangs between two END posts (hinge side wears the stiffener);
-        // there is no separate gate-post part. 24 ft open run = 2 ends + 2 for the gate.
-        assertEquals(4.0, qtyOf(s, MaterialRole.END_POST), 0.001)
-        assertEquals(0.0, qtyOf(s, MaterialRole.GATE_POST), 0.001)
+        // RE-AIMED, not relaxed. The two posts a gate hangs between are billed
+        // as GATE_POST now (EstimateEngine.gateAreaEntries, GateMounting.LINE):
+        // a post standing at an opening is not an end of the fence, and the
+        // owner's catalog has GATE_POST rows priced by hand that nothing could
+        // reach while the takeoff asked for END_POST. So the END_POST pin moved
+        // 4.0 -> 2.0 (the run's own two ends, which is all that is left) and the
+        // GATE_POST pin moved 0.0 -> 2.0. No post went missing in the move, and
+        // the two assertions below prove that rather than taking it on trust.
+        //
+        // 24 ft typed, one 4 ft LINE gate: net 20 ft -> 4 bays -> 2 line + 2 end
+        // + 2 gate = 6 posts, 6 caps. Cross-checked by running the TypeScript
+        // port (supabase/functions/_shared/pricing, engine 2026.10.8, the half
+        // of the parity pair that CAN be executed here) on this exact input:
+        // {LINE_POST 2, END_POST 2, GATE_POST 2, POST_CAP 6}.
+        assertEquals(2.0, qtyOf(s, MaterialRole.END_POST), 0.001)
+        assertEquals(2.0, qtyOf(s, MaterialRole.GATE_POST), 0.001)
+        // The teeth this test is named for, untouched: the old formula
+        // subtracted the gate posts out of the line-post pool and drove this
+        // to zero on any run short enough.
         assertTrue("line posts should not be wiped out", qtyOf(s, MaterialRole.LINE_POST) > 0.0)
+        // And the reclassification must not lose a post: every post standing in
+        // the ground still buys a cap, whatever role it is billed under.
+        assertEquals(
+            "2 line + 2 end + 2 gate still stand, and still each take a cap",
+            6.0, qtyOf(s, MaterialRole.POST_CAP), 0.001
+        )
     }
 
+    /**
+     * RE-AIMED, not relaxed, and renamed because the old name
+     * ("...and brace whatever the fence type") asserted word for word the shape
+     * that was deliberately changed.
+     *
+     * HINGE_SET, LATCH and HANDLE genuinely are universal -- a hinge, a catch
+     * and a pull fit any leaf -- and all seven types are still held to all
+     * three. HANDLE in particular only reaches the other six because it was
+     * moved to FenceType.UNIVERSAL in the catalog, so this is the check that
+     * would catch that being undone.
+     *
+     * BRACE and STIFFENER are VINYL ONLY, for physical reasons rather than
+     * seeding accidents (EstimateEngine.BRACED_GATE_TYPES and
+     * STIFFENED_GATE_TYPES carry the full argument): a WOOD, SPLIT_RAIL or
+     * COMPOSITE gate is built on the GATE_FRAME_KIT this takeoff already asks
+     * for -- the seeded wood kit is "Steel-Reinforced", which IS the member
+     * keeping the leaf square -- so asking for a BRACE as well bills the same
+     * function twice, against a white vinyl extrusion at that. A chain-link
+     * gate is a welded tube frame; aluminium and ornamental iron arrive as
+     * welded factory panels.
+     *
+     * The old pin cost nothing to be wrong about, which is why it survived:
+     * six of the seven types had no row in any catalog to price a BRACE
+     * against, so the role landed in BuiltItems.unmatchedRoles and billed $0.
+     * Teeth are kept -- strengthened, in fact -- by pinning BOTH sides of the
+     * rule: 1.0 where the part belongs and 0.0 where it must never appear, so
+     * neither re-universalising it nor dropping it from vinyl passes.
+     */
     @Test
-    fun `every gate gets hinges latch handle and brace whatever the fence type`() {
+    fun `hinges latch and handle on every fence type -- brace and stiffener on vinyl only`() {
         FenceType.values().filter { it != FenceType.UNIVERSAL }.forEach { type ->
             val s = EstimateEngine.suggestQuantities(
                 vinylRun(feet = 50f, gates = listOf(GateMarker(0f, 0f, 4f)), type = type),
@@ -106,7 +155,12 @@ class EstimateEngineTest {
             assertEquals("$type hinges", 1.0, qtyOf(s, MaterialRole.HINGE_SET), 0.001)
             assertEquals("$type latch", 1.0, qtyOf(s, MaterialRole.LATCH), 0.001)
             assertEquals("$type handle", 1.0, qtyOf(s, MaterialRole.HANDLE), 0.001)
-            assertEquals("$type brace", 1.0, qtyOf(s, MaterialRole.BRACE), 0.001)
+
+            // One expectation, both directions: vinyl takes exactly one of each,
+            // every other type takes none at all.
+            val vinylOnly = if (type == FenceType.VINYL) 1.0 else 0.0
+            assertEquals("$type brace", vinylOnly, qtyOf(s, MaterialRole.BRACE), 0.001)
+            assertEquals("$type stiffener", vinylOnly, qtyOf(s, MaterialRole.STIFFENER), 0.001)
         }
     }
 

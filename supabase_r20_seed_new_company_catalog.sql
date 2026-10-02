@@ -331,7 +331,7 @@ begin
            v.taxable, v.covers_ft, v.color_or_finish,
            'Starting price — verify with your supplier'
       from (values
-        -- vinyl (19)
+        -- vinyl (18)
         ('PANEL', 'PANEL', 'VINYL', 'Panel T&G Vinyl Privacy 6''H x 6''W - White', 'EA', 52.35, true, 6, 'White'),  -- taxable = true here; the phone and office lists say false (see the header)
         ('PANEL', 'PANEL', 'VINYL', 'Panel T&G Vinyl Privacy 6''H x 8''W - White', 'EA', 71.4, true, 8, 'White'),
         ('POST', 'LINE_POST', 'VINYL', '5"x5" Co-Ex Line Post, White', 'EA', 16.56, true, null, 'White'),
@@ -342,7 +342,10 @@ begin
         ('GATE', 'GATE_PANEL', 'VINYL', 'Regular PVC Gate 6''H x 5''W, White', 'EA', 145.05, true, 5, 'White'),  -- taxable = true here; the phone and office lists say false (see the header)
         ('HARDWARE', 'HINGE_SET', 'VINYL', 'Self-Closing Hinge Set (box, 12 pairs)', 'BOX', 32.25, true, null, 'White'),
         ('HARDWARE', 'LATCH', 'VINYL', 'Two-Way Latch (box of 20)', 'BOX', 25.87, true, null, 'Black'),
-        ('HARDWARE', 'HANDLE', 'VINYL', '7" SS Gate Handle (box of 50)', 'BOX', 5, true, null, 'Black'),
+        -- the gate HANDLE is in the universal block below, not here: a 7"
+        -- stainless pull is not a vinyl part, and filing it VINYL lost the line
+        -- on the six other types. The brace and the stiffener ARE vinyl parts
+        -- and stay (SeedData.universalItems has the whole note).
         ('HARDWARE', 'BRACE', 'VINYL', 'Gate Support Brace, 8''', 'EA', 6.5, true, null, 'White'),
         ('HARDWARE', 'STIFFENER', 'VINYL', '5" Econo Stiffener x 8''(H)', 'EA', 52.75, true, null, ''),
         ('TRIM', 'TRIM', 'VINYL', '7/8 x 1-1/2 x 62 1/4 Trim U-Channel, White', 'EA', 2, true, null, 'White'),
@@ -428,9 +431,11 @@ begin
         ('GATE', 'GATE_FRAME_KIT', 'COMPOSITE', 'Composite Gate Frame Kit (up to 4''W)', 'EA', 145, true, 4, ''),
         ('HARDWARE', 'HINGE_SET', 'COMPOSITE', 'Composite Gate Hinge Set', 'SET', 18, true, null, ''),
         ('HARDWARE', 'LATCH', 'COMPOSITE', 'Composite Gate Latch', 'EA', 14, true, null, ''),
-        -- universal (2)
+        -- universal (3) -- a candidate for every fence type, so only parts that
+        -- genuinely fit every type belong here
         ('CONCRETE', 'CONCRETE_BAG', 'UNIVERSAL', 'Concrete Mix 60lb Bag', 'EA', 4.75, true, null, ''),
-        ('MISC', 'HOLE_PLUG', 'UNIVERSAL', '5/8" Hole Plug, White', 'EA', 0.15, true, null, 'White')
+        ('MISC', 'HOLE_PLUG', 'UNIVERSAL', '5/8" Hole Plug, White', 'EA', 0.15, true, null, 'White'),
+        ('HARDWARE', 'HANDLE', 'UNIVERSAL', '7" SS Gate Handle (box of 50)', 'BOX', 5, true, null, 'Black')
       ) as v(category, role, fence_type, name, unit, unit_price, taxable, covers_ft, color_or_finish)
     on conflict (company_id, sync_id) do nothing;
 
@@ -544,10 +549,10 @@ begin
   -- ---- 1. WHAT A NEW COMPANY GETS, by a plain INSERT ----
   perform pg_temp.s('list','count','probe','company 1 was seeded with the whole list',format($q$select count(*)::text from public.material_items where company_id = '%s'$q$,c1),'92');
   perform pg_temp.s('list','count','control','the reader is not blind: company 3 holds exactly the one row it was given',format($q$select count(*)::text from public.material_items where company_id = '%s'$q$,c3),'1');
-  perform pg_temp.s('list','per_type','probe','rows per fence type',format($q$select string_agg(fence_type || '=' || n, ',' order by fence_type collate "C") from (select fence_type, count(*) n from public.material_items where company_id = '%s' group by fence_type) t$q$,c1),'ALUMINUM=14,CHAIN_LINK=18,COMPOSITE=10,ORNAMENTAL_IRON=11,SPLIT_RAIL=8,UNIVERSAL=2,VINYL=19,WOOD=10');
-  perform pg_temp.s('list','content','probe','every column of every row is the list: checksum over fence type, role, category, name, unit, price, taxable, covers, colour and label',format(canon,c1),'92f0aa5b0e9bd90c430eed66df2d5f50');
+  perform pg_temp.s('list','per_type','probe','rows per fence type',format($q$select string_agg(fence_type || '=' || n, ',' order by fence_type collate "C") from (select fence_type, count(*) n from public.material_items where company_id = '%s' group by fence_type) t$q$,c1),'ALUMINUM=14,CHAIN_LINK=18,COMPOSITE=10,ORNAMENTAL_IRON=11,SPLIT_RAIL=8,UNIVERSAL=3,VINYL=18,WOOD=10');
+  perform pg_temp.s('list','content','probe','every column of every row is the list: checksum over fence type, role, category, name, unit, price, taxable, covers, colour and label',format(canon,c1),'69f1d74dab3f12b4036fd88bd38ab808');
   perform pg_temp.s('list','content','control','the checksum query is live: company 3''s one row gives a checksum',format(canon,c3),'~^[0-9a-f]{32}$');
-  perform pg_temp.s('list','content','control','...and it is not the list''s checksum (the query can tell a wrong catalog from the right one)',format($q$select ((%s) <> '92f0aa5b0e9bd90c430eed66df2d5f50')::text$q$,format(canon,c3)),'true');
+  perform pg_temp.s('list','content','control','...and it is not the list''s checksum (the query can tell a wrong catalog from the right one)',format($q$select ((%s) <> '69f1d74dab3f12b4036fd88bd38ab808')::text$q$,format(canon,c3)),'true');
   perform pg_temp.s('list','label','probe','the label is exactly SeedData.SEEDED, byte for byte (utf-8 hex)',format($q$select string_agg(distinct encode(convert_to(source_doc,'UTF8'),'hex'), ',') from public.material_items where company_id = '%s'$q$,c1),label_hex);
   perform pg_temp.s('list','flags','probe','every row is active, undeleted and linked to no manufacturer or sku',format($q$select (bool_and(is_active) and bool_and(deleted_at is null) and bool_and(manufacturer_sync_id is null) and bool_and(supplier_sku is null) and bool_and(deleted_by = ''))::text from public.material_items where company_id = '%s'$q$,c1),'true');
   perform pg_temp.s('list','tax','probe','no row is untaxed (the four rows the phone and office lists carry as false are seeded true: see the header)',format($q$select count(*) filter (where not taxable)::text from public.material_items where company_id = '%s'$q$,c1),'0');
@@ -566,19 +571,19 @@ begin
   perform pg_temp.s('guard','null','probe','null writes nothing and does not error',$q$select public.seed_starting_catalog(null)::text$q$,'0');
   perform pg_temp.s('backfill','empty_company','control','an existing company with no rows (what PART 4 would run for) starts at zero',format($q$select count(*)::text from public.material_items where company_id = '%s'$q$,c5),'0');
   perform pg_temp.s('backfill','empty_company','probe','...PART 4''s call gives it the whole list',format($q$select public.seed_starting_catalog('%s')::text$q$,c5),'92');
-  perform pg_temp.s('backfill','empty_company','readback','...identical, column for column, to a company seeded at creation',format(canon,c5),'92f0aa5b0e9bd90c430eed66df2d5f50');
+  perform pg_temp.s('backfill','empty_company','readback','...identical, column for column, to a company seeded at creation',format(canon,c5),'69f1d74dab3f12b4036fd88bd38ab808');
   perform pg_temp.s('backfill','empty_company','probe','...and running it a second time writes nothing',format($q$select public.seed_starting_catalog('%s')::text$q$,c5),'0');
 
   -- ---- 3. THE TWO REAL WAYS A COMPANY IS MADE, called as the people who call them ----
   perform pg_temp.q('sign-up','web_and_phone','probe','a signed-in stranger with no company signs up (create_company_with_owner), exactly as the website and the phone call it',u_web,$q$select public.create_company_with_owner('PROBE-A26C-WEB','A26C Web')::text$q$,'~^[0-9a-f]{8}-[0-9a-f]{4}-','web_company');
   perform pg_temp.s('sign-up','web_and_phone','readback','...the new company has the whole list',$q$select count(*)::text from public.material_items where company_id = current_setting('a26c.web_company')::uuid$q$,'92');
-  perform pg_temp.s('sign-up','web_and_phone','readback','...exactly the list',format(canon,current_setting('a26c.web_company')),'92f0aa5b0e9bd90c430eed66df2d5f50');
+  perform pg_temp.s('sign-up','web_and_phone','readback','...exactly the list',format(canon,current_setting('a26c.web_company')),'69f1d74dab3f12b4036fd88bd38ab808');
   perform pg_temp.s('sign-up','web_and_phone','readback','...and the sign-up itself is unchanged: the caller is its OWNER, the company is pending and not allowed',$q$select ((select role::text from public.profiles where id = 'a26c0001-0000-4000-8000-000000000001') || '/' || c.subscription_status || '/' || public.company_allowed(c.id)::text) from public.companies c where c.id = current_setting('a26c.web_company')::uuid$q$,'OWNER/pending/false');
   perform pg_temp.q('sign-up','pending_lock','probe','...and until it has a plan its owner reads none of it through the tables (the plan lock is unchanged)',u_web,$q$select count(*)::text from public.material_items$q$,'0');
 
   perform pg_temp.q('staff','admin_create_company','probe','a platform admin creates a company for a contractor (admin_create_company), exactly as the staff console calls it',u_staff,$q$select company_id::text from public.admin_create_company('PROBE-A26C-STAFF','a26c-staff@probe.invalid')$q$,'~^[0-9a-f]{8}-[0-9a-f]{4}-','staff_company');
   perform pg_temp.s('staff','admin_create_company','readback','...the new company has the whole list',$q$select count(*)::text from public.material_items where company_id = current_setting('a26c.staff_company')::uuid$q$,'92');
-  perform pg_temp.s('staff','admin_create_company','readback','...exactly the list',format(canon,current_setting('a26c.staff_company')),'92f0aa5b0e9bd90c430eed66df2d5f50');
+  perform pg_temp.s('staff','admin_create_company','readback','...exactly the list',format(canon,current_setting('a26c.staff_company')),'69f1d74dab3f12b4036fd88bd38ab808');
   perform pg_temp.q('staff','not_admin','control','an ordinary signed-in user still cannot create a company for somebody (unchanged)',u_own2,$q$select company_id::text from public.admin_create_company('PROBE-A26C-NOT-ADMIN','x@probe.invalid')$q$,'ERR P0001');
   perform pg_temp.s('staff','not_admin','readback','...and no company was made by that attempt',$q$select count(*)::text from public.companies where name = 'PROBE-A26C-NOT-ADMIN'$q$,'0');
 
@@ -601,7 +606,7 @@ begin
   perform pg_temp.x('rules','crew_no_delete','probe','...cannot delete any of them',u_crew1,format($q$delete from public.material_items where company_id = '%s'$q$,c1),'rows=0|ERR 42501');
   perform pg_temp.x('rules','crew_no_delete','probe','...cannot soft-delete any of them either',u_crew1,format($q$update public.material_items set deleted_at = now() where company_id = '%s'$q$,c1),'rows=0|ERR 42501');
   perform pg_temp.x('rules','crew_no_delete','probe','...or change a price',u_crew1,format($q$update public.material_items set unit_price = 0 where company_id = '%s'$q$,c1),'rows=0|ERR 42501');
-  perform pg_temp.s('rules','crew_no_delete','readback','...and company 1''s list is exactly as it was seeded',format(canon,c1),'92f0aa5b0e9bd90c430eed66df2d5f50');
+  perform pg_temp.s('rules','crew_no_delete','readback','...and company 1''s list is exactly as it was seeded',format(canon,c1),'69f1d74dab3f12b4036fd88bd38ab808');
   perform pg_temp.s('rules','crew_no_delete','readback','...with nothing deleted',format($q$select count(*) filter (where deleted_at is not null)::text from public.material_items where company_id = '%s'$q$,c1),'0');
 
   -- ---- 6. WHAT DID NOT MOVE ----
@@ -684,7 +689,7 @@ begin
            v.taxable, v.covers_ft, v.color_or_finish,
            'Starting price — verify with your supplier'
       from (values
-        -- vinyl (19)
+        -- vinyl (18)
         ('PANEL', 'PANEL', 'VINYL', 'Panel T&G Vinyl Privacy 6''H x 6''W - White', 'EA', 52.35, true, 6, 'White'),  -- taxable = true here; the phone and office lists say false (see the header)
         ('PANEL', 'PANEL', 'VINYL', 'Panel T&G Vinyl Privacy 6''H x 8''W - White', 'EA', 71.4, true, 8, 'White'),
         ('POST', 'LINE_POST', 'VINYL', '5"x5" Co-Ex Line Post, White', 'EA', 16.56, true, null, 'White'),
@@ -695,7 +700,10 @@ begin
         ('GATE', 'GATE_PANEL', 'VINYL', 'Regular PVC Gate 6''H x 5''W, White', 'EA', 145.05, true, 5, 'White'),  -- taxable = true here; the phone and office lists say false (see the header)
         ('HARDWARE', 'HINGE_SET', 'VINYL', 'Self-Closing Hinge Set (box, 12 pairs)', 'BOX', 32.25, true, null, 'White'),
         ('HARDWARE', 'LATCH', 'VINYL', 'Two-Way Latch (box of 20)', 'BOX', 25.87, true, null, 'Black'),
-        ('HARDWARE', 'HANDLE', 'VINYL', '7" SS Gate Handle (box of 50)', 'BOX', 5, true, null, 'Black'),
+        -- the gate HANDLE is in the universal block below, not here: a 7"
+        -- stainless pull is not a vinyl part, and filing it VINYL lost the line
+        -- on the six other types. The brace and the stiffener ARE vinyl parts
+        -- and stay (SeedData.universalItems has the whole note).
         ('HARDWARE', 'BRACE', 'VINYL', 'Gate Support Brace, 8''', 'EA', 6.5, true, null, 'White'),
         ('HARDWARE', 'STIFFENER', 'VINYL', '5" Econo Stiffener x 8''(H)', 'EA', 52.75, true, null, ''),
         ('TRIM', 'TRIM', 'VINYL', '7/8 x 1-1/2 x 62 1/4 Trim U-Channel, White', 'EA', 2, true, null, 'White'),
@@ -781,9 +789,11 @@ begin
         ('GATE', 'GATE_FRAME_KIT', 'COMPOSITE', 'Composite Gate Frame Kit (up to 4''W)', 'EA', 145, true, 4, ''),
         ('HARDWARE', 'HINGE_SET', 'COMPOSITE', 'Composite Gate Hinge Set', 'SET', 18, true, null, ''),
         ('HARDWARE', 'LATCH', 'COMPOSITE', 'Composite Gate Latch', 'EA', 14, true, null, ''),
-        -- universal (2)
+        -- universal (3) -- a candidate for every fence type, so only parts that
+        -- genuinely fit every type belong here
         ('CONCRETE', 'CONCRETE_BAG', 'UNIVERSAL', 'Concrete Mix 60lb Bag', 'EA', 4.75, true, null, ''),
-        ('MISC', 'HOLE_PLUG', 'UNIVERSAL', '5/8" Hole Plug, White', 'EA', 0.15, true, null, 'White')
+        ('MISC', 'HOLE_PLUG', 'UNIVERSAL', '5/8" Hole Plug, White', 'EA', 0.15, true, null, 'White'),
+        ('HARDWARE', 'HANDLE', 'UNIVERSAL', '7" SS Gate Handle (box of 50)', 'BOX', 5, true, null, 'Black')
       ) as v(category, role, fence_type, name, unit, unit_price, taxable, covers_ft, color_or_finish)
     on conflict (company_id, sync_id) do nothing;
 

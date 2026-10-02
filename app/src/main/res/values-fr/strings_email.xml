@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The "here is your quote" email, as the phone sends it.
+
+  GENERATED. Do not edit by hand: these sentences are the ones in
+  supabase/functions/_shared/email-templates.ts, and
+  tests/a72-quote-email.test.mjs regenerates this file and fails if it
+  differs by a character, so an edit here is a red test, not a change.
+  To change the wording, change the template module and re-run this
+  generator with its write flag; the generator's own usage line spells it.
+
+
+  THERE IS NO PRICE IN THIS EMAIL, deliberately. It goes out before the
+  customer has accepted anything and the job's total is still moving, so
+  the quote page owns every figure. See the template module's header.
+-->
+<resources>
+  <!-- %1$s = company -->
+  <string name="quote_email_subject">Votre devis de clôture avec %1$s</string>
+  <!-- %1$s = customerName -->
+  <string name="quote_email_hello">Bonjour %1$s,</string>
+  <string name="quote_email_hello_blank">Bonjour,</string>
+  <!-- %1$s = company, %2$s = address -->
+  <string name="quote_email_intro">Voici votre devis de %1$s pour la clôture au %2$s.</string>
+  <!-- %1$s = company -->
+  <string name="quote_email_intro_no_address">Voici votre devis de clôture avec %1$s.</string>
+  <!-- %1$s = url -->
+  <string name="quote_email_open">Ouvrez-le ici : %1$s</string>
+  <string name="quote_email_whats_on_it">La page indique le prix, ce qui est inclus, et votre clôture dessinée en 3D, pour la voir avant que quoi que ce soit ne soit construit.</string>
+  <!-- %1$s = company -->
+  <string name="quote_email_approving">Si tout vous convient, vous pouvez l’approuver et le signer sur la page, et %1$s vous contactera pour organiser les travaux.</string>
+  <string name="quote_email_page_is_live">La page est en ligne : elle affiche toujours le prix actuel. Ouvrez-la quand vous voulez.</string>
+  <!-- %1$s = company, %2$s = phone -->
+  <string name="quote_email_questions">Des questions ? Répondez simplement à ce courriel, ou appelez %1$s au %2$s.</string>
+  <string name="quote_email_questions_no_phone">Des questions ? Répondez simplement à ce courriel.</string>
+</resources>

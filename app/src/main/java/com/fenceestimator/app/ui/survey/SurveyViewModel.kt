@@ -273,10 +273,45 @@ class SurveyViewModel(
         _selectedRunId.value = id
     }
 
+    /**
+     * The run the route asked the drawing to open on, until it is honoured.
+     *
+     * Held here and not in the screen because [ensureSelection] runs again on
+     * every emission of [runs] (SurveyDrawScreen's
+     * `LaunchedEffect(runs) { ensureSelection() }`), and the first few of
+     * those arrive before Room has answered. Cleared the moment the request
+     * is either satisfied or found to be unsatisfiable, so that selecting a
+     * different side by hand afterwards is not undone by the next sync
+     * emission dragging the selection back to the run the route named.
+     */
+    private var requestedRunId: Long? = null
+
+    /**
+     * Asks the drawing to open on a particular run. Called once per visit,
+     * from the route's run id ([com.fenceestimator.app.ui.nav.Routes.survey]).
+     *
+     * Null, zero or a negative id is no request -- the job-only route, which
+     * JobDetailScreen still uses, lands here with nothing and keeps the
+     * original "first run" behaviour exactly.
+     */
+    fun requestRun(id: Long?) {
+        requestedRunId = id?.takeIf { it > 0L }
+    }
+
+    /**
+     * Settles which run is selected, from [resolveRunSelection] -- see that
+     * function for the rules and for the bug they fix. The decision is pure
+     * and lives in the companion so plain node can check it; this half only
+     * reads the flows and writes the result back.
+     */
     fun ensureSelection() {
-        if (_selectedRunId.value == null || runs.value.none { it.id == _selectedRunId.value }) {
-            _selectedRunId.value = runs.value.firstOrNull()?.id
-        }
+        val decision = resolveRunSelection(
+            runIds = runs.value.map { it.id },
+            currentSelection = _selectedRunId.value,
+            requestedRunId = requestedRunId
+        )
+        if (!decision.requestStillPending) requestedRunId = null
+        _selectedRunId.value = decision.selectedRunId
     }
 
     /**
@@ -424,6 +459,66 @@ class SurveyViewModel(
 
     /** Why a chosen survey photo was not taken in -- said out loud, never a button that looks dead. */
     enum class ImportRefusal { ALREADY_HAS_SURVEY, COULD_NOT_READ }
+
+    // -----------------------------------------------------------------------
+    // A65's types, declared HERE in the class body and not inside the
+    // companion object with the pure functions that return them.
+    //
+    // That is deliberate and it is not style. A classifier declared inside a
+    // companion object is `SurveyViewModel.Companion.NumberRefusal`, and
+    // whether `SurveyViewModel.NumberRefusal` also resolves to it is not
+    // something this sandbox can settle -- Gradle cannot be run here tonight,
+    // and there was no other companion-nested type in the whole of
+    // app/src/main to copy a working answer from. ImportRefusal directly above
+    // IS such a working answer: it sits in the class body and
+    // SurveyDrawScreen refers to it as `SurveyViewModel.ImportRefusal`, which
+    // compiles today. So these follow it rather than betting on a rule nothing
+    // here can check. The functions stay in the companion, because they have
+    // to be callable without an instance.
+    // -----------------------------------------------------------------------
+
+    /**
+     * What [ensureSelection] decided, and whether the run the caller ASKED for
+     * is still outstanding.
+     *
+     * [requestStillPending] is the part that matters and the part that is easy
+     * to get wrong. The runs list arrives empty on the first frame and fills
+     * in a moment later from Room, so "the run you asked for is not in this
+     * list" has two completely different meanings depending on whether the
+     * list has loaded yet, and answering them the same way is what would put
+     * the drawing back on run 1.
+     */
+    data class RunSelection(val selectedRunId: Long?, val requestStillPending: Boolean)
+
+    /** Why a typed number was refused. One reason per refusal, so the screen can say which. */
+    enum class NumberRefusal {
+        /** The box is empty, or mid-edit and holding nothing yet. */
+        BLANK,
+
+        /** Not a number at all: "5ft", "5'", "six". */
+        NOT_A_NUMBER,
+
+        /**
+         * NaN or +/-Infinity.
+         *
+         * Its own reason and not folded into [NOT_A_NUMBER] because these
+         * three DO parse. Kotlin's String.toFloatOrNull defers to
+         * java.lang.Float.parseFloat, whose accepted grammar includes the
+         * literals "NaN", "Infinity" and "-Infinity" -- so the gate width
+         * dialog's old `text.toFloatOrNull()?.let { onConfirm(it) }` accepted
+         * all three and handed them straight to the drawing.
+         */
+        NOT_FINITE,
+
+        /** Zero or negative, where only a positive number means anything. */
+        NOT_POSITIVE,
+    }
+
+    /**
+     * A number typed into a field, or the reason it cannot be used. Exactly
+     * one of [value] and [refusal] is non-null.
+     */
+    data class NumberEntry(val value: Float?, val refusal: NumberRefusal?)
 
     private val _importRefused = MutableSharedFlow<ImportRefusal>(extraBufferCapacity = 1)
     val importRefused: SharedFlow<ImportRefusal> = _importRefused
@@ -600,10 +695,31 @@ class SurveyViewModel(
      * points already on the run -- a snap only ever positions the new one.
      */
     fun addDrawPoint(point: FencePoint) {
+        if (!writablePointOrDropped(point, "addDrawPoint")) return
         editRun(_selectedRunId.value) { run ->
             val points = FenceCodec.decodePoints(run.pointsEncoded) + point
             writePoints(run, points)
         }
+    }
+
+    /**
+     * Refuses a non-finite coordinate before it can be persisted, and says so
+     * in the log. See [isWritablePoint] for what one costs.
+     *
+     * Dropped rather than reported to the screen, on purpose, and this is the
+     * one guard in A65 with no user-facing message. A NaN or Infinity
+     * coordinate is not something a person can type -- every point comes from
+     * a tap mapped through the canvas transform, so a non-finite one means
+     * the transform itself was degenerate (a zero scale, a collapsed
+     * viewport) for that frame. There is no action for the user to take and
+     * nothing for a message to tell them to do; the honest behaviour is to
+     * not record the tap. The log line is for whoever is reading a crash
+     * report and wondering why a corner did not appear.
+     */
+    private fun writablePointOrDropped(point: FencePoint, where: String): Boolean {
+        if (isWritablePoint(point.x, point.y)) return true
+        android.util.Log.w("SurveyViewModel", "$where refused a non-finite point: ${point.x},${point.y}")
+        return false
     }
 
     /**
@@ -693,6 +809,7 @@ class SurveyViewModel(
      * it, and one nudge at a time.
      */
     fun movePoint(index: Int, point: FencePoint) {
+        if (!writablePointOrDropped(point, "movePoint")) return
         editRun(_selectedRunId.value) { run ->
             val points = FenceCodec.decodePoints(run.pointsEncoded).toMutableList()
             if (index !in points.indices) return@editRun
@@ -1265,12 +1382,51 @@ class SurveyViewModel(
         }
     }
 
+    private val _calibrationRefused = MutableSharedFlow<NumberRefusal>(extraBufferCapacity = 1)
+
+    /**
+     * A typed calibration distance that could not be used, and why -- so the
+     * dialog can say which mistake it was instead of closing as though the
+     * scale had been set. The counterpart of [lengthRefused].
+     */
+    val calibrationRefused: SharedFlow<NumberRefusal> = _calibrationRefused
+
     fun applyCalibration(p1: FencePoint, p2: FencePoint, knownFeet: Float) {
         if (viewerIsGuestDemo()) return
         val current = job.value ?: return
+        // The guard here used to be `knownFeet <= 0f`, which NaN walks
+        // straight through: `NaN <= 0f` is false. So a NaN distance stored a
+        // NaN calibration, and an Infinity one stored exactly 0.0
+        // (distPx / Infinity), and either prices the whole fence at $0 --
+        // FenceGeometryEngine.analyze returns an empty result whenever
+        // pixelsPerFoot <= 0f. See [isUsableCalibration].
+        //
+        // Checked BEFORE the division, so the reason reported is the one the
+        // person can act on: "that is not a distance", not the arithmetic
+        // consequence of it two lines later.
+        checkPositive(knownFeet)?.let {
+            _calibrationRefused.tryEmit(it)
+            return
+        }
         val distPx = kotlin.math.hypot((p2.x - p1.x).toDouble(), (p2.y - p1.y).toDouble()).toFloat()
-        if (distPx <= 0f || knownFeet <= 0f) return
+        if (distPx <= 0f || !distPx.isFinite()) {
+            // The two taps landed on the same spot, or on a frame whose
+            // transform was degenerate. Nothing typed was wrong, so this is
+            // reported as "not a number" rather than blamed on the distance.
+            _calibrationRefused.tryEmit(NumberRefusal.NOT_A_NUMBER)
+            return
+        }
         val pxPerFt = distPx / knownFeet
+        // Belt and braces, and not redundant: both inputs can be finite and
+        // positive and still divide to something that is not (a huge distance
+        // over a tiny known length overflows to Infinity). Nothing may be
+        // stored in this column that DrawingScale.of would then refuse to
+        // measure by, because that combination is exactly the state that
+        // prices at $0 with the send button NOT blocked.
+        if (!isUsableCalibration(pxPerFt)) {
+            _calibrationRefused.tryEmit(NumberRefusal.NOT_FINITE)
+            return
+        }
         viewModelScope.launch {
             repository.updateJob(current.copy(calibrationPixelsPerFoot = pxPerFt, calibrationKnownFeet = knownFeet))
             // A new scale is a new drawing as far as Undo and Redo are concerned.
@@ -1386,7 +1542,24 @@ class SurveyViewModel(
     }
 
     private suspend fun createBlankRun(defaults: BusinessProfile?, isTeardown: Boolean = false): FenceRun? {
-        val base = FenceRun(jobId = jobId, isTeardown = isTeardown)
+        // Read the job's runs out of the DATABASE, not from the [runs] flow.
+        // This runs inside [drawingWrites], which exists precisely because the
+        // screen's copy of a row can be a moment old -- and a sortOrder taken
+        // from a stale list is a sortOrder that ties with a run already there,
+        // which is the bug being fixed (see [nextSortOrder]).
+        val siblings = repository.getFenceRuns(jobId)
+        val base = FenceRun(
+            jobId = jobId,
+            isTeardown = isTeardown,
+            // Was left at the entity default of 0, tying with run 1 and
+            // leaving the order of the two to a random UUID. See
+            // [nextSortOrder]; identical to FenceRunListViewModel.addRun.
+            sortOrder = nextSortOrder(siblings.map { it.sortOrder }),
+            // Was left blank, which the drawing screen renders as
+            // "Untitled (Vinyl)" -- several rows reading the same thing, in an
+            // order that moved. See [nextQuickRunLabel].
+            label = nextQuickRunLabel(siblings.map { it.label }, isTeardown)
+        )
         val created = if (defaults == null) base else base.copy(
             panelWidthFt = defaults.defaultPanelWidthFt,
             panelHeightFt = defaults.defaultPanelHeightFt,
@@ -2020,21 +2193,67 @@ class SurveyViewModel(
          * tests/a59-join-storage-roundtrip.test.mjs, which replaces it and
          * pins this flag to EntitySync.JOIN_COLUMNS_LIVE instead).
          */
-        const val JOIN_STORAGE_READY = false
+        // TRUE since 2026-10-02. Both preconditions above were checked against
+        // the LIVE database, not the repo .sql files, each probe with a positive
+        // control and a canary that had to come back false:
+        //
+        //  1. price-job/index.ts selects start_joint and end_joint (its own
+        //     JOIN_COLUMNS_LIVE is true), so the office reads the joint and the
+        //     two engines price one job one way.
+        //  2. PART A of supabase_a56_join_reapproval_fingerprint.sql is live and
+        //     the fingerprint really does reach it. The
+        //     chain is reapproval_on_drawing_change (an enabled AFTER INSERT OR
+        //     UPDATE OR DELETE trigger on fence_runs) -> reapp_on_run_change ->
+        //     reapp_job_takeoff -> reapp_row_takeoff, and reapp_row_takeoff is
+        //     the function that reads start_joint.
+        //
+        //     Worth writing down because it nearly read as a blocker: asking
+        //     whether reapp_job_takeoff calls reapp_RUN_takeoff returns FALSE.
+        //     It does not -- it calls reapp_ROW_takeoff directly, and
+        //     reapp_run_takeoff is a separate entry point not on this path.
+        //     Checking the one intermediate and stopping there would have
+        //     declared the fingerprint blind and withheld this tool for no
+        //     reason. Read who calls whom, not whether one expected hop exists.
+        //
+        // Flipped in the SAME build as EntitySync.JOIN_COLUMNS_LIVE, never
+        // ahead of it, for the stranding reason in that flag's own note.
+        //
+        // The write seam this turns on is [writeJointIds], read back by
+        // [jointIdsOf]; both were already written and were answering false /
+        // empty while this was off. tests/a59-join-storage-roundtrip.test.mjs
+        // pins this flag to EntitySync.JOIN_COLUMNS_LIVE and to price-job's
+        // RUN_COLUMNS, so neither can move without the others.
+        const val JOIN_STORAGE_READY = true
 
         /**
          * Whether the ESTIMATE reads attachments yet.
          *
-         * FALSE. RunJoinArithmetic is called by no engine (its own header says
-         * so, and tests/a33-join-arithmetic-posts.test.mjs check 7h holds that
-         * claim to the engine files), so an attachment changes no post count,
-         * no material line and no price today. While this is false the
-         * confirmation says so in as many words, because a control that
-         * changes a price nobody is told about and a control that changes
-         * nothing while implying it does are the same lie pointing opposite
-         * ways.
+         * TRUE since engine version 2026.10.8. Both pricing engines now call
+         * the join arithmetic: [EstimateEngine.joinAdjustments] feeds
+         * RunJoinArithmetic.adjust on the phone, and priceJob does the same in
+         * supabase/functions/_shared/pricing (its port is joins.ts). Two sides
+         * at one joint share ONE post, so an attachment takes a post, its cap
+         * and its concrete off the job and turns the two end posts that met
+         * into one corner post -- a different catalog row at a different
+         * price.
+         *
+         * SO THE CONFIRMATION MUST NOT SAY THE PRICE DOES NOT CHANGE any
+         * more: `attach_price_later` in SurveyDrawScreen's JoinOfferDialog is
+         * behind this flag and goes with it. A control that changes a price
+         * nobody is told about and a control that changes nothing while
+         * implying it does are the same lie pointing opposite ways, and this
+         * flag is which way round it is.
+         *
+         * tests/a57-join-gesture-decision.test.mjs check 2h holds this flag to
+         * the engine files themselves (comment-stripped), so it cannot drift
+         * from what the engines actually do.
+         *
+         * SEPARATE FROM [JOIN_STORAGE_READY], which is still false: the price
+         * half being ready does not put the Attach tool in front of anyone.
+         * The tool waits on EntitySync.JOIN_COLUMNS_LIVE, because a join made
+         * before the phone can send it is stranded on the handset for good.
          */
-        const val JOIN_PRICING_READY = false
+        const val JOIN_PRICING_READY = true
 
         /**
          * Units per foot on the no-photo grid, for a job that has not chosen a
@@ -2294,6 +2513,248 @@ class SurveyViewModel(
 
         /** [drawingScale] for [job]. */
         fun drawingScale(job: Job): Float? = DrawingScale.of(job)
+
+        // ------------------------------------------------------------------
+        // A65: which run the drawing opens on, and what a typed number has to
+        // be before it is allowed to reach a priced row.
+        //
+        // Everything in this block is PURE -- no repository, no Context, no
+        // clock -- for one reason: tests/a65-run-selection-and-input-guards
+        // .test.mjs transcribes these rules and runs them in plain node,
+        // because this sandbox cannot run Gradle and the Kotlin unit tests
+        // with it. A rule that lives inside a composable or behind a
+        // suspend repository call is a rule nothing off-device can check,
+        // and "bugs live where tests don't" is how both of the findings
+        // below survived to reach a real quote.
+        // ------------------------------------------------------------------
+
+        /**
+         * Which run the drawing screen should have selected.
+         *
+         * THE BUG THIS EXISTS TO FIX. "Next: Draw This Fence" and "Edit the
+         * Drawing" on RunEditScreen used to navigate with the JOB id alone
+         * (Routes.survey(jobId)), so a fresh SurveyViewModel opened with
+         * selectedRunId = null and the old ensureSelection took
+         * runs.firstOrNull(). Somebody who had just named and typed up side 2
+         * tapped the button on side 2's own screen, got the drawing with side
+         * 1 selected, and every corner they then placed was appended to side
+         * 1's polyline. Side 1's footage jumped, side 2 stayed empty, and the
+         * quote stopped describing the yard -- with nothing on screen saying
+         * which run was taking the taps.
+         *
+         * So the route now carries an optional run id (Routes.survey(jobId,
+         * runId)) and it arrives here as [requestedRunId]. The rules, in
+         * order:
+         *
+         *  1. Asked-for run is in the list -> select it, request satisfied.
+         *  2. Asked-for run and the list is EMPTY -> change nothing and keep
+         *     the request pending. The list has not loaded; selecting
+         *     "firstOrNull" here would pick null and then rule 4 would latch
+         *     run 1 the instant the real list arrived, which is the original
+         *     bug wearing a route parameter.
+         *  3. Asked-for run, list is loaded, run is NOT in it -> the request
+         *     is dead (run deleted on another phone, or a route hand-typed
+         *     against the wrong job) and is dropped rather than retried
+         *     forever. Falls through to rule 4, which is the old behaviour,
+         *     because a drawing with nothing selected takes no taps at all
+         *     and that is worse than the wrong run being selected visibly.
+         *  4. No request: keep the current selection if it still exists,
+         *     otherwise the first run. Byte-for-byte the old rule -- the
+         *     job-only route (JobDetailScreen's "Survey", the only other
+         *     caller) must behave exactly as it did.
+         *
+         * A [requestedRunId] of 0 or less is no request at all: 0 is what
+         * NavType.LongType hands back for the argument's default when the
+         * query parameter is absent, and a Room id is always >= 1.
+         */
+        fun resolveRunSelection(
+            runIds: List<Long>,
+            currentSelection: Long?,
+            requestedRunId: Long?
+        ): RunSelection {
+            val asked = requestedRunId?.takeIf { it > 0L }
+            if (asked != null) {
+                if (runIds.contains(asked)) return RunSelection(asked, requestStillPending = false)
+                // Rule 2: the list has not arrived yet. Hold the request and
+                // leave the selection exactly where it was.
+                if (runIds.isEmpty()) return RunSelection(currentSelection, requestStillPending = true)
+                // Rule 3: loaded, and the run is genuinely not here. Fall
+                // through, request spent.
+            }
+            val keepable = currentSelection?.takeIf { runIds.contains(it) }
+            return RunSelection(keepable ?: runIds.firstOrNull(), requestStillPending = false)
+        }
+
+        /**
+         * The sort order a newly created run must get: one past the highest
+         * already on the job.
+         *
+         * THE SECOND HALF OF THE SAME BUG. FenceRunDao orders every read
+         * `ORDER BY sortOrder ASC, syncId ASC` (data/Daos.kt), and
+         * [createBlankRun] used to leave sortOrder at its entity default of 0
+         * (data/Entities.kt's FenceRun). So a run added from the drawing
+         * screen TIED with run 1 on sortOrder and the tie was broken by
+         * syncId -- a random UUID. The run list therefore re-shuffled itself
+         * whenever a run was added, and "the first run" (rule 4 above, and
+         * the old ensureSelection on its own) meant a different row from one
+         * visit to the next.
+         *
+         * Identical to FenceRunListViewModel.addRun's `nextOrder`, which has
+         * always been right, and deliberately written the same way round so
+         * the two cannot drift: a job must not have two ideas of what order
+         * its sides go in depending on which screen made them.
+         *
+         * `-1 + 1 == 0` keeps the very first run on a job at sortOrder 0,
+         * which is what every drawing already in the database has.
+         */
+        fun nextSortOrder(existingSortOrders: List<Int>): Int =
+            (existingSortOrders.maxOrNull() ?: -1) + 1
+
+        /**
+         * A name for a run created from the drawing screen that a person can
+         * actually tell apart.
+         *
+         * THE THIRD HALF. [createBlankRun] left [FenceRun.label] at its
+         * entity default of "" and the drawing screen renders a blank label
+         * as "Untitled (Vinyl)" (SurveyDrawScreen's runTitle). Add three
+         * sides from the drawing and the picker reads "Untitled (Vinyl)"
+         * three times, in an order that moves -- so there was no way to tell
+         * from the screen which row was about to take the next tap. Naming
+         * them is half of the selection fix: carrying the right run through
+         * the route is useless if the user cannot see which one is selected.
+         *
+         * The smallest free number, not a count: deleting side 2 of three and
+         * adding again gives "Side 2" back rather than a second "Side 4".
+         * Compared case-insensitively and trimmed, because these are matched
+         * against labels a person has typed by hand.
+         *
+         * ENGLISH, not a string resource, deliberately. This value is
+         * PERSISTED to fence_runs.label and pushed to the cloud, where the
+         * office and every other phone read it -- a localised default would
+         * mean the stored name of a side depended on the language of the
+         * handset that happened to create it, and two phones on one job would
+         * disagree about what the side is called. FenceRunListViewModel
+         * .duplicateRun makes the same call for the same reason ("Copy").
+         * The user renames it the moment they care; nothing is priced from it.
+         */
+        fun nextQuickRunLabel(existingLabels: List<String>, isTeardown: Boolean): String {
+            val stem = if (isTeardown) "Old fence" else "Side"
+            val taken = existingLabels.map { it.trim().lowercase() }.toSet()
+            var n = 1
+            while (taken.contains("$stem $n".lowercase())) n++
+            return "$stem $n"
+        }
+
+        /**
+         * Reads a typed measurement that has to be a positive, finite number
+         * of feet (or inches) before anything is allowed to price from it.
+         *
+         * THE SECOND FINDING. A gate width or a panel width of 0, -1, NaN or
+         * Infinity reaches the takeoff, the takeoff produces no usable
+         * quantity for the panel, line-post, cap and concrete rows, and the
+         * office commit then DELETES those priced lines and nulls the
+         * contract total. The number that caused it is three screens away
+         * from the damage, which is why this refuses at the keyboard instead:
+         * by the time a quote has lost its panel lines there is nothing on
+         * screen connecting that to a gate width somebody typed.
+         *
+         * The ordering of the checks is the message quality. "0" and "" are
+         * different mistakes with different fixes, and so are "5ft" and
+         * "Infinity"; one lumped "that number is no good" would leave a
+         * person retyping the same thing.
+         *
+         * A comma is read as a decimal point before parsing, the same as
+         * DraftNumberField already does and for the same reason: a Spanish or
+         * French keyboard offers a comma, parseFloat reads only a dot, and
+         * "8,5" otherwise looked accepted and saved nothing.
+         *
+         * KNOWN AND ACCEPTED: parseFloat also allows a trailing type suffix,
+         * so "5f" and "5d" read as 5.0 and a hex literal like "0x1p3" reads
+         * as 8.0. Left alone -- somebody typing "5f" for five feet getting
+         * five feet is the answer they wanted, and the refusals that cost
+         * money are the four above, not this.
+         */
+        fun readPositiveMeasure(raw: String): NumberEntry {
+            val trimmed = raw.trim().replace(',', '.')
+            if (trimmed.isEmpty()) return NumberEntry(null, NumberRefusal.BLANK)
+            val parsed = trimmed.toFloatOrNull()
+                ?: return NumberEntry(null, NumberRefusal.NOT_A_NUMBER)
+            if (!parsed.isFinite()) return NumberEntry(null, NumberRefusal.NOT_FINITE)
+            if (parsed <= 0f) return NumberEntry(null, NumberRefusal.NOT_POSITIVE)
+            return NumberEntry(parsed, null)
+        }
+
+        /**
+         * [readPositiveMeasure] for an already-parsed Float -- what
+         * DraftNumberField hands its callers.
+         *
+         * DraftNumberField (ui/components/DraftFields.kt) parses for itself
+         * and pushes `0f` for a blank box, by a deliberate decision made for
+         * a different field: a markup percentage wiped out to leave it at
+         * nothing used to stay at 15%, and the blank box said otherwise. That
+         * is right for a markup and wrong for a panel width, where 0 is not a
+         * value a fence can have -- clearing the box wiped the panel and
+         * line-post lines out of a vinyl, aluminium or ornamental quote,
+         * every keystroke saved as it was typed.
+         *
+         * So the shared field is left exactly as it is -- narrowing it would
+         * change every screen that uses it, including the markup it was
+         * written for -- and the refusal is applied at the call site that
+         * needs it (ui/runs/RunEditScreen.kt's PositiveNumberField). BLANK
+         * and a typed zero are indistinguishable by the time they get here,
+         * and both are refused, so nothing is lost by not telling them apart.
+         */
+        fun checkPositive(value: Float): NumberRefusal? = when {
+            !value.isFinite() -> NumberRefusal.NOT_FINITE
+            value <= 0f -> NumberRefusal.NOT_POSITIVE
+            else -> null
+        }
+
+        /**
+         * [checkPositive] for a field where zero is a real answer -- concrete
+         * bags per post (a wall-hung gate takes none) and picket gap (a
+         * privacy fence has none). Only non-finite and negative are refused.
+         */
+        fun checkNonNegative(value: Float): NumberRefusal? = when {
+            !value.isFinite() -> NumberRefusal.NOT_FINITE
+            value < 0f -> NumberRefusal.NOT_POSITIVE
+            else -> null
+        }
+
+        /**
+         * Whether a point is safe to write into fence_runs.points_encoded.
+         *
+         * FenceCodec.encodePoints writes "${x}:${y}" and decodePoints reads it
+         * back with toFloatOrNull -- and both ends of that round-trip handle
+         * "NaN" and "Infinity" perfectly happily (see [NumberRefusal
+         * .NOT_FINITE]). So one non-finite coordinate persists, syncs to the
+         * cloud, and poisons every length measured from the run it sits on.
+         * FenceGeometryEngine.analyze cannot defend against it either: its
+         * guard is `pixelsPerFoot <= 0f`, which says nothing about the points.
+         *
+         * Refused here, at the one function every point write goes through,
+         * rather than in the codec: the codec is also what READS drawings
+         * that are already in the database, and a job that already carries a
+         * bad point needs its drawing shown so it can be repaired, not
+         * silently emptied.
+         */
+        fun isWritablePoint(x: Float, y: Float): Boolean = x.isFinite() && y.isFinite()
+
+        /**
+         * Whether a stored pixels-per-foot calibration can be measured by.
+         *
+         * [applyCalibration] guarded `knownFeet <= 0f`, which NaN slips
+         * straight through -- `NaN <= 0f` is false -- so a NaN known-distance
+         * stored a NaN calibration, and an Infinity one stored exactly 0.0
+         * (distPx / Infinity). Both then price the whole fence at $0:
+         * FenceGeometryEngine.analyze returns an empty result for
+         * `pixelsPerFoot <= 0f`, so every side measures zero feet.
+         *
+         * Same rule as DrawingScale.of's own `it > 0f && it.isFinite()`, and
+         * written to match it on purpose.
+         */
+        fun isUsableCalibration(pixelsPerFoot: Float?): Boolean =
+            pixelsPerFoot != null && pixelsPerFoot > 0f && pixelsPerFoot.isFinite()
 
         /** Long enough that dragging a corner re-prices once, not once per frame. */
         private const val REPRICE_DEBOUNCE_MS = 700L

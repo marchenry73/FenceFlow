@@ -12,14 +12,58 @@ import android.provider.CalendarContract
  */
 object IntentHelpers {
     /**
+     * One address, and it must look like one. Refuses anything carrying a comma
+     * or a semicolon, whitespace, a control character or a line break, and
+     * anything without a single @ and a dot after it.
+     *
+     * THE GATE IS HERE, not at each caller, and deliberately so. There are five
+     * call sites for [openEmailDraft] and gating control-by-control never
+     * converges -- the sixth one written next month would arrive unguarded.
+     * Refusing at the funnel makes new code refused by default.
+     *
+     * WHY IT IS NEEDED AT ALL. `lead-intake` runs with verify_jwt = false
+     * (supabase/config.toml): a stranger filling in the public website form
+     * writes `jobs.email` through the service-role client, and the only check
+     * there is `email.includes("@")`. So "her@example.com, attacker@example.com"
+     * is a value this app can be holding, through no fault of the owner's. Put
+     * that in EXTRA_EMAIL and Android hands the mail app TWO recipients -- and
+     * the body of the quote email carries the quote LINK, which is a bearer
+     * token that can approve and sign on her behalf. The draft does show him
+     * the To line before he taps send, and that is the only thing that stood
+     * between this and a stranger receiving a signable quote.
+     *
+     * Deliberately NOT a full RFC 5322 validator. That accepts quoted local
+     * parts containing commas, which is exactly what this is here to refuse,
+     * and no fence customer has one. A false refusal costs a tap and a
+     * corrected address; a false accept costs the quote.
+     */
+    internal fun looksLikeOneAddress(raw: String): Boolean {
+        val to = raw.trim()
+        if (to.isEmpty() || to.length > 320) return false
+        // A separator or any whitespace means this is a LIST, not an address.
+        if (to.any { it == ',' || it == ';' || it.isWhitespace() || it.code < 0x20 }) return false
+        val at = to.indexOf('@')
+        if (at <= 0 || at != to.lastIndexOf('@') || at == to.length - 1) return false
+        val domain = to.substring(at + 1)
+        val dot = domain.indexOf('.')
+        return dot > 0 && dot < domain.length - 1 && !domain.contains("..")
+    }
+
+    /**
      * Opens an email draft. Returns whether it actually opened, because a
      * caller that stamps "sent" or "told" the moment it fires, without
      * checking, records that on a phone with no mail app configured -- where
      * nothing opened at all.
+     *
+     * Returns false WITHOUT opening anything when [to] is not a single plausible
+     * address. A caller that stamps "sent" off the return value therefore also
+     * declines to stamp it, which is the behaviour that was already correct for
+     * the no-mail-app case and is correct here for the same reason.
      */
     fun openEmailDraft(context: Context, to: String, subject: String, body: String): Boolean {
+        if (!looksLikeOneAddress(to)) return false
         val intent = Intent(Intent.ACTION_SENDTO, Uri.parse("mailto:")).apply {
-            putExtra(Intent.EXTRA_EMAIL, arrayOf(to))
+            putExtra(Intent.EXTRA_EMAIL, arrayOf(to.trim()))
             putExtra(Intent.EXTRA_SUBJECT, subject)
             putExtra(Intent.EXTRA_TEXT, body)
         }

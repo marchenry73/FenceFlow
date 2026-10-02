@@ -68,9 +68,35 @@ class RefundConsistencyTest {
 
     @Test
     fun `the deposit step un-ticks when the money goes back`() {
-        val stages = ProjectStatus.stages(job(paid = 1000.0, refunded = 1000.0), jobComplete = false)
+        // A DEPOSIT HAD TO BE ASKED FOR for this step to mean anything, and
+        // since 2 Oct 2026 the step means "nothing is outstanding on the
+        // deposit" rather than "some money arrived" (JobMoney.depositSettled,
+        // the same rule the office's readiness checklist and its job progress
+        // step already used). On a job that asks for no deposit there is
+        // nothing outstanding, so the step is done -- which is what the office
+        // says too. This fixture therefore carries the $1,000 deposit the
+        // $1,000 payment was against, which is the case the test is about:
+        // the money came in, then went back, so the deposit is outstanding
+        // again and the step un-ticks.
+        val job = job(paid = 1000.0, refunded = 1000.0).copy(depositAmount = 1000.0)
+        val stages = ProjectStatus.stages(job, jobComplete = false, billableTotal = 5000.0)
         val deposit = stages.first { it.labelRes == R.string.eng2_stage_deposit_received }
         assertFalse(deposit.done)
+    }
+
+    @Test
+    fun `half a deposit does not tick the step, and the whole of it does`() {
+        // The disagreement this replaced: $500 of a $3,000 deposit ticked
+        // "Deposit received" on the phone while the office read "Asked
+        // $3,000.00, collected $500.00" on the same job.
+        val part = job(paid = 500.0, refunded = 0.0).copy(depositAmount = 3000.0)
+        val whole = job(paid = 3000.0, refunded = 0.0).copy(depositAmount = 3000.0)
+        val step = { j: Job ->
+            ProjectStatus.stages(j, jobComplete = false, billableTotal = 4654.47)
+                .first { it.labelRes == R.string.eng2_stage_deposit_received }.done
+        }
+        assertFalse("half the deposit is not the deposit", step(part))
+        assertTrue("the whole deposit ticks it", step(whole))
     }
 
     @Test

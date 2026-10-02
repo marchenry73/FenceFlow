@@ -56,9 +56,54 @@ class JobMoneyTest {
 
     @Test
     fun `a part-paid job asks for what is left, not the deposit`() {
+        // The deposit here is paid IN FULL ($5,730 asked, $5,730 in), so the
+        // next thing to ask for is the balance -- which is what this has
+        // always asserted and still does. Since 2 Oct 2026 the rule is "the
+        // rest of the deposit first, then the balance"
+        // (JobMoney.nextRequestAmount), so a job part way through its DEPOSIT
+        // asks for the rest of the deposit instead; that case is pinned in
+        // AcceptedPriceTest and in tests/a66-deposit-one-meaning.test.mjs.
         val j = job(deposit = 5730.0, paid = 5730.0)
         assertEquals(4865.38, JobMoney.nextRequestAmount(j, 10595.38), 0.001)
         assertEquals("balance", JobMoney.nextRequestLabel(j, 10595.38))
+    }
+
+    @Test
+    fun `a job part way through its deposit asks for the rest of the deposit`() {
+        val j = job(deposit = 5730.0, paid = 1000.0)
+        assertEquals(4730.0, JobMoney.nextRequestAmount(j, 10595.38), 0.001)
+        assertEquals("deposit", JobMoney.nextRequestLabel(j, 10595.38))
+        // Planted: the old rule asked for the whole remaining balance, which
+        // bills the labour on a fence that has not been built.
+        assertEquals(9595.38, JobMoney.stillOwed(j, 10595.38), 0.001)
+    }
+
+    @Test
+    fun `the deposit asked for is never more than the price, and the cap is one decision`() {
+        // The $3,963-on-a-$3,620 shape. The PDF and the estimate card used to
+        // print the raw figure while the quote page, the email, the pay link
+        // and the office all capped it.
+        val over = job(deposit = 3963.0)
+        assertEquals(3620.0, JobMoney.depositAsked(over, 3620.0), 0.001)
+        assertEquals(3620.0, JobMoney.depositStillDue(over, 3620.0), 0.001)
+        // A job with no price has not been priced, so there is nothing to cap
+        // against and the typed figure stands.
+        assertEquals(3963.0, JobMoney.depositAsked(over, 0.0), 0.001)
+        // Cents, not float dust: 2,119.99 less 500.01.
+        val part = job(deposit = 2119.99, paid = 500.01)
+        assertEquals(1619.98, JobMoney.depositStillDue(part, 2119.99), 0.0)
+    }
+
+    @Test
+    fun `deposit received means the whole deposit, or none asked for`() {
+        assertTrue(JobMoney.depositSettled(job(), 4654.47))
+        assertFalse(JobMoney.depositSettled(job(deposit = 3000.0, paid = 500.0), 4654.47))
+        assertFalse(JobMoney.depositSettled(job(deposit = 3000.0, paid = 2999.99), 4654.47))
+        assertTrue(JobMoney.depositSettled(job(deposit = 3000.0, paid = 3000.0), 4654.47))
+        // A deposit stored above the price cannot hold a fully paid job back.
+        assertTrue(JobMoney.depositSettled(job(deposit = 3963.0, paid = 3620.0), 3620.0))
+        // Money that went back out is not money received.
+        assertFalse(JobMoney.depositSettled(job(deposit = 1000.0, paid = 1000.0, refunded = 1000.0), 5000.0))
     }
 
     @Test

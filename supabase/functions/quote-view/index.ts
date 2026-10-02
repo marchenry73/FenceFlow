@@ -18,6 +18,11 @@
  *                                           OPTIONAL "data:image/png;base64,.."
  *                                           from the page's own drawing pad
  *                                           (see quote_approved_signature_path).
+ *                                           An optional lang ("en"|"es"|"fr") is
+ *                                           the language of the contract email.
+ *                                           The answer carries `contractEmail`
+ *                                           when THIS request's approval is the
+ *                                           one that landed: see emailTheContract.
  *
  * Everything goes through an explicit whitelist. The jobs row also carries
  * labour rates, margins and markup; estimate lines carry supplier_unit_price,
@@ -40,7 +45,7 @@ import {
   roundToCents,
 } from "../_shared/quote-deposit.ts";
 import { standingJobEvent } from "../_shared/job-push.ts";
-import { jobDevices } from "../_shared/push-recipients.ts";
+import { jobDevices, moneyDevices } from "../_shared/push-recipients.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -64,11 +69,16 @@ const JOB_COLUMNS = "id, sync_id, company_id, customer_name, address, phone, sta
  * without the column yet -- this function deployed before the migration --
  * can be read without them, and the page then behaves exactly as it did.
  */
-const ACCEPTANCE_COLUMNS = "accepted_total, signed_at";
+const ACCEPTANCE_COLUMNS = "accepted_total, signed_at, signed_contract_total";
 
-/** Whether an error is only "this database has no accepted_total yet". */
+/**
+ * Whether an error is only "this database has not got the acceptance columns
+ * yet". signed_contract_total is in the same list and so is in the same test:
+ * a database missing it must step down to the no-acceptance read like any
+ * other missing column, not fall through and answer 404 on every quote.
+ */
 const lacksAcceptanceColumns = (error: { message?: string } | null | undefined) =>
-  /accepted_total/.test(String(error?.message ?? ""));
+  /accepted_total|signed_contract_total/.test(String(error?.message ?? ""));
 
 /**
  * The storage path of a signature the customer DREW on this page, as an
@@ -98,6 +108,7 @@ type QuoteJob = {
   reapproval_required_at: string | null;
   accepted_total?: number | string | null;
   signed_at?: string | null;
+  signed_contract_total?: number | string | null;
   quote_approved_signature_path?: string | null;
 };
 
@@ -375,7 +386,341 @@ async function pageFigures(admin: ReturnType<typeof createClient>, job: QuoteJob
   // anything anybody agreed. An accepted or engine-stamped total is already
   // exact and is passed through untouched.
   const total = money.total > 0 ? money.total : roundToCents(subtotal + tax);
-  return { ok: !itemsRead.error && !ordersRead.error, total, money };
+  return {
+    ok: !itemsRead.error && !ordersRead.error,
+    total,
+    money,
+    // Whether this job holds any priced line at all. Not used to change a
+    // figure -- only to say WHY in the log when the guard below refuses, and
+    // to tell the office whether the price fell because the material list is
+    // gone or because somebody re-priced it.
+    pricedLines: lines.length,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// A PRICE THAT COLLAPSED MUST NOT BECOME THE AGREED PRICE.
+//
+// Added 2 Oct 2026. On 1 Oct at 21:26 UTC a sync pass tombstoned every
+// generated line on five of this company's jobs and re-priced them from an
+// empty material list (OVERNIGHT_2026-10-01.md, the 03:00 section). On three
+// of them a signature is on file for the real price and the live figure is
+// labour and gates only:
+//
+//   signed 15,540.00  live  5,853.81   (37.7% -- her link has been opened)
+//   signed 35,240.00  live 13,266.87   (37.7% -- her link has been opened)
+//   signed    870.00  live    200.00   (23.0%)
+//
+// Those three are flagged re-approval-pending, which is exactly right -- the
+// re-approval was raised on 28 Sep to collect MORE, a tax correction worth
+// $1,522.22 across the three (supabase_a70_protect_exposed_quote_links.sql) --
+// and quote-deposit.ts deliberately turns the anchor OFF while that flag is
+// set, so the page shows the live figure. With the material list destroyed,
+// the live figure is wreckage, and this function would have written it into
+// jobs.accepted_total the moment she tapped Approve. Measured against the real
+// rows with the real handler, not reasoned about: tests/a69-after-approval.test.mjs.
+//
+// So: an approval is REFUSED when the price it would record is below a figure
+// this customer has already agreed to. Nothing is written, her earlier
+// agreement stands untouched, and the office is told.
+//
+// WHICH FIGURE SHE AGREED TO: the higher of signed_contract_total (a signature
+// the contractor physically holds, stamped with the price at the time) and
+// accepted_total (an online approval, which this function writes). While a
+// re-approval is pending, accepted_total still holds the pre-withdrawal price,
+// which is the whole point -- that is the figure the withdrawal was asking her
+// to revisit, not one to quietly undercut.
+//
+// WHY A REFUSAL IS THE SAFE DIRECTION, AND HOW HE CLEARS IT: the phone already
+// takes the same position from the other side -- signatureIsStale blocks
+// sending the estimate and the invoice whenever the signed total and the live
+// total disagree, and the way out is to capture a new signature, which
+// restamps signed_contract_total at the new price. This guard is that same rule
+// on the customer's side of the link. A deliberate re-price DOWNWARD therefore
+// needs a fresh signature at the new figure before she can approve it online,
+// and that is a real cost -- see docs/AFTER_APPROVAL.md, which asks him whether
+// he wants a tolerance band instead.
+// ---------------------------------------------------------------------------
+
+/**
+ * How far below an agreed figure counts as below it.
+ *
+ * Fifty cents, which is NOT a tolerance band -- it is the same float-dust
+ * allowance the quote_changed check a few lines down already uses, and the
+ * smallest amount a card processor will take. It is deliberately the
+ * STRICTEST setting: any real shortfall refuses. Nothing here invents a
+ * percentage or a dollar band, because what counts as an acceptable drop in
+ * price is the owner's decision and not a number to guess on his behalf.
+ * docs/AFTER_APPROVAL.md asks him for it.
+ */
+const AGREED_PRICE_SHORTFALL_TOLERANCE = 0.5;
+
+/**
+ * THE ONE SHORTFALL THAT IS NOT A SHORTFALL: the same price under the old
+ * engine's rounding.
+ *
+ * Until PRICING_ENGINE_VERSION 2026.10.1 the engine rounded every total UP to
+ * the next ten (`Math.ceil(x/10)*10`), and the deployed office re-price still
+ * does. So a job signed before that change carries a signed_contract_total up
+ * to $9.99 above the exact figure its own lines come to, and the moment it is
+ * re-priced on the current engine the page shows the exact one. That is not a
+ * price that fell; it is the same price with the rounding taken off, and a
+ * guard that refused it would refuse an honest approval on every job he signed
+ * before 1 Oct.
+ *
+ * Measured, live: fixture job G's lines come to $7,735.45 against a signed
+ * $7,740.00 -- exactly `ceil(7735.45/10)*10`. The three collapsed jobs do not
+ * fit this shape and are not excused by it (5,853.81 rounds to 5,860, not to
+ * 15,540).
+ *
+ * This is deliberately an exact test and not a tolerance band: it excuses a
+ * difference ONLY when the agreed figure is precisely what the old engine
+ * would have printed for the figure now on the page. No dollar amount or
+ * percentage is being guessed at.
+ */
+const OLD_ENGINE_ROUND_UP_TO = 10;
+const isOldEngineRounding = (agreed: number, recording: number) =>
+  Math.abs(agreed - Math.ceil(recording / OLD_ENGINE_ROUND_UP_TO) * OLD_ENGINE_ROUND_UP_TO) <= 0.005;
+
+/** A figure already agreed, and the shortfall against it. Null when there is none. */
+type PriceShortfall = { agreed: number; recording: number; short: number };
+
+/**
+ * The figure this customer has already agreed to, if the price now on the page
+ * is below it. Null means there is nothing to protect (no signature and no
+ * earlier approval) or the price has not fallen.
+ *
+ * A non-finite or absent column reads as nothing agreed, which turns the guard
+ * OFF rather than refusing every quote: a database without the column (the
+ * no-acceptance read above) must behave exactly as this function did before.
+ */
+function priceShortfall(job: QuoteJob, recording: number): PriceShortfall | null {
+  const num = (v: unknown) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : 0;
+  };
+  const agreed = Math.max(num(job.signed_contract_total), num(job.accepted_total));
+  if (!(agreed > 0.005) || !Number.isFinite(recording)) return null;
+  if (isOldEngineRounding(agreed, recording)) return null;
+  const short = roundToCents(agreed - recording);
+  return short > AGREED_PRICE_SHORTFALL_TOLERANCE ? { agreed, recording, short } : null;
+}
+
+/**
+ * One notification to each of these phones, through Firebase's v1 API: a short-lived OAuth token minted
+ * from the service account, then one message per phone. This is the code the "Quote approved" push has
+ * always run, moved here unchanged so the alarm below can use the same one; it throws when no token can
+ * be had, and one phone failing never stops the others.
+ */
+async function fcmNotify(
+  // deno-lint-ignore no-explicit-any
+  sa: any,
+  toks: Array<{ token: string }>,
+  title: string,
+  body: string,
+) {
+  const jwtHeader = btoa(JSON.stringify({ alg: "RS256", typ: "JWT" }))
+    .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  const now = Math.floor(Date.now() / 1000);
+  const claims = btoa(JSON.stringify({
+    iss: sa.client_email, scope: "https://www.googleapis.com/auth/firebase.messaging",
+    aud: "https://oauth2.googleapis.com/token", iat: now, exp: now + 3600,
+  })).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  const keyDer = atob(sa.private_key.replace(/-----[^-]+-----/g, "").replace(/\s/g, ""));
+  const keyBytes = new Uint8Array([...keyDer].map((c) => c.charCodeAt(0)));
+  const key = await crypto.subtle.importKey("pkcs8", keyBytes,
+    { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["sign"]);
+  const sig = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", key,
+    new TextEncoder().encode(jwtHeader + "." + claims));
+  const jwt = jwtHeader + "." + claims + "." +
+    btoa(String.fromCharCode(...new Uint8Array(sig)))
+      .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+  const tokRes = await fetch("https://oauth2.googleapis.com/token", {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: new URLSearchParams({
+      grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion: jwt,
+    }),
+  });
+  const accessTok = (await tokRes.json()).access_token;
+  if (accessTok) {
+    await Promise.all(toks.map((t: { token: string }) =>
+      fetch(`https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${accessTok}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          message: {
+            token: t.token,
+            notification: { title, body },
+          },
+        }),
+      }).catch(() => null)
+    ));
+  }
+}
+
+/**
+ * The contract email could not even be asked for -- the sender is not deployed, its secret does not
+ * match, or it did not answer -- so the sender could not tell the office itself. Push the phones that may
+ * see the price (the email carries it), in words that match what is known. Only ever reached with the
+ * trigger secret set, i.e. when the sender really was tried. Never throws.
+ */
+async function alarmOffice(
+  admin: ReturnType<typeof createClient>,
+  job: { company_id: string; customer_name?: string | null },
+  mayHaveGone: boolean,
+  // Another thing worth waking the money phones for, in its own words. The
+  // audience, the "never throws" promise and the no-service-account early
+  // return are all identical, so the price guard above borrows this rather
+  // than growing a second copy of them. Absent means the contract-email
+  // wording below, exactly as before.
+  override?: { title: string; body: string },
+) {
+  try {
+    const sa = JSON.parse(Deno.env.get("FIREBASE_SERVICE_ACCOUNT") ?? "null");
+    if (!sa) return;
+    const toks = await moneyDevices(admin, job.company_id);
+    if (!toks.length) return;
+    if (override) {
+      await fcmNotify(sa, toks, override.title, override.body);
+      return;
+    }
+    const who = String(job.customer_name ?? "").replace(/\s+/g, " ").trim().slice(0, 60) || "A customer";
+    await fcmNotify(
+      sa,
+      toks,
+      mayHaveGone ? "Contract email: could not confirm" : "Contract email NOT sent",
+      mayHaveGone
+        ? `${who} approved the quote. FenceFlow could not confirm the contract email went out: the email service did not answer. Check Sent in company email before sending it again.`
+        : `${who} approved the quote, but the contract email was not sent: the email service could not be reached. Send it yourself, or ask them to download a copy from their quote link.`,
+    );
+  } catch (_e) { /* the approval stands, and the failure is already on the record */ }
+}
+
+/**
+ * What the page may be told about the contract email, and ONLY this:
+ *   sent       the mail provider accepted it (to is the address, masked)
+ *   pending    it is still going, or may have gone: do not say it was sent, do not say it failed
+ *   no_address there is no usable email address on the job
+ *   not_sent   it was not sent
+ * Never an error to the customer: her approval has landed whatever this says, and a page that
+ * told her the email failed in a way that read as "the approval failed" would make her approve twice.
+ */
+type ContractEmail = { state: "sent" | "pending" | "no_address" | "not_sent"; to?: string };
+
+/** Longest the approval waits for the email. Past it the answer is "pending" and the email carries on. */
+const CONTRACT_EMAIL_WAIT_MS = 8000;
+
+/**
+ * Asks quote-approval-email to send the customer their contract, now that the approval has landed.
+ *
+ * This function does not send mail and holds no mail credential: the sender is its own function, behind
+ * the NOTIFY_TRIGGER_SECRET door, and builds every word from the database. What is passed is the job and
+ * the customer's language, nothing else -- the recipient, the figures and the deposit are not the request's.
+ *
+ * Never throws and never touches the approval. The other side CLAIMS before it sends (one row per
+ * contract, unique), so the one repeat made after a network failure or a server error cannot send twice.
+ * Whatever verdict the sender reaches (sent, failed, no address, unconfirmed...) it records itself and, when
+ * it is not "sent", pushes the office about. What only this function can know is that the sender could not
+ * be asked, or gave no verdict: then nobody else will say so, and this function does -- on the same table
+ * where the sender is known not to have run, and by push (alarmOffice) in every such case.
+ */
+async function emailTheContract(
+  admin: ReturnType<typeof createClient>,
+  job: { id: string; sync_id: string; company_id: string; customer_name?: string | null },
+  lang: unknown,
+  acceptLanguage: string | null,
+  approvedAt: string,
+): Promise<ContractEmail> {
+  // The sender was never called, so nothing was sent: write that down, where the office reads it.
+  const recordNotCalled = async (code: string, reason: string) => {
+    try {
+      const digest = new Uint8Array(await crypto.subtle.digest(
+        "SHA-256", new TextEncoder().encode(`unreached:${job.sync_id}:${approvedAt}`)));
+      const key = Array.from(digest, (b) => b.toString(16).padStart(2, "0")).join("");
+      await admin.from("quote_approval_emails").insert({
+        company_id: job.company_id, job_sync_id: job.sync_id, contract_key: key, state: "failed",
+        reason_code: code, reason, settled_at: new Date().toISOString(),
+      });
+    } catch (e) {
+      console.error("quote-view: could not record that the contract email was not sent", String((e as Error)?.message ?? e));
+    }
+  };
+  try {
+    const secret = Deno.env.get("NOTIFY_TRIGGER_SECRET") ?? "";
+    const base = (Deno.env.get("SUPABASE_URL") ?? "").replace(/\/+$/, "");
+    if (!secret || !base) {
+      console.error("quote-view: the contract email was NOT sent -- NOTIFY_TRIGGER_SECRET or SUPABASE_URL is not set on this function");
+      await recordNotCalled("sender_not_configured", "Contract emails are not switched on for this server (the trigger secret is not set), so nothing was sent.");
+      return { state: "not_sent" };
+    }
+    const payload = JSON.stringify({
+      job_id: job.id,
+      lang: typeof lang === "string" ? lang.slice(0, 8) : undefined,
+      accept_language: (acceptLanguage ?? "").slice(0, 200),
+    });
+    const attempt = async (): Promise<{ status: number; answer: Record<string, unknown> } | null> => {
+      try {
+        const res = await fetch(`${base}/functions/v1/quote-approval-email`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", "x-fenceflow-trigger": secret },
+          body: payload,
+        });
+        return { status: res.status, answer: await res.json().catch(() => ({})) };
+      } catch (_e) {
+        return null;
+      }
+    };
+    const call = (async () => {
+      let r = await attempt();
+      if (!r || r.status >= 500) r = await attempt();
+      return r;
+    })();
+    // The runtime keeps the call alive after the answer goes out, so a slow send is not cut off with it.
+    try {
+      // deno-lint-ignore no-explicit-any
+      (globalThis as any).EdgeRuntime?.waitUntil?.(call);
+    } catch (_e) { /* no such runtime */ }
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    const late = new Promise<"late">((resolve) => { timer = setTimeout(() => resolve("late"), CONTRACT_EMAIL_WAIT_MS); });
+    const r = await Promise.race([call, late]);
+    clearTimeout(timer);
+    if (r === "late") return { state: "pending" };
+    // From here on, the sender either answered or did not. When it answered with a verdict (sent, failed,
+    // no address...) it has already recorded it and told the office. When it could not be asked, or its
+    // answer is not one, nobody else will -- so this function does, on the record and by push.
+    if (!r) {
+      console.error("quote-view: could not reach quote-approval-email; the contract email may not have been sent");
+      await alarmOffice(admin, job, true);
+      return { state: "not_sent" };
+    }
+    if (r.status !== 200) {
+      console.error(`quote-view: quote-approval-email answered ${r.status}; the contract email may not have been sent`);
+      // A refusal (the secret does not match, no such function, not configured) means it never ran, so
+      // nothing was sent. A server error is unknown -- it may have run -- so no verdict is written for it.
+      const neverRan = (r.status >= 400 && r.status < 500) || r.status === 503;
+      if (neverRan) {
+        await recordNotCalled("sender_unavailable", "The contract email function could not be called (not deployed, or its secret does not match), so nothing was sent.");
+      }
+      await alarmOffice(admin, job, !neverRan);
+      return { state: "not_sent" };
+    }
+    const state = String(r.answer?.state ?? "");
+    if (state === "sent") return { state: "sent", to: String(r.answer?.to ?? "") };
+    if (state === "unconfirmed" || state === "sending") return { state: "pending" };
+    if (state === "no_address") return { state: "no_address" };
+    if (["failed", "not_priced", "skipped"].includes(state)) return { state: "not_sent" };
+    // 200 with no verdict at all: nothing was recorded and nothing is known.
+    console.error("quote-view: quote-approval-email answered 200 with no usable verdict");
+    await alarmOffice(admin, job, true);
+    return { state: "not_sent" };
+  } catch (e) {
+    console.error("quote-view: contract email", String((e as Error)?.message ?? e));
+    return { state: "not_sent" };
+  }
 }
 
 Deno.serve(async (req) => {
@@ -551,6 +896,8 @@ Deno.serve(async (req) => {
     // Whether this request's approval is the one that landed. Only that one
     // tells the company's phones.
     let landed = false;
+    // The timestamp this request wrote, so the contract email names the same approval.
+    let approvedAtIso = "";
     let approvedBy = job.quote_approved_name || name;
     if (justApproved) {
       // The figure the page shows right now (pageFigures -- the same function
@@ -571,6 +918,47 @@ Deno.serve(async (req) => {
         return json({
           code: "quote_changed",
           error: "This quote was updated after you opened it. Reload the page to see the current price, then approve.",
+        }, 409);
+      }
+      // THE PRICE HAS COLLAPSED BELOW SOMETHING SHE ALREADY AGREED TO.
+      //
+      // Refuse, write nothing, leave the earlier agreement exactly where it
+      // is, and tell the office. See the block comment on priceShortfall
+      // above for what happened on 1 Oct and why this is the safe direction.
+      //
+      // Placed AFTER the quote_changed check on purpose: a stale page is the
+      // commoner and milder problem and keeps its own, reassuring wording.
+      // Placed BEFORE the signature upload so a refused approval never leaves
+      // an orphan PNG in storage.
+      const shortfall = canRecordAcceptance ? priceShortfall(job, figures.total) : null;
+      if (shortfall) {
+        console.error(
+          `quote-view REFUSED an approval below an agreed price: job ${job.id} would record ` +
+            `${shortfall.recording.toFixed(2)} against an agreed ${shortfall.agreed.toFixed(2)} ` +
+            `(short ${shortfall.short.toFixed(2)}); priced lines on the job: ${figures.pricedLines}` +
+            (figures.pricedLines === 0
+              ? " -- NO PRICED LINES, so this is the 1 Oct line-item loss, not a re-price"
+              : ""),
+        );
+        // The same phones the contract-email alarm uses: the people who may
+        // see a price. Never throws, and the refusal below stands either way.
+        await alarmOffice(admin, job, false, {
+          title: "A customer could not approve",
+          body: `${job.customer_name || "A customer"} tried to approve, but the quote now shows ` +
+            `$${shortfall.recording.toFixed(2)} against $${shortfall.agreed.toFixed(2)} already agreed. ` +
+            `FenceFlow refused it rather than record the lower price. ` +
+            (figures.pricedLines === 0
+              ? "This job holds no priced lines -- its material list is missing."
+              : "Re-price the job, or capture a new signature at the new price."),
+        });
+        return json({
+          code: "price_below_agreed",
+          // No figures to the customer. She is not the one who can judge
+          // which of the two prices is right, and quoting both at her would
+          // invite her to pick the lower one.
+          error: "We can't record an approval on this quote right now -- the price on it doesn't match " +
+            "what was agreed. Your contractor has been told and will be in touch. Nothing you had " +
+            "already agreed to has changed.",
         }, 409);
       }
       // The drawing lands in storage BEFORE the approval row does, so a
@@ -617,6 +1005,7 @@ Deno.serve(async (req) => {
         return json({ error: "We could not record your approval just now. Please try again in a moment." }, 500);
       }
       landed = (written.data ?? []).length > 0;
+      if (landed) approvedAtIso = approval.quote_approved_at;
       if (!landed) {
         // Somebody else's approval landed first. Theirs stands; say whose.
         const { data: now } = await admin.from("jobs").select("quote_approved_name").eq("id", job.id).maybeSingle();
@@ -648,55 +1037,19 @@ Deno.serve(async (req) => {
         const toks = await jobDevices(admin, job.company_id,
           standingJobEvent({ ...job, assigned_employee_sync_id: lead?.assigned_employee_sync_id }, "ACCEPTED"));
         if (toks.length) {
-          const jwtHeader = btoa(JSON.stringify({ alg: "RS256", typ: "JWT" }))
-            .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-          const now = Math.floor(Date.now() / 1000);
-          const claims = btoa(JSON.stringify({
-            iss: sa.client_email, scope: "https://www.googleapis.com/auth/firebase.messaging",
-            aud: "https://oauth2.googleapis.com/token", iat: now, exp: now + 3600,
-          })).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-          const keyDer = atob(sa.private_key.replace(/-----[^-]+-----/g, "").replace(/\s/g, ""));
-          const keyBytes = new Uint8Array([...keyDer].map((c) => c.charCodeAt(0)));
-          const key = await crypto.subtle.importKey("pkcs8", keyBytes,
-            { name: "RSASSA-PKCS1-v1_5", hash: "SHA-256" }, false, ["sign"]);
-          const sig = await crypto.subtle.sign("RSASSA-PKCS1-v1_5", key,
-            new TextEncoder().encode(jwtHeader + "." + claims));
-          const jwt = jwtHeader + "." + claims + "." +
-            btoa(String.fromCharCode(...new Uint8Array(sig)))
-              .replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-          const tokRes = await fetch("https://oauth2.googleapis.com/token", {
-            method: "POST",
-            headers: { "Content-Type": "application/x-www-form-urlencoded" },
-            body: new URLSearchParams({
-              grant_type: "urn:ietf:params:oauth:grant-type:jwt-bearer", assertion: jwt,
-            }),
-          });
-          const accessTok = (await tokRes.json()).access_token;
-          if (accessTok) {
-            await Promise.all(toks.map((t: { token: string }) =>
-              fetch(`https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`, {
-                method: "POST",
-                headers: {
-                  Authorization: `Bearer ${accessTok}`,
-                  "Content-Type": "application/json",
-                },
-                body: JSON.stringify({
-                  message: {
-                    token: t.token,
-                    notification: {
-                      title: "Quote approved 🎉",
-                      body: `${name} approved the quote for ${job.customer_name || "the job"}.`,
-                    },
-                  },
-                }),
-              }).catch(() => null)
-            ));
-          }
+          await fcmNotify(sa, toks, "Quote approved 🎉", `${name} approved the quote for ${job.customer_name || "the job"}.`);
         }
       }
     } catch (_e) { /* the approval stands regardless */ }
 
-    return json({ ok: true, approvedBy });
+    // The contract, by email, to the address on the job -- only for the approval that landed (a re-opened
+    // link, a second tab or a forwarded copy never gets here with landed true). The approval is already
+    // written and nothing below can unwrite it: emailTheContract never throws and never changes the status.
+    const contractEmail = landed
+      ? await emailTheContract(admin, job, body?.lang, req.headers.get("accept-language"), approvedAtIso)
+      : null;
+
+    return json({ ok: true, approvedBy, ...(contractEmail ? { contractEmail } : {}) });
   }
 
   // ---------------------------------------------------------------- view ---
@@ -760,6 +1113,15 @@ Deno.serve(async (req) => {
   const { total, money } = figures;
   const deposit = money.asked;
 
+  // Whether pressing Approve would be refused (priceShortfall above). Sent so
+  // the page can say so instead of offering a button that answers 409: on two
+  // of the three affected jobs the customer has already opened her link, and
+  // the first thing she would do is press it. A code, never the two figures --
+  // see the refusal above for why she is not shown them.
+  const approvalBlocked = (canRecordAcceptance && !job.quote_approved_at && priceShortfall(job, total))
+    ? "price_below_agreed"
+    : null;
+
   // Whether the deposit button can do anything. A connected processor means
   // create-payment-link's token path will produce a real checkout.
   const paymentsReady = !!(conn && (
@@ -804,6 +1166,10 @@ Deno.serve(async (req) => {
     // The label only, never jobs.reapproval_reason: see the comment where this
     // is read. Sending the sentence too would just invite the page to print it.
     reapprovalRunLabel,
+    // "price_below_agreed", or null. Set when approving would be refused
+    // because the price on this quote has fallen below a figure already
+    // agreed. The page draws a notice and hides the approve controls.
+    approvalBlocked,
     // Whether the approve step needs to ask for the last four digits of the
     // job's phone number. A boolean saying a phone is on file is not the
     // phone number -- this is the one fact about it the page is allowed to

@@ -356,7 +356,11 @@ test("NOTHING else from the settings blob reaches the response, and the read ask
 
 test("the response gained exactly one top-level key, paymentMethods", async () => {
   const before = Object.keys((await view(world({ settings: undefined }))).body).filter((k) => k !== "paymentMethods");
-  const expected = ["address", "approvedAt", "approvedBy", "approvedSignatureUrl", "balanceDue", "company", "customerName",
+  // approvalBlocked added 2 Oct 2026 with the price-collapse guard
+  // (tests/a69-after-approval.test.mjs): null here, a code when approving
+  // would be refused.
+  const expected = ["address", "approvalBlocked", "approvedAt", "approvedBy", "approvedSignatureUrl", "balanceDue",
+    "company", "customerName",
     "deposit", "depositDue", "depositPayable", "phoneGateRequired", "paymentsReady", "pxPerFoot", "reapprovalRequiredAt",
     "reapprovalRunLabel", "runs", "signatureCaptureReady", "total"];
   assert.deepEqual([...before].sort(), [...expected].sort(), "an unrelated field appeared or vanished");

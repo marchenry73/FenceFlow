@@ -61,3 +61,19 @@ live*.sql.err
 live*.sql.out.json
 reapply.log
 t[0-9].log
+
+# Build and regeneration logs. Redirected to a file on purpose -- never piped,
+# because a pipeline returns the LAST command's status and a failed build then
+# reports success. Read while they grow, byproducts afterwards.
+#
+# NAMED, not `*.log`, for the reason given above: a blanket pattern is where
+# something real hides. An earlier version of this block did use `*.log` and
+# `*.bak`, which quietly overrode that decision -- undone 2026-10-02.
+build-[0-9]*.log
+fixture-regen.log
+unit-tests.log
+
+# The backup scripts/patch-office-quote-email-recipient.mjs writes before it
+# touches website/dashboard.html, so a bad run is recoverable. Not a
+# deliverable, and named rather than globbed for the same reason.
+dashboard.html.bak-office-recipient

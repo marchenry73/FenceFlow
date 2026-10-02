@@ -284,9 +284,39 @@ interface EstimateLineItemDao {
     @Query("DELETE FROM estimate_line_items WHERE fenceRunId IS NULL AND role != 'NONE'")
     suspend fun deleteOrphanedGenerated(): Int
 
-    /** The orphans, so their cloud copies can be tombstoned before they are removed. */
+    /**
+     * The orphans, read before they are cleared.
+     *
+     * NOT so their cloud copies can be tombstoned -- that is exactly what
+     * Repository.deleteOrphanedGeneratedLineItems stopped doing on 2026-10-02,
+     * and the comment that used to sit here saying otherwise is the one that
+     * made destroying 100 cloud rows look like the intended design (66 was the
+     * first count; the live table says 100 across 10 jobs -- see that method). The rows are
+     * read only so the pending-resurrection list can forget them; see that
+     * method for the whole argument.
+     */
     @Query("SELECT * FROM estimate_line_items WHERE fenceRunId IS NULL AND role != 'NONE'")
     suspend fun orphanedGenerated(): List<EstimateLineItem>
+
+    /**
+     * EVERY line on the run, whatever its role and whether or not it was
+     * hand-typed, read BEFORE the run is deleted.
+     *
+     * Read, not deleted: the Room foreign key on fenceRunId is ON DELETE
+     * CASCADE, so SQLite removes all of these in the same transaction as the
+     * run and no code here has to. That cascade is also why this query has to
+     * exist -- it takes the rows out with no PendingDeletion for any of them,
+     * so the CLOUD copies were left alive for ever with their run tombstoned
+     * out from under them. Repository.deleteFenceRun reads this list first and
+     * queues their tombstones, which is the one place in the app that
+     * positively knows those lines are gone.
+     *
+     * Role is deliberately not filtered. The cascade does not filter either: a
+     * hand-typed extra that happens to hang off the run goes with it, so its
+     * cloud copy must go too or it comes back as a stray on the next pull.
+     */
+    @Query("SELECT * FROM estimate_line_items WHERE fenceRunId = :runId")
+    suspend fun allForRun(runId: Long): List<EstimateLineItem>
 
     /**
      * See [JobDao.scrubMoney] -- same reasoning. EstimateLineItem carries no

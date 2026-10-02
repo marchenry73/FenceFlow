@@ -164,10 +164,18 @@ object TakeoffRefresher {
         // office re-pricing this job reaches the same takeoff.
         val pixelsPerFoot = job.calibrationPixelsPerFoot ?: DrawingScale.PIXELS_PER_FOOT_GRID
 
+        // The joints the owner has made between this run's ends and other
+        // runs' ends. EVERY run of the job, not just this one: two sides at
+        // one joint share ONE post, and which run is BILLED for it is decided
+        // across runs (the taller fence first), so a call that saw only this
+        // run would let every member keep its own post -- which is what the
+        // office stopped doing at engine 2026.10.8, and the two must agree.
+        val joins = EstimateEngine.joinAdjustments(repository.getFenceRuns(run.jobId), pixelsPerFoot)
         val suggestions = EstimateEngine.suggestQuantities(
             run = run,
             pixelsPerFoot = pixelsPerFoot,
-            wastePercent = job.wastePercent
+            wastePercent = job.wastePercent,
+            joinAdjustment = joins.forRun(run.syncId)
         )
         val built = EstimateEngine.buildLineItems(
             jobId = run.jobId,

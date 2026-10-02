@@ -200,7 +200,29 @@ test("harness: the seed is read, the migration's list is read, and the real engi
   assert.equal(line(out, "PANEL").quantity, 17, "100 ft at 6 ft a bay is 17 panels");
   // CONTROL: the quote responds to a change that is nothing to do with height, so "nothing moved" below can be a finding.
   assert.notEqual(quote(REAL.price(IRON_6({ manual_linear_feet: 110 }), SEED)), quote(out), "control: ten more feet moved nothing");
-  assert.equal(REAL.version, "2026.10.2");
+  // PIN MOVED: this asserted the exact string "2026.10.2" and the engine reports 2026.10.8.
+  // THE DELIBERATE CHANGES: six formula changes have bumped it since, each recorded in a
+  // "Bumped x -> y" comment on both engines -- the height rule extended to the POST roles
+  // (10.3), a gate asking for a GATE_POST (10.4), a wall gate's blank post being priced
+  // (10.5), the fixture regeneration (10.6), gate hardware per fence type (10.7), and two
+  // sides sharing one corner post (10.8).
+  //
+  // RE-AIMED to the shape the repo already settled on for this exact mistake (commit d4ae8cc,
+  // "Stop the engine-version test failing on every legitimate bump"): newer than the
+  // height-blind version, compared component by component, because a plain string comparison
+  // gets it wrong ("2026.10.2" sorts below "2026.09.3" since "1" < "9"). This is a HARNESS
+  // check -- it is here to prove the engine under test is the real one, not to police the
+  // version, which tests/a40-height-carriers.test.mjs does properly on both engines at once.
+  const vparts = (v) => v.split(".").map((x) => Number.parseInt(x, 10) || 0);
+  const newerThan = (a, b) => {
+    const [x, y] = [vparts(a), vparts(b)];
+    for (let i = 0; i < Math.max(x.length, y.length); i++) if ((x[i] ?? 0) !== (y[i] ?? 0)) return (x[i] ?? 0) > (y[i] ?? 0);
+    return false;
+  };
+  assert.ok(newerThan(REAL.version, "2026.10.1"),
+    `the engine reports ${REAL.version}, which is not newer than the height-blind 2026.10.1`);
+  assert.ok(newerThan("2026.10.2", "2026.09.3") && !newerThan("2026.09.3", "2026.10.2"),
+    "control: the version comparison is blind");
 });
 
 // ================================================================== 1. THE FIX ==
@@ -385,13 +407,39 @@ test("colour and manufacturer come FIRST: height only chooses among what they le
   assert.equal(line(REAL.price(runRow(), mfr, { manufacturers }), "PANEL").description, "B panel 6'H");
 });
 
-test("only PANEL and GATE_PANEL read height: not posts, not chain-link fabric, not a gate frame kit", () => {
-  // POSTS: a cheap undeclared post and a dearer one that declares 6. The cheapest still wins -- a post's number is a length, not a fence height.
+test("PANEL, GATE_PANEL and the POST roles read height: not chain-link fabric, not a gate frame kit", () => {
+  // PIN MOVED: "Post cheap" -> "Post dear". THE DELIBERATE CHANGE: POSTS ARE NOW MATCHED TO
+  // FENCE HEIGHT (engine 2026.10.3 -- "a 6 ft fence stopped being given a 4 ft fence post").
+  // The five POST roles joined PANEL and GATE_PANEL in the same height step.
+  //
+  // What moved is the MEANING of height_ft on a post row, and it was re-decided on purpose:
+  // this check used to say "a post's number is a LENGTH, not a fence height", and
+  // supabase_a50_post_heights.sql now says in as many words that "height_ft on a POST means
+  // THE FENCE HEIGHT THE POST IS FOR, not the post's own length". Under the old meaning the
+  // cheapest post won every quote whatever height it declared; under the new one a row that
+  // declares the run's height is preferred over a cheaper row of a different height at the
+  // same width. The derivation is the rule itself, not arithmetic: "Post dear" declares
+  // height_ft 6, the run is 6 ft high, so it survives the filter and the undeclared "Post
+  // cheap" does not (no same-width row declaring 6 would have kept it).
+  //
+  // RE-AIMED rather than deleted, and it is still the SCOPE check this file needs: the two
+  // roles that must NOT read height are below, and this file's role-gate mutant is caught by
+  // them (see scenarioFabricOrPosts). The post case is kept with its sense flipped and a loud
+  // message, because a post silently going back to cheapest-wins is the regression that
+  // started all of this -- $40 a panel and four-foot posts on six-foot fences.
   const posts = [
     syn({ name: "Post cheap", category: "POST", role: "LINE_POST", fence_type: "VINYL", unit_price: 5 }),
     syn({ name: "Post dear", category: "POST", role: "LINE_POST", fence_type: "VINYL", unit_price: 9, height_ft: 6 }),
   ];
-  assert.equal(line(REAL.price(runRow({ panel_height_ft: 6 }), posts), "LINE_POST").description, "Post cheap");
+  assert.equal(line(REAL.price(runRow({ panel_height_ft: 6 }), posts), "LINE_POST").description, "Post dear",
+    "a 6 ft fence was given the cheaper post that does NOT declare 6 ft: posts have stopped " +
+    "reading the run's height, which is the 2026.10.3 fix reverted");
+  // CONTROL: it is HEIGHT doing that and not price. Declare the dearer row a height the run
+  // is not, and the cheap undeclared row wins again -- so the line above is a reading of the
+  // height step, not "the dearer post always wins".
+  const wrongHeight = [posts[0], { ...posts[1], height_ft: 4 }];
+  assert.equal(line(REAL.price(runRow({ panel_height_ft: 6 }), wrongHeight), "LINE_POST").description, "Post cheap",
+    "control: a post declaring the WRONG height still beat the undeclared cheaper one");
   // CHAIN-LINK FABRIC: its height is its covers_ft. Two rows of one covers_ft, the cheaper undeclared; the dearer one declares 6.
   const fabric = [
     syn({ name: "Fabric cheap 4ft", category: "FABRIC", role: "CHAIN_FABRIC", fence_type: "CHAIN_LINK", unit_price: 10, covers_ft: 4, unit: "FT" }),
@@ -406,12 +454,19 @@ test("only PANEL and GATE_PANEL read height: not posts, not chain-link fabric, n
   assert.equal(line(REAL.price(runRow({ fence_type: "WOOD", panel_height_ft: 6, gates_encoded: "400.0:0.0:4.0:LINE:IN" }), kits), "GATE_FRAME_KIT").description, "Kit cheap");
 });
 
+// RE-AIMED: this asserted that a post is NOT chosen by height, which engine 2026.10.3
+// deliberately reversed (see the test above). It is now the GATE FRAME KIT -- a role that
+// still must not read the run's panel height, because a kit is sized by the gate opening, not
+// by how tall the fence is. The role-gate mutant below (`if (true)`) is caught by this and by
+// the chain-link fabric case beside it, so removing the gate is still caught twice, by two
+// independent roles, which is what the old pair of post+fabric gave.
 const checkRoleGate = (E) => {
-  const posts = [
-    syn({ name: "Post cheap", category: "POST", role: "LINE_POST", fence_type: "VINYL", unit_price: 5 }),
-    syn({ name: "Post dear", category: "POST", role: "LINE_POST", fence_type: "VINYL", unit_price: 9, height_ft: 6 }),
+  const kits = [
+    syn({ name: "Kit cheap", category: "GATE", role: "GATE_FRAME_KIT", fence_type: "WOOD", unit_price: 50, covers_ft: 4 }),
+    syn({ name: "Kit dear", category: "GATE", role: "GATE_FRAME_KIT", fence_type: "WOOD", unit_price: 80, covers_ft: 4, height_ft: 6 }),
   ];
-  assert.equal(line(E.price(runRow({ panel_height_ft: 6 }), posts), "LINE_POST").description, "Post cheap", "a post was chosen by height");
+  assert.equal(line(E.price(runRow({ fence_type: "WOOD", panel_height_ft: 6, gates_encoded: "400.0:0.0:4.0:LINE:IN" }), kits), "GATE_FRAME_KIT").description,
+    "Kit cheap", "a gate frame kit was chosen by height");
 };
 
 test("heights are exact Floats: 4.1 matches 4.1 (the way covers_ft does), 4.2 does not", () => {
@@ -460,9 +515,23 @@ test("the engines never read a name for a height: no name, no parse and no patte
   const ts = read("supabase/functions/_shared/pricing/line-items.ts");
   const kt = stripKt(read("app/src/main/java/com/fenceestimator/app/estimate/EstimateEngine.kt"));
   const tsCode = ts.replace(/\/\*[\s\S]*?\*\//g, " ").split("\n").map((l) => l.replace(/\/\/.*$/, "")).join("\n");
-  const block = (code, start, end) => { const a = code.indexOf(start), b = code.indexOf(end, a); assert.ok(a > 0 && b > a, "block not found: " + start); return code.slice(a, b); };
-  const tsBlock = block(tsCode, 'if (entry.role === "PANEL" || entry.role === "GATE_PANEL")', "let chosen: MaterialItem | null;");
-  const ktBlock = block(kt, "if (entry.role == MaterialRole.PANEL || entry.role == MaterialRole.GATE_PANEL)", "val chosen = if (entry.preferCoversFt != null)");
+  // RE-AIMED: these two needles were the OLD one-line role gate (`PANEL || GATE_PANEL`),
+  // which widened to seven roles over four lines when posts became height-aware (engine
+  // 2026.10.3), so the block could no longer be found at all. The step is now located by its
+  // BODY -- the one line that reads a candidate's heightFt -- walking back to the `if (` that
+  // opens it, so the condition can name any set of roles without this check breaking OR
+  // (worse) matching some other `if` further down the function. The control below still
+  // proves the block it found IS the height step.
+  const block = (code, bodyMark, end) => {
+    const body = code.indexOf(bodyMark);
+    assert.ok(body > 0, "the height step's body is gone: " + bodyMark);
+    const a = code.lastIndexOf("if (", body);
+    const b = code.indexOf(end, body);
+    assert.ok(a > 0 && body - a < 600 && b > a, "height step block not found around: " + bodyMark);
+    return code.slice(a, b);
+  };
+  const tsBlock = block(tsCode, "c.heightFt === run.panelHeightFt", "let chosen: MaterialItem | null;");
+  const ktBlock = block(kt, "c.heightFt == run.panelHeightFt", "val chosen = if (entry.preferCoversFt != null)");
   for (const [side, code] of [["line-items.ts", tsBlock], ["EstimateEngine.kt", ktBlock]]) {
     assert.ok(/heightFt/.test(code), side + ": control: the block is the height step");
     for (const bad of [/\bname\b/, /\.match\(|\.test\(|RegExp|Regex|toRegex/, /parseFloat|toFloat|Number\(|parseInt/, /\.description\b/])
@@ -504,7 +573,22 @@ const ALL_CHECKS = { fix: scenarioFix, owner: scenarioOwner, siblingWidths: chec
 /** Copies the pricing source to a temp dir, applies `mutate` to line-items.ts (asserting it changed something), and loads that copy. */
 async function mutant(mutate, label) {
   const dir = mkdtempSync(join(tmpdir(), "a40-mutant-"));
-  for (const f of readdirSync(PRICING_DIR)) if (/^(f32|geometry|index|kotlin-text|line-items|load|takeoff|totals|types|uuid3)\.ts$/.test(f)) copyFileSync(join(PRICING_DIR, f), join(dir, f));
+  // RE-AIMED from a named whitelist to "every .ts module in the pricing directory".
+  //
+  // The whitelist was f32|geometry|index|kotlin-text|line-items|load|takeoff|totals|types|uuid3
+  // and it went stale the moment a new module arrived: joins.ts (engine 2026.10.8, two sides
+  // joined at a corner billing one shared corner post) is imported by index.ts and was not on
+  // the list, so every mutant below died with ERR_MODULE_NOT_FOUND before it could be judged.
+  // A list of the engine's files kept in a test is a list that will be wrong again; the
+  // directory already knows what the engine is made of. The harness files that are not part of
+  // the engine (its own tests and tools) are the only exclusions, by name, and the assertion
+  // below means a missing module fails as "the copy is incomplete" rather than as a module
+  // resolution error 200 lines away.
+  const copied = readdirSync(PRICING_DIR)
+    .filter((f) => f.endsWith(".ts") && !/^(load_test|parity|smoke)\.ts$/.test(f));
+  for (const f of copied) copyFileSync(join(PRICING_DIR, f), join(dir, f));
+  for (const needed of ["index.ts", "load.ts", "line-items.ts", "takeoff.ts", "totals.ts", "types.ts"])
+    assert.ok(copied.includes(needed), "the mutant copy is missing " + needed);
   const src = readFileSync(join(dir, "line-items.ts"), "utf8");
   const next = mutate(src);
   assert.notEqual(next, src, `the ${label} mutation did not change line-items.ts: the mutant is the real engine`);
@@ -513,7 +597,31 @@ async function mutant(mutate, label) {
   return engineOf(idx, load);
 }
 
-const STEP = /    if \(entry\.role === "PANEL" \|\| entry\.role === "GATE_PANEL"\) \{[\s\S]*?\r?\n    \}\r?\n/;
+// The whole height step in line-items.ts, condition and body, as a regex the mutants replace.
+//
+// RE-AIMED: this was anchored on the role gate as a single line reading
+// `if (entry.role === "PANEL" || entry.role === "GATE_PANEL") {`. The gate widened to seven
+// roles over four lines (engine 2026.10.3, posts matched to fence height), so the regex
+// matched nothing -- and a mutant that changes nothing is not a weaker mutant, it is the real
+// engine wearing a mutant's label, which `mutant()` catches and reports as "the mutation did
+// not change line-items.ts". It now matches an `if (` of any shape whose body is the
+// heightFt comparison, so widening the gate again will not quietly disarm the four mutants
+// below. ROLE_GATE is the condition alone, for the mutant that removes just the gate.
+const STEP = / {4}if \([\s\S]{0,400}?c\.heightFt === run\.panelHeightFt[\s\S]*?\r?\n {4}\}\r?\n/;
+const ROLE_GATE = / {4}if \(\r?\n(?: {6}entry\.role === "[A-Z_]+"(?: \|\| entry\.role === "[A-Z_]+")*(?: \|\|)?\r?\n)+ {4}\) \{/;
+// The height step must be exactly ONE block, so a mutant cannot replace the wrong one.
+// REAL_ROLE_GATE is the live condition, read out of the source, so a mutant that replaces the
+// step keeps the engine's OWN role set and differs only in the one thing it is testing.
+let REAL_ROLE_GATE;
+{
+  const src = readFileSync(join(PRICING_DIR, "line-items.ts"), "utf8");
+  const hits = src.split("c.heightFt === run.panelHeightFt").length - 1;
+  assert.equal(hits, 1, "line-items.ts has " + hits + " height comparisons: STEP is ambiguous");
+  assert.match(src, STEP, "STEP no longer matches the height step in line-items.ts");
+  const gate = src.match(ROLE_GATE);
+  assert.ok(gate, "ROLE_GATE no longer matches the height step's role condition");
+  REAL_ROLE_GATE = gate[0];
+}
 
 test("TEETH: the real engine passes every check", () => {
   for (const [name, check] of Object.entries(ALL_CHECKS)) assert.doesNotThrow(() => check(REAL), name);
@@ -525,21 +633,23 @@ test("TEETH: with the height step REMOVED the 6 ft iron run and the owner's 4 ft
   assert.throws(() => scenarioOwner(E), /cheaper shorter panel took the 6 ft quote/);
 });
 
-test("TEETH: with the ROLE GATE removed, posts and chain-link fabric are chosen by panel height", async () => {
-  const E = await mutant((s) => s.replace('if (entry.role === "PANEL" || entry.role === "GATE_PANEL") {', "if (true) {"), "remove-the-role-gate");
+test("TEETH: with the ROLE GATE removed, chain-link fabric and a gate frame kit are chosen by panel height", async () => {
+  const E = await mutant((s) => s.replace(ROLE_GATE, "    if (true) {"), "remove-the-role-gate");
   assert.throws(() => scenarioFabricOrPosts(E), /by height|panel height/);
   assert.doesNotThrow(() => scenarioFix(E), "control: the role-gate mutant still fixes the iron run, so it is only the scope check that catches it");
 });
 
 test("TEETH: the strict whole-list narrowing (the first draft) hides the sibling widths of a gate", async () => {
+  // The replacement keeps the engine's OWN role condition (REAL_ROLE_GATE) and changes only
+  // the rule inside it, so this mutant differs from the real engine in exactly one way.
   const E = await mutant((s) => s.replace(STEP,
-    '    if (entry.role === "PANEL" || entry.role === "GATE_PANEL") {\n      const heightMatches = candidates.filter((c) => c.heightFt === run.panelHeightFt);\n      if (heightMatches.length > 0) candidates = heightMatches;\n    }\n'), "strict-narrowing");
+    REAL_ROLE_GATE + '\n      const heightMatches = candidates.filter((c) => c.heightFt === run.panelHeightFt);\n      if (heightMatches.length > 0) candidates = heightMatches;\n    }\n'), "strict-narrowing");
   assert.doesNotThrow(() => scenarioFix(E), "control: the strict mutant fixes the iron run too, so only the sibling-width check can tell it from the real rule");
   assert.throws(() => checkSiblingWidths(E), /hid the 4 ft and 6 ft gates/);
 });
 
 test("TEETH: an engine that reads the height out of the NAME fails the no-name-parse check (and the real one does not)", async () => {
   const E = await mutant((s) => s.replace(STEP,
-    '    if (entry.role === "PANEL" || entry.role === "GATE_PANEL") {\n      const named = candidates.filter((c) => c.name.includes(String(run.panelHeightFt) + "\'H"));\n      if (named.length > 0) candidates = named;\n    }\n'), "name-parse");
+    REAL_ROLE_GATE + '\n      const named = candidates.filter((c) => c.name.includes(String(run.panelHeightFt) + "\'H"));\n      if (named.length > 0) candidates = named;\n    }\n'), "name-parse");
   assert.throws(() => scenarioNoNameParse(E), /read out of a NAME/);
 });

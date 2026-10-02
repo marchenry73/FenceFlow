@@ -807,3 +807,81 @@ of defect the card-fee sentence was refused over this morning. The honest design
 Zelle account is against both services' terms, and neither offers any seller protection or a
 dispute path. That is his call and not a thing to put on a customer's page -- but he should
 hear it once, from me, rather than from a frozen account.
+
+---
+
+## C21. Tell the customer WHAT THE DEPOSIT IS FOR
+
+> "let the customer [know] the deposit is to put you on the schedule and to get the materials,
+> the rest is for labor"
+
+**This does NOT contradict the non-disclosure rule, and the distinction is the whole point.**
+Two different things:
+
+- **FORBIDDEN, and still is:** the breakdown. He said of the extra hundred, "don't tell the
+  customer that I want that in the app". So: no itemisation, no "includes $100 for scheduling
+  and transport", no second figure, no arithmetic the customer can run to find it. One deposit
+  number, as now.
+- **WANTED, and new:** the PURPOSE, in plain words. "Your deposit reserves your place on the
+  schedule and pays for the materials. The balance covers the labour." That says why the money
+  is asked for without revealing how it was computed.
+
+A customer reading the purpose sentence cannot derive the hundred from it. A customer reading
+a breakdown can. The existing test that fails on breakdown wording must therefore be written
+to catch ITEMISATION and FIGURES, not the words "schedule" or "materials" -- or this sentence
+would trip the guard meant to protect him. Whoever builds it must check that test rather than
+assume.
+
+**Where it goes, all three:**
+1. The quote page, next to the deposit figure.
+2. The approval email, which is being built now.
+3. The copy she downloads -- the document she keeps and forwards is the one most likely to be
+   read by somebody who was not in the conversation.
+
+**Three languages**, following the existing tr() pattern.
+
+**Worth saying plainly in the copy:** it is "reserves your place on the schedule", not
+"guarantees a date". He schedules jobs himself and a customer who reads a promise of a date
+into this will be disappointed by the first weather delay. Write what is true.
+
+---
+
+## C22. "EASIER" is the requirement, not a nice-to-have
+
+> "I want to be able to connect the fence better, make it easier to connect 2 sides and for it
+> to make the point of meeting a corner, I want that to be easier."
+
+He has now asked for joining four times in one day, and the word that keeps coming back is
+EASIER. So ease is the specification, and a technically-correct gesture that takes four taps
+has failed.
+
+**THE GESTURE HE HAS ALREADY DESCRIBED, in his own earlier words:** *"I want to have the
+option to either continue or start another side."* That is the design. He is not asking to
+join two finished sides as a separate chore -- he is asking to KEEP DRAWING from where the
+last side ended.
+
+So the easy path is one he already does without thinking:
+
+  **Start the new side by tapping the end of an existing one.** That tap means "continue from
+  here", and the two sides are joined at that point. Tap anywhere else and it is a new,
+  separate side, exactly as today.
+
+No mode, no menu, no second confirmation. One tap he was going to make anyway, and the
+difference is WHERE he makes it. It also honours his own rule -- the join is a deliberate act
+(he chose to start on that end), not a guess from proximity.
+
+**And joining two sides already drawn** needs its own path, because he will have drawn them the
+other way round plenty of times. Dragging an end onto another end is the obvious one, and THAT
+case should confirm, because a drag can be an accident in a way that a deliberate first tap
+cannot.
+
+**THE FEEDBACK MATTERS AS MUCH AS THE GESTURE.** He asked for "the point of meeting [to be] a
+corner". So at the moment it joins, show him:
+  - the joint drawn differently from a free end, legible at arm's length in sunlight;
+  - and in his words what it did: one post instead of two, one cap fewer, that post's concrete
+    gone, and the two end posts now one CORNER post. That is the number he has been asking to
+    see since the first time he mentioned it.
+
+**What would make it fail:** a join mode he has to turn on; a long-press; a menu; asking twice;
+or a joint that looks the same as two ends that merely touch. Any of those and he will tell us
+again that it is not easier.

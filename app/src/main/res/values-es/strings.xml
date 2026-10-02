@@ -21,6 +21,7 @@
     <string name="posts_why_ends">De esos, extremos</string>
     <string name="posts_why_line">Postes de línea</string>
     <string name="posts_why_gate_posts">Postes de puerta, dos por puerta</string>
+    <string name="posts_why_shared">Compartidos donde se unen dos lados</string>
     <string name="posts_why_total">Total de postes</string>
     <string name="posts_why_footer">Las esquinas y los extremos no son postes adicionales: son postes que la línea ya contó, colocados en sitios concretos. Cambie la separación de postes de este tramo para cambiar el total.</string>
     <string name="action_add">Añadir</string>
@@ -642,8 +643,8 @@
     <string name="jd_set_deposit_capped">Poner depósito de $%1$s (todo lo que aún se debe)</string>
     <string name="jd_accepted_price">Precio aceptado</string>
     <string name="jd_accepted_vs_estimate">El presupuesto ahora suma $%1$s. Al cliente se le cobra el precio que aceptó; cualquier cambio pasa por una orden de cambio firmada o una nueva aprobación.</string>
-    <string name="jd_materials_partly_paid">Los materiales suman $%1$s y se han pagado $%2$s, así que faltan $%3$s para cubrirlos. Redondeado a los siguientes $10.</string>
-    <string name="jd_materials_come_to">Los materiales de este presupuesto suman $%1$s. Redondeado a los siguientes $10.</string>
+    <string name="jd_materials_partly_paid">Los materiales con impuesto suman $%1$s y se han pagado $%2$s, así que faltan $%3$s para cubrirlos. El depósito cubre eso, redondeado a los siguientes $100, más $100, e incluye los $%2$s ya recibidos, así que lo que falta cobrar queda correcto.</string>
+    <string name="jd_materials_come_to">Los materiales con impuesto de este presupuesto suman $%1$s. El depósito cubre eso, redondeado a los siguientes $100, más $100.</string>
     <string name="jd_contract_total">Total del contrato (según el presupuesto)</string>
     <string name="jd_paid_in_total">Pagado en total</string>
     <string name="jd_refunded">Reembolsado</string>
@@ -1537,7 +1538,7 @@
     <string name="enum_role_barbed_wire_arm">Brazo para alambre de púas</string>
     <string name="enum_role_privacy_slat">Lama de privacidad</string>
     <string name="enum_payment_unpaid">Sin pagar</string>
-    <string name="enum_payment_deposit_paid">Anticipo pagado</string>
+    <string name="enum_payment_deposit_paid">Pago parcial</string>
     <string name="enum_payment_paid_in_full">Pagado en su totalidad</string>
     <string name="enum_method_card">Tarjeta</string>
     <string name="enum_method_cash">Efectivo</string>
@@ -1618,7 +1619,7 @@
     <string name="enum_pipeline_lead">Nuevo prospecto</string>
     <string name="enum_pipeline_estimating">En presupuesto</string>
     <string name="enum_pipeline_quote_sent">Presupuesto enviado</string>
-    <string name="enum_pipeline_deposit_paid">Anticipo pagado</string>
+    <string name="enum_pipeline_deposit_paid">Pago parcial</string>
     <string name="enum_pipeline_scheduled">Programado</string>
     <string name="enum_pipeline_installed">Instalado</string>
     <string name="enum_pipeline_paid_in_full">Pagado en su totalidad</string>
@@ -1753,7 +1754,7 @@
     <string name="eng2_locate_msg_expires_in_many">Autorizado para excavar. Vence en %1$d días -- solicítala de nuevo si el trabajo se alarga más.</string>
     <string name="eng2_stage_quote_sent">Presupuesto enviado</string>
     <string name="eng2_stage_quote_approved">Presupuesto aprobado</string>
-    <string name="eng2_stage_deposit_received">Depósito recibido</string>
+    <string name="eng2_stage_deposit_received">Depósito cobrado por completo</string>
     <string name="eng2_stage_hoa_cleared">HOA / permiso resuelto</string>
     <string name="eng2_stage_scheduled">Instalación programada</string>
     <string name="eng2_stage_complete">Instalación terminada</string>
@@ -2143,4 +2144,42 @@
     <string name="attach_refused_at_another_point">Esos dos extremos ya se juntan con otros lados, en dos postes distintos. Separa uno primero.</string>
     <string name="attach_refused_not_found">Ese lado ya no está en este trabajo.</string>
     <string name="attach_refused_no_storage">No se unió nada. Esta versión todavía no puede guardar una unión, y una que no se pudiera guardar se perdería al salir del dibujo.</string>
+    <!-- Como pueden pagarle los clientes. Ningun limite se inventa: en blanco
+         es el valor por defecto y en blanco no muestra nada. -->
+    <string name="pm_title">Cómo pueden pagarle los clientes</string>
+    <string name="pm_explain">Active las formas que quiera en la página de presupuesto del cliente y escriba sus propios datos. Lo que quede vacío no se le muestra al cliente.</string>
+    <string name="pm_cashapp_label">Cash App</string>
+    <string name="pm_cashapp_hint">Su $cashtag</string>
+    <string name="pm_zelle_label">Zelle</string>
+    <string name="pm_zelle_hint">El teléfono o correo donde está registrado su Zelle</string>
+    <string name="pm_wire_label">Transferencia bancaria</string>
+    <string name="pm_wire_hint">Pegue las instrucciones de transferencia tal como se las dio su banco</string>
+    <string name="pm_cash_label">Efectivo</string>
+    <string name="pm_limit_hint">Máximo que puede recibir de una vez (opcional)</string>
+    <string name="pm_limit_support">Déjelo en blanco para no decir nada sobre un límite. Es lo que el banco de ella le permitirá enviar, no un límite suyo.</string>
+    <string name="pm_limit_line">Su banco puede limitar un pago a unos %1$s. Si lo hace, pregunte por dividirlo o use otra forma.</string>
+    <string name="pm_limit_not_shown_yet">El límite se guarda y TODAVÍA no aparece en la página del cliente. Para mostrárselo hay que actualizar primero la página de presupuesto.</string>
+    <string name="pm_review_and_save">Revisar lo que verá el cliente</string>
+    <string name="pm_confirm_title">Esto es lo que verá el cliente</string>
+    <string name="pm_confirm_explain">Revise cada carácter. El dinero enviado a un usuario o número equivocado no se puede recuperar, y aquí nada puede comprobar que un identificador sea realmente suyo.</string>
+    <string name="pm_confirm_nothing">Al cliente no se le mostraría nada. Active una forma y rellénela, o guarde así para no mostrarle nada.</string>
+    <string name="pm_confirm_warning">Compárelo con su propia aplicación o banco antes de guardarlo.</string>
+    <string name="pm_confirm_save">Sí, es correcto</string>
+    <string name="pm_go_back">Volver</string>
+    <string name="pm_refused_title">No se guardó</string>
+    <string name="pm_err_cashapp">Un identificador de Cash App son letras, números, puntos, guiones o guiones bajos, hasta 30. No se guardó nada.</string>
+    <string name="pm_err_zelle">Eso no parece un número de teléfono ni un correo electrónico. No se guardó nada.</string>
+    <string name="pm_err_zelle_long">Esa dirección de Zelle tiene más de %1$d caracteres. No se guardó nada y no se acortó nada.</string>
+    <string name="pm_err_wire_long">Esas instrucciones de transferencia tienen más de %1$d caracteres. No se guardó nada y no se cortó nada: la mitad de un número de cuenta es un pago enviado a ninguna parte.</string>
+    <string name="pm_err_on_but_empty">%1$s está activado y vacío. Rellénelo o desactívelo.</string>
+    <string name="pm_err_limit">El límite de %1$s tiene que ser una cantidad de dinero, o estar vacío.</string>
+    <string name="pm_summary_none">Todavía no se muestra nada a los clientes</string>
+    <string name="pm_summary_on">Los clientes ven: %1$s</string>
+    <string name="pm_never_loaded">No se pudieron leer sus datos de pago desde la oficina, así que aquí todavía no se pueden cambiar. Guardar ahora podría escribir vacíos sobre lo que realmente hay. Inténtelo con señal.</string>
+    <string name="pm_offline_copy">Se muestra la última copia que leyó este teléfono. Ahora mismo no pudo comprobarla con la oficina.</string>
+    <string name="pm_pending">Guardado en este teléfono y TODAVÍA no enviado a la oficina. Se queda aquí hasta que salga.</string>
+    <string name="pm_send_now">Enviarlo ahora</string>
+    <string name="pm_saved">Guardado, y releído desde la oficina para confirmarlo.</string>
+    <string name="pm_verify_failed">La oficina no guardó lo que se envió. Aquí no se ha cambiado nada. Revíselo e inténtelo otra vez.</string>
+    <string name="pm_server_refused">La oficina rechazó el cambio. Puede que su cuenta no tenga permiso para cambiar los ajustes de la empresa.</string>
 </resources>

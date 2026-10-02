@@ -1495,7 +1495,7 @@
           </div>
         </div>
 
-        <input id="catFilter" data-t="catFilterPh" placeholder="Filter by name, fence type, category or role…" style="margin:14px 0 10px">
+        <input id="catFilter" data-t="catFilterPh" placeholder="Filter by name, supplier, fence type, category or role…" style="margin:14px 0 10px">
         <div class="msg" id="catMsg"></div>
         <div class="empty" id="catEmpty" style="display:none">No materials yet. Add them by hand
           below, import a price list from Jobs, or press "Start from FenceFlow's catalog" above
@@ -2274,6 +2274,13 @@
     <div class="panel" id="panelMail" style="display:none"><h2 data-t="jobSecMail">Email</h2>
       <div class="jm-bar">
         <button class="btn btn-sm" id="jobMailBtn" type="button" data-t="jobMailEmailBtn">Email customer</button>
+        <!-- "Email the quote": the same compose window, opened with the quote
+             template already written and this job's customer link in it. It is
+             a THIRD door to the quote link, so it carries the same two gates
+             the job view's Copy link / Preview and the wizard's own pair carry
+             (unverifiedPricesOn, jobHasUnmeasurableWork) -- see quoteSendBlock().
+             A gate on one door only is this file's own recorded mistake. -->
+        <button class="btn btn-sm btn-grey" id="jobQuoteMailBtn" type="button" data-t="jobQuoteMailBtn">Email the quote</button>
         <span class="sub" id="jobMailNote"></span>
       </div>
       <div class="mail-threads jm-rows" id="jobMailRows"></div>
@@ -2351,7 +2358,7 @@
         <div><label data-t="jobLabelAmountPaid">Amount paid</label>
           <div id="j_paid_readout" class="readout"></div></div>
         <div><label data-t="jobLabelPayStatus">Payment status</label><select id="j_payment_status">
-          <option value="UNPAID" data-t="jobOptUnpaid">Unpaid</option><option value="DEPOSIT_PAID" data-t="jobOptDepositPaid">Deposit paid</option>
+          <option value="UNPAID" data-t="jobOptUnpaid">Unpaid</option><option value="DEPOSIT_PAID" data-t="jobOptDepositPaid">Part paid</option>
           <option value="PAID_IN_FULL" data-t="jobOptPaidFull">Paid in full</option></select></div>
       </div>
     </div>
@@ -2711,6 +2718,14 @@
         <div><label data-t="ciLabelPrice">Unit price ($)</label><input id="ci_price" type="number" step="0.01"></div>
         <div><label data-t="ciLabelCovers">Covers (ft)</label><input id="ci_covers" type="number" step="0.5" data-t="ciCoversPh" placeholder="Optional"></div>
       </div>
+      <!-- How tall a panel or gate panel is. Offered only for those two roles, and only once the
+           column exists: the pricing engines read a height on no other role, so a box on a post
+           or a cap would save a number that changes nothing. Blank is a real answer (the row
+           does not say); a typed 0 is refused rather than read as blank. -->
+      <div id="ci_height_wrap" class="wiz-row2" style="display:none">
+        <div><label data-t="ciLabelHeight">Height (ft)</label><input id="ci_height" type="number" step="0.5" min="0" data-t="ciCoversPh" placeholder="Optional"></div>
+        <p class="sub" style="margin:22px 0 0" data-t="ciHeightHelp">Only Panel and Gate panel rows use this. When two rows are the same width, an estimate takes the one whose height matches the fence run, so a 4 ft run is not priced with a 6 ft panel. Leave it blank if you do not know it.</p>
+      </div>
       <div id="ci_supplier_wrap" style="display:none">
         <label data-t="ciLabelSupplierPrice">Supplier price ($)</label><input id="ci_supplier" type="number" step="0.01">
       </div>
@@ -2826,7 +2841,7 @@
       <select id="ppSupplier"></select>
       <label data-t="ppFileLabel">Price list file</label>
       <input type="file" id="ppFile" accept=".csv,.tsv,.txt,.xlsx,.xls,.pdf,text/csv,text/plain" style="margin-bottom:6px">
-      <p class="sub" style="margin:0 0 10px" data-t="ppFileHint">Reads CSV, TSV and Excel (.xlsx). A PDF or an old .xls file cannot be read reliably here. In Excel or Google Sheets, save or download it as CSV or .xlsx and add that instead.</p>
+      <p class="sub" style="margin:0 0 10px" data-t="ppFileHint">Reads CSV, TSV, Excel (.xlsx) and PDF quotes or price lists that contain real text. A scanned PDF (a picture of a page) or an old .xls file cannot be read reliably here. For those, save or download the list as CSV or .xlsx from Excel or Google Sheets and add that instead.</p>
       <label data-t="ppPasteLabel">Or paste the rows</label>
       <textarea id="ppText" style="min-height:90px;font-family:ui-monospace,monospace;font-size:13px"
         data-t="ppPastePh" placeholder="Item name, Price"></textarea>
@@ -2834,16 +2849,19 @@
     </div>
     <div class="panel" id="ppColsBox" style="display:none">
       <h2 style="margin:0 0 6px" data-t="ppColsHead">Columns read from the file</h2>
-      <p class="sub" style="margin:0 0 8px" data-t="ppColsNote">Check these. The price column is the one that decides every new price.</p>
+      <p class="sub" id="ppPdfNote" style="display:none;margin:0 0 8px"></p>
       <p class="sub" id="ppReadNote" style="margin:0 0 8px"></p>
       <div id="ppSheetWrap" style="display:none"><label data-t="ppSheetLabel">Sheet in this workbook</label><select id="ppSheet"></select></div>
-      <div class="wiz-row2">
-        <div><label data-t="ppColName">Item name</label><select id="ppColName"></select></div>
-        <div><label data-t="ppColPrice">Price you pay</label><select id="ppColPrice"></select></div>
-      </div>
-      <div class="wiz-row2">
-        <div><label data-t="ppColSku">Part number (optional)</label><select id="ppColSku"></select></div>
-        <div><label data-t="ppColUnit">Unit (optional)</label><select id="ppColUnit"></select></div>
+      <div id="ppColPickers">
+        <p class="sub" style="margin:0 0 8px" data-t="ppColsNote">Check these. The price column is the one that decides every new price.</p>
+        <div class="wiz-row2">
+          <div><label data-t="ppColName">Item name</label><select id="ppColName"></select></div>
+          <div><label data-t="ppColPrice">Price you pay</label><select id="ppColPrice"></select></div>
+        </div>
+        <div class="wiz-row2">
+          <div><label data-t="ppColSku">Part number (optional)</label><select id="ppColSku"></select></div>
+          <div><label data-t="ppColUnit">Unit (optional)</label><select id="ppColUnit"></select></div>
+        </div>
       </div>
       <label id="ppAssignRow" style="display:flex;align-items:center;gap:8px;margin-top:10px">
         <input type="checkbox" id="ppAssign" style="width:auto" checked><span id="ppAssignLabel"></span></label>
@@ -2998,6 +3016,13 @@ import {
   quoteForReply, forwardBlock, replySubject, replyRecipients, parseAddressList, addressLabel, listLabel,
   safeFilename, formatBytes, mailErrorParts, threadRowHtml, cleanLine, mailTimeLabel, senderWarning,
 } from './js/lib/mail-render.mjs';
+// The quote-send email's words, in all three languages, shared with the
+// server's copy in supabase/functions/_shared/email-templates.ts and held to
+// it by tests/a72-quote-email.test.mjs (rendered output compared, not phrases
+// grepped). Nothing about the email is written in this file.
+import {
+  buildQuoteSendEmail, quoteSendRefusal, REFUSAL_REASON as QUOTE_REFUSAL_REASON,
+} from './js/lib/quote-email.mjs';
 
 // Publishable key — safe client-side. Row Level Security enforces access.
 // Publishable key on purpose -- it is designed to be public. Row Level
@@ -3199,6 +3224,8 @@ const TL = {
     // The job sheet's Email panel.
     jobSecMail:'Email', jobMailEmailBtn:'Email customer',
     jobMailNoEmail:'Add the customer’s email above first.',
+    jobQuoteMailBtn:'Email the quote',
+    quoteSentStampFailed:'The email went out, but the job could not be marked as sent. Open the job again and press “Mark as sent”.',
     jobMailBadEmail:'The email above is not an address FenceFlow can send to.',
     jobMailEmpty:'No email for this job yet. Mail to or from the customer or the HOA shows up here by itself.',
     jobMailOpenInInbox:'Open in Email', jobMailHoaTag:'HOA',
@@ -3606,7 +3633,7 @@ const TL = {
     jobLabelAssignedCrew:'Assigned crew',
     jobSecPayment:'Payment', jobLabelDeposit:'Deposit ($)', jobLabelAmountPaid:'Amount paid',
     jobLabelPayStatus:'Payment status', jobOptUnpaid:'Unpaid',
-    jobOptDepositPaid:'Deposit paid', jobOptPaidFull:'Paid in full',
+    jobOptDepositPaid:'Part paid', jobOptPaidFull:'Paid in full',
     jobSecQuotePage:'Customer quote page',
     qBlockOne:'Not ready to send. 1 price on this quote is still the one FenceFlow shipped rather than yours: %s. Confirm it in Catalog first.',
     qBlockMany:'Not ready to send. %s prices on this quote are still the ones FenceFlow shipped rather than yours: %s. Confirm them in Catalog first.',
@@ -3672,7 +3699,7 @@ const TL = {
     jobLabelPermitStatus:'Permit status',
     jobSecExpenses:'Expenses', jobSecPunch:'Punch List', jobSecOrders:'Change Orders',
     jobSecTime:'Time Logged', jobDeleteBtn:'Delete', jobSaveBtn:'Save Changes',
-    jobProgStep1:'Quote sent', jobProgStep2:'Quote approved', jobProgStep3:'Deposit received',
+    jobProgStep1:'Quote sent', jobProgStep2:'Quote approved', jobProgStep3:'Deposit collected in full',
     jobProgStep4:'HOA and permit cleared', jobProgStep5:'Installation scheduled',
     jobProgStep6:'Installation complete', jobProgStep7:'Final payment', jobProgNext:'Next',
     jobPunchResolved:'Resolved', jobPunchOpen:'Open', jobPunchEmpty:'Nothing outstanding.',
@@ -3724,7 +3751,7 @@ const TL = {
     calSumClocked:'clocked', calSumCollected:'collected',
     calFooterNote:'Click a job to open it.',
     calStageNewLead:'New Lead', calStageQuoteSent:'Quote Sent', calStageApproved:'Approved',
-    calStageDepositPaid:'Deposit Paid', calStageScheduled:'Scheduled',
+    calStageDepositPaid:'Part paid', calStageScheduled:'Scheduled',
     calStageInstalled:'Installed', calStagePaidFull:'Paid in Full', calStageLost:'Lost',
     prodHead:'Production',
     prodBody:'Every sold job, where it is right now. Materials, dig, set, build, punch, done — a job with no stage yet has not started.',
@@ -4025,7 +4052,7 @@ const TL = {
     ppNoSuppliers:'Add a supplier first. A price list is applied to one supplier at a time, so there has to be one to apply it to.',
     ppAddSupplierBtn:'Add a supplier',
     ppFileLabel:'Price list file',
-    ppFileHint:'Reads CSV, TSV and Excel (.xlsx). A PDF or an old .xls file cannot be read reliably here. In Excel or Google Sheets, save or download it as CSV or .xlsx and add that instead.',
+    ppFileHint:'Reads CSV, TSV, Excel (.xlsx) and PDF quotes or price lists that contain real text. A scanned PDF (a picture of a page) or an old .xls file cannot be read reliably here. For those, save or download the list as CSV or .xlsx from Excel or Google Sheets and add that instead.',
     ppSheetLabel:'Sheet in this workbook',
     ppSheetHidden:'(hidden)',
     ppSheetNote:'Reading sheet “%s” (1 of %s sheets). The other sheets are not read; pick another above to use it instead.',
@@ -4087,7 +4114,34 @@ const TL = {
     ppSaveOldBtn:'Save the old prices (CSV)',
     ppUndoDone:'Put back %s item(s) as they were.',
     ppUndoPartial:'Put back %s of %s item(s). %s were changed by somebody since and were left alone.',
-    ppPdfRefused:'A PDF can’t be read reliably, and a price that lands on the wrong item would be wrong on every quote. Open it in Excel or Google Sheets (or ask the supplier for the spreadsheet), save it as CSV or .xlsx, and add that file.',
+    ppPdfRefused:'This PDF could not be opened here, so nothing was imported. It may be damaged. Open it in Excel or Google Sheets (or ask the supplier for the spreadsheet), save it as CSV or .xlsx, and add that file.',
+    ppPdfReading:'Reading the PDF…',
+    ppPdfScanned:'This PDF is a picture of a page (a scan or a photo). It has no text in it for this page to read, so nothing was imported. Ask the supplier for the PDF their system produced, or for the price list as a spreadsheet, or type the prices into Excel or Google Sheets and add that as CSV or .xlsx.',
+    ppPdfNoRows:'This PDF has text, but no line in it reads as an item with a price, so nothing was imported. Open it in Excel or Google Sheets (or ask the supplier for the spreadsheet), save it as CSV or .xlsx, and add that file.',
+    ppPdfGarbled:'The text in this PDF did not come out as readable letters and numbers (its fonts are encoded in a way this page cannot decode), so nothing was imported. Ask the supplier for a spreadsheet, or add the prices as CSV or .xlsx.',
+    ppPdfAmbiguous:'This PDF has more than one price column (%s) and this page cannot tell which one is the price you pay, so nothing was imported. Ask the supplier for the spreadsheet, or add a CSV and choose the column there.',
+    ppPdfLocked:'This PDF is password-protected. Save an unlocked copy and add that, or add the price list as CSV or .xlsx.',
+    ppPdfTooLong:'That PDF has more than %s pages, which is more than a supplier quote or price list should have. Is it the right file?',
+    ppPdfLibOffline:'The PDF reader could not be loaded. It is downloaded the first time a PDF is added, so this needs an internet connection. Try again, or add the price list as CSV or .xlsx.',
+    ppPdfLibFingerprint:'The PDF reader was downloaded but did not match its fixed fingerprint, so it was not run and nothing was imported. For now, add the price list as CSV or .xlsx.',
+    ppPdfNoteHead:'Read from a PDF. The unit price is taken from the “%s” column, and where the PDF also has quantity and line-total columns it is accepted only if quantity × price = line total on that line. Lines that do not check out are listed below, not guessed. Nothing is ticked: tick the lines you have checked against the PDF line shown beside each.',
+    ppPdfNoteRel:'Read from a PDF with no price column heading this page recognises. A unit price is accepted only where quantity × price = line total on that line. Lines that do not check out are listed below, not guessed. Nothing is ticked: tick the lines you have checked against the PDF line shown beside each.',
+    ppPdfCounts:'In this PDF: %s priced lines found on %s page(s). Matched to an item in your catalog: %s. Could not be read or matched, listed below: %s.',
+    ppPdfPagesUnread:'%s of %s page(s) had no text this page could read (a scanned or turned page), so any lines on them were not read.',
+    ppPdfReconOk:'The line totals read add up to %s, the same as the PDF’s own total before tax, so no lines were missed.',
+    ppPdfReconBad:'The line totals read add up to %s, but the PDF’s own total before tax is %s. Some lines may not have been read, or the PDF has charges that are not item lines. Check the list against the PDF.',
+    ppColPdfH:'In the PDF',
+    ppPdfPage:'p.%s',
+    ppPdfChecked:'Unit price used: %s (checked: %s × %s = %s)',
+    ppPdfFromCol:'Unit price used: %s (from the “%s” column)',
+    ppPdfNoPriceHead:'Text in the PDF with no price (%s), not read as items',
+    ppPdfTotalsHead:'Lines holding only a total (%s), not read as items',
+    ppWhyPdfRel:'%s × %s is %s, but the PDF says the line total is %s, so the unit price cannot be confirmed',
+    ppWhyPdfNoRel:'the quantity or the line total is missing, so the unit price cannot be confirmed',
+    ppWhyPdfCols:'could not tell which column each number on this line belongs to',
+    ppWhyPdfNoPrice:'no unit price on this line',
+    ppWhyPdfAmbig:'more than one number fits quantity × price = line total, so the unit price cannot be told',
+    ppWhyPdfNoName:'no description on this line',
     ppXlsRefused:'This is an old-format Excel file (.xls) or a password-protected one, and neither can be read here. Open it in Excel, choose Save As, and pick .xlsx or CSV.',
     ppNotText:'That does not look like a text file or a spreadsheet. Save the sheet as CSV or .xlsx and add that file.',
     ppTooBig:'That file is larger than a price list should be (limit 5 MB). Is it the right one?',
@@ -4105,7 +4159,7 @@ const TL = {
     catSupAddBtn:'Add supplier',
     catSupEmptyMsg:'No suppliers yet.',
     catColSupName:'Name', catColSupPhone:'Phone', catColSupEmail:'Email', catColSupHours:'Hours',
-    catFilterPh:'Filter by name, fence type, category or role…',
+    catFilterPh:'Filter by name, supplier, fence type, category or role…',
     catEmptyMsg:'No materials yet. Add them by hand below, import a price list from Jobs, or press "%s" above for a typical starting set you can then correct.',
     catColItem:'Item', catColRole:'Role', catColColour:'Colour', catColUnit:'Unit', catColPrice:'Price', catColCoversFt:'Covers ft',
     catColSupplierPrice:'Supplier price', catColSupplier:'Supplier', catColSku:'SKU', catColActive:'Active',
@@ -4294,6 +4348,9 @@ const TL = {
     ciRoleRailEnd:'Rail end', ciRoleBarbedWireArm:'Barbed wire arm', ciRolePrivacySlat:'Privacy slat',
     ciLabelColor:'Colour / finish', ciColorPh:'White, Black, Tan…',
     ciLabelUnit:'Unit', ciLabelPrice:'Unit price ($)', ciLabelCovers:'Covers (ft)', ciCoversPh:'Optional',
+    ciLabelHeight:'Height (ft)', ciHeightBadMsg:'Height has to be a number above 0, or left blank.',
+    ciHeightHelp:'Only Panel and Gate panel rows use this. When two rows are the same width, an estimate takes the one whose height matches the fence run, so a 4 ft run is not priced with a 6 ft panel. Leave it blank if you do not know it.',
+    catColHeightFt:'Height ft', catHeightNotSetTitle:'No height set. For a run whose height another panel of the same width does state, that panel is chosen over this one.',
     ciLabelSupplierPrice:'Supplier price ($)', ciLabelSupplier:'Supplier', ciNotSetOption:'Not set',
     ciLabelSku:'Supplier SKU / part #', ciSkuPh:'Whatever the yard\'s own system calls it',
     ciTaxableLabel:'Taxable', ciSaveBtn:'Save',
@@ -4702,7 +4759,7 @@ const TL = {
     rdNotCheckedPrefix:'Not checked here: %s',
     rdNameApproved:'Customer approved the quote',
     rdNameSigned:'Contract signed',
-    rdNameDeposit:'Deposit collected',
+    rdNameDeposit:'Deposit collected in full',
     rdNameMeasured:'Fence measured',
     rdNamePrices:'Prices confirmed with a supplier',
     rdNameCrew:'Crew assigned',
@@ -4893,6 +4950,8 @@ const TL = {
     // El panel Correo de la ficha del trabajo.
     jobSecMail:'Correo', jobMailEmailBtn:'Escribir al cliente',
     jobMailNoEmail:'Primero añada arriba el correo del cliente.',
+    jobQuoteMailBtn:'Enviar el presupuesto',
+    quoteSentStampFailed:'El correo se envió, pero el trabajo no se pudo marcar como enviado. Abra el trabajo otra vez y pulse «Marcar como enviado».',
     jobMailBadEmail:'El correo de arriba no es una dirección a la que FenceFlow pueda escribir.',
     jobMailEmpty:'Todavía no hay correos de este trabajo. Los correos con el cliente o la HOA aparecen aquí solos.',
     jobMailOpenInInbox:'Abrir en Correo', jobMailHoaTag:'HOA',
@@ -5300,7 +5359,7 @@ const TL = {
     jobLabelAssignedCrew:'Cuadrilla asignada',
     jobSecPayment:'Pago', jobLabelDeposit:'Depósito ($)', jobLabelAmountPaid:'Monto pagado',
     jobLabelPayStatus:'Estado del pago', jobOptUnpaid:'Sin pagar',
-    jobOptDepositPaid:'Depósito pagado', jobOptPaidFull:'Pagado en su totalidad',
+    jobOptDepositPaid:'Pago parcial', jobOptPaidFull:'Pagado en su totalidad',
     jobSecQuotePage:'Página de presupuesto del cliente',
     qBlockOne:'Todavía no se puede enviar. 1 precio de este presupuesto sigue siendo el que trae FenceFlow y no el suyo: %s. Confírmelo primero en Catálogo.',
     qBlockMany:'Todavía no se puede enviar. %s precios de este presupuesto siguen siendo los que trae FenceFlow y no los suyos: %s. Confírmelos primero en Catálogo.',
@@ -5366,7 +5425,7 @@ const TL = {
     jobLabelPermitStatus:'Estado del permiso',
     jobSecExpenses:'Gastos', jobSecPunch:'Lista de pendientes', jobSecOrders:'Órdenes de cambio',
     jobSecTime:'Horas registradas', jobDeleteBtn:'Eliminar', jobSaveBtn:'Guardar cambios',
-    jobProgStep1:'Presupuesto enviado', jobProgStep2:'Presupuesto aprobado', jobProgStep3:'Depósito recibido',
+    jobProgStep1:'Presupuesto enviado', jobProgStep2:'Presupuesto aprobado', jobProgStep3:'Depósito cobrado por completo',
     jobProgStep4:'HOA y permiso en orden', jobProgStep5:'Instalación programada',
     jobProgStep6:'Instalación terminada', jobProgStep7:'Pago final', jobProgNext:'Siguiente',
     jobPunchResolved:'Resuelto', jobPunchOpen:'Abierto', jobPunchEmpty:'Nada pendiente.',
@@ -5418,7 +5477,7 @@ const TL = {
     calSumClocked:'horas marcadas', calSumCollected:'cobrado',
     calFooterNote:'Toque un trabajo para abrirlo.',
     calStageNewLead:'Cliente nuevo', calStageQuoteSent:'Cotización enviada', calStageApproved:'Aprobado',
-    calStageDepositPaid:'Depósito pagado', calStageScheduled:'Programado',
+    calStageDepositPaid:'Pago parcial', calStageScheduled:'Programado',
     calStageInstalled:'Instalado', calStagePaidFull:'Pagado por completo', calStageLost:'Perdido',
     prodHead:'Producción',
     prodBody:'Cada trabajo vendido, dónde está ahora mismo. Materiales, excavar, plantar, construir, retoques, terminado — un trabajo sin etapa todavía no ha comenzado.',
@@ -5719,7 +5778,7 @@ const TL = {
     ppNoSuppliers:'Primero agregue un proveedor. Una lista de precios se aplica a un proveedor a la vez, así que tiene que haber uno al cual aplicarla.',
     ppAddSupplierBtn:'Agregar un proveedor',
     ppFileLabel:'Archivo de la lista de precios',
-    ppFileHint:'Lee CSV, TSV y Excel (.xlsx). Un PDF o un archivo .xls antiguo no se puede leer de forma confiable aquí. En Excel o Google Sheets, guárdelo o descárguelo como CSV o .xlsx y agregue ese archivo.',
+    ppFileHint:'Lee CSV, TSV, Excel (.xlsx) y cotizaciones o listas de precios en PDF que contengan texto real. Un PDF escaneado (una imagen de una página) o un archivo .xls antiguo no se puede leer de forma confiable aquí. En esos casos, guarde o descargue la lista como CSV o .xlsx desde Excel o Google Sheets y agregue ese archivo.',
     ppSheetLabel:'Hoja de este libro',
     ppSheetHidden:'(oculta)',
     ppSheetNote:'Leyendo la hoja “%s” (1 de %s hojas). Las demás hojas no se leen; elija otra arriba para usarla en su lugar.',
@@ -5781,7 +5840,34 @@ const TL = {
     ppSaveOldBtn:'Guardar los precios anteriores (CSV)',
     ppUndoDone:'Se restauraron %s artículo(s) como estaban.',
     ppUndoPartial:'Se restauraron %s de %s artículo(s). %s fueron cambiados por alguien desde entonces y se dejaron como están.',
-    ppPdfRefused:'Un PDF no se puede leer de forma confiable, y un precio que caiga en el artículo equivocado estaría mal en cada cotización. Ábralo en Excel o Google Sheets (o pida la hoja de cálculo al proveedor), guárdelo como CSV o .xlsx y agregue ese archivo.',
+    ppPdfRefused:'No se pudo abrir este PDF aquí, así que no se importó nada. Puede estar dañado. Ábralo en Excel o Google Sheets (o pida la hoja de cálculo al proveedor), guárdelo como CSV o .xlsx y agregue ese archivo.',
+    ppPdfReading:'Leyendo el PDF…',
+    ppPdfScanned:'Este PDF es una imagen de una página (un escaneo o una foto). No tiene texto que esta página pueda leer, así que no se importó nada. Pida al proveedor el PDF que genera su sistema o la lista de precios en una hoja de cálculo, o escriba los precios en Excel o Google Sheets y agregue ese archivo como CSV o .xlsx.',
+    ppPdfNoRows:'Este PDF tiene texto, pero ninguna línea se lee como un artículo con precio, así que no se importó nada. Ábralo en Excel o Google Sheets (o pida la hoja de cálculo al proveedor), guárdelo como CSV o .xlsx y agregue ese archivo.',
+    ppPdfGarbled:'El texto de este PDF no salió como letras y números legibles (sus fuentes están codificadas de una forma que esta página no puede decodificar), así que no se importó nada. Pida una hoja de cálculo al proveedor o agregue los precios como CSV o .xlsx.',
+    ppPdfAmbiguous:'Este PDF tiene más de una columna de precios (%s) y esta página no puede saber cuál es el precio que usted paga, así que no se importó nada. Pida la hoja de cálculo al proveedor, o agregue un CSV y elija la columna allí.',
+    ppPdfLocked:'Este PDF está protegido con contraseña. Guarde una copia sin protección y agréguela, o agregue la lista de precios como CSV o .xlsx.',
+    ppPdfTooLong:'Ese PDF tiene más de %s páginas, más de lo que debería tener una cotización o lista de precios de un proveedor. ¿Es el archivo correcto?',
+    ppPdfLibOffline:'No se pudo cargar el lector de PDF. Se descarga la primera vez que se agrega un PDF, por lo que necesita conexión a internet. Inténtelo de nuevo, o agregue la lista de precios como CSV o .xlsx.',
+    ppPdfLibFingerprint:'El lector de PDF se descargó, pero no coincidió con su huella digital fija, así que no se ejecutó y no se importó nada. Por ahora, agregue la lista de precios como CSV o .xlsx.',
+    ppPdfNoteHead:'Leído de un PDF. El precio unitario se toma de la columna “%s” y, cuando el PDF también tiene columnas de cantidad y de total de línea, solo se acepta si cantidad × precio = total de la línea en esa línea. Las líneas que no cuadran se listan abajo, no se adivinan. No hay nada marcado: marque las líneas que haya comparado con la línea del PDF que se muestra junto a cada una.',
+    ppPdfNoteRel:'Leído de un PDF sin un encabezado de columna de precio que esta página reconozca. Un precio unitario solo se acepta donde cantidad × precio = total de la línea en esa línea. Las líneas que no cuadran se listan abajo, no se adivinan. No hay nada marcado: marque las líneas que haya comparado con la línea del PDF que se muestra junto a cada una.',
+    ppPdfCounts:'En este PDF: %s líneas con precio encontradas en %s página(s). Coinciden con un artículo de su catálogo: %s. No se pudieron leer o emparejar, listadas abajo: %s.',
+    ppPdfPagesUnread:'%s de %s página(s) no tenían texto que esta página pudiera leer (una página escaneada o girada), así que no se leyeron las líneas que tengan.',
+    ppPdfReconOk:'Los totales de línea leídos suman %s, igual que el total antes de impuestos del propio PDF, así que no falta ninguna línea.',
+    ppPdfReconBad:'Los totales de línea leídos suman %s, pero el total antes de impuestos del propio PDF es %s. Puede que no se hayan leído algunas líneas, o que el PDF tenga cargos que no son líneas de artículos. Compare la lista con el PDF.',
+    ppColPdfH:'En el PDF',
+    ppPdfPage:'p.%s',
+    ppPdfChecked:'Precio unitario usado: %s (verificado: %s × %s = %s)',
+    ppPdfFromCol:'Precio unitario usado: %s (de la columna “%s”)',
+    ppPdfNoPriceHead:'Texto del PDF sin precio (%s), no leído como artículos',
+    ppPdfTotalsHead:'Líneas que solo tienen un total (%s), no leídas como artículos',
+    ppWhyPdfRel:'%s × %s es %s, pero el PDF dice que el total de la línea es %s, así que no se puede confirmar el precio unitario',
+    ppWhyPdfNoRel:'falta la cantidad o el total de la línea, así que no se puede confirmar el precio unitario',
+    ppWhyPdfCols:'no se pudo saber a qué columna pertenece cada número de esta línea',
+    ppWhyPdfNoPrice:'esta línea no tiene precio unitario',
+    ppWhyPdfAmbig:'más de un número cumple cantidad × precio = total de la línea, así que no se puede saber el precio unitario',
+    ppWhyPdfNoName:'esta línea no tiene descripción',
     ppXlsRefused:'Este es un archivo de Excel de formato antiguo (.xls) o protegido con contraseña, y ninguno de los dos se puede leer aquí. Ábralo en Excel, elija Guardar como y escoja .xlsx o CSV.',
     ppNotText:'Eso no parece un archivo de texto ni una hoja de cálculo. Guarde la hoja como CSV o .xlsx y agregue ese archivo.',
     ppTooBig:'Ese archivo es más grande de lo que debería ser una lista de precios (límite: 5 MB). ¿Es el correcto?',
@@ -5799,7 +5885,7 @@ const TL = {
     catSupAddBtn:'Agregar proveedor',
     catSupEmptyMsg:'Todavía no hay proveedores.',
     catColSupName:'Nombre', catColSupPhone:'Teléfono', catColSupEmail:'Correo', catColSupHours:'Horario',
-    catFilterPh:'Filtrar por nombre, tipo de cerca, categoría o puesto…',
+    catFilterPh:'Filtrar por nombre, proveedor, tipo de cerca, categoría o puesto…',
     catEmptyMsg:'Todavía no hay materiales. Agréguelos a mano abajo, importe una lista de precios desde Trabajos, o presione "%s" arriba para un conjunto inicial típico que luego puede corregir.',
     catColItem:'Artículo', catColRole:'Puesto', catColColour:'Color', catColUnit:'Unidad', catColPrice:'Precio', catColCoversFt:'Cubre pies',
     catColSupplierPrice:'Precio del proveedor', catColSupplier:'Proveedor', catColSku:'SKU', catColActive:'Activo',
@@ -5988,6 +6074,9 @@ const TL = {
     ciRoleRailEnd:'Extremo de riel', ciRoleBarbedWireArm:'Brazo de alambre de púas', ciRolePrivacySlat:'Lámina de privacidad',
     ciLabelColor:'Color / acabado', ciColorPh:'Blanco, negro, arena…',
     ciLabelUnit:'Unidad', ciLabelPrice:'Precio unitario ($)', ciLabelCovers:'Cubre (pies)', ciCoversPh:'Opcional',
+    ciLabelHeight:'Alto (pies)', ciHeightBadMsg:'El alto debe ser un número mayor que 0, o dejarse en blanco.',
+    ciHeightHelp:'Solo lo usan los paneles y los paneles de portón. Cuando dos artículos tienen el mismo ancho, un presupuesto elige el que coincide con el alto del tramo de cerca, así un tramo de 4 pies no se cotiza con un panel de 6 pies. Déjelo en blanco si no lo sabe.',
+    catColHeightFt:'Alto pies', catHeightNotSetTitle:'Sin alto definido. Para un tramo cuyo alto otro panel del mismo ancho sí indica, se elige ese panel en lugar de este.',
     ciLabelSupplierPrice:'Precio del proveedor ($)', ciLabelSupplier:'Proveedor', ciNotSetOption:'Sin definir',
     ciLabelSku:'SKU / número de parte del proveedor', ciSkuPh:'Como sea que lo llame el sistema del propio proveedor',
     ciTaxableLabel:'Gravable', ciSaveBtn:'Guardar',
@@ -6366,7 +6455,7 @@ const TL = {
     rdNotCheckedPrefix:'No se revisa aquí: %s',
     rdNameApproved:'El cliente aprobó el presupuesto',
     rdNameSigned:'Contrato firmado',
-    rdNameDeposit:'Depósito cobrado',
+    rdNameDeposit:'Depósito cobrado por completo',
     rdNameMeasured:'Cerca medida',
     rdNamePrices:'Precios confirmados con un proveedor',
     rdNameCrew:'Cuadrilla asignada',
@@ -6557,6 +6646,8 @@ const TL = {
     // Le panneau E-mails de la fiche chantier.
     jobSecMail:'E-mails', jobMailEmailBtn:'Écrire au client',
     jobMailNoEmail:'Ajoutez d’abord le courriel du client ci-dessus.',
+    jobQuoteMailBtn:'Envoyer le devis',
+    quoteSentStampFailed:'Le courriel est parti, mais le chantier n’a pas pu être marqué comme envoyé. Rouvrez le chantier et appuyez sur « Marquer comme envoyé ».',
     jobMailBadEmail:'Le courriel ci-dessus n’est pas une adresse à laquelle FenceFlow peut écrire.',
     jobMailEmpty:'Aucun e-mail pour ce chantier pour l’instant. Les e-mails échangés avec le client ou l’association apparaissent ici d’eux-mêmes.',
     jobMailOpenInInbox:'Ouvrir dans E-mails', jobMailHoaTag:'Association',
@@ -6964,7 +7055,7 @@ const TL = {
     jobLabelAssignedCrew:'Équipe assignée',
     jobSecPayment:'Paiement', jobLabelDeposit:'Dépôt ($)', jobLabelAmountPaid:'Montant payé',
     jobLabelPayStatus:'Statut du paiement', jobOptUnpaid:'Non payé',
-    jobOptDepositPaid:'Dépôt payé', jobOptPaidFull:'Payé en totalité',
+    jobOptDepositPaid:'Paiement partiel', jobOptPaidFull:'Payé en totalité',
     jobSecQuotePage:'Page de devis client',
     qBlockOne:'Pas encore prêt à envoyer. 1 prix de ce devis est encore celui fourni par FenceFlow et non le vôtre : %s. Confirmez-le d’abord dans Catalogue.',
     qBlockMany:'Pas encore prêt à envoyer. %s prix de ce devis sont encore ceux fournis par FenceFlow et non les vôtres : %s. Confirmez-les d’abord dans Catalogue.',
@@ -7030,7 +7121,7 @@ const TL = {
     jobLabelPermitStatus:'Statut du permis',
     jobSecExpenses:'Dépenses', jobSecPunch:'Liste des correctifs', jobSecOrders:'Avenants',
     jobSecTime:'Heures enregistrées', jobDeleteBtn:'Supprimer', jobSaveBtn:'Enregistrer les modifications',
-    jobProgStep1:'Devis envoyé', jobProgStep2:'Devis approuvé', jobProgStep3:'Acompte reçu',
+    jobProgStep1:'Devis envoyé', jobProgStep2:'Devis approuvé', jobProgStep3:'Acompte encaissé en entier',
     jobProgStep4:'Association et permis réglés', jobProgStep5:'Installation planifiée',
     jobProgStep6:'Installation terminée', jobProgStep7:'Paiement final', jobProgNext:'Suivant',
     jobPunchResolved:'Résolu', jobPunchOpen:'Ouvert', jobPunchEmpty:'Rien en attente.',
@@ -7082,7 +7173,7 @@ const TL = {
     calSumClocked:'heures pointées', calSumCollected:'encaissé',
     calFooterNote:'Touchez un chantier pour l’ouvrir.',
     calStageNewLead:'Nouveau client', calStageQuoteSent:'Soumission envoyée', calStageApproved:'Approuvé',
-    calStageDepositPaid:'Acompte payé', calStageScheduled:'Planifié',
+    calStageDepositPaid:'Paiement partiel', calStageScheduled:'Planifié',
     calStageInstalled:'Installé', calStagePaidFull:'Payé en entier', calStageLost:'Perdu',
     prodHead:'Production',
     prodBody:'Chaque chantier vendu, où il en est en ce moment. Matériaux, creuser, planter, monter, retouches, terminé — un chantier sans étape n’a pas encore commencé.',
@@ -7383,7 +7474,7 @@ const TL = {
     ppNoSuppliers:'Ajoutez d’abord un fournisseur. Une liste de prix s’applique à un fournisseur à la fois, il faut donc en avoir un à qui l’appliquer.',
     ppAddSupplierBtn:'Ajouter un fournisseur',
     ppFileLabel:'Fichier de la liste de prix',
-    ppFileHint:'Lit les fichiers CSV, TSV et Excel (.xlsx). Un PDF ou un ancien fichier .xls ne peut pas être lu de façon fiable ici. Dans Excel ou Google Sheets, enregistrez-le ou téléchargez-le en CSV ou en .xlsx et ajoutez ce fichier.',
+    ppFileHint:'Lit les fichiers CSV, TSV, Excel (.xlsx) ainsi que les soumissions ou listes de prix en PDF qui contiennent du vrai texte. Un PDF numérisé (une image de page) ou un ancien fichier .xls ne peut pas être lu de façon fiable ici. Dans ce cas, enregistrez ou téléchargez la liste en CSV ou en .xlsx depuis Excel ou Google Sheets et ajoutez ce fichier.',
     ppSheetLabel:'Feuille de ce classeur',
     ppSheetHidden:'(masquée)',
     ppSheetNote:'Lecture de la feuille « %s » (1 sur %s feuilles). Les autres feuilles ne sont pas lues; choisissez-en une autre ci-dessus pour l’utiliser à la place.',
@@ -7445,7 +7536,34 @@ const TL = {
     ppSaveOldBtn:'Enregistrer les anciens prix (CSV)',
     ppUndoDone:'%s article(s) remis comme avant.',
     ppUndoPartial:'%s article(s) sur %s remis comme avant. %s ont été modifié(s) par quelqu’un depuis et ont été laissés tels quels.',
-    ppPdfRefused:'Un PDF ne peut pas être lu de façon fiable, et un prix qui tombe sur le mauvais article serait faux dans chaque soumission. Ouvrez-le dans Excel ou Google Sheets (ou demandez le tableur au fournisseur), enregistrez-le en CSV ou en .xlsx et ajoutez ce fichier.',
+    ppPdfRefused:'Ce PDF n’a pas pu être ouvert ici, donc rien n’a été importé. Il est peut-être endommagé. Ouvrez-le dans Excel ou Google Sheets (ou demandez le tableur au fournisseur), enregistrez-le en CSV ou en .xlsx et ajoutez ce fichier.',
+    ppPdfReading:'Lecture du PDF…',
+    ppPdfScanned:'Ce PDF est une image de page (une numérisation ou une photo). Il ne contient aucun texte que cette page puisse lire, donc rien n’a été importé. Demandez au fournisseur le PDF généré par son système, ou la liste de prix en tableur, ou saisissez les prix dans Excel ou Google Sheets et ajoutez ce fichier en CSV ou en .xlsx.',
+    ppPdfNoRows:'Ce PDF contient du texte, mais aucune ligne ne se lit comme un article avec un prix, donc rien n’a été importé. Ouvrez-le dans Excel ou Google Sheets (ou demandez le tableur au fournisseur), enregistrez-le en CSV ou en .xlsx et ajoutez ce fichier.',
+    ppPdfGarbled:'Le texte de ce PDF n’est pas sorti sous forme de lettres et de chiffres lisibles (ses polices sont encodées d’une façon que cette page ne sait pas décoder), donc rien n’a été importé. Demandez un tableur au fournisseur ou ajoutez les prix en CSV ou en .xlsx.',
+    ppPdfAmbiguous:'Ce PDF contient plus d’une colonne de prix (%s) et cette page ne peut pas savoir laquelle est le prix que vous payez, donc rien n’a été importé. Demandez le tableur au fournisseur, ou ajoutez un CSV et choisissez la colonne là.',
+    ppPdfLocked:'Ce PDF est protégé par un mot de passe. Enregistrez une copie déverrouillée et ajoutez-la, ou ajoutez la liste de prix en CSV ou en .xlsx.',
+    ppPdfTooLong:'Ce PDF compte plus de %s pages, ce qui dépasse ce que devrait contenir une soumission ou une liste de prix de fournisseur. Est-ce le bon fichier ?',
+    ppPdfLibOffline:'Le lecteur de PDF n’a pas pu être chargé. Il est téléchargé la première fois qu’on ajoute un PDF, ce qui demande une connexion internet. Réessayez, ou ajoutez la liste de prix en CSV ou en .xlsx.',
+    ppPdfLibFingerprint:'Le lecteur de PDF a été téléchargé, mais il ne correspondait pas à son empreinte fixe, donc il n’a pas été exécuté et rien n’a été importé. Pour l’instant, ajoutez la liste de prix en CSV ou en .xlsx.',
+    ppPdfNoteHead:'Lu depuis un PDF. Le prix unitaire est pris dans la colonne « %s » et, quand le PDF a aussi des colonnes de quantité et de total de ligne, il n’est accepté que si quantité × prix = total de la ligne sur cette ligne. Les lignes qui ne concordent pas sont listées plus bas, pas devinées. Rien n’est coché : cochez les lignes que vous avez vérifiées avec la ligne du PDF affichée à côté de chacune.',
+    ppPdfNoteRel:'Lu depuis un PDF sans titre de colonne de prix que cette page reconnaisse. Un prix unitaire n’est accepté que là où quantité × prix = total de la ligne sur cette ligne. Les lignes qui ne concordent pas sont listées plus bas, pas devinées. Rien n’est coché : cochez les lignes que vous avez vérifiées avec la ligne du PDF affichée à côté de chacune.',
+    ppPdfCounts:'Dans ce PDF : %s lignes avec un prix trouvées sur %s page(s). Correspondant à un article de votre catalogue : %s. Impossibles à lire ou à associer, listées plus bas : %s.',
+    ppPdfPagesUnread:'%s page(s) sur %s ne contenaient aucun texte que cette page puisse lire (une page numérisée ou pivotée), donc les lignes qu’elles contiennent n’ont pas été lues.',
+    ppPdfReconOk:'Les totaux de ligne lus s’additionnent à %s, comme le total avant taxes du PDF lui-même, donc aucune ligne n’a été manquée.',
+    ppPdfReconBad:'Les totaux de ligne lus s’additionnent à %s, mais le total avant taxes du PDF lui-même est de %s. Certaines lignes n’ont peut-être pas été lues, ou le PDF contient des frais qui ne sont pas des lignes d’articles. Comparez la liste avec le PDF.',
+    ppColPdfH:'Dans le PDF',
+    ppPdfPage:'p.%s',
+    ppPdfChecked:'Prix unitaire retenu : %s (vérifié : %s × %s = %s)',
+    ppPdfFromCol:'Prix unitaire retenu : %s (de la colonne « %s »)',
+    ppPdfNoPriceHead:'Texte du PDF sans prix (%s), non lu comme articles',
+    ppPdfTotalsHead:'Lignes ne contenant qu’un total (%s), non lues comme articles',
+    ppWhyPdfRel:'%s × %s donne %s, mais le PDF indique un total de ligne de %s, donc le prix unitaire ne peut pas être confirmé',
+    ppWhyPdfNoRel:'la quantité ou le total de la ligne est absent, donc le prix unitaire ne peut pas être confirmé',
+    ppWhyPdfCols:'impossible de savoir à quelle colonne appartient chaque nombre de cette ligne',
+    ppWhyPdfNoPrice:'aucun prix unitaire sur cette ligne',
+    ppWhyPdfAmbig:'plus d’un nombre satisfait quantité × prix = total de la ligne, donc le prix unitaire ne peut pas être déterminé',
+    ppWhyPdfNoName:'aucune description sur cette ligne',
     ppXlsRefused:'Il s’agit d’un ancien fichier Excel (.xls) ou d’un fichier protégé par mot de passe, et ni l’un ni l’autre ne peut être lu ici. Ouvrez-le dans Excel, choisissez Enregistrer sous et prenez .xlsx ou CSV.',
     ppNotText:'Cela ne ressemble ni à un fichier texte ni à un tableur. Enregistrez la feuille en CSV ou en .xlsx et ajoutez ce fichier.',
     ppTooBig:'Ce fichier est plus gros qu’une liste de prix ne devrait l’être (limite : 5 Mo). Est-ce le bon ?',
@@ -7463,7 +7581,7 @@ const TL = {
     catSupAddBtn:'Ajouter un fournisseur',
     catSupEmptyMsg:'Pas encore de fournisseur.',
     catColSupName:'Nom', catColSupPhone:'Téléphone', catColSupEmail:'Courriel', catColSupHours:'Heures',
-    catFilterPh:'Filtrer par nom, type de clôture, catégorie ou poste…',
+    catFilterPh:'Filtrer par nom, fournisseur, type de clôture, catégorie ou poste…',
     catEmptyMsg:'Pas encore de matériaux. Ajoutez-les à la main ci-dessous, importez une liste de prix depuis Chantiers, ou appuyez sur « %s » ci-dessus pour un ensemble de départ typique que vous pourrez ensuite corriger.',
     catColItem:'Article', catColRole:'Poste', catColColour:'Couleur', catColUnit:'Unité', catColPrice:'Prix', catColCoversFt:'Couvre (pi)',
     catColSupplierPrice:'Prix fournisseur', catColSupplier:'Fournisseur', catColSku:'UGS', catColActive:'Actif',
@@ -7652,6 +7770,9 @@ const TL = {
     ciRoleRailEnd:'Extrémité de lisse', ciRoleBarbedWireArm:'Bras pour fil barbelé', ciRolePrivacySlat:'Latte d\'intimité',
     ciLabelColor:'Couleur / fini', ciColorPh:'Blanc, noir, beige…',
     ciLabelUnit:'Unité', ciLabelPrice:'Prix unitaire ($)', ciLabelCovers:'Couvre (pi)', ciCoversPh:'Facultatif',
+    ciLabelHeight:'Hauteur (pi)', ciHeightBadMsg:'La hauteur doit être un nombre supérieur à 0, ou rester vide.',
+    ciHeightHelp:'Seuls les panneaux et les panneaux de portail s’en servent. Quand deux articles ont la même largeur, un devis retient celui dont la hauteur correspond à la section de clôture, de sorte qu’une section de 4 pi ne soit pas chiffrée avec un panneau de 6 pi. Laissez vide si vous ne la connaissez pas.',
+    catColHeightFt:'Hauteur (pi)', catHeightNotSetTitle:'Hauteur non définie. Pour une section dont la hauteur est indiquée par un autre panneau de même largeur, c’est ce panneau qui est retenu à la place de celui-ci.',
     ciLabelSupplierPrice:'Prix fournisseur ($)', ciLabelSupplier:'Fournisseur', ciNotSetOption:'Non défini',
     ciLabelSku:'UGS / numéro de pièce du fournisseur', ciSkuPh:'Peu importe comment le système du fournisseur l\'appelle',
     ciTaxableLabel:'Taxable', ciSaveBtn:'Enregistrer',
@@ -8030,7 +8151,7 @@ const TL = {
     rdNotCheckedPrefix:'Non vérifié ici : %s',
     rdNameApproved:'Devis approuvé par le client',
     rdNameSigned:'Contrat signé',
-    rdNameDeposit:'Acompte encaissé',
+    rdNameDeposit:'Acompte encaissé en entier',
     rdNameMeasured:'Clôture mesurée',
     rdNamePrices:'Prix confirmés avec un fournisseur',
     rdNameCrew:'Équipe assignée',
@@ -13367,6 +13488,13 @@ function stageOf(j){
   if(j.scheduled_date&&j.status==='ACCEPTED') return 'Scheduled';
   // netPaid, not the gross figure: a job paid and then fully refunded has not
   // had a deposit received, however much passed through it.
+  //
+  // This bucket is "money has started arriving", which is NOT what "deposit
+  // received" means anywhere else any more (2 Oct 2026): the stage label it
+  // shows the user reads "Part paid", and the one meaning of a received
+  // deposit -- all of what was asked for is in -- lives in jobReadiness() and
+  // in the job progress step. The English key is unchanged because CAL_STAGE
+  // colours and every comparison on this page are keyed on it.
   if(netPaid(j)>0||j.payment_status==='DEPOSIT_PAID') return 'Deposit Paid';
   if(j.status==='ACCEPTED') return 'Approved';
   if(j.status==='SENT') return 'Quote Sent';
@@ -14352,22 +14480,32 @@ function catFenceTypeLabel(t){
  */
 const CATALOG_SEED = [
   // ---- VINYL (19 items) ----
-  {category:"PANEL",role:"PANEL",fence_type:"VINYL",name:"Panel T&G Vinyl Privacy 6'H x 6'W - White",unit:"EA",unit_price:52.35,taxable:false,covers_ft:6,color_or_finish:"White",source_doc:"Starting price — verify with your supplier"},
+  {category:"PANEL",role:"PANEL",fence_type:"VINYL",name:"Panel T&G Vinyl Privacy 6'H x 6'W - White",unit:"EA",unit_price:52.35,taxable:true,covers_ft:6,color_or_finish:"White",source_doc:"Starting price — verify with your supplier"},
   {category:"PANEL",role:"PANEL",fence_type:"VINYL",name:"Panel T&G Vinyl Privacy 6'H x 8'W - White",unit:"EA",unit_price:71.4,taxable:true,covers_ft:8,color_or_finish:"White",source_doc:"Starting price — verify with your supplier"},
   {category:"POST",role:"LINE_POST",fence_type:"VINYL",name:"5\"x5\" Co-Ex Line Post, White",unit:"EA",unit_price:16.56,taxable:true,covers_ft:null,color_or_finish:"White",source_doc:"Starting price — verify with your supplier"},
   {category:"POST",role:"END_POST",fence_type:"VINYL",name:"5\"x5\" Co-Ex End Post, White",unit:"EA",unit_price:16.56,taxable:true,covers_ft:null,color_or_finish:"White",source_doc:"Starting price — verify with your supplier"},
   {category:"POST",role:"CORNER_POST",fence_type:"VINYL",name:"5\"x5\" Co-Ex Corner Post, White",unit:"EA",unit_price:16.56,taxable:true,covers_ft:null,color_or_finish:"White",source_doc:"Starting price — verify with your supplier"},
   {category:"POST",role:"GATE_POST",fence_type:"VINYL",name:"5\"x5\" Co-Ex Gate Post, White",unit:"EA",unit_price:16.56,taxable:true,covers_ft:null,color_or_finish:"White",source_doc:"Starting price — verify with your supplier"},
   {category:"CAP",role:"POST_CAP",fence_type:"VINYL",name:"5\" External Pyramid PVC Post Cap, White",unit:"EA",unit_price:0.74,taxable:true,covers_ft:null,color_or_finish:"White",source_doc:"Starting price — verify with your supplier"},
-  {category:"GATE",role:"GATE_PANEL",fence_type:"VINYL",name:"Regular PVC Gate 6'H x 5'W, White",unit:"EA",unit_price:145.05,taxable:false,covers_ft:5,color_or_finish:"White",source_doc:"Starting price — verify with your supplier"},
+  {category:"GATE",role:"GATE_PANEL",fence_type:"VINYL",name:"Regular PVC Gate 6'H x 5'W, White",unit:"EA",unit_price:145.05,taxable:true,covers_ft:5,color_or_finish:"White",source_doc:"Starting price — verify with your supplier"},
   {category:"HARDWARE",role:"HINGE_SET",fence_type:"VINYL",name:"Self-Closing Hinge Set (box, 12 pairs)",unit:"BOX",unit_price:32.25,taxable:true,covers_ft:null,color_or_finish:"White",source_doc:"Starting price — verify with your supplier"},
   {category:"HARDWARE",role:"LATCH",fence_type:"VINYL",name:"Two-Way Latch (box of 20)",unit:"BOX",unit_price:25.87,taxable:true,covers_ft:null,color_or_finish:"Black",source_doc:"Starting price — verify with your supplier"},
-  {category:"HARDWARE",role:"HANDLE",fence_type:"VINYL",name:"7\" SS Gate Handle (box of 50)",unit:"BOX",unit_price:5,taxable:true,covers_ft:null,color_or_finish:"Black",source_doc:"Starting price — verify with your supplier"},
+  // UNIVERSAL, not VINYL. A 7" stainless pull bolts through any leaf, so this
+  // was the one genuinely mis-filed row in the gate-hardware review of
+  // 1 Oct 2026: filed vinyl, it meant a wood or chain-link gate silently got no
+  // handle at all and showed as an unmatched role.
+  //
+  // SeedData.kt and supabase_r20_seed_new_company_catalog.sql were both moved
+  // then; THIS copy was missed, so the three seeds disagreed and a company
+  // seeded from the office got the old behaviour. Found 2026-10-02 by the test
+  // that exists to compare the three. If you change a row here, change it in
+  // all three or that test will tell you.
+  {category:"HARDWARE",role:"HANDLE",fence_type:"UNIVERSAL",name:"7\" SS Gate Handle (box of 50)",unit:"BOX",unit_price:5,taxable:true,covers_ft:null,color_or_finish:"Black",source_doc:"Starting price — verify with your supplier"},
   {category:"HARDWARE",role:"BRACE",fence_type:"VINYL",name:"Gate Support Brace, 8'",unit:"EA",unit_price:6.5,taxable:true,covers_ft:null,color_or_finish:"White",source_doc:"Starting price — verify with your supplier"},
   {category:"HARDWARE",role:"STIFFENER",fence_type:"VINYL",name:"5\" Econo Stiffener x 8'(H)",unit:"EA",unit_price:52.75,taxable:true,covers_ft:null,color_or_finish:"",source_doc:"Starting price — verify with your supplier"},
   {category:"TRIM",role:"TRIM",fence_type:"VINYL",name:"7/8 x 1-1/2 x 62 1/4 Trim U-Channel, White",unit:"EA",unit_price:2,taxable:true,covers_ft:null,color_or_finish:"White",source_doc:"Starting price — verify with your supplier"},
-  {category:"PANEL",role:"PANEL",fence_type:"VINYL",name:"Panel T&G Vinyl Privacy 6'H x 6'W - Tan",unit:"EA",unit_price:54.5,taxable:false,covers_ft:6,color_or_finish:"Tan",source_doc:"Starting price — verify with your supplier"},
-  {category:"PANEL",role:"PANEL",fence_type:"VINYL",name:"Panel T&G Vinyl Privacy 6'H x 6'W - Gray",unit:"EA",unit_price:54.5,taxable:false,covers_ft:6,color_or_finish:"Gray",source_doc:"Starting price — verify with your supplier"},
+  {category:"PANEL",role:"PANEL",fence_type:"VINYL",name:"Panel T&G Vinyl Privacy 6'H x 6'W - Tan",unit:"EA",unit_price:54.5,taxable:true,covers_ft:6,color_or_finish:"Tan",source_doc:"Starting price — verify with your supplier"},
+  {category:"PANEL",role:"PANEL",fence_type:"VINYL",name:"Panel T&G Vinyl Privacy 6'H x 6'W - Gray",unit:"EA",unit_price:54.5,taxable:true,covers_ft:6,color_or_finish:"Gray",source_doc:"Starting price — verify with your supplier"},
   {category:"PANEL",role:"PANEL",fence_type:"VINYL",name:"Panel T&G Vinyl Privacy 6'H x 8'W - Tan",unit:"EA",unit_price:73.9,taxable:true,covers_ft:8,color_or_finish:"Tan",source_doc:"Starting price — verify with your supplier"},
   {category:"POST",role:"LINE_POST",fence_type:"VINYL",name:"5\"x5\" Co-Ex Line Post, Tan",unit:"EA",unit_price:17.25,taxable:true,covers_ft:null,color_or_finish:"Tan",source_doc:"Starting price — verify with your supplier"},
   {category:"POST",role:"LINE_POST",fence_type:"VINYL",name:"5\"x5\" Co-Ex Line Post, Gray",unit:"EA",unit_price:17.25,taxable:true,covers_ft:null,color_or_finish:"Gray",source_doc:"Starting price — verify with your supplier"},
@@ -14529,18 +14667,24 @@ function catalogGroupByType(items){
   });
 }
 
-/** The search box's own matching rule -- name, fence type, category or
-    role, so "hinge" finds every hinge set across every fence type's
-    section at once. Extends the old single-table filter (name/type/role
-    only) with category, since items are now grouped by it. */
-function catalogFilterItems(items, filterText){
+/** The search box's own matching rule -- name, fence type, category, role or
+    SUPPLIER, so "hinge" finds every hinge set across every fence type's
+    section at once and a supplier's name finds everything that supplier sells.
+    Extends the old single-table filter (name/type/role only) with category,
+    since items are now grouped by it. The supplier is looked up by a function
+    the caller passes (supplierNameOf, given a manufacturer_sync_id), so this
+    stays a pure function of its arguments; called without one it matches
+    exactly what it matched before. */
+function catalogFilterItems(items, filterText, supplierNameOf){
   const f = (filterText||'').toLowerCase().trim();
   if(!f) return items||[];
+  const supplier = typeof supplierNameOf==='function' ? supplierNameOf : () => '';
   return (items||[]).filter(c =>
     (c.name||'').toLowerCase().includes(f) ||
     (c.fence_type||'').toLowerCase().includes(f) ||
     (c.category||'').toLowerCase().includes(f) ||
-    (c.role||'').toLowerCase().includes(f));
+    (c.role||'').toLowerCase().includes(f) ||
+    String(supplier(c.manufacturer_sync_id)||'').toLowerCase().includes(f));
 }
 
 /** "Start from FenceFlow's catalog": every CATALOG_SEED row whose
@@ -14562,7 +14706,7 @@ function catalogSeedRowsToAdd(existingItems, seedRows){
     explicit value here would beat its own default the same way every other
     upsert on this page is careful to avoid (PostgREST upsert traps). */
 function catalogItemPayload(existing, form, newSyncId){
-  return {
+  const row = {
     sync_id: existing ? existing.sync_id : newSyncId,
     name: form.name,
     fence_type: form.fence_type,
@@ -14581,12 +14725,78 @@ function catalogItemPayload(existing, form, newSyncId){
     // error.
     manufacturer_sync_id: form.manufacturer_sync_id || null,
   };
+  // height_ft is in the payload ONLY when the caller put it on the form. undefined
+  // means "do not touch the column": the box is hidden (a role the engines read no
+  // height on), the column does not exist on this deployment, or an existing row's box
+  // was left as it was. A merge-style upsert names only the columns it is sent, so an
+  // omitted height keeps whatever the row holds. null is a real answer -- blank, "this
+  // row does not say" -- and clears it.
+  if(form.height_ft !== undefined) row.height_ft = form.height_ft;
+  return row;
+}
+
+/** The two roles the pricing engines read a catalog height on (line-items.ts and
+    EstimateEngine.kt, the step that sets a panel aside when another panel of its own
+    width states the run's height). On any other role a height would save and change
+    nothing, so the editor does not offer one. */
+function catalogHeightApplies(role){
+  return role==='PANEL' || role==='GATE_PANEL';
+}
+
+/** Reads the height box on the item dialog into one of three answers and never guesses:
+    blank is "this row does not say" (null); a number above zero is the height; anything
+    else is refused so the caller can say so. That includes a 0, which is a typed value
+    and not a blank, and text a number box swallowed -- a number input reports its value
+    as '' when it holds something that is not a number, and badInput is the only thing
+    that tells that apart from an empty box. Pure. */
+function catalogReadHeight(raw, badInput){
+  const s = String(raw == null ? '' : raw).trim();
+  if(s === '') return badInput ? { ok:false } : { ok:true, value:null };
+  const n = Number(s);
+  if(!Number.isFinite(n) || n <= 0) return { ok:false };
+  return { ok:true, value:n };
+}
+
+/** A catalog price as it is stored: to the cent at least, and to as many places as the
+    figure really has, up to six. money() rounds to cents, so a supplier's 54.99875 showed
+    here as $55.00 -- a figure that read as equal to another and was not. Null or not a
+    number is a dash and never $0.00: a row the server sent no price for has no price to
+    show, and a zero on screen would read as a free item. Pure. */
+function catMoney(n){
+  if(n === null || n === undefined || n === '' || !Number.isFinite(Number(n))) return '—';
+  return new Intl.NumberFormat('en-US', { style:'currency', currency:'USD',
+    minimumFractionDigits:2, maximumFractionDigits:6 }).format(Number(n));
+}
+
+/** The order rows are listed in within one category of one fence type: by role, then
+    width (covers_ft), then height, then colour, then price lowest first, then supplier,
+    then name. The point is that the same product from different suppliers sits in
+    adjacent rows with each supplier's price beside its name, instead of wherever the
+    database happened to hand the rows back -- which moves a row to the end every time
+    it is saved. A width, height or price a row does not have sorts after those that
+    do. Returns a new array. supplierNameOf is passed in, as for catalogFilterItems.
+    Pure. */
+function catalogSortRows(items, supplierNameOf){
+  const supplier = typeof supplierNameOf==='function' ? supplierNameOf : () => '';
+  const low = v => String(v==null ? '' : v).toLowerCase();
+  const last = v => (v==null || v==='' || !Number.isFinite(Number(v))) ? Infinity : Number(v);
+  const byText = (a, b) => a < b ? -1 : (a > b ? 1 : 0);
+  const byNum = (a, b) => a === b ? 0 : (a < b ? -1 : 1);
+  return (items||[]).slice().sort((a, b) =>
+    byText(low(a.role), low(b.role))
+    || byNum(last(a.covers_ft), last(b.covers_ft))
+    || byNum(last(a.height_ft), last(b.height_ft))
+    || byText(low(a.color_or_finish), low(b.color_or_finish))
+    || byNum(last(a.unit_price), last(b.unit_price))
+    || byText(low(supplier(a.manufacturer_sync_id)), low(supplier(b.manufacturer_sync_id)))
+    || byText(low(a.name), low(b.name)));
 }
 
 /* ---------- rendering ---------- */
 
 let catCollapsed = new Set();   // fence types the user has collapsed (in-memory only)
 let openCatItem = null;         // the row open in catItemOverlay, or null for "new"
+let catHeightLoaded = '';       // what the height box held when the dialog opened
 
 /** True once we know supplier_unit_price exists on material_items --
     checked off a live row rather than hardcoded, since the column may not
@@ -14609,6 +14819,15 @@ function catalogHasSupplierSku(){
   return catalog.length>0 && Object.prototype.hasOwnProperty.call(catalog[0], 'supplier_sku');
 }
 
+/** True once material_items.height_ft exists, checked off a live row like the two
+    above rather than assumed: a deployment that has not run
+    supabase_a40_material_height.sql has no such column, and a write that names it
+    would be refused as a whole. An EMPTY catalog cannot show the column either way,
+    so on one the height box stays hidden. */
+function catalogHasHeight(){
+  return catalog.length>0 && Object.prototype.hasOwnProperty.call(catalog[0], 'height_ft');
+}
+
 /** Manufacturer name for a material_items row, or '' if none is set or the
     manufacturer it pointed to was retired -- never a raw sync_id on screen. */
 function manufacturerName(syncId){
@@ -14616,9 +14835,18 @@ function manufacturerName(syncId){
   return m ? m.name : '';
 }
 
-function catItemRowHtml(c, hasSupplierPrice, hasSku){
+function catItemRowHtml(c, hasSupplierPrice, hasSku, hasHeight){
   const placeholder = isSeededUnverifiedPrice(c.source_doc);
   const supName = manufacturerName(c.manufacturer_sync_id);
+  // Height: a number where the row states one. Where it does not, a PANEL or GATE_PANEL row
+  // is FLAGGED rather than left blank -- that is the state in which a panel of the same width
+  // that does state its height is chosen over it -- and any other role shows a dash, since
+  // no height is read on it.
+  const heightCell = !hasHeight ? '' : '<td>' + (c.height_ft != null
+    ? esc(String(c.height_ft) + ' ft')
+    : (catalogHeightApplies(c.role)
+        ? `<span class="mcat-flag" title="${esc(tr('catHeightNotSetTitle'))}">${esc(tr('ciNotSetOption'))}</span>`
+        : '—')) + '</td>';
   // The diamond flag is the confirmed-vs-unconfirmed price signal: a seeded
   // row, never priced by this company's own supplier, gets the flag and its
   // title, a confirmed row gets neither. Read through
@@ -14626,15 +14854,20 @@ function catItemRowHtml(c, hasSupplierPrice, hasSku){
   // and unverifiedPricesOn()'s send gate can never flag different rows. Only
   // the title text is translated -- c.source_doc itself, the stored flag the
   // phone app and catalogSeedRowsToAdd() both read, is never touched.
+  //
+  // Supplier and price sit side by side straight after the name, so two rows for the same
+  // product read as a comparison. The price is catMoney(): its own figure to as many places as
+  // it has, and a dash -- never $0.00 -- when the row carries no price at all.
   return `<tr class="${c.is_active===false?'mcat-inactive':''}">
     <td>${esc(c.name)}${placeholder?` <span class="mcat-flag" title="${esc(tr('catPlaceholderFlagTitle'))}">◆</span>`:''}</td>
+    <td>${supName?esc(supName):'—'}</td>
+    <td>${catMoney(c.unit_price)}</td>
+    ${hasSupplierPrice?`<td>${c.supplier_unit_price!=null?catMoney(c.supplier_unit_price):'—'}</td>`:''}
+    <td>${esc(c.unit)}</td>
     <td>${esc(bizPretty(c.role))}</td>
     <td>${esc(c.color_or_finish)||'—'}</td>
-    <td>${esc(c.unit)}</td>
-    <td>${money(c.unit_price)}</td>
     <td>${c.covers_ft?c.covers_ft+' ft':'—'}</td>
-    ${hasSupplierPrice?`<td>${c.supplier_unit_price!=null?money(c.supplier_unit_price):'—'}</td>`:''}
-    <td>${supName?esc(supName):'—'}</td>
+    ${heightCell}
     ${hasSku?`<td>${c.supplier_sku?esc(c.supplier_sku):'—'}</td>`:''}
     <td style="text-align:center"><input type="checkbox" data-cat-active="${c.sync_id}"
       ${c.is_active!==false?'checked':''} style="width:auto" ${canEdit()?'':'disabled'}></td>
@@ -14653,15 +14886,19 @@ function catSectionHtml(g, filteredItems, expanded, hasFilter){
   const label = catFenceTypeLabel(g.type);
   const hasSupplierPrice = catalogHasSupplierPrice();
   const hasSku = catalogHasSupplierSku();
-  const colCount = 8 + (hasSupplierPrice?1:0) + (hasSku?1:0);
+  const hasHeight = catalogHasHeight();
+  // Nine columns always present (item, supplier, price, unit, role, colour, covers, active,
+  // buttons), plus one for each optional column below. It read 8 + ... before, one short, so
+  // the category band stopped a column before the end of the table.
+  const colCount = 9 + (hasSupplierPrice?1:0) + (hasSku?1:0) + (hasHeight?1:0);
   const rowsHtml = MATERIAL_CATEGORIES.concat(['__other__']).map(cat=>{
-    const inCat = filteredItems.filter(c => cat==='__other__'
+    const inCat = catalogSortRows(filteredItems.filter(c => cat==='__other__'
       ? !MATERIAL_CATEGORIES.includes(c.category)
-      : c.category===cat);
+      : c.category===cat), manufacturerName);
     if(!inCat.length) return '';
     const head = cat==='__other__' ? 'OTHER' : cat;
     return `<tr class="mcat-cat-head"><td colspan="${colCount}">${esc(head)}</td></tr>`
-      + inCat.map(c=>catItemRowHtml(c, hasSupplierPrice, hasSku)).join('');
+      + inCat.map(c=>catItemRowHtml(c, hasSupplierPrice, hasSku, hasHeight)).join('');
   }).join('');
   const missingLine = g.missing.length
     ? `<p class="mcat-missing">${esc(tr('catMissingPrefix'))}${g.missing.map(r=>esc(bizPretty(r))).join(', ')}`
@@ -14675,8 +14912,9 @@ function catSectionHtml(g, filteredItems, expanded, hasFilter){
     <div class="mcat-body">
       ${missingLine}
       ${filteredItems.length ? `<div class="scroll"><table>
-        <thead><tr><th>${esc(tr('catColItem'))}</th><th>${esc(tr('catColRole'))}</th><th>${esc(tr('catColColour'))}</th><th>${esc(tr('catColUnit'))}</th><th>${esc(tr('catColPrice'))}</th><th>${esc(tr('catColCoversFt'))}</th>
-          ${hasSupplierPrice?`<th>${esc(tr('catColSupplierPrice'))}</th>`:''}<th>${esc(tr('catColSupplier'))}</th>
+        <thead><tr><th>${esc(tr('catColItem'))}</th><th>${esc(tr('catColSupplier'))}</th><th>${esc(tr('catColPrice'))}</th>
+          ${hasSupplierPrice?`<th>${esc(tr('catColSupplierPrice'))}</th>`:''}<th>${esc(tr('catColUnit'))}</th><th>${esc(tr('catColRole'))}</th><th>${esc(tr('catColColour'))}</th><th>${esc(tr('catColCoversFt'))}</th>
+          ${hasHeight?`<th>${esc(tr('catColHeightFt'))}</th>`:''}
           ${hasSku?`<th>${esc(tr('catColSku'))}</th>`:''}<th>${esc(tr('catColActive'))}</th><th></th></tr></thead>
         <tbody>${rowsHtml}</tbody></table></div>`
         : `<p class="empty">${hasFilter?esc(tr('catNothingFilterMsg')):esc(tr('catNoItemsYetMsg'))}</p>`}
@@ -14720,7 +14958,7 @@ function renderCatalogSections(containerId, filterValue){
   const groups = catalogGroupByType(catalog);
   const hasFilter = (filterValue||'').trim().length>0;
   const html = groups.map(g=>{
-    const filteredItems = catalogFilterItems(g.items, filterValue);
+    const filteredItems = catalogFilterItems(g.items, filterValue, manufacturerName);
     if(hasFilter && !filteredItems.length) return '';
     const expanded = hasFilter ? true : !catCollapsed.has(g.type);
     return catSectionHtml(g, filteredItems, expanded, hasFilter);
@@ -14790,6 +15028,15 @@ async function retireCatalogItem(syncId, name){
   await refreshCatalog();
 }
 
+/** Shows the height box only where a height means something: once the column exists
+    (catalogHasHeight) and for the two roles the pricing engines read it on
+    (catalogHeightApplies). Called when the dialog opens and whenever the role changes. */
+function syncCatHeightField(){
+  const wrap = $('ci_height_wrap');
+  if(!wrap) return;
+  wrap.style.display = (catalogHasHeight() && catalogHeightApplies($('ci_role').value)) ? '' : 'none';
+}
+
 function openCatItemDialog(existing, forcedType){
   if(!canEdit()) return;
   openCatItem = existing || null;
@@ -14802,6 +15049,10 @@ function openCatItemDialog(existing, forcedType){
   $('ci_unit').value = existing?.unit || 'EA';
   $('ci_price').value = existing?.unit_price ?? '';
   $('ci_covers').value = existing?.covers_ft ?? '';
+  // What the box held when the dialog opened, so a save can tell a height somebody typed from
+  // a height that was only sitting there (see saveCatItemDialog).
+  $('ci_height').value = existing?.height_ft ?? '';
+  catHeightLoaded = $('ci_height').value;
   $('ci_taxable').checked = existing ? existing.taxable !== false : true;
   $('ci_active').checked = existing ? existing.is_active !== false : true;
   const hasSupplierPrice = catalogHasSupplierPrice();
@@ -14818,6 +15069,7 @@ function openCatItemDialog(existing, forcedType){
   const hasSku = catalogHasSupplierSku();
   $('ci_sku_wrap').style.display = hasSku ? '' : 'none';
   if(hasSku) $('ci_sku').value = existing?.supplier_sku || '';
+  syncCatHeightField();
   $('catItemDialogRetire').style.display = existing ? '' : 'none';
   $('catItemDialogMsg').className='msg'; $('catItemDialogMsg').textContent='';
   $('catItemOverlay').classList.add('on');
@@ -14839,6 +15091,21 @@ async function saveCatItemDialog(){
     manufacturer_sync_id: $('ci_manufacturer').value,
   };
   if(!form.name){ msg('catItemDialogMsg', tr('ciNameRequiredMsg'), 'err'); return; }
+  // Height is written only where the engines read it (a panel or gate panel), only once the
+  // column exists, and -- on a row that already exists -- only if the box was changed. An
+  // untouched box is not sent at all, so a height set elsewhere since this page loaded (the
+  // phone, a hand-run fix, another office tab) is not put back to the old figure by a save
+  // that was only about the price. A box changed to blank IS sent, as null: blank means "this
+  // row does not say". A 0, or text the number box swallowed (it reads as '' with badInput set,
+  // which also counts as "touched"), is refused rather than saved.
+  if(catalogHasHeight() && catalogHeightApplies(form.role)){
+    const rawHeight = $('ci_height').value;
+    if(!openCatItem || rawHeight !== catHeightLoaded || $('ci_height').validity.badInput){
+      const h = catalogReadHeight(rawHeight, $('ci_height').validity.badInput);
+      if(!h.ok){ msg('catItemDialogMsg', tr('ciHeightBadMsg'), 'err'); return; }
+      form.height_ft = h.value;
+    }
+  }
   const row = catalogItemPayload(openCatItem, form, crypto.randomUUID());
   if(catalogHasSupplierPrice()){
     row.supplier_unit_price = $('ci_supplier').value==='' ? null : num($('ci_supplier').value);
@@ -21195,10 +21462,22 @@ async function showJob(id){
     : `<div class="empty">${esc(tr('jobTimeEmpty'))}</div>`;
 
   // Same seven stages the phone shows, derived the same way.
+  //
+  // Step 3 is the WHOLE deposit (2 Oct 2026). It read "any money in, or the
+  // status column is not UNPAID" while jobReadiness() on this same page read
+  // the same step as "the deposit is collected in full" -- so $500 of a
+  // $3,000 deposit ticked "Deposit received" here and read "Asked $3,000.00,
+  // collected $500.00" four panels down. The readiness meaning wins, because
+  // it is the one that decides whether the materials can be bought, and the
+  // label now says "collected in full" so the other reading cannot be taken
+  // from it. Identical arithmetic to jobReadiness()'s deposit line and to the
+  // phone's JobMoney.depositSettled: nothing asked for, or everything asked
+  // for is in. Capped at the price with depositAskedOf, as everywhere else.
+  const progDep = depositAskedOf(openJob, billableTotalOf(openJob, anchorOrdersOf(openJob)));
   const st=[
     ['jobProgStep1', openJob.status!=='DRAFT'],
     ['jobProgStep2', openJob.status==='ACCEPTED'||openJob.status==='COMPLETED'],
-    ['jobProgStep3', netPaid(openJob)>0||openJob.payment_status!=='UNPAID'],
+    ['jobProgStep3', progDep <= 0.005 || netPaid(openJob) >= progDep - 0.005],
     ['jobProgStep4', ['NOT_REQUIRED','APPROVED'].includes(openJob.hoa_approval_status)],
     ['jobProgStep5', !!openJob.scheduled_date],
     ['jobProgStep6', openJob.status==='COMPLETED'],
@@ -22785,7 +23064,7 @@ function swSupplierHtml(){
       <button class="btn btn-sm btn-grey" type="button" id="sw_skip_supplier">Skip for now</button>
     </div>
     <div id="sw_catCheck" class="sub" style="margin-bottom:10px"></div>
-    <input id="sw_cat_filter" placeholder="Filter by name, fence type, category or role…" style="margin-bottom:10px">
+    <input id="sw_cat_filter" placeholder="Filter by name, supplier, fence type, category or role…" style="margin-bottom:10px">
     <div id="sw_catSections"></div>
   </div>`;
 }
@@ -22957,6 +23236,7 @@ $('catStartSeed').addEventListener('click', startFromSeedCatalog);
 $('catItemDialogClose').addEventListener('click', () => $('catItemOverlay').classList.remove('on'));
 $('catItemOverlay').addEventListener('click', e => { if(e.target.id==='catItemOverlay') $('catItemOverlay').classList.remove('on'); });
 $('catItemDialogSave').addEventListener('click', saveCatItemDialog);
+$('ci_role').addEventListener('change', syncCatHeightField);
 $('catItemDialogRetire').addEventListener('click', () => { if(openCatItem) retireCatalogItem(openCatItem.sync_id, openCatItem.name); });
 
 $('supAdd').addEventListener('click', () => openSupplierDialog(null));
@@ -22995,8 +23275,11 @@ $('jcAdd').addEventListener('click', addJobCost);
      as unmatched, never fuzzily paired with something close, because a price
      written onto the wrong item is wrong on every quote afterwards and nothing
      looks broken.
-   - Read a PDF. Same reason: a table lifted out of a PDF that lands one row
-     off is a silently wrong catalog. The message says to export it as CSV.
+   - Take a price from a PDF on trust. A PDF IS read now (a supplier's quote
+     or price list that has real text in it, see "PDF" below), because the
+     preview shows every price beside the line of the PDF it came from and
+     nothing is ticked until he ticks it. What it will not do is accept a price
+     it cannot confirm: see the PDF section for what that means.
    - Write a price it cannot read, a zero, or a negative.
    - Delete anything, or write updated_at (the touch trigger owns that clock).
 
@@ -23274,6 +23557,485 @@ async function ppXlsxSheet(book, idx){
   return ppXlsxSheetRows(xml, book.shared);
 }
 
+/* ---------- PDF: supplier quotes and price lists that carry text ----------
+   A PDF is opened by Mozilla's PDF.js, which is loaded the first time a PDF is
+   added (see ppPdfLib). Nothing here decodes a PDF itself. What is written here
+   sits on top of the text PDF.js hands back: every piece of text arrives with
+   where it sits on the page, and one row of a table is the pieces that sit on
+   one line.
+
+   WHAT KEEPS A WRONG PRICE FROM LANDING QUIETLY
+   - The unit price is the column whose HEADING says Rate, Cost or Price, and
+     never the one that says Amount or Total. A quote line reads
+     "16  54.15  866.40": the unit price is 54.15; 866.40 is sixteen of them.
+   - Where the document also has a quantity column and a line-total column, the
+     unit price is accepted only if quantity x price = line total on that same
+     line. A line that does not add up is listed as unreadable, with the numbers
+     that did not add up, and is never given a price.
+   - With no recognised price heading (or no heading at all) a unit price is
+     accepted only where three numbers in a row satisfy quantity x price = total.
+   - More than one price column (List, Contractor, Net) is refused outright:
+     picking one would reprice the catalog and every number would still look
+     plausible.
+   - A PDF with no text at all (a scan, a photograph of a page) is refused with
+     a message that says so. So is text that did not decode into letters, and a
+     PDF with text but no line that reads as an item.
+   - What comes out goes through the same preview as a spreadsheet, and the
+     preview shows the PDF line each price was read from. Nothing is ticked for
+     him: the lines he has checked against the PDF are the ones he ticks.
+
+   WHAT IT DOES NOT READ
+   - A price that is not on the first line of its description. Wrapped
+     description lines are joined to the item above them; the numbers must sit on
+     the line the item starts on.
+   - Two tables on one page (the first heading on a page decides the columns).
+   - A scanned page. There is no text on it to read. */
+
+const PP_PDF_MAX_PAGES = 40;
+const PP_PDF_NUM = /^-?\$?(?:\d{1,3}(?:,\d{3})+|\d+)(?:\.\d+)?[TNtn*]?$/;
+const PP_PDF_DECOR = /^[*=#~]{2,}\s*(.*?\S)\s*[*=#~]{2,}$/;
+const PP_PDF_SUBTOTAL = /\bsub\s*-?\s*total\b/i;
+const PP_PDF_TOTAL = /^(?!.*\bsub\s*-?\s*total\b).*\btotal\b/i;
+const PP_PDF_TAX = /\btax\b/i;
+const PP_PDF_WHY = { pdfrel: 'ppWhyPdfRel', pdfnorel: 'ppWhyPdfNoRel', pdfcols: 'ppWhyPdfCols', pdfnoprice: 'ppWhyPdfNoPrice', pdfambig: 'ppWhyPdfAmbig', pdfnoname: 'ppWhyPdfNoName' };
+const PP_PDFJS_VERSION = '4.6.82';
+const PP_PDFJS_LIB_URL = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.6.82/build/pdf.min.mjs';
+const PP_PDFJS_LIB_SHA384 = 'DGfXL3Vw9YhOEK33FiDLr/Mu/Dbg18E0QJqJ5XUrkQrDPBohqNH4DSIVWD2KC45I';
+const PP_PDFJS_WORKER_URL = 'https://cdn.jsdelivr.net/npm/pdfjs-dist@4.6.82/build/pdf.worker.min.mjs';
+const PP_PDFJS_WORKER_SHA384 = 'IVYphXHqFLrQAtz1co2cKrn6RZGNPdUGi2wdJaK5olI8iAEpvhKxZa+6NRwLgpD5';
+
+/** The SHA-384 of some bytes, base64, in the form a fixed fingerprint is written. */
+async function ppPdfSha384(buf){
+  const subtle = globalThis.crypto && globalThis.crypto.subtle;
+  if(!subtle) throw new Error('no-crypto');
+  const d = new Uint8Array(await subtle.digest('SHA-384', buf));
+  let s = '';
+  for(let i = 0; i < d.length; i++) s += String.fromCharCode(d[i]);
+  return btoa(s);
+}
+
+/** Downloads one file and returns its bytes ONLY if they hash to the fingerprint
+    written into this page. A CDN that served something else (a different
+    version, a tampered copy, an error page) is refused here, before anything it
+    sent is run. fetchFn is a parameter only so a test can hand it a fake. */
+async function ppPdfFetchVerified(url, sha384, fetchFn){
+  const res = await (fetchFn || fetch)(url, { mode: 'cors', credentials: 'omit', referrerPolicy: 'no-referrer' });
+  if(!res.ok) throw new Error('http ' + res.status);
+  const buf = await res.arrayBuffer();
+  if((await ppPdfSha384(buf)) !== sha384) throw new Error('fingerprint');
+  return buf;
+}
+
+let ppPdfLibPromise = null;
+
+/** PDF.js, pinned to one exact version and one exact fingerprint per file, and
+    fetched only when somebody adds a PDF. The page runs under no Content
+    Security Policy (it is static, on GitHub Pages, and sets none), so the
+    browser would run anything from any address; the fingerprint is what stops
+    that from mattering. Both files are checked BEFORE either is run, then run
+    from blob: addresses made from the checked bytes, so what runs is exactly
+    what was checked. A failure is not remembered: the next PDF tries again. */
+function ppPdfLib(){
+  if(!ppPdfLibPromise){
+    ppPdfLibPromise = (async () => {
+      const bufs = await Promise.all([
+        ppPdfFetchVerified(PP_PDFJS_LIB_URL, PP_PDFJS_LIB_SHA384),
+        ppPdfFetchVerified(PP_PDFJS_WORKER_URL, PP_PDFJS_WORKER_SHA384)]);
+      const asUrl = buf => URL.createObjectURL(new Blob([buf], { type: 'text/javascript' }));
+      const lib = await import(asUrl(bufs[0]));
+      if(lib.version !== PP_PDFJS_VERSION) throw new Error('version');
+      lib.GlobalWorkerOptions.workerSrc = asUrl(bufs[1]);
+      return lib;
+    })();
+    ppPdfLibPromise.catch(() => { ppPdfLibPromise = null; });
+  }
+  return ppPdfLibPromise;
+}
+
+/** Every page's text as pieces with a position: { n, items: [{ s, x, y, w, h }] }
+    where y grows UP the page, in the page as it is displayed (a page marked
+    rotated is turned first). Text that is itself turned (a diagonal DRAFT
+    stamp) is left out: it is never a table cell. `lib` is PDF.js, passed in so
+    a test can hand over the same build from disk. */
+async function ppPdfPages(bytes, lib){
+  let doc;
+  try{
+    doc = await lib.getDocument({ data: bytes.slice(), isEvalSupported: false, useSystemFonts: false, verbosity: 0 }).promise;
+  }catch(e){
+    const err = new Error(String((e && e.message) || e));
+    err.pdfKind = (e && e.name === 'PasswordException') ? 'locked' : 'broken';
+    throw err;
+  }
+  try{
+    if(doc.numPages > PP_PDF_MAX_PAGES){
+      const err = new Error('too long');
+      err.pdfKind = 'toolong';
+      throw err;
+    }
+    const pages = [];
+    for(let n = 1; n <= doc.numPages; n++){
+      const page = await doc.getPage(n);
+      const vp = page.getViewport({ scale: 1 });
+      const vt = vp.transform;
+      const content = await page.getTextContent();
+      const items = [];
+      for(const it of content.items){
+        if(typeof it.str !== 'string') continue;
+        const s = it.str.replace(new RegExp(String.fromCharCode(0xA0), 'g'), ' ').trim();
+        if(!s) continue;
+        const t = it.transform;
+        const dx = vt[0] * t[0] + vt[2] * t[1], dy = vt[1] * t[0] + vt[3] * t[1];
+        if(!(dx > 0) || Math.abs(dy) > 0.2 * dx) continue;
+        items.push({ s, x: vt[0] * t[4] + vt[2] * t[5] + vt[4], y: vp.height - (vt[1] * t[4] + vt[3] * t[5] + vt[5]),
+                     w: it.width || 0, h: it.height || Math.abs(t[3]) || 9 });
+      }
+      pages.push({ n, items });
+      page.cleanup();
+    }
+    return pages;
+  } finally {
+    try{ await doc.destroy(); }catch(e){}
+  }
+}
+
+/** A cell that is a number, or null. "866.40T" is a number with a one-letter tax
+    flag after it, which is how these quotes mark a taxable line. Anything else
+    -- "6X6", "2026-01-05", "5.98 ea" -- is text. */
+function ppPdfNum(s){
+  const t = String(s == null ? '' : s).trim();
+  if(!PP_PDF_NUM.test(t)) return null;
+  const flag = /[TNtn*]$/.test(t) ? t.slice(-1) : '';
+  const raw = (flag ? t.slice(0, -1) : t).replace('$', '');
+  const v = Number(raw.replace(/,/g, ''));
+  return isFinite(v) ? { v, raw, flag } : null;
+}
+
+/** Pieces of text grouped into lines, top of the page first, each line left to
+    right. Two pieces are one line when their baselines are within a few points
+    (a large "Total" and its small amount differ by a point or two). */
+function ppPdfLines(items){
+  const sorted = items.slice().sort((a, b) => (b.y - a.y) || (a.x - b.x));
+  const lines = [];
+  for(const it of sorted){
+    const last = lines[lines.length - 1];
+    if(last && Math.abs(last.y - it.y) <= Math.max(2, 0.4 * Math.max(last.h, it.h))){
+      last.items.push(it);
+      last.h = Math.max(last.h, it.h);
+    } else lines.push({ y: it.y, h: it.h, items: [it] });
+  }
+  lines.forEach(l => l.items.sort((a, b) => a.x - b.x));
+  return lines;
+}
+
+/** What one heading cell says its column is: 'qty', 'amount', 'price', 'unit',
+    'name', 'sku' or ''. Quantity and amount are matched whole, so a sentence
+    that happens to contain the word total is not a heading. */
+function ppPdfHeaderRole(s){
+  const t = String(s == null ? '' : s).trim();
+  if(!t || t.length > 28) return '';
+  const k = t.toLowerCase().replace(/[^a-z0-9#%$\/ ]+/g, ' ').replace(/\s+/g, ' ').trim();
+  if(/^(qty|quantity|qty ordered|quantity ordered|order qty|ordered|qty shipped|shipped)$/.test(k)) return 'qty';
+  if(/^(amount|total|line total|total price|extended|ext|extension|ext price|price ext|ext cost|extended price|extended cost|ext amount|net amount|line amount)$/.test(k)) return 'amount';
+  const r = ppClassifyHeader(t);
+  return (r === 'price' || r === 'unit' || r === 'name' || r === 'sku') ? r : '';
+}
+
+/** If this line is the heading of a table: where each column is, and which of
+    them hold numbers. A heading needs a name or part number column, at least
+    two recognised cells, and a quantity, price or amount column. */
+function ppPdfFindHeader(line){
+  const cols = line.items.map(it => ({ role: ppPdfHeaderRole(it.s), label: it.s, x0: it.x, x1: it.x + it.w }));
+  const n = k => cols.filter(c => c.role === k).length;
+  if(cols.filter(c => c.role).length < 2) return null;
+  if(!(n('name') + n('sku'))) return null;
+  if(!(n('price') + n('amount') + n('qty'))) return null;
+  // "Item" beside "Description" is the part number column, not a second name.
+  if(n('name') > 1 && cols.some(c => c.role === 'name' && /desc|name|material|title/i.test(c.label))){
+    cols.forEach(c => { if(c.role === 'name' && /^(item|product|part)\b/i.test(c.label) && !/desc/i.test(c.label)) c.role = 'sku'; });
+  }
+  const numeric = ['qty', 'price', 'amount'];
+  const firstNum = Math.min(...cols.filter(c => numeric.includes(c.role)).map(c => c.x0));
+  const numCols = cols.filter(c => c.x0 >= firstNum - 2 && c.role !== 'unit' && c.role !== 'name' && c.role !== 'sku')
+    .map(c => ({ role: c.role || 'other', label: c.label, x0: c.x0, x1: c.x1 }));
+  const prices = cols.filter(c => c.role === 'price');
+  return { y: line.y, cols, numCols, zoneLeft: firstNum - 40,
+           price: prices.length === 1 ? prices[0] : null, priceLabels: prices.map(c => c.label),
+           qty: cols.find(c => c.role === 'qty') || null, amount: cols.find(c => c.role === 'amount') || null,
+           hasSku: cols.some(c => c.role === 'sku') };
+}
+
+/** A line's pieces sorted into: left (description and part number), nums (the
+    numbers in the numeric columns) and right (words in the numeric zone: the
+    unit "ea", a tax flag). With no heading to say where the numeric columns
+    start, every number-looking piece counts as a number. */
+function ppPdfCells(line, H){
+  const zone = H ? H.zoneLeft : -Infinity;
+  const left = [], right = [], nums = [];
+  line.items.forEach(it => {
+    const n = ppPdfNum(it.s);
+    if(it.x < zone) left.push(it);
+    else if(n) nums.push({ x0: it.x, x1: it.x + it.w, v: n.v, raw: n.raw, flag: n.flag, s: it.s });
+    else if(H) right.push(it);
+    else left.push(it);
+  });
+  return { left, right, nums };
+}
+
+/** quantity x price against the line total, to the cent. The tolerance is half a
+    cent a unit (a price printed to two places) plus the cent the total was
+    rounded to, so 14 x 18.99929 = 265.99 passes and 16 x 54.15 against 866.40
+    is exact -- while a unit price that is a whole cent out does not pass on any
+    quantity above one. */
+function ppPdfRelation(q, r, a){
+  const product = Math.round(q * r * 100) / 100;
+  if(!(q > 0) || !(r > 0) || !(a >= 0)) return { ok: false, why: 'pdfnorel', product };
+  return Math.abs(q * r - a) <= 0.005 * q + 0.0051 ? { ok: true, product } : { ok: false, why: 'pdfrel', product };
+}
+
+/** Which of the heading's numeric columns each number on this line is under. With
+    as many numbers as columns it is the order they appear in. With fewer, one
+    cell is blank, and the numbers are placed by how close each sits to a
+    heading -- accepted only when the best placement beats the next best by a
+    clear margin, or the line is refused rather than guessed. */
+function ppPdfAssign(nums, H){
+  const cols = H.numCols, k = nums.length, m = cols.length;
+  if(k === 0) return { ok: true, roles: [] };
+  if(k > m) return { ok: false, why: 'pdfcols' };
+  if(k === m) return { ok: true, roles: cols.map(c => c.role) };
+  const dist = (n, c) => Math.min(Math.abs(n.x0 - c.x0), Math.abs(n.x1 - c.x1), Math.abs((n.x0 + n.x1) / 2 - (c.x0 + c.x1) / 2));
+  let best = null, second = Infinity;
+  const walk = (ti, ci, picked, cost) => {
+    if(ti === k){
+      if(!best || cost < best.cost){ if(best) second = Math.min(second, best.cost); best = { cost, picked: picked.slice() }; }
+      else second = Math.min(second, cost);
+      return;
+    }
+    for(let c = ci; c <= m - (k - ti); c++){
+      picked.push(c);
+      walk(ti + 1, c + 1, picked, cost + dist(nums[ti], cols[c]));
+      picked.pop();
+    }
+  };
+  walk(0, 0, [], 0);
+  if(!(second - best.cost >= 12)) return { ok: false, why: 'pdfcols' };
+  return { ok: true, roles: best.picked.map(c => cols[c].role) };
+}
+
+/** What a line with numbers on it is. { kind: 'total' } when it holds nothing but
+    a line total (SUBTOTAL, TAX, TOTAL, freight): not an item. Otherwise
+    { kind: 'item' } with either the unit price that was identified (priceRaw,
+    exactly as printed) or a `why` it could not be. */
+function ppPdfJudge(nums, H){
+  if(H && H.price){
+    const asg = ppPdfAssign(nums, H);
+    if(!asg.ok) return { kind: 'item', why: asg.why };
+    const at = r => { const i = asg.roles.indexOf(r); return i < 0 ? null : nums[i]; };
+    const q = at('qty'), p = at('price'), a = at('amount');
+    if(!p && !q) return { kind: 'total' };
+    if(!p) return { kind: 'item', why: 'pdfnoprice', qty: q ? q.raw : '' };
+    const out = { kind: 'item', priceRaw: p.raw, qty: q ? q.raw : '', amountRaw: a ? a.raw : '', how: 'header',
+                  priceLabel: H.price.label, verified: false };
+    if(H.qty && H.amount){
+      if(!q || !a) return Object.assign(out, { priceRaw: '', why: 'pdfnorel' });
+      const chk = ppPdfRelation(q.v, p.v, a.v);
+      if(!chk.ok) return Object.assign(out, { priceRaw: '', why: chk.why, whyArgs: [q.raw, p.raw, chk.product.toFixed(2), a.raw] });
+      out.verified = true;
+    }
+    return out;
+  }
+  if(nums.length < 3) return { kind: 'total' };
+  const hits = [];
+  for(let i = 0; i + 2 < nums.length; i++) if(ppPdfRelation(nums[i].v, nums[i + 1].v, nums[i + 2].v).ok) hits.push(i);
+  if(!hits.length){
+    const z = nums.slice(-3);
+    return { kind: 'item', why: 'pdfrel', whyArgs: [z[0].raw, z[1].raw, ppPdfRelation(z[0].v, z[1].v, z[2].v).product.toFixed(2), z[2].raw] };
+  }
+  const rates = Array.from(new Set(hits.map(i => Math.round(nums[i + 1].v * 1e6))));
+  if(rates.length > 1) return { kind: 'item', why: 'pdfambig' };
+  const i = hits[0];
+  return { kind: 'item', priceRaw: nums[i + 1].raw, qty: nums[i].raw, amountRaw: nums[i + 2].raw, how: 'relation', priceLabel: '', verified: true };
+}
+
+/** The pieces a PDF's pages come to, read as supplier price rows. Pure: pages in
+    ({ n, items } as ppPdfPages makes them), either rows out or a refusal.
+      ok:true   rows (one per item line found, including the ones whose price
+                could not be confirmed, which carry a `why`), headings (text
+                that is not an item), totals (lines holding only a total),
+                pages, pagesUnread, hasSku, mode
+      ok:false  refuse: the message key to show, arg: its argument if it takes one */
+function ppPdfParse(pages){
+  const total = pages.reduce((n, p) => n + p.items.length, 0);
+  if(!total) return { ok: false, refuse: 'ppPdfScanned' };
+  let chars = 0, bad = 0;
+  pages.forEach(p => p.items.forEach(it => {
+    for(const ch of it.s){
+      chars++;
+      const c = ch.codePointAt(0);
+      if(c === 0xFFFD || (c >= 0xE000 && c <= 0xF8FF) || c < 32) bad++;
+    }
+  }));
+  if(bad / chars > 0.2) return { ok: false, refuse: 'ppPdfGarbled' };
+
+  let H = null, ambiguous = null, pagesUnread = 0;
+  const events = [];
+  pages.forEach(pg => {
+    if(!pg.items.length){ pagesUnread++; return; }
+    const lines = ppPdfLines(pg.items);
+    // A page that has its own heading starts there: what is above it is the
+    // letterhead and the address block. A page without one carries the last
+    // heading forward, as a table that runs over a page break does.
+    let start = 0;
+    for(let i = 0; i < lines.length; i++){
+      const own = ppPdfFindHeader(lines[i]);
+      if(own){
+        H = own; start = i + 1;
+        if(own.priceLabels.length > 1 && !ambiguous) ambiguous = own.priceLabels;
+        break;
+      }
+    }
+    const here = [];
+    for(let i = start; i < lines.length; i++){
+      const ln = lines[i];
+      const cells = ppPdfCells(ln, H);
+      const text = ln.items.map(it => it.s).join(' ');
+      const base = { page: pg.n, y: ln.y, h: ln.h, items: ln.items, text };
+      if(!cells.nums.length){ here.push(Object.assign(base, { kind: 'text' })); continue; }
+      const verdict = ppPdfJudge(cells.nums, H);
+      here.push(Object.assign(base, verdict.kind === 'total' ? { kind: 'total', nums: cells.nums } : { kind: 'row', cells, verdict, hasSku: !!(H && H.hasSku) }));
+    }
+    // Text after the last row or total on a page is the footer (terms, the
+    // signature line, the page number). It is kept only so that it can finish
+    // the last item's wrapped description; if it does not, it is not listed.
+    let last = -1;
+    here.forEach((ev, i) => { if(ev.kind !== 'text') last = i; });
+    here.forEach((ev, i) => { if(i > last) ev.footer = true; events.push(ev); });
+  });
+  if(ambiguous) return { ok: false, refuse: 'ppPdfAmbiguous', arg: ambiguous.join(', ') };
+
+  // Where the description column starts, from the rows that show both a part
+  // number and a description. A row with only one piece on its left is then
+  // told apart by which side of that it sits.
+  const xs = events.filter(ev => ev.kind === 'row' && ev.hasSku && ev.cells.left.length >= 2)
+    .map(ev => ev.cells.left[1].x).sort((a, b) => a - b);
+  const nameX = xs.length ? xs[Math.floor(xs.length / 2)] : null;
+
+  const rows = [], headings = [], totals = [], totalLines = [];
+  let cur = null;
+  for(const ev of events){
+    if(ev.kind === 'total'){ totals.push(ev.text); totalLines.push(ev); cur = null; continue; }
+    if(ev.kind === 'text'){
+      const deco = PP_PDF_DECOR.exec(ev.text);
+      if(deco){ headings.push(deco[1]); cur = null; continue; }
+      // A description that wraps goes on a line or two directly below the line
+      // its price is on, at the same indent. A gap of more than a line and a
+      // half, or a different indent, is something else.
+      if(cur && cur.nameX0 !== null && cur.page === ev.page && cur.lastY - ev.y <= 1.6 * Math.max(cur.h, ev.h)
+         && ev.items[0].x >= cur.nameX0 - 8 && ev.items[0].x <= cur.nameX0 + 30){
+        cur.nameParts.push(ev.text); cur.contText.push(ev.text); cur.lastY = ev.y;
+      } else { if(!ev.footer) headings.push(ev.text); cur = null; }
+      continue;
+    }
+    const c = ev.cells;
+    let skuItems = [], nameItems = c.left;
+    if(ev.hasSku){
+      if(c.left.length >= 2){ skuItems = [c.left[0]]; nameItems = c.left.slice(1); }
+      else if(c.left.length === 1 && nameX !== null && c.left[0].x < nameX - 6){ skuItems = c.left; nameItems = []; }
+    }
+    // A part number the supplier's own system cut short ("33803-HFS-W-...") is
+    // not a part number: saving it would make a wrong key.
+    let sku = skuItems.map(it => it.s).join(' ');
+    if(/(\.\.\.|\u2026)$/.test(sku)) sku = '';
+    const unitItem = c.right.find(it => ppUnitCode(it.s));
+    const row = { name: nameItems.map(it => it.s).join(' '), sku, unitRaw: unitItem ? unitItem.s : '',
+                  priceRaw: ev.verdict.priceRaw || '', qty: ev.verdict.qty || '', amountRaw: ev.verdict.amountRaw || '',
+                  why: ev.verdict.why || '', whyArgs: ev.verdict.whyArgs || [], how: ev.verdict.how || '', priceLabel: ev.verdict.priceLabel || '',
+                  verified: !!ev.verdict.verified, page: ev.page, lineText: ev.items.map(it => it.s).join('  '), contText: [],
+                  nameParts: nameItems.length ? [nameItems.map(it => it.s).join(' ')] : [],
+                  nameX0: nameItems.length ? nameItems[0].x : null, lastY: ev.y, h: ev.h };
+    if(!row.nameParts.length && !row.why){ row.why = 'pdfnoname'; row.priceRaw = ''; }
+    rows.push(row);
+    cur = row;
+  }
+  rows.forEach(r => {
+    r.name = r.nameParts.join(' ').replace(/\s+/g, ' ').trim();
+    delete r.nameParts; delete r.nameX0; delete r.lastY; delete r.h;
+  });
+  // A part number printed against lines with different descriptions (Hartford
+  // gives the line, end and blank 4 ft posts all 30509-W-B) names none of them,
+  // so none of them is offered to be saved as a key.
+  const namesBySku = new Map();
+  rows.forEach(r => {
+    if(!r.sku) return;
+    const k = r.sku.toUpperCase();
+    if(!namesBySku.has(k)) namesBySku.set(k, new Set());
+    namesBySku.get(k).add(r.name.toLowerCase());
+  });
+  rows.forEach(r => { if(r.sku && namesBySku.get(r.sku.toUpperCase()).size > 1) r.sku = ''; });
+  if(!rows.length) return { ok: false, refuse: 'ppPdfNoRows' };
+  const first = rows.find(r => r.how === 'header');
+  return { ok: true, rows, headings, totals, recon: ppPdfReconcile(rows, totalLines), pages: pages.length, pagesUnread,
+           hasSku: rows.some(r => r.sku), mode: first ? 'header' : 'relation', priceLabel: first ? first.priceLabel : '' };
+}
+
+/** Do the line totals of the rows read add up to what the document itself says
+    its lines come to? An independent count of what was read against what is
+    there: a PDF that had nine lines dropped cannot add up. Uses the SUBTOTAL
+    line; failing that, TOTAL less TAX. Null when the document prints neither,
+    because then there is nothing to check against. */
+function ppPdfReconcile(rows, totalLines){
+  const val = l => l.nums.length ? l.nums[l.nums.length - 1].v : null;
+  const find = re => {
+    for(let i = totalLines.length - 1; i >= 0; i--) if(re.test(totalLines[i].text) && val(totalLines[i]) !== null) return val(totalLines[i]);
+    return null;
+  };
+  let printed = find(PP_PDF_SUBTOTAL), how = 'subtotal';
+  if(printed === null){
+    const tot = find(PP_PDF_TOTAL), tax = find(PP_PDF_TAX);
+    if(tot === null || tax === null) return null;
+    printed = tot - tax; how = 'total-minus-tax';
+  }
+  const cents = rows.reduce((n, r) => { const a = ppPdfNum(r.amountRaw); return n + (a ? Math.round(a.v * 100) : 0); }, 0);
+  const pc = Math.round(printed * 100);
+  return { read: cents / 100, printed: pc / 100, agree: Math.abs(cents - pc) <= 2, how };
+}
+
+/** The rows as the plan wants them: the same shape a spreadsheet row has
+    ({ name, priceRaw, sku, unitRaw, price, why }), the price read by the same
+    strict reader, with what only a PDF knows (the line it came from) carried
+    alongside. A row the PDF reading could not confirm keeps its own reason and
+    has no price. */
+function ppPdfRowsForPlan(pdf){
+  const rows = pdf.rows.map(r => {
+    const out = Object.assign({}, r);
+    if(out.why){ out.price = null; return out; }
+    const p = ppParsePrice(out.priceRaw);
+    out.price = p.ok ? p.value : null;
+    out.why = p.ok ? '' : p.why;
+    out.whyArgs = p.ok ? [] : [out.priceRaw];
+    return out;
+  });
+  return { rows, headings: pdf.headings.slice() };
+}
+
+/** Bytes of a PDF in, either the rows or the refusal out. Never throws. `lib` is
+    PDF.js when the caller already has it (a test); otherwise it is loaded. */
+async function ppPdfRead(bytes, libIn){
+  let lib = libIn;
+  if(!lib){
+    try{ lib = await ppPdfLib(); }
+    catch(e){ return { ok: false, refuse: String((e && e.message) || e) === 'fingerprint' ? 'ppPdfLibFingerprint' : 'ppPdfLibOffline' }; }
+  }
+  let pages;
+  try{ pages = await ppPdfPages(bytes, lib); }
+  catch(e){
+    const kind = e && e.pdfKind;
+    if(kind === 'locked') return { ok: false, refuse: 'ppPdfLocked' };
+    if(kind === 'toolong') return { ok: false, refuse: 'ppPdfTooLong', arg: PP_PDF_MAX_PAGES };
+    return { ok: false, refuse: 'ppPdfRefused' };
+  }
+  return ppPdfParse(pages);
+}
+
 /* ---------- reading the columns ---------- */
 
 /** What a header cell says this column is: 'sku', 'price', 'unit', 'name' or ''.
@@ -23334,12 +24096,16 @@ function ppReadRows(table, cols){
 /** A price, or the reason it is not one. Strict on purpose: "12,50" could be
     twelve fifty or twelve hundred and fifty, "call" is not a number, and a zero
     would make material free on every quote. Anything unsure is refused and shown,
-    never guessed. */
+    never guessed. Kept to six places, not four: Hartford quotes 54.99875 and
+    18.99929 (a pallet price divided down), the catalog holds those exact figures
+    in a double, and rounding them to four would make every import disagree with
+    the catalog by a twentieth of a cent. Six still removes float noise
+    (12.340000000000002 is 12.34). */
 function ppParsePrice(raw){
   if(typeof raw === 'number'){
     if(!isFinite(raw)) return { ok: false, why: 'bad' };
     if(raw <= 0) return { ok: false, why: 'zero' };
-    return { ok: true, value: Math.round(raw * 10000) / 10000 };
+    return { ok: true, value: Math.round(raw * 1000000) / 1000000 };
   }
   let s = String(raw == null ? '' : raw).trim();
   if(!s) return { ok: false, why: 'blank' };
@@ -23348,7 +24114,7 @@ function ppParsePrice(raw){
   const v = Number(s.replace(/,/g, ''));
   if(!isFinite(v) || v > 1000000) return { ok: false, why: 'bad' };
   if(v <= 0) return { ok: false, why: 'zero' };
-  return { ok: true, value: Math.round(v * 10000) / 10000 };
+  return { ok: true, value: Math.round(v * 1000000) / 1000000 };
 }
 
 /* ---------- matching ---------- */
@@ -23563,7 +24329,7 @@ async function ppWriteRows(jobs, onProgress){
 
 function ppMoney(n){
   const v = Number(n) || 0;
-  return '$' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 4 });
+  return '$' + v.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 6 });
 }
 function ppPct(oldP, newP){
   if(!(oldP > 0)) return '';
@@ -23586,7 +24352,7 @@ let ppLast = null;       // the update most recently written, kept so it can be 
 let ppBusy = false;      // a write is in flight: the dialog must not close or double-submit
 
 function ppFresh(){
-  return { table: null, fileName: '', book: null, sheetIdx: 0, hiddenRows: 0, cols: null,
+  return { table: null, fileName: '', book: null, sheetIdx: 0, hiddenRows: 0, cols: null, pdf: null,
            rows: [], headings: [], plan: null, selected: new Set(), supplierId: '', items: null };
 }
 
@@ -23691,7 +24457,21 @@ async function ppOnFile(file){
   if(ppState !== st) return;           // another file was chosen while this one was being read
   // By what is inside the file, not by its name: a PDF renamed .csv is a PDF.
   const kind = ppSniffKind(bytes);
-  if(kind === 'pdf'){ refuse('ppPdfRefused'); return; }
+  if(kind === 'pdf'){
+    // Read into the same preview as any other file. A PDF that cannot be read
+    // (a scan, a locked file, text that did not decode, no price lines, more than
+    // one price column) is refused here with the reason, never imported as an
+    // empty list: see ppPdfParse.
+    st.fileName = file.name || '';
+    msg('ppMsg', tr('ppPdfReading'), 'working');
+    const read = await ppPdfRead(bytes);
+    if(ppState !== st) return;
+    if(!read.ok){ msg('ppMsg', ppTr(read.refuse, read.arg === undefined ? '' : read.arg), 'err'); return; }
+    st.pdf = read;
+    if(!(await ppRefreshItems())) return;
+    ppUsePdf();
+    return;
+  }
   if(kind === 'ole'){ refuse('ppXlsRefused'); return; }
   if(kind === 'other'){ refuse('ppNotText'); return; }
   st.fileName = file.name || '';
@@ -23754,6 +24534,8 @@ async function ppOnSheet(){
 /** A table is in hand: find the columns, show them for checking, and preview. */
 function ppUseTable(){
   const st = ppState, t = st.table;
+  $('ppColPickers').style.display = '';
+  $('ppPdfNote').style.display = 'none';
   if(!t || !t.length){ msg('ppMsg', tr('ppNothingToRead'), 'err'); return; }
   if(t.length > PP_MAX_ROWS + 60){ msg('ppMsg', ppTr('ppTooManyRows', PP_MAX_ROWS), 'err'); return; }
   const d = ppDetectColumns(t);
@@ -23780,43 +24562,113 @@ function ppUseTable(){
   ppRecompute();
 }
 
+/** A PDF has been read: show how it was read, and preview. There are no column
+    pickers for a PDF -- which column is the price was decided from its own
+    headings, and the note says which -- so they are put away. */
+function ppUsePdf(){
+  const st = ppState, pdf = st.pdf;
+  st.cols = null;
+  $('ppSheetWrap').style.display = 'none';
+  $('ppColPickers').style.display = 'none';
+  $('ppReadNote').textContent = '';
+  $('ppPdfNote').textContent = pdf.mode === 'header' ? ppTr('ppPdfNoteHead', pdf.priceLabel) : tr('ppPdfNoteRel');
+  $('ppPdfNote').style.display = '';
+  $('ppColsBox').style.display = '';
+  ppUpdateAssignRow();
+  ppRecompute();
+}
+
 /** Re-reads the rows and re-plans from whatever the dialog says now: the
     columns, the supplier, the two checkboxes. Selection starts again each time
-    because the rows it pointed at may no longer be the same rows. */
+    because the rows it pointed at may no longer be the same rows. A file that
+    came from a spreadsheet starts with every unflagged change ticked. One that
+    came from a PDF starts with NOTHING ticked: he ticks the lines he has
+    checked against the PDF, and the PDF line each price came from is beside it. */
 function ppRecompute(){
   const st = ppState;
-  if(!st || !st.table) return;
+  if(!st || (!st.table && !st.pdf)) return;
   st.supplierId = $('ppSupplier').value;
   ppUpdateAssignRow();
-  const cols = { headerRow: st.cols ? st.cols.headerRow : 0, name: Number($('ppColName').value),
-                 price: Number($('ppColPrice').value), sku: Number($('ppColSku').value), unit: Number($('ppColUnit').value) };
   const note = text => { msg('ppMsg', text, 'info'); $('ppPreviewBox').style.display = 'none'; };
-  if(cols.name < 0 || cols.price < 0){
-    const cands = st.cols ? st.cols.priceCandidates : [];
-    if(cols.name >= 0 && cols.price < 0 && cands.length > 1){
-      const head = st.table[cols.headerRow] || [];
-      note(ppTr('ppNeedPrice', cands.map(i => String(head[i] || '').trim() || ppColLetter(i)).join(', ')));
-    } else note(tr('ppNoColumns'));
-    return;
+  let read, skuColumnPresent;
+  if(st.pdf){
+    if(!st.supplierId){ note(tr('ppNeedSupplier')); return; }
+    read = ppPdfRowsForPlan(st.pdf);
+    skuColumnPresent = st.pdf.hasSku && ppHasSku();
+  } else {
+    const cols = { headerRow: st.cols ? st.cols.headerRow : 0, name: Number($('ppColName').value),
+                   price: Number($('ppColPrice').value), sku: Number($('ppColSku').value), unit: Number($('ppColUnit').value) };
+    if(cols.name < 0 || cols.price < 0){
+      const cands = st.cols ? st.cols.priceCandidates : [];
+      if(cols.name >= 0 && cols.price < 0 && cands.length > 1){
+        const head = st.table[cols.headerRow] || [];
+        note(ppTr('ppNeedPrice', cands.map(i => String(head[i] || '').trim() || ppColLetter(i)).join(', ')));
+      } else note(tr('ppNoColumns'));
+      return;
+    }
+    if(!st.supplierId){ note(tr('ppNeedSupplier')); return; }
+    read = ppReadRows(st.table, cols);
+    read.rows.forEach(r => {
+      const p = ppParsePrice(r.priceRaw);
+      r.price = p.ok ? p.value : null;
+      r.why = p.ok ? '' : p.why;
+    });
+    skuColumnPresent = cols.sku >= 0 && ppHasSku();
   }
-  if(!st.supplierId){ note(tr('ppNeedSupplier')); return; }
   $('ppMsg').className = 'msg'; $('ppMsg').textContent = '';
-  const read = ppReadRows(st.table, cols);
-  read.rows.forEach(r => {
-    const p = ppParsePrice(r.priceRaw);
-    r.price = p.ok ? p.value : null;
-    r.why = p.ok ? '' : p.why;
-  });
   st.rows = read.rows; st.headings = read.headings;
   st.plan = ppBuildPlan(ppItems(), st.supplierId, read.rows, {
     assignUnassigned: $('ppAssign').checked,
     saveSku: $('ppSaveSku').checked,
-    skuColumnPresent: cols.sku >= 0 && ppHasSku(),
+    skuColumnPresent,
     nameOf: manufacturerName
   });
   st.selected = new Set();
-  st.plan.changes.forEach((c, i) => { if(!c.flags.length) st.selected.add(i); });
+  if(!st.pdf) st.plan.changes.forEach((c, i) => { if(!c.flags.length) st.selected.add(i); });
   ppRender();
+}
+
+/** Why a row has no usable price, in words. A PDF row carries its own reason
+    (and the numbers that went into it); a spreadsheet row's is blank, zero or bad. */
+function ppWhyText(r, t){
+  if(r.why === 'blank') return t('ppWhyBlank');
+  if(r.why === 'zero') return t('ppWhyZero');
+  if(PP_PDF_WHY[r.why]) return t.apply(null, [PP_PDF_WHY[r.why]].concat(r.whyArgs || []));
+  return t('ppWhyBad', r.priceRaw);
+}
+
+/** The PDF line a price was read from, as it appeared on the page, with its
+    wrapped description lines beneath, and which number on it was taken as the
+    unit price and why. This is what he checks a match against. */
+function ppPdfLineHtml(r, t, e){
+  const mono = 'font-family:ui-monospace,monospace;font-size:12px;margin:0;word-break:break-word';
+  let html = '<div style="' + mono + '">' + e(t('ppPdfPage', r.page) + ' ' + (r.lineText || '')) + '</div>';
+  (r.contText || []).forEach(x => { html += '<div style="' + mono + ';padding-left:16px">' + e(x) + '</div>'; });
+  if(r.priceRaw){
+    html += '<div class="sub" style="margin:2px 0 0">' + e(r.verified
+      ? t('ppPdfChecked', r.priceRaw, r.qty, r.priceRaw, r.amountRaw)
+      : t('ppPdfFromCol', r.priceRaw, r.priceLabel || '')) + '</div>';
+  }
+  return html;
+}
+
+/** What was found in the PDF, what matched, and what could not be read or
+    matched, as three numbers that add up (found = matched + could not), then
+    anything the PDF itself shows was missed: pages with no text, and line
+    totals that do not add up to the PDF's own subtotal. */
+function ppPdfCountsHtml(st, plan, t, e){
+  const pdf = st.pdf;
+  const found = plan.rowsRead, couldNot = plan.unreadable.length + plan.unmatched.length;
+  let html = '<p class="sub" style="margin:0 0 10px"><b>' + e(t('ppPdfCounts', found, pdf.pages, found - couldNot, couldNot)) + '</b></p>';
+  if(pdf.pagesUnread){
+    html += '<div class="msg err" style="margin:0 0 10px">' + e(t('ppPdfPagesUnread', pdf.pagesUnread, pdf.pages)) + '</div>';
+  }
+  if(pdf.recon){
+    html += pdf.recon.agree
+      ? '<p class="sub" style="margin:0 0 10px">' + e(t('ppPdfReconOk', ppMoney(pdf.recon.read))) + '</p>'
+      : '<div class="msg err" style="margin:0 0 10px">' + e(t('ppPdfReconBad', ppMoney(pdf.recon.read), ppMoney(pdf.recon.printed))) + '</div>';
+  }
+  return html;
 }
 
 /** The whole preview as HTML. Everything a person typed (item names, file
@@ -23828,8 +24680,10 @@ function ppPreviewHtml(st, selected, supName, h){
   const plan = st.plan;
   const out = [];
   const left = plan.unmatched.length + plan.unreadable.length + plan.conflicts.length;
+  const pdf = !!st.pdf;
   out.push('<p class="sub" style="margin:0 0 10px">'
     + e(t('ppSummary', plan.rowsRead, plan.changes.length, plan.same.length, left)) + '</p>');
+  if(pdf) out.push(ppPdfCountsHtml(st, plan, t, e));
 
   if(!plan.changes.length){
     out.push('<div class="msg info" style="margin:0 0 10px">'
@@ -23850,15 +24704,17 @@ function ppPreviewHtml(st, selected, supName, h){
         + '<td style="width:28px"><input type="checkbox" data-pp-i="' + i + '" style="width:auto"' + (selected.has(i) ? ' checked' : '') + '></td>'
         + '<td>' + e(String(c.item.name || '')) + fileName
         + '<div class="sub" style="margin:0">' + e([H.fence(c.item.fence_type), H.role(c.item.role)].filter(Boolean).join(' · ')) + '</div></td>'
+        + (pdf ? '<td>' + ppPdfLineHtml(c.row, t, e) + '</td>' : '')
         + '<td>' + e(ppMoney(c.oldPrice)) + '</td>'
         + '<td><b>' + e(ppMoney(c.newPrice)) + '</b></td>'
         + '<td>' + e(c.priceChanged ? (ppPct(c.oldPrice, c.newPrice) || '—') : '—') + '</td>'
         + '<td>' + also.map(x => '<div>' + e(x) + '</div>').join('')
         + warn.map(x => '<div style="color:var(--bad-fg)">' + e(x) + '</div>').join('') + '</td></tr>';
     });
-    out.push('<div class="scroll" style="max-height:440px;overflow:auto"><table style="min-width:640px"><thead><tr>'
+    out.push('<div class="scroll" style="max-height:440px;overflow:auto"><table style="min-width:' + (pdf ? 900 : 640) + 'px"><thead><tr>'
       + '<th style="width:28px"><input type="checkbox" id="ppAll" style="width:auto" title="' + e(t('ppSelectAll')) + '"></th>'
-      + '<th>' + e(t('ppColItemH')) + '</th><th>' + e(t('ppColNowH')) + '</th><th>' + e(t('ppColNewH')) + '</th>'
+      + '<th>' + e(t('ppColItemH')) + '</th>' + (pdf ? '<th>' + e(t('ppColPdfH')) + '</th>' : '')
+      + '<th>' + e(t('ppColNowH')) + '</th><th>' + e(t('ppColNewH')) + '</th>'
       + '<th>' + e(t('ppColDiffH')) + '</th><th>' + e(t('ppColAlsoH')) + '</th></tr></thead><tbody>'
       + rows.join('') + '</tbody></table></div>');
   }
@@ -23870,12 +24726,15 @@ function ppPreviewHtml(st, selected, supName, h){
   if(plan.unmatched.length){
     const lines = plan.unmatched.map(u => e(u.row.name || u.row.sku || '?') + ' (' + e(ppMoney(u.row.price)) + ') — '
       + e(u.reason === 'other' ? t('ppReasonOther', u.other || '?')
-        : u.reason === 'unassigned' ? t('ppReasonUnassigned') : t('ppReasonNone', supName)));
+        : u.reason === 'unassigned' ? t('ppReasonUnassigned') : t('ppReasonNone', supName))
+      + (pdf ? ppPdfLineHtml(u.row, t, e) : ''));
     out.push(details(t('ppUnmatchedHead', plan.unmatched.length), list(lines), true));
   }
   if(plan.unreadable.length){
     const lines = plan.unreadable.map(u => e(u.row.name || u.row.sku || '?') + ' — '
-      + e(u.row.why === 'blank' ? t('ppWhyBlank') : u.row.why === 'zero' ? t('ppWhyZero') : t('ppWhyBad', u.row.priceRaw)));
+      + e(pdf ? ppWhyText(u.row, t)
+        : u.row.why === 'blank' ? t('ppWhyBlank') : u.row.why === 'zero' ? t('ppWhyZero') : t('ppWhyBad', u.row.priceRaw))
+      + (pdf ? ppPdfLineHtml(u.row, t, e) : ''));
     out.push(details(t('ppUnreadableHead', plan.unreadable.length), list(lines), true));
   }
   if(plan.conflicts.length){
@@ -23887,7 +24746,10 @@ function ppPreviewHtml(st, selected, supName, h){
     out.push(details(t('ppSameHead', plan.same.length), list(lines), false));
   }
   if(st.headings.length){
-    out.push(details(t('ppHeadingsHead', st.headings.length), list(st.headings.map(x => e(x))), false));
+    out.push(details(t(pdf ? 'ppPdfNoPriceHead' : 'ppHeadingsHead', st.headings.length), list(st.headings.map(x => e(x))), false));
+  }
+  if(pdf && st.pdf.totals.length){
+    out.push(details(t('ppPdfTotalsHead', st.pdf.totals.length), list(st.pdf.totals.map(x => e(x))), false));
   }
   out.push('<p class="sub" style="margin:12px 0 0">'
     + e(t('ppNotInFile', plan.notInFile.length, supName, plan.otherUntouched)) + '</p>');
@@ -25943,6 +26805,10 @@ async function openCompose(opts){
       .map(a => ({ idx: a.idx, name: cleanLine(a.filename) || tr('mailFileFallback'), size: Number(a.size) || 0, include: a.disposition !== 'inline' })),
     files: [],
     jobSyncId: o.jobSyncId || null,
+    // Set only by jobQuoteMailCompose(): the job whose quote_sent_at this send
+    // stamps IF it goes out. Read in composeSent() and nowhere else, so a
+    // failed, refused or unconfirmed send cannot mark a quote as sent.
+    quoteSendFor: o.quoteSendFor || null,
     busy: false, done: false, unconfirmed: false, initial: '',
   };
   $('mc_title').textContent = tr(o.forwardOf ? 'mailForwardTitle' : o.replyToMessageId ? 'mailReplyTitle' : 'mailComposeTitle');
@@ -26056,6 +26922,11 @@ async function sendCompose(){
   const bad = [...to.bad, ...cc.bad, ...bcc.bad];
   if (bad.length) return msg('mc_msg', tr('mailBadAddress', bad.slice(0, 3).map(cleanLine).join(', ')), 'err');
   if (!to.ok.length) return msg('mc_msg', tr('mailNeedRecipient'), 'err');
+  // Kept on the compose so composeSent() can reconcile jobs.email with the
+  // address the quote was ACTUALLY sent to. Set here rather than at the
+  // send call: every refusal above returns before this line, so a stashed
+  // list can only ever belong to an attempt that got past validation.
+  c.sentTo = to.ok.slice();
   const max = from === 'fenceflow' ? MAIL_LIMITS.maxRecipientsFenceflow : MAIL_LIMITS.maxRecipientsSmtp;
   if (new Set([...to.ok, ...cc.ok, ...bcc.ok]).size > max) return msg('mc_msg', tr('mailTooManyRecipients', max), 'err');
   const subject = cleanLine($('mc_subject').value).slice(0, MAIL_LIMITS.subjectMaxChars);
@@ -26128,6 +26999,11 @@ function composeSent(c, body){
   }, 1200);
   refreshMailBadge();
   jobMailSent(c.jobSyncId);
+  // The ONLY place a quote is marked sent by email. composeSent() is reached
+  // on state === 'sent' and nowhere else -- 'failed', 'sending' (may have
+  // gone, not confirmed) and a refusal before anything was recorded all
+  // return earlier in sendCompose() without coming through here.
+  if (c.quoteSendFor) markQuoteSentAfterEmail(c.quoteSendFor, c.sentTo);
   if (mailTabOpen()) {
     msg('mailMsg', tr('mailSentOk'), 'ok');
     loadMailThreads(true, true).then(() => {
@@ -26369,6 +27245,20 @@ function updateJobMailBtn(){
   const typed = $('j_email').value.trim() !== '';
   $('jobMailBtn').disabled = !to.length;
   $('jobMailNote').textContent = to.length ? '' : tr(typed ? 'jobMailBadEmail' : 'jobMailNoEmail');
+  // The quote button needs an address AND a customer link AND the quote's own
+  // two gates. Disabled with a reason in the tooltip rather than hidden, so
+  // "why can't I email this quote" has an answer without a tap.
+  const qb = $('jobQuoteMailBtn');
+  if (qb) {
+    const blocked = quoteSendBlock(openJob);
+    const noLink = !(openJob && openJob.quote_token);
+    qb.disabled = !to.length || !!blocked || noLink;
+    qb.style.opacity = qb.disabled ? .5 : 1;
+    qb.title = blocked ? blocked
+      : noLink ? (QUOTE_REFUSAL_REASON[LANG] || QUOTE_REFUSAL_REASON.en).no_link
+      : !to.length ? tr(typed ? 'jobMailBadEmail' : 'jobMailNoEmail')
+      : '';
+  }
 }
 
 // The fields saveJob() writes, as the page holds them. Read the same way
@@ -26437,6 +27327,136 @@ function jobMailCompose(){
   const to = jobMailTo();
   if (!canUseMail || !j || !to.length) return;
   openCompose({ to: to.join(', '), jobSyncId: j.sync_id || null });
+}
+
+/* ---------- "Email the quote" ----------------------------------------------
+   The same compose window, opened with the quote template already in it and
+   this job's customer link in the body. He reads it, adds a line if he wants
+   one, and presses Send. Nothing new reaches a mail server: mail-send is the
+   generic sender and already owns the hard parts -- one send per
+   client_send_id however many times Send is pressed, the four honest states
+   (sent / sending / failed / refused), the Sent copy, and the thread linked
+   to this job so her reply lands back on the job sheet.
+
+   THERE IS NO PRICE IN THE EMAIL, on purpose. See the header of
+   website/js/lib/quote-email.mjs: this goes out before she has accepted
+   anything, and the job's total is still moving, so the page owns every
+   figure and the email's job is to get her to the page.
+
+   THE QUOTE IS MARKED SENT ONLY WHEN THE PROVIDER TOOK IT. The stamp lives in
+   composeSent(), which is reached on state === 'sent' and nowhere else: a
+   failed send, a refused send and an unconfirmed send all leave
+   quote_sent_at alone. That matters more than it reads -- once quote_sent_at
+   is set, the office-priced branch of JobSync stops pushing a fresh
+   contract_total, and the wizard's own comment records that stamping a quote
+   that never went is how a wrong price gets frozen on a job for good. */
+
+/* His business name and phone, for the email's own wording.
+   Read the way loadSettings() documents and nowhere else: the customer-facing
+   companies row first, because that is the value actually in effect, falling
+   back to the phones' copy in the settings blob when the column is blank. */
+async function quoteSendCompanyFacts(){
+  const [co, cs] = await Promise.all([
+    db.from('companies').select('name, phone').eq('id', profile.company_id).maybeSingle(),
+    db.from('company_settings').select('settings').eq('company_id', profile.company_id).maybeSingle(),
+  ]);
+  const s = cs?.data?.settings || {};
+  const pick = (col, key) => {
+    const live = String(co?.data?.[col] ?? '').trim();
+    return live !== '' ? live : String(s[key] ?? '').trim();
+  };
+  return { companyName: pick('name', 'business_name'), companyPhone: pick('phone', 'phone') };
+}
+
+/* The SAME two gates the job view's Copy link / Preview and the quote
+   wizard's own pair already carry, read from the same two functions, because
+   this is a third door to the same link and a gate on one door only is this
+   file's own recorded mistake (see unverifiedPricesOn's comment). Returns the
+   sentence to show, or '' when the quote may go out. */
+function quoteSendBlock(j){
+  if (!j) return '';
+  if (zeroQuoteBlockedOn(j, runs)) return tr('qBlockZero');
+  const unchecked = unverifiedPricesOn(j);
+  if (!unchecked.length) return '';
+  const shown = unchecked.slice(0, 5).join(', ');
+  const shownList = unchecked.length > 5 ? tr('qBlockAndMore', shown) : shown;
+  return unchecked.length === 1 ? tr('qBlockOne', shownList) : tr('qBlockMany', unchecked.length, shownList);
+}
+
+async function jobQuoteMailCompose(){
+  const j = openJob;
+  if (!canUseMail || !j) return;
+  const blocked = quoteSendBlock(j);
+  if (blocked) { msg('jobMsg', blocked, 'err'); return; }
+
+  const to = jobMailTo();
+  const link = j.quote_token ? quoteLinkFor(j) : '';
+  const facts = await quoteSendCompanyFacts();
+  if (openJob !== j) return;   // another job opened while the two rows loaded
+
+  // Refused with a sentence rather than offered as a button that cannot send.
+  // The language is this page's, which is the language HE reads: there is no
+  // record anywhere of what language the CUSTOMER speaks (see the note in the
+  // handover), so the office cannot pick hers for her.
+  const why = quoteSendRefusal({ recipient: to[0] || '', quoteUrl: link, companyName: facts.companyName });
+  if (why) {
+    msg('jobMsg', (QUOTE_REFUSAL_REASON[LANG] || QUOTE_REFUSAL_REASON.en)[why], 'err');
+    return;
+  }
+
+  const email = buildQuoteSendEmail({
+    companyName: facts.companyName,
+    companyPhone: facts.companyPhone,
+    customerName: j.customer_name || '',
+    address: j.address || '',
+    quoteUrl: link,
+  }, LANG);
+
+  openCompose({
+    to: to[0],
+    subject: email.subject,
+    body: email.text,
+    jobSyncId: j.sync_id || null,
+    quoteSendFor: j.sync_id || null,
+  });
+}
+
+/* Called by composeSent() -- that is, only once mail-send answered 'sent'.
+   quote_sent_at is written only when it is empty, so a resend keeps the first
+   send's date (wizMarkSent and the phone's markQuoteSent both make the same
+   choice). The status only advances out of DRAFT: an ACCEPTED or COMPLETED
+   job must not be dragged back to 'Quote Sent' by emailing the quote again. */
+async function markQuoteSentAfterEmail(syncId, sentTo){
+  const j = (jobs || []).find(x => x && x.sync_id === syncId) || (openJob && openJob.sync_id === syncId ? openJob : null);
+  const patch = {};
+  if (!j || !j.quote_sent_at) patch.quote_sent_at = new Date().toISOString();
+  if (j && j.status === 'DRAFT') patch.status = 'SENT';
+  // The address the quote WENT to, stored, because the recipient came from
+  // the live j_email input and nothing else writes it back. Without this a
+  // corrected typo sends to the right person and leaves the wrong one on the
+  // row -- and send-follow-ups mails that row automatically, with figures in
+  // it, selecting on nothing but `email <> ''`.
+  //
+  // Compared as a SET, not as text: parseAddressList lowercases, trims,
+  // de-duplicates and accepts , ; and newlines, so "A@x.com, b@x.com" and
+  // "b@x.com;a@x.com" are the same recipients and must not look like a
+  // change. Only a genuine difference is written.
+  if (Array.isArray(sentTo) && sentTo.length) {
+    const stored = parseAddressList((j && j.email) || '').ok;
+    const same = stored.length === sentTo.length &&
+      stored.every(a => sentTo.includes(a));
+    if (!same) patch.email = sentTo.join(', ');
+  }
+  if (!Object.keys(patch).length) return;
+  const { error } = await db.from('jobs').update(patch).eq('sync_id', syncId);
+  // Said out loud rather than swallowed: the email DID go, and if the stamp
+  // did not land the job will still read "not sent yet" and the follow-up
+  // rules will not know it went out.
+  if (error) { msg('jobMsg', tr('quoteSentStampFailed'), 'err'); return; }
+  Object.assign(j || {}, patch);
+  // renderQuoteBlock, not showJob: it is the one that draws q_status ("Sent
+  // ...") and the quote buttons, and it reads openJob rather than reloading.
+  if (openJob && openJob.sync_id === syncId) renderQuoteBlock();
 }
 
 /* After a send from compose: the rows again, if the job it was tied to is
@@ -26566,6 +27586,7 @@ $('mc_job').addEventListener('click', e => {
   if (e.target.closest('[data-act="unjob"]') && mailCompose) { mailCompose.jobSyncId = null; renderComposeJob(); }
 });
 $('jobMailBtn').addEventListener('click', jobMailCompose);
+$('jobQuoteMailBtn').addEventListener('click', jobQuoteMailCompose);
 $('j_email').addEventListener('input', () => { if (canUseMail && openJob) updateJobMailBtn(); });
 $('jobMailRows').addEventListener('click', e => {
   const b = e.target.closest('[data-jobthread]');

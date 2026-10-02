@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "engine": {
-    "version": "2026.10.6",
-    "generated_at": "2026-10-02T03:33:16.202157300Z"
+    "version": "2026.10.8",
+    "generated_at": "2026-10-02T14:02:40.744264200Z"
   },
   "case": "gate-line-mount",
   "note": "In the line: two end posts, 1.5 + 1.0 bags.",
   "input": {
-    "engine_version": "2026.10.6",
+    "engine_version": "2026.10.8",
     "pixels_per_foot": 20.0,
     "job": {
       "calibration_pixels_per_foot": 20.0,
@@ -210,21 +210,6 @@
         "manufacturer_sync_id": null
       },
       {
-        "sync_id": "2f92872d-7084-399f-9f35-c837a1bccc5f",
-        "name": "7\" SS Gate Handle (box of 50)",
-        "category": "HARDWARE",
-        "role": "HANDLE",
-        "fence_type": "VINYL",
-        "color_or_finish": "Black",
-        "unit": "BOX",
-        "unit_price": 5.0,
-        "supplier_unit_price": null,
-        "taxable": true,
-        "covers_ft": null,
-        "is_active": true,
-        "manufacturer_sync_id": null
-      },
-      {
         "sync_id": "f1a1061c-872d-3d81-8d49-82cee033f8d3",
         "name": "Gate Support Brace, 8'",
         "category": "HARDWARE",
@@ -373,6 +358,21 @@
         "covers_ft": null,
         "is_active": true,
         "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "d3c19f75-9574-351a-9796-3bed07c6a46f",
+        "name": "7\" SS Gate Handle (box of 50)",
+        "category": "HARDWARE",
+        "role": "HANDLE",
+        "fence_type": "UNIVERSAL",
+        "color_or_finish": "Black",
+        "unit": "BOX",
+        "unit_price": 5.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
       }
     ],
     "manufacturers": [],
@@ -380,7 +380,7 @@
     "existing_items": []
   },
   "expected": {
-    "engine_version": "2026.10.6",
+    "engine_version": "2026.10.8",
     "linear_feet": 100.0,
     "teardown_linear_feet": 0.0,
     "billable_linear_feet": 100.0,

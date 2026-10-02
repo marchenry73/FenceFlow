@@ -35,12 +35,33 @@ object ProjectStatus {
      * The pipeline a customer actually cares about, derived from data the app
      * already tracks -- no separate status field to keep in sync (and get wrong).
      */
-    fun stages(job: Job, jobComplete: Boolean): List<ProjectStage> {
+    fun stages(job: Job, jobComplete: Boolean, billableTotal: Double = 0.0): List<ProjectStage> {
         val quoteSent = job.status != JobStatus.DRAFT
         val approved = job.status.isWon || job.signatureImagePath != null
+        // THE WHOLE DEPOSIT, not any money at all (2 Oct 2026).
+        //
+        // This step read "netPaid > 0 || paymentStatus != UNPAID" -- any money
+        // in -- while the office's readiness checklist read the same step as
+        // "the whole deposit is collected". So $500 of a $3,000 deposit ticked
+        // "Deposit received" on the phone and read "Asked $3,000.00, collected
+        // $500.00" in the office, on one job on one afternoon, and he reads
+        // them side by side. The office meaning survives, because this step is
+        // what decides whether the materials can be bought and the job put on
+        // the schedule, and half a deposit does not buy materials. It is now
+        // called "Deposit collected in full" so the other reading cannot be
+        // taken from it, and the payment-status value that any payment sets
+        // reads "Part paid" rather than "Deposit paid".
+        //
+        // JobMoney.depositSettled is the same arithmetic as the office's
+        // jobReadiness(): nothing asked for, or everything asked for is in.
         // netPaid, not amountPaid: a job paid and then fully refunded has not
         // had its deposit received, however much passed through it.
-        val depositReceived = JobMoney.netPaid(job) > 0.0 || job.paymentStatus != PaymentStatus.UNPAID
+        //
+        // [billableTotal] only caps the deposit at the price (JobMoney's own
+        // guard leaves it uncapped at zero), so a caller that has not got the
+        // estimate to hand still gets the right answer on every job whose
+        // deposit is at or below its price -- which is every live job today.
+        val depositReceived = JobMoney.depositSettled(job, billableTotal)
         val hoaDone = job.hoaApprovalStatus == HoaApprovalStatus.NOT_REQUIRED ||
             job.hoaApprovalStatus == HoaApprovalStatus.APPROVED
         val scheduled = job.scheduledDate != null
@@ -89,10 +110,14 @@ object ProjectStatus {
         job: Job,
         jobComplete: Boolean,
         businessName: String,
+        // Before [resolve], because [resolve] is passed as a trailing lambda
+        // at every call site and Kotlin binds a trailing lambda to the LAST
+        // parameter.
+        billableTotal: Double = 0.0,
         resolve: (Int, List<Any>) -> String
     ): String {
         val dateFormat = SimpleDateFormat("EEEE, MMMM d", Locale.US)
-        val lines = stages(job, jobComplete).joinToString("\n") { stage ->
+        val lines = stages(job, jobComplete, billableTotal).joinToString("\n") { stage ->
             val mark = when {
                 stage.done -> "[x]"
                 stage.current -> "[ ] " + resolve(R.string.eng2_update_we_are_here, emptyList())

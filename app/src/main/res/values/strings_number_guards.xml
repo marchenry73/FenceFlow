@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  A65: what a refused number says.
+
+  A NEW FILE on purpose, the same reason strings_pullsheet.xml is one:
+  strings.xml is held by another wave right now, and Android merges every
+  resource file inside one values folder into a single flat namespace, so
+  adding a file is identical to adding to strings.xml and cannot collide with
+  an edit to it.
+
+  These are the messages for a gate width, a panel width, a post spacing or a
+  calibration distance that cannot be used. A bad number here deletes the
+  panel, line post, cap and concrete lines off a priced quote and nulls the
+  contract total, three screens away from where it was typed, so each refusal
+  names the actual mistake rather than saying "invalid".
+
+  Three locales, same as the rest of the app. tests/strings-xml-wellformed.test.mjs
+  compares the resource names across values, values-es and values-fr, so all
+  three files carry exactly the same keys.
+
+  No double hyphen inside any comment in this file: XML forbids it and it has
+  killed mergeReleaseResources here twice.
+-->
+<resources>
+    <string name="num_blank">Type a number here. Leaving it empty would leave this fence with no size.</string>
+    <string name="num_not_a_number">That is not a number. Figures only, no units: type 5, not 5ft.</string>
+    <string name="num_not_finite">That is not a real measurement. Type a plain number, like 5 or 5.5.</string>
+    <string name="num_not_positive">This has to be more than zero. A zero here prices the fence at nothing.</string>
+    <string name="num_kept_last_good">Not saved. Still using %1$s.</string>
+    <string name="num_calibration_refused_title">Scale not set</string>
+    <string name="num_gate_width_refused">The gate was not added.</string>
+</resources>

@@ -50,6 +50,14 @@ import com.fenceestimator.app.ui.components.DraftTextField
 import com.fenceestimator.app.ui.components.GenericViewModelFactory
 import com.fenceestimator.app.ui.components.currentApp
 import com.fenceestimator.app.ui.components.label
+// A65: the number guards and the sentence for each refusal live with the
+// drawing screen's view model rather than being copied here, so the gate
+// width dialog and these spec fields cannot drift about what counts as a
+// usable measurement. They are pure functions in a companion object -- no
+// repository, no Context -- which is also what lets plain node check them
+// (tests/a65-run-selection-and-input-guards.test.mjs).
+import com.fenceestimator.app.ui.survey.SurveyViewModel
+import com.fenceestimator.app.ui.survey.numberRefusalMessage
 import com.fenceestimator.app.ui.theme.Space
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -58,7 +66,17 @@ fun RunEditScreen(
     runId: Long,
     onBack: () -> Unit,
     onDeleted: () -> Unit,
-    onDrawRun: (Long) -> Unit
+    /**
+     * Opens the drawing on a particular run: (jobId, runId).
+     *
+     * The run id is the fix for A65 finding 1. This used to be `(Long) ->
+     * Unit` taking the JOB id alone, so the drawing screen had no way to know
+     * which side the person had been looking at and fell back to the job's
+     * first run -- and every corner they then placed went onto that run's
+     * polyline instead. Both ids are passed because the route needs both; the
+     * drawing screen is per-job and the selection is per-run.
+     */
+    onDrawRun: (Long, Long) -> Unit
 ) {
     val app = currentApp()
     // This screen never read the session at all, which is how its delete button
@@ -131,7 +149,11 @@ fun RunEditScreen(
                 // actually safe to open.
                 val hasLine = currentRun.pointsEncoded.isNotBlank()
                 androidx.compose.material3.Button(
-                    onClick = { onDrawRun(currentRun.jobId) },
+                    // currentRun.id, not just its jobId: this button is ON a
+                    // run's own screen, so "this fence" is never ambiguous
+                    // here -- it was only ambiguous by the time the drawing
+                    // screen opened, because the run id was dropped on the way.
+                    onClick = { onDrawRun(currentRun.jobId, currentRun.id) },
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Icon(Icons.Filled.Edit, contentDescription = null)
@@ -204,14 +226,19 @@ fun RunEditScreen(
                 SectionCard(stringResource(R.string.est2_section_posts_concrete)) {
                     val locked = currentRun.fenceType == FenceType.VINYL || currentRun.fenceType == FenceType.ALUMINUM || currentRun.fenceType == FenceType.ORNAMENTAL_IRON
                     Row(horizontalArrangement = Arrangement.spacedBy(Space.row)) {
-                        DraftNumberField(
+                        // Post spacing divides the footage to get the post
+                        // count. Zero or non-finite is not a wide fence, it is
+                        // a fence with no posts priced on it at all.
+                        PositiveNumberField(
                             stableKey = currentRun.id,
                             label = stringResource(R.string.est2_post_spacing_ft),
                             initialValue = currentRun.postSpacingFt,
                             enabled = editable && !locked,
                             modifier = Modifier.weight(1f)
                         ) { viewModel.update { r -> r.copy(postSpacingFt = it) } }
-                        DraftNumberField(
+                        // Zero bags is a real answer: a wall-hung gate post
+                        // takes none. Negative and non-finite are not.
+                        NonNegativeNumberField(
                             stableKey = currentRun.id,
                             label = stringResource(R.string.est2_concrete_bags_per_post),
                             initialValue = currentRun.concreteBagsPerPost,
@@ -337,13 +364,145 @@ private fun FenceTypeDropdown(current: FenceType, editable: Boolean, onSelect: (
     }
 }
 
+/**
+ * A spec number that a fence cannot have at zero, negative or non-finite:
+ * panel width, panel height, post spacing, picket width, fabric height.
+ *
+ * WHY THIS WRAPPER EXISTS (A65 finding 2). These boxes write straight to the
+ * run on every keystroke, and [DraftNumberField] pushes `0f` for a blank box
+ * by a deliberate decision made for a different field -- a markup percentage
+ * wiped out to leave it at nothing used to stay at 15%, and the blank box
+ * said otherwise. Right for a markup, wrong here: clearing the panel-width
+ * box committed 0, and a panel width of zero takes the panel and line-post
+ * lines out of a vinyl, aluminium or ornamental quote. The person was not
+ * editing a number, they were halfway through replacing it.
+ *
+ * So [DraftNumberField] is left exactly as it is -- narrowing the shared
+ * field would change every screen that uses it, including the markup it was
+ * written for -- and the refusal is applied here, at the call site that needs
+ * it. The last good value is KEPT: nothing is written, the run still has the
+ * size it had, and the field says so. Blurring the box restores the stored
+ * number on screen too, because DraftNumberField re-seeds an unfocused field
+ * whose upstream value no longer matches what it last pushed.
+ *
+ * BLANK and a typed 0 are indistinguishable by the time they reach here, and
+ * both are refused, so nothing is lost by not telling them apart -- the
+ * message is [SurveyViewModel.NumberRefusal.NOT_POSITIVE] either way.
+ */
+@Composable
+private fun PositiveNumberField(
+    stableKey: Any,
+    label: String,
+    initialValue: Float,
+    enabled: Boolean,
+    modifier: Modifier = Modifier,
+    onAccepted: (Float) -> Unit
+) {
+    var refusal by remember(stableKey) {
+        mutableStateOf<SurveyViewModel.NumberRefusal?>(null)
+    }
+    Column(modifier) {
+        DraftNumberField(
+            stableKey = stableKey,
+            label = label,
+            initialValue = initialValue,
+            enabled = enabled,
+            modifier = Modifier.fillMaxWidth()
+        ) { value ->
+            val problem = SurveyViewModel.checkPositive(value)
+            refusal = problem
+            if (problem == null) onAccepted(value)
+        }
+        refusal?.let { problem ->
+            Text(
+                stringResource(numberRefusalMessage(problem)) + " " +
+                    stringResource(R.string.num_kept_last_good, formatSpecValue(initialValue)),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error
+            )
+        }
+    }
+}
+
+/**
+ * [PositiveNumberField] for a count that is stored as an Int and must be at
+ * least 1: wood rail count, rails per split-rail section.
+ *
+ * Its own wrapper because `it.toInt()` is where these went wrong in a way a
+ * Float field does not: `Float.NaN.toInt()` is 0, which `coerceAtLeast(1)`
+ * then quietly turned into 1 (a silently wrong answer rather than a refused
+ * one), and `Float.POSITIVE_INFINITY.toInt()` is Int.MAX_VALUE, which
+ * `coerceAtLeast(1)` happily passes through as a rail count of two billion.
+ */
+@Composable
+private fun PositiveCountField(
+    stableKey: Any,
+    label: String,
+    initialValue: Int,
+    enabled: Boolean,
+    modifier: Modifier = Modifier,
+    onAccepted: (Int) -> Unit
+) {
+    PositiveNumberField(
+        stableKey = stableKey,
+        label = label,
+        initialValue = initialValue.toFloat(),
+        enabled = enabled,
+        modifier = modifier
+    ) { value -> onAccepted(value.toInt().coerceAtLeast(1)) }
+}
+
+/**
+ * [PositiveNumberField] for a number where zero IS a real answer: concrete
+ * bags per post (a wall-hung gate takes none) and picket gap (a privacy fence
+ * has none). Only a negative or non-finite entry is refused.
+ */
+@Composable
+private fun NonNegativeNumberField(
+    stableKey: Any,
+    label: String,
+    initialValue: Float,
+    enabled: Boolean,
+    modifier: Modifier = Modifier,
+    onAccepted: (Float) -> Unit
+) {
+    var refusal by remember(stableKey) {
+        mutableStateOf<SurveyViewModel.NumberRefusal?>(null)
+    }
+    Column(modifier) {
+        DraftNumberField(
+            stableKey = stableKey,
+            label = label,
+            initialValue = initialValue,
+            enabled = enabled,
+            modifier = Modifier.fillMaxWidth()
+        ) { value ->
+            val problem = SurveyViewModel.checkNonNegative(value)
+            refusal = problem
+            if (problem == null) onAccepted(value)
+        }
+        refusal?.let { problem ->
+            Text(
+                stringResource(numberRefusalMessage(problem)) + " " +
+                    stringResource(R.string.num_kept_last_good, formatSpecValue(initialValue)),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error
+            )
+        }
+    }
+}
+
+/** The stored value as the field itself would show it, for "still using X". */
+private fun formatSpecValue(value: Float): String =
+    if (value.isFinite() && value % 1f == 0f) value.toInt().toString() else value.toString()
+
 @Composable
 private fun VinylFields(run: FenceRun, editable: Boolean, viewModel: RunEditViewModel) {
     Row(horizontalArrangement = Arrangement.spacedBy(Space.row)) {
-        DraftNumberField(stableKey = run.id, label = stringResource(R.string.est2_panel_width_ft), initialValue = run.panelWidthFt, enabled = editable, modifier = Modifier.weight(1f)) {
+        PositiveNumberField(stableKey = run.id, label = stringResource(R.string.est2_panel_width_ft), initialValue = run.panelWidthFt, enabled = editable, modifier = Modifier.weight(1f)) {
             viewModel.update { r -> r.copy(panelWidthFt = it, postSpacingFt = it) }
         }
-        DraftNumberField(stableKey = run.id, label = stringResource(R.string.est2_panel_height_ft), initialValue = run.panelHeightFt, enabled = editable, modifier = Modifier.weight(1f)) {
+        PositiveNumberField(stableKey = run.id, label = stringResource(R.string.est2_panel_height_ft), initialValue = run.panelHeightFt, enabled = editable, modifier = Modifier.weight(1f)) {
             viewModel.update { r -> r.copy(panelHeightFt = it) }
         }
     }
@@ -352,10 +511,10 @@ private fun VinylFields(run: FenceRun, editable: Boolean, viewModel: RunEditView
 @Composable
 private fun AluminumFields(run: FenceRun, editable: Boolean, viewModel: RunEditViewModel) {
     Row(horizontalArrangement = Arrangement.spacedBy(Space.row)) {
-        DraftNumberField(stableKey = run.id, label = stringResource(R.string.est2_panel_width_ft), initialValue = run.panelWidthFt, enabled = editable, modifier = Modifier.weight(1f)) {
+        PositiveNumberField(stableKey = run.id, label = stringResource(R.string.est2_panel_width_ft), initialValue = run.panelWidthFt, enabled = editable, modifier = Modifier.weight(1f)) {
             viewModel.update { r -> r.copy(panelWidthFt = it, postSpacingFt = it) }
         }
-        DraftNumberField(stableKey = run.id, label = stringResource(R.string.est2_panel_height_ft), initialValue = run.panelHeightFt, enabled = editable, modifier = Modifier.weight(1f)) {
+        PositiveNumberField(stableKey = run.id, label = stringResource(R.string.est2_panel_height_ft), initialValue = run.panelHeightFt, enabled = editable, modifier = Modifier.weight(1f)) {
             viewModel.update { r -> r.copy(panelHeightFt = it) }
         }
     }
@@ -389,21 +548,24 @@ private fun WoodFields(run: FenceRun, editable: Boolean, viewModel: RunEditViewM
         )
     }
     Row(horizontalArrangement = Arrangement.spacedBy(Space.row)) {
-        DraftNumberField(stableKey = run.id, label = stringResource(R.string.est2_fence_height_ft), initialValue = run.panelHeightFt, enabled = editable, modifier = Modifier.weight(1f)) { newHeight ->
+        PositiveNumberField(stableKey = run.id, label = stringResource(R.string.est2_fence_height_ft), initialValue = run.panelHeightFt, enabled = editable, modifier = Modifier.weight(1f)) { newHeight ->
             viewModel.update { r ->
                 r.copy(panelHeightFt = newHeight, woodRailCount = if (newHeight > 4f) 3 else 2)
             }
         }
-        DraftNumberField(stableKey = run.id, label = stringResource(R.string.est2_rail_count), initialValue = run.woodRailCount.toFloat(), enabled = editable, modifier = Modifier.weight(1f)) {
-            viewModel.update { r -> r.copy(woodRailCount = it.toInt().coerceAtLeast(1)) }
+        PositiveCountField(stableKey = run.id, label = stringResource(R.string.est2_rail_count), initialValue = run.woodRailCount, enabled = editable, modifier = Modifier.weight(1f)) {
+            viewModel.update { r -> r.copy(woodRailCount = it) }
         }
     }
     Row(horizontalArrangement = Arrangement.spacedBy(Space.row)) {
-        DraftNumberField(stableKey = run.id, label = stringResource(R.string.est2_picket_width_in), initialValue = run.picketWidthIn, enabled = editable, modifier = Modifier.weight(1f)) {
+        PositiveNumberField(stableKey = run.id, label = stringResource(R.string.est2_picket_width_in), initialValue = run.picketWidthIn, enabled = editable, modifier = Modifier.weight(1f)) {
             viewModel.update { r -> r.copy(picketWidthIn = it) }
         }
         if (run.woodStyle == WoodStyle.SPACED_PICKET) {
-            DraftNumberField(stableKey = run.id, label = stringResource(R.string.est2_picket_gap_in), initialValue = run.picketGapIn, enabled = editable, modifier = Modifier.weight(1f)) {
+            // Zero is a real answer here and only here in this row: a privacy
+            // fence has no gap between pickets. Only negative and non-finite
+            // are refused.
+            NonNegativeNumberField(stableKey = run.id, label = stringResource(R.string.est2_picket_gap_in), initialValue = run.picketGapIn, enabled = editable, modifier = Modifier.weight(1f)) {
                 viewModel.update { r -> r.copy(picketGapIn = it) }
             }
         }
@@ -412,7 +574,7 @@ private fun WoodFields(run: FenceRun, editable: Boolean, viewModel: RunEditViewM
 
 @Composable
 private fun ChainLinkFields(run: FenceRun, editable: Boolean, viewModel: RunEditViewModel) {
-    DraftNumberField(stableKey = run.id, label = stringResource(R.string.est2_fabric_height_ft), initialValue = run.fabricHeightFt, enabled = editable, modifier = Modifier.fillMaxWidth()) {
+    PositiveNumberField(stableKey = run.id, label = stringResource(R.string.est2_fabric_height_ft), initialValue = run.fabricHeightFt, enabled = editable, modifier = Modifier.fillMaxWidth()) {
         viewModel.update { r -> r.copy(fabricHeightFt = it) }
     }
     ToggleRow(stringResource(R.string.est2_include_top_rail), run.includeTopRail, editable) { viewModel.update { r -> r.copy(includeTopRail = it) } }
@@ -423,8 +585,8 @@ private fun ChainLinkFields(run: FenceRun, editable: Boolean, viewModel: RunEdit
 
 @Composable
 private fun SplitRailFields(run: FenceRun, editable: Boolean, viewModel: RunEditViewModel) {
-    DraftNumberField(stableKey = run.id, label = stringResource(R.string.est2_rails_per_section), initialValue = run.splitRailCount.toFloat(), enabled = editable, modifier = Modifier.fillMaxWidth()) {
-        viewModel.update { r -> r.copy(splitRailCount = it.toInt().coerceAtLeast(1)) }
+    PositiveCountField(stableKey = run.id, label = stringResource(R.string.est2_rails_per_section), initialValue = run.splitRailCount, enabled = editable, modifier = Modifier.fillMaxWidth()) {
+        viewModel.update { r -> r.copy(splitRailCount = it) }
     }
 }
 

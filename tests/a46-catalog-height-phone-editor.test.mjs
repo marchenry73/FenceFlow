@@ -211,15 +211,39 @@ const GROUPS = {
     const f = [];
     const p = port(s.fields);
     const editorWH = [...p.map.WIDTH_AND_HEIGHT].sort().join(",");
+    // RE-AIMED 2 Oct 2026. These two readers matched a height step of EXACTLY TWO roles. Engine
+    // 2026.10.2-.5 deliberately widened it to the post roles as well (a 6 ft fence was being
+    // given a 4 ft post), so both regexes stopped matching and this group reported "not found"
+    // -- a reader break reading as a source break. They now read HOWEVER MANY roles each engine
+    // names, and the comparison between the two engines is unchanged: a role added to one side
+    // alone still fails here.
+    //
+    // THE EDITOR WAS NOT WIDENED WITH THEM. That is a GAP and is pinned, not papered over: the
+    // engines pick a post row by height, and nothing on the phone (or on the office page -- see
+    // a46-catalog-height-office-editor) lets anyone type a height on a post row, so a post added
+    // in the app lands with heightFt null. The height rule drops a null-height row whenever a
+    // same-width sibling declares the run's height, so a new, cheaper post can be passed over
+    // with nothing on screen looking wrong. The expected lists below are what IS, with the gap
+    // named; widening sizeFieldsFor is the fix and will fail this group until the lists move too.
     const ktCode = stripCode(s.engine);
-    const ktBlock = /if \(entry\.role == MaterialRole\.(\w+) \|\| entry\.role == MaterialRole\.(\w+)\) \{\s*val current = candidates\s*candidates = current\.filter \{ c ->\s*c\.heightFt == run\.panelHeightFt/.exec(ktCode);
+    const rolesIn = (block) => [...block.matchAll(/\b([A-Z][A-Z_]+)\b/g)].map((m) => m[1]).sort();
+    const ktBlock = /if \(\s*((?:entry\.role == MaterialRole\.[A-Z_]+\s*(?:\|\|\s*)?)+)\)\s*\{\s*val current = candidates\s*candidates = current\.filter \{ c ->\s*c\.heightFt == run\.panelHeightFt/.exec(ktCode);
     const tsCode = stripCode(s.lineItems, "ts");
-    const tsBlock = /if \(entry\.role === "(\w+)" \|\| entry\.role === "(\w+)"\) \{\s*const current = candidates;\s*candidates = current\.filter\(\(c\) =>\s*c\.heightFt === run\.panelHeightFt/.exec(tsCode);
+    const tsBlock = /if \(\s*((?:entry\.role === "[A-Z_]+"\s*(?:\|\|\s*)?)+)\)\s*\{\s*const current = candidates;\s*candidates = current\.filter\(\(c\) =>\s*c\.heightFt === run\.panelHeightFt/.exec(tsCode);
     if (!ktBlock) f.push("EstimateEngine's height step (the roles it applies to) was not found");
     if (!tsBlock) f.push("line-items.ts's height step (the roles it applies to) was not found");
-    if (ktBlock && [ktBlock[1], ktBlock[2]].sort().join(",") !== editorWH) f.push(`EstimateEngine applies height to ${[ktBlock[1], ktBlock[2]].sort()} but the editor shows a height box for ${editorWH}`);
-    if (tsBlock && [tsBlock[1], tsBlock[2]].sort().join(",") !== editorWH) f.push(`line-items.ts applies height to ${[tsBlock[1], tsBlock[2]].sort()} but the editor shows a height box for ${editorWH}`);
+    const ENGINE_HEIGHT_ROLES = "BLANK_POST,CORNER_POST,END_POST,GATE_PANEL,GATE_POST,LINE_POST,PANEL";
+    const ktRoles = ktBlock ? rolesIn(ktBlock[1]) : null;
+    const tsRoles = tsBlock ? rolesIn(tsBlock[1]) : null;
+    if (ktRoles && tsRoles && ktRoles.join(",") !== tsRoles.join(",")) f.push(`the two engines read a height on different roles: EstimateEngine ${ktRoles} vs line-items.ts ${tsRoles}`);
+    if (ktRoles && ktRoles.join(",") !== ENGINE_HEIGHT_ROLES) f.push(`EstimateEngine applies height to ${ktRoles}, which is not the recorded set -- decide whether the height box should follow`);
+    if (tsRoles && tsRoles.join(",") !== ENGINE_HEIGHT_ROLES) f.push(`line-items.ts applies height to ${tsRoles}, which is not the recorded set -- decide whether the height box should follow`);
     if (editorWH !== "GATE_PANEL,PANEL") f.push("the height box is not exactly PANEL and GATE_PANEL: " + editorWH);
+    // GAP (pinned): exactly which roles the engines height-match and the editor has no box for.
+    if (ktRoles && ktRoles.filter((r) => !editorWH.split(",").includes(r)).join(",") !== "BLANK_POST,CORNER_POST,END_POST,GATE_POST,LINE_POST") {
+      f.push("the set of height-matched roles with no height box has changed: " + ktRoles.filter((r) => !editorWH.split(",").includes(r)));
+    }
+    if (ktRoles && editorWH.split(",").some((r) => !ktRoles.includes(r))) f.push("the height box is offered for a role no engine reads a height on: " + editorWH);
     if ((p.map.FABRIC_HEIGHT || []).join(",") !== "CHAIN_FABRIC") f.push("chain-link fabric is not the one role with the single fabric-height box");
     if (!/QtyEntry\(MaterialRole\.CHAIN_FABRIC, netFt\.toDouble\(\), preferCoversFt = run\.fabricHeightFt\)/.test(ktCode)) f.push("the engine no longer reads a fabric's coversFt as its HEIGHT, so the single fabric box is mislabelled");
     if (!/else -> SizeFields\.OTHER/.test(stripCode(s.fields))) f.push("no catch-all: a new role would not map to a box");
@@ -555,8 +579,14 @@ test("TEETH: every group fails on a mutant of what it guards", () => {
   // the roles
   fails("roles", mutate(SRC, "fields", "MaterialRole.PANEL, MaterialRole.GATE_PANEL -> SizeFields.WIDTH_AND_HEIGHT", "MaterialRole.PANEL, MaterialRole.GATE_PANEL, MaterialRole.HINGE_SET -> SizeFields.WIDTH_AND_HEIGHT"));
   fails("roles", mutate(SRC, "fields", "MaterialRole.CHAIN_FABRIC -> SizeFields.FABRIC_HEIGHT", "MaterialRole.TOP_RAIL -> SizeFields.FABRIC_HEIGHT"));
-  fails("roles", mutate(SRC, "lineItems", 'entry.role === "PANEL" || entry.role === "GATE_PANEL"', 'entry.role === "PANEL" || entry.role === "LINE_POST"'));
-  fails("roles", mutate(SRC, "engine", "if (entry.role == MaterialRole.PANEL || entry.role == MaterialRole.GATE_PANEL) {", "if (entry.role == MaterialRole.PANEL || entry.role == MaterialRole.GATE_POST) {"));
+  // RE-AIMED 2 Oct 2026 along with the reader above: these mutated a two-role height step that no
+  // longer exists in either engine, so mutate() threw on its own "target is not in" assertion and
+  // the teeth never ran. Same mutations, aimed at the current text -- drop GATE_PANEL from ONE
+  // engine's list -- so each still makes the two engines disagree and must be caught.
+  fails("roles", mutate(SRC, "lineItems", 'entry.role === "PANEL" || entry.role === "GATE_PANEL" ||', 'entry.role === "PANEL" ||'));
+  fails("roles", mutate(SRC, "engine", "entry.role == MaterialRole.PANEL || entry.role == MaterialRole.GATE_PANEL ||", "entry.role == MaterialRole.PANEL ||"));
+  // and a role added to one engine alone, which is the other way the two can drift apart
+  fails("roles", mutate(SRC, "lineItems", 'entry.role === "BLANK_POST"', 'entry.role === "BLANK_POST" || entry.role === "POST_CAP"'));
   // the screen's shape
   fails("screenShape", mutate(SRC, "screen", "label = { Text(stringResource(R.string.cat_fabric_height_ft)) },", "label = { Text(stringResource(R.string.cat_height_ft)) },"));
   fails("screenShape", mutate(SRC, "screen", "stringResource(R.string.cat_supplier_none)", "stringResource(R.string.cat_default_price)"));

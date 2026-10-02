@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "engine": {
-    "version": "2026.10.6",
-    "generated_at": "2026-10-02T03:33:16.202157300Z"
+    "version": "2026.10.8",
+    "generated_at": "2026-10-02T14:02:40.744264200Z"
   },
   "case": "teardown-run-keeps-edited-line",
   "note": "A teardown run builds nothing: its generated WOOD_PICKET row goes, and the CONCRETE_BAG somebody typed onto it stays and counts. The teardown charge prices as in teardown-drawn-run.",
   "input": {
-    "engine_version": "2026.10.6",
+    "engine_version": "2026.10.8",
     "pixels_per_foot": 20.0,
     "job": {
       "calibration_pixels_per_foot": 20.0,
@@ -232,21 +232,6 @@
         "color_or_finish": "Black",
         "unit": "BOX",
         "unit_price": 25.87,
-        "supplier_unit_price": null,
-        "taxable": true,
-        "covers_ft": null,
-        "is_active": true,
-        "manufacturer_sync_id": null
-      },
-      {
-        "sync_id": "2f92872d-7084-399f-9f35-c837a1bccc5f",
-        "name": "7\" SS Gate Handle (box of 50)",
-        "category": "HARDWARE",
-        "role": "HANDLE",
-        "fence_type": "VINYL",
-        "color_or_finish": "Black",
-        "unit": "BOX",
-        "unit_price": 5.0,
         "supplier_unit_price": null,
         "taxable": true,
         "covers_ft": null,
@@ -552,6 +537,21 @@
         "covers_ft": null,
         "is_active": true,
         "manufacturer_sync_id": null
+      },
+      {
+        "sync_id": "d3c19f75-9574-351a-9796-3bed07c6a46f",
+        "name": "7\" SS Gate Handle (box of 50)",
+        "category": "HARDWARE",
+        "role": "HANDLE",
+        "fence_type": "UNIVERSAL",
+        "color_or_finish": "Black",
+        "unit": "BOX",
+        "unit_price": 5.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "covers_ft": null,
+        "is_active": true,
+        "manufacturer_sync_id": null
       }
     ],
     "manufacturers": [],
@@ -586,7 +586,7 @@
     ]
   },
   "expected": {
-    "engine_version": "2026.10.6",
+    "engine_version": "2026.10.8",
     "linear_feet": 100.0,
     "teardown_linear_feet": 60.0,
     "billable_linear_feet": 100.0,

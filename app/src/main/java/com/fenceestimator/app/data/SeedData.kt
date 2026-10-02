@@ -170,9 +170,38 @@ object SeedData {
         sourceDoc = sourceDoc
     )
 
+    /**
+     * The rows that are not about what the fence is made of.
+     *
+     * A UNIVERSAL row is a candidate for a run of ANY fence type, alongside
+     * that type's own rows, and the cheapest priced candidate wins
+     * (EstimateEngine.buildLineItems / line-items.ts buildLineItems: the
+     * filter is `fenceType == run.fenceType || fenceType == UNIVERSAL`, then
+     * priced-beats-unpriced, then price, then sync id). So a UNIVERSAL row is
+     * the right filing ONLY for a part that genuinely fits every type -- file a
+     * vinyl part here and it will undercut and replace the real part on a
+     * chain-link quote.
+     *
+     * The gate HANDLE was filed VINYL and is here now. Nothing about a 7"
+     * stainless gate handle is vinyl: it is a pull that bolts through a leaf,
+     * and it was the one of the three vinyl-filed gate hardware rows (handle,
+     * brace, stiffener) that a wood, chain-link, aluminum, ornamental-iron,
+     * split-rail or composite gate can actually use. The takeoff asks every
+     * gate of every type for one, and on a fresh catalog six of the seven types
+     * had nothing to price it against, so the line silently vanished. The brace
+     * and the stiffener stay VINYL and the takeoff has stopped asking the other
+     * six for them -- see EstimateEngine.BRACED_GATE_TYPES and
+     * STIFFENED_GATE_TYPES, which is the honest half of the same fix.
+     *
+     * Moving it does NOT change a vinyl quote by a cent: it was the only HANDLE
+     * row either way, so a vinyl run chooses the same row at the same price.
+     * It also does not touch any company that already has a catalog -- this
+     * list is only ever the STARTING list, never a rewrite.
+     */
     private fun universalItems(): List<MaterialItem> = listOf(
         item(MaterialCategory.CONCRETE, MaterialRole.CONCRETE_BAG, FenceType.UNIVERSAL, "Concrete Mix 60lb Bag", unitPrice = 4.75, sourceDoc = SEEDED),
-        item(MaterialCategory.MISC, MaterialRole.HOLE_PLUG, FenceType.UNIVERSAL, "5/8\" Hole Plug, White", unitPrice = 0.15, colorOrFinish = "White", sourceDoc = SEEDED)
+        item(MaterialCategory.MISC, MaterialRole.HOLE_PLUG, FenceType.UNIVERSAL, "5/8\" Hole Plug, White", unitPrice = 0.15, colorOrFinish = "White", sourceDoc = SEEDED),
+        item(MaterialCategory.HARDWARE, MaterialRole.HANDLE, FenceType.UNIVERSAL, "7\" SS Gate Handle (box of 50)", unit = "BOX", unitPrice = 5.00, colorOrFinish = "Black", sourceDoc = SEEDED)
     )
 
     private fun vinylItems(): List<MaterialItem> {
@@ -188,7 +217,12 @@ object SeedData {
             item(MaterialCategory.GATE, MaterialRole.GATE_PANEL, t, "Regular PVC Gate 6'H x 5'W, White", unitPrice = 145.05, taxable = true, coversFt = 5f, colorOrFinish = "White", sourceDoc = SEEDED),
             item(MaterialCategory.HARDWARE, MaterialRole.HINGE_SET, t, "Self-Closing Hinge Set (box, 12 pairs)", unit = "BOX", unitPrice = 32.25, colorOrFinish = "White", sourceDoc = SEEDED),
             item(MaterialCategory.HARDWARE, MaterialRole.LATCH, t, "Two-Way Latch (box of 20)", unit = "BOX", unitPrice = 25.87, colorOrFinish = "Black", sourceDoc = SEEDED),
-            item(MaterialCategory.HARDWARE, MaterialRole.HANDLE, t, "7\" SS Gate Handle (box of 50)", unit = "BOX", unitPrice = 5.00, colorOrFinish = "Black", sourceDoc = SEEDED),
+            // The gate HANDLE used to be here. It is in universalItems() now --
+            // see the note there; a stainless pull is not a vinyl part, and six
+            // fence types were losing the line for want of a row to price.
+            // These two stay, because they ARE vinyl parts: the brace is a
+            // white bevelled 8 ft extrusion for a vinyl gate frame, and the
+            // stiffener is a 5" H-frame sized to a 5x5 vinyl post.
             item(MaterialCategory.HARDWARE, MaterialRole.BRACE, t, "Gate Support Brace, 8'", unitPrice = 6.50, colorOrFinish = "White", sourceDoc = SEEDED),
             item(MaterialCategory.HARDWARE, MaterialRole.STIFFENER, t, "5\" Econo Stiffener x 8'(H)", unitPrice = 52.75, sourceDoc = SEEDED),
             item(MaterialCategory.TRIM, MaterialRole.TRIM, t, "7/8 x 1-1/2 x 62 1/4 Trim U-Channel, White", unitPrice = 2.00, colorOrFinish = "White", sourceDoc = SEEDED),

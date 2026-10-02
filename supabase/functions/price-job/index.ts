@@ -8,11 +8,17 @@
  *   POST { job_sync_id, mode: "dry_run" | "commit" | "sample",
  *          expected_updated_at?, template_sync_id?, feet? }
  *
- * There is exactly one door, the signed-in office, and it is checked in
- * code rather than only at the gateway (verify_jwt = true in config.toml
- * rejects a request with no valid JWT before this ever runs, but the
- * company/role/permission checks below are what actually decide whether
- * THIS caller may see THIS job's money). Everything after the auth check
+ * There is exactly one door, the signed-in office, and it is checked HERE, in
+ * this function, because nothing checks it earlier: `verify_jwt = false` for
+ * price-job in config.toml, and the live function agrees (supabase functions
+ * list, read 2 Oct 2026). It is off on purpose -- the browser's CORS preflight
+ * carries no token, and with the gateway checking as well the office saw only
+ * "Failed to fetch" -- so the getUser() call below is not a second opinion,
+ * it is the ONLY thing standing between an unauthenticated POST and a job's
+ * money. (An earlier version of this comment claimed verify_jwt was true. It
+ * was not, and believing it would make every check below look redundant.)
+ * The company/role/permission checks after it are what decide whether THIS
+ * caller may see THIS job's money. Everything after the auth check
  * runs on a client built from the caller's own Authorization header --
  * never the service role -- so Postgres RLS enforces company isolation the
  * same way it does for every other read the app makes. A bug in this file
@@ -79,14 +85,99 @@ const JOB_COLUMNS = "sync_id, updated_at, calibration_pixels_per_foot, tax_rate_
   "minimum_labor_charge, " +
   "waste_percent, gate_rate_per_ft, trash_haul_fee, teardown_enabled, teardown_flat_fee, " +
   "teardown_rate_per_ft, teardown_feet, preferred_manufacturer_sync_id, survey_storage_path";
+/**
+ * Whether `fence_runs.start_joint` / `end_joint` exist in the database, and so
+ * whether this select may name them.
+ *
+ * TRUE. PostgREST refuses a `.select()` naming a column that does not exist
+ * and the refusal is the WHOLE request, so getting this wrong does not lose
+ * the joins -- it stops price-job pricing any job for any company. So it is
+ * not an opinion, it is a fact about production, and it was read there before
+ * this was flipped (read-only SELECT, 2 Oct 2026, with a positive control
+ * that there are rows to look at and a canary proving the test could fail):
+ *
+ *   start_joint, end_joint      exist, text NOT NULL DEFAULT ''   (a32 PART 1)
+ *   is_transition               exists, boolean NOT NULL false     (a32 PART 2)
+ *   reapp_row_takeoff           reads both columns                 (a56 PART A)
+ *   rows carrying a joint id    0 of 19 fence_runs
+ *
+ * So supabase_a32_join_runs.sql IS applied, and its own header still says
+ * "WRITTEN, NOT APPLIED" -- do not trust that line, trust the query.
+ *
+ * Nothing prices differently because of this flip: no run anywhere carries a
+ * joint, so every run reads '' and `adjustJoins` returns NO_JOIN_ADJUSTMENT.
+ * What it buys is that the office can SEE a joint the day the phone starts
+ * sending one, instead of quoting two end posts where the phone quotes one
+ * shared post.
+ *
+ * THE PHONE'S WRITE SIDE IS STILL OFF, and that is the remaining step, in a
+ * file this change does not own: `EntitySync.JOIN_COLUMNS_LIVE` is false, so
+ * the phone never sends a joint (a batched fence_runs upsert naming an unknown
+ * column is refused whole, which was the right caution while the columns did
+ * not exist). After that, `SurveyViewModel.JOIN_STORAGE_READY` and
+ * `JOIN_PRICING_READY` are what put the Attach tool in front of him.
+ *
+ * ORDER STILL MATTERS: a join made while the phone's flag is false pushes the
+ * run WITHOUT it, the cloud's clock then leads, and that run never pushes
+ * again on its own -- the join is stranded on the handset for good. So the
+ * tool must not be offered before EntitySync is sending.
+ */
+const JOIN_COLUMNS_LIVE = true;
 const RUN_COLUMNS = "sync_id, label, fence_type, color_or_finish, points_encoded, gates_encoded, " +
   "closed_loop, manual_linear_feet, manual_corner_count, panel_width_ft, panel_height_ft, " +
   "post_spacing_ft, concrete_bags_per_post, aluminum_style, wood_style, wood_rail_count, " +
   "picket_width_in, picket_gap_in, fabric_height_ft, include_top_rail, include_tension_wire, " +
   "include_barbed_wire_arms, include_privacy_slats, split_rail_count, suppressed_roles, " +
-  "is_teardown, sort_order";
+  "is_teardown, sort_order" +
+  (JOIN_COLUMNS_LIVE ? ", start_joint, end_joint" : "");
+/**
+ * height_ft is in this list because the engine READS it and this select is BY
+ * NAME, which is the quiet-wrong-answer shape described on JOB_COLUMNS above:
+ * PostgREST returns the row without the key, `materialItemRowToInput` (load.ts)
+ * only copies height_ft when the row HAS it, `materialItemFromRow` (index.ts)
+ * turns the absent key into `heightFt: null`, and the engine then prices the
+ * job exactly as a catalog that declares no height at all. No error anywhere.
+ *
+ * So omitting it did not switch the height rule off for jobs whose catalog has
+ * no heights -- it switched it off for EVERY job on EVERY catalog, from the
+ * office only, while the phone (reading its own SQLite row, height and all)
+ * kept applying it. That is the office/phone split this file exists to
+ * prevent, and it is the same defect the phone had before engine 2026.10.2.
+ *
+ * Both rules the column feeds were being lost, not just the panel one:
+ *   2026.10.2  between PANEL / GATE_PANEL rows of one width, the row whose
+ *              height_ft equals the run's panel_height_ft wins. Office-only
+ *              cost on the starting catalog: a 6 ft iron run priced with the
+ *              4 ft high panel, $40 a panel UNDER before tax and markup.
+ *   2026.10.3  the same preference on LINE_POST / END_POST / CORNER_POST /
+ *              GATE_POST / BLANK_POST, where height_ft is the FENCE height the
+ *              post is for. A post has no width, so without the height it is
+ *              chosen by price alone -- the office quoted a six-foot fence the
+ *              supplier's FOUR-foot post, which is a fence that falls over.
+ * Whichever engine committed last won, and the office's number is what stamps
+ * contract_total.
+ *
+ * Safe to name: `material_items.height_ft` exists on the live project, type
+ * `real` (supabase_a40_material_height.sql; read-only SELECT of
+ * information_schema, 2 Oct 2026, with a column that must be present and a
+ * column that cannot exist as controls, both of which answered correctly).
+ * That check matters because a `.select()` naming a column that does not exist
+ * is refused WHOLE -- it would stop price-job pricing any job for any company,
+ * exactly as noted on JOIN_COLUMNS_LIVE.
+ *
+ * Nullable, and deliberately left so: a row that declares no height reads null
+ * and prices as it always did. Height only ever separates rows that already
+ * tie, so adding the column cannot move a quote whose catalog is silent.
+ *
+ * NOT added, and not an oversight: `supplier_unit_price`. load.ts copies it
+ * onto the contract row (so the recorded fixtures match), but no engine reads
+ * it off a CATALOG row -- `materialItemFromRow` never puts it on MaterialItem,
+ * which has no such field, and `withQuotedPrices` (line-items.ts) reads the
+ * supplier price off the EXISTING ESTIMATE LINES, which LINE_ITEM_COLUMNS does
+ * select. Selecting it here would cost a column and change no number.
+ */
 const CATALOG_COLUMNS = "sync_id, name, category, role, fence_type, color_or_finish, unit, " +
-  "unit_price, taxable, covers_ft, manufacturer_sync_id, is_active";
+  "unit_price, taxable, covers_ft, height_ft, manufacturer_sync_id, is_active";
 const MANUFACTURER_COLUMNS = "sync_id, name";
 const CHANGE_ORDER_COLUMNS = "sync_id, additional_feet, additional_cost, material_cost";
 const LINE_ITEM_COLUMNS = "sync_id, fence_run_sync_id, role, description, quantity, unit, " +

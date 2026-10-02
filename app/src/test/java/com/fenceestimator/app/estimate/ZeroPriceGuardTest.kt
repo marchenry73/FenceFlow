@@ -49,8 +49,12 @@ import org.junit.Test
  * ITEM 4 -- [EstimateEngine] hardcoded two "gate posts" per gate regardless
  * of mounting, but a LINE_TO_WALL gate's own area
  * ([EstimateEngine.gateAreaEntries], private, exercised here through
- * [EstimateEngine.suggestQuantities]) adds a THIRD end post -- the run
- * terminates twice. POST_CAP is priced off the two-per-gate count, so a
+ * [EstimateEngine.suggestQuantities]) adds a THIRD post -- the run
+ * terminates twice. (That third post was an END_POST when this was written
+ * and still is; the gate's own TWO became GATE_POST rows later, which is why
+ * the assertion below reads END_POST 3 + GATE_POST 2 rather than END_POST 5.
+ * Same five terminal posts either way.) POST_CAP is priced off the
+ * two-per-gate count, so a
  * LINE_TO_WALL gate billed one fewer cap than the posts the same takeoff
  * put in the ground. Fixed in both engines (this file and takeoff.ts) so
  * parity holds; WALL and LINE both still take exactly two, unchanged.
@@ -258,23 +262,53 @@ class ZeroPriceGuardTest {
         EstimateEngine.suggestQuantities(run, pixelsPerFoot = 20f)
             .entries.filter { it.role == MaterialRole.END_POST }.sumOf { it.quantity }
 
+    private fun gatePostQty(run: FenceRun): Double =
+        EstimateEngine.suggestQuantities(run, pixelsPerFoot = 20f)
+            .entries.filter { it.role == MaterialRole.GATE_POST }.sumOf { it.quantity }
+
     @Test
     fun `FIXED -- a LINE_TO_WALL gate now bills a post cap for every post it actually stands`() {
         val run = gateRun(GateMounting.LINE_TO_WALL)
         val workings = EstimateEngine.explainPosts(run, pixelsPerFoot = 20f)
 
+        // RE-AIMED, not relaxed. The gate's own two posts are billed as
+        // GATE_POST now rather than END_POST: a post standing at an opening is
+        // not an end of the fence, and the owner's catalog has GATE_POST rows
+        // priced by hand that nothing could reach while the takeoff asked for
+        // END_POST. So the END_POST pin moved 5.0 -> 3.0 and a GATE_POST 2.0
+        // appeared beside it. The old 5 was "2 fence ends + 3 from the gate
+        // area"; the 3 is "2 fence ends + the ONE genuine end the gate area
+        // still adds", that one being where the rest of the run terminates at
+        // the wall (LINE_TO_WALL ends the fence line a second time). 3 + 2 is
+        // the same five terminal posts as before.
+        //
+        // What this test exists to pin has NOT moved and is asserted below:
+        // gatePosts is still 3, physical posts are still 19, and POST_CAP is
+        // still 19 -- no shortfall. Cross-checked against
+        // fixtures/pricing/gate-line-to-wall-mount.json (engine 2026.10.8,
+        // identical shape) and the TypeScript port run live on it:
+        // posts {line 14, corner 0, end 2, gate 3, total 19},
+        // roles {END_POST 3, GATE_POST 2, POST_CAP 19}.
         assertEquals(
-            "fixture precondition: the gate area really adds a THIRD end post " +
-                "(2 fence ends + 3 from the gate area)",
-            5.0, endPostQty(run), 0.001
+            "fixture precondition: the gate area still adds a THIRD post, now " +
+                "split GATE_POST 2 + END_POST 1 (so 2 fence ends + 1 wall end)",
+            3.0, endPostQty(run), 0.001
+        )
+        assertEquals(
+            "the gate's own two posts, billed against the GATE_POST rows now",
+            2.0, gatePostQty(run), 0.001
         )
         assertEquals("gatePosts now counts all three the gate area builds", 3, workings.gatePosts)
 
-        // Physical posts actually standing: 14 line + 0 corner + 5 end = 19,
-        // matching fixtures/pricing/gate-line-to-wall-mount.json run through
-        // the fixed takeoff.ts (posts.total 18 -> 19, POST_CAP 18 -> 19).
-        val physicalPosts = workings.linePosts + workings.cornerPosts + endPostQty(run)
+        // Physical posts actually standing: 14 line + 0 corner + 3 end + 2 gate
+        // = 19, matching the fixture above (posts.total 18 -> 19, POST_CAP
+        // 18 -> 19 when this was fixed). GATE_POST is in the sum because the
+        // posts it names are in the ground; leaving it out is what would hide
+        // a real shortfall behind the role rename.
+        val physicalPosts =
+            workings.linePosts + workings.cornerPosts + endPostQty(run) + gatePostQty(run)
         assertEquals(19.0, physicalPosts, 0.001)
+        assertEquals("the engine's own total agrees", 19, workings.totalPosts)
         assertEquals(
             "FIXED: POST_CAP now matches the physical post count exactly -- no shortfall",
             physicalPosts, postCapQty(run), 0.001

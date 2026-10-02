@@ -236,7 +236,13 @@ test("harness: the readers find the phone's 92 rows, the office's 92 rows and th
   assert.equal(KOTLIN.rows.length, 92, "SeedData.kt");
   assert.equal(OFFICE.length, 92, "CATALOG_SEED");
   const perType = KOTLIN.rows.reduce((m, r) => ((m[r.fence_type] = (m[r.fence_type] || 0) + 1), m), {});
-  assert.deepEqual(perType, { VINYL: 19, WOOD: 10, CHAIN_LINK: 18, ALUMINUM: 14, ORNAMENTAL_IRON: 11, SPLIT_RAIL: 8, COMPOSITE: 10, UNIVERSAL: 2 });
+  // RE-AIMED 2 Oct 2026: VINYL 19 -> 18 and UNIVERSAL 2 -> 3. ONE row moved between the two
+  // blocks, deliberately -- the 7" stainless gate handle was filed VINYL and is now UNIVERSAL,
+  // because a gate handle is the same product on all seven fence types (SeedData.kt's own comment
+  // on universalItems(), and a60-gate-hardware-by-fence-type proves it moves a vinyl quote by
+  // zero cents). The TOTAL is still 92, asserted above, so this is a move and not an addition.
+  assert.deepEqual(perType, { VINYL: 18, WOOD: 10, CHAIN_LINK: 18, ALUMINUM: 14, ORNAMENTAL_IRON: 11, SPLIT_RAIL: 8, COMPOSITE: 10, UNIVERSAL: 3 });
+  assert.equal(Object.values(perType).reduce((a, b) => a + b, 0), 92, "the per-type counts no longer add up to the list");
   assert.equal(KOTLIN.seeded, "Starting price \u2014 verify with your supplier", "control: the label constant was read");
   const blocks = changeBlocks(SQL);
   assert.equal(blocks.length, 2);
@@ -244,6 +250,21 @@ test("harness: the readers find the phone's 92 rows, the office's 92 rows and th
   assert.ok(blocks[0].length > 5000, "the change block was captured whole");
 });
 
+// LEFT RED ON PURPOSE, 2 Oct 2026. This and the office/phone comparison below are the two checks
+// in this file that compare the THREE copies of the starting catalog, and they are both reporting
+// a real drift rather than a stale expectation:
+//
+//   * the 7" SS gate handle was re-filed VINYL -> UNIVERSAL (change E of 1 Oct) in SeedData.kt
+//     and in supabase_r20_seed_new_company_catalog.sql, and NOT in website/dashboard.html's
+//     CATALOG_SEED, which still says VINYL;
+//   * the four A1 rows (three 6x6 vinyl privacy panels and the 6'x5' PVC gate) were made taxable
+//     in SeedData.kt and in the SQL on 1 Oct (commit 87639fc) and are still taxable:false in
+//     dashboard.html.
+//
+// Nothing here is to be adjusted. The fix is two edits to website/dashboard.html, and
+// a60-gate-hardware-by-fence-type's failure message gives the handle one word for word
+// (including that the row must MOVE to the end of the UNIVERSAL block, because
+// catalogSeedCounts() keys its counts in array order).
 test("harness: the analysis is clean on the real file", () => {
   assert.deepEqual(problems(SQL, KOTLIN, OFFICE), []);
 });

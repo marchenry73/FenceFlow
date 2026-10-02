@@ -8,20 +8,15 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import kotlinx.coroutines.launch
-import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.Card
@@ -38,29 +33,20 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.geometry.Offset
-import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.fenceestimator.app.R
 import com.fenceestimator.app.data.FenceRun
 import com.fenceestimator.app.data.Job
 import com.fenceestimator.app.data.SiteMarker
-import com.fenceestimator.app.estimate.DrawingScale
 import com.fenceestimator.app.estimate.PlanExtent
 import com.fenceestimator.app.geometry.FenceCodec
 import com.fenceestimator.app.geometry.FenceGeometryEngine
-import com.fenceestimator.app.geometry.FencePoint
 import com.fenceestimator.app.ui.components.EmptyState
 import com.fenceestimator.app.ui.components.GenericViewModelFactory
 import com.fenceestimator.app.ui.components.currentApp
 import com.fenceestimator.app.ui.components.label
 import com.fenceestimator.app.ui.survey.SurveyViewModel
-import com.fenceestimator.app.ui.theme.PlanColors
-import com.fenceestimator.app.ui.theme.Radius
 import com.fenceestimator.app.ui.theme.Space
 
 /**
@@ -148,8 +134,8 @@ fun CrewFencePlanScreen(jobId: Long, onBack: () -> Unit) {
             // to hang.
             val drawn = runs.filter { PlanExtent.hasSomethingToDraw(it) }
             if (drawn.isNotEmpty()) {
-                item { PlanCanvas(currentJob, drawn, markers) }
-                item { Legend(drawn, markers) }
+                item { com.fenceestimator.app.ui.components.FencePlanCanvas(currentJob, drawn, markers) }
+                item { com.fenceestimator.app.ui.components.FencePlanLegend(drawn, markers) }
             }
 
             // Empty and broken look identical on a bare list -- this is the
@@ -178,196 +164,15 @@ fun CrewFencePlanScreen(jobId: Long, onBack: () -> Unit) {
     }
 }
 
-/**
- * Draws every run to fit the screen. The scale is derived from the drawing's
- * own bounds rather than the survey image, so the plan is legible on a phone
- * regardless of where on the canvas the fence was drawn.
- */
-@Composable
-private fun PlanCanvas(job: Job, runs: List<FenceRun>, markers: List<SiteMarker>) {
-    Card(Modifier.fillMaxWidth()) {
-        Box(
-            Modifier.fillMaxWidth().aspectRatio(1.1f)
-                .padding(Space.md)
-                .clip(RoundedCornerShape(Radius.sm))
-                // White, like the drawing surface the plan was made on, so the
-                // crew are looking at the same picture rather than a recoloured
-                // version of it.
-                .background(androidx.compose.ui.graphics.Color.White)
-        ) {
-            // The drawing's scale, the one the drawing screen measures at
-            // (DrawingScale.of) -- what turns a gate's width in feet into a
-            // width on the plan.
-            val drawingScale = DrawingScale.of(job)
-            // A gate with no fence line under it, laid level at its real width
-            // where it was placed, exactly as the drawing screen lays it. Per
-            // run, so each is drawn in its run's turn below.
-            val standaloneByRun = runs.map { PlanExtent.standaloneGateSpans(listOf(it), drawingScale) }
-            // Fitted to the fence lines, as it always was, and to both posts
-            // of every gate standing on its own. With no scale (a photo nobody
-            // has calibrated) such a gate has no width to draw, so its marker
-            // alone is fitted and drawn.
-            val allPoints = runs.flatMap { run ->
-                val points = FenceCodec.decodePoints(run.pointsEncoded)
-                if (points.size >= 2) points
-                else FenceCodec.decodeGates(run.gatesEncoded).map { FencePoint(it.x, it.y) }
-            } + standaloneByRun.flatten().flatMap { (_, span) -> listOf(span.start, span.end) }
-            if (allPoints.isEmpty()) return@Box
-
-            val minX = allPoints.minOf { it.x }
-            val maxX = allPoints.maxOf { it.x }
-            val minY = allPoints.minOf { it.y }
-            val maxY = allPoints.maxOf { it.y }
-            // Guard against a perfectly straight run, where one span is zero and
-            // would divide the scale to infinity.
-            val spanX = (maxX - minX).coerceAtLeast(1f)
-            val spanY = (maxY - minY).coerceAtLeast(1f)
-
-            Canvas(Modifier.fillMaxSize()) {
-                val pad = 32f
-                val usableW = (size.width - pad * 2).coerceAtLeast(1f)
-                val usableH = (size.height - pad * 2).coerceAtLeast(1f)
-                val scale = minOf(usableW / spanX, usableH / spanY)
-
-                // Centre whatever is left over, so the plan sits in the middle
-                // instead of hugging a corner.
-                val offsetX = pad + (usableW - spanX * scale) / 2f
-                val offsetY = pad + (usableH - spanY * scale) / 2f
-
-                fun place(p: FencePoint) = Offset(
-                    offsetX + (p.x - minX) * scale,
-                    offsetY + (p.y - minY) * scale
-                )
-
-                // The same grid the plan was drawn on.
-                //
-                // Without it the crew were reading a bare outline while the
-                // office was looking at a scaled drawing -- the same fence, but
-                // no shared way to say "about two squares past the corner".
-                // Spacing comes from the job so both views agree on what a
-                // square means.
-                val feetPerSquare = job.gridFeetPerSquare.coerceAtLeast(0.5f)
-                // The scale the drawing screen draws at (SurveyViewModel.drawingScale),
-                // so a square here is the square the office drew on. The raw
-                // calibration fell back to a flat 20 units per foot, which on
-                // an uncalibrated grid of any other size drew the squares at
-                // the wrong spacing.
-                val pxPerFoot = SurveyViewModel.drawingScale(job) ?: SurveyViewModel.PIXELS_PER_FOOT_GRID
-                val squarePx = feetPerSquare * pxPerFoot * scale
-                if (squarePx > 6f) {
-                    var gx = offsetX
-                    while (gx <= size.width) {
-                        drawLine(PlanColors.grid, Offset(gx, 0f), Offset(gx, size.height), strokeWidth = 1f)
-                        gx += squarePx
-                    }
-                    var gy = offsetY
-                    while (gy <= size.height) {
-                        drawLine(PlanColors.grid, Offset(0f, gy), Offset(size.width, gy), strokeWidth = 1f)
-                        gy += squarePx
-                    }
-                }
-
-                runs.forEachIndexed { runIndex, run ->
-                    val points = FenceCodec.decodePoints(run.pointsEncoded)
-
-                    if (points.size >= 2) {
-                        // Teardown reads differently from a run being built, the
-                        // same as it does on the drawing screen -- the crew needs
-                        // to tell "pull this out" from "build this" from the plan
-                        // itself, not by asking.
-                        val lineColor = if (run.isTeardown) PlanColors.teardownLine else PlanColors.fenceLine
-                        val count = if (run.closedLoop) points.size else points.size - 1
-                        for (i in 0 until count) {
-                            drawLine(
-                                color = lineColor,
-                                start = place(points[i]),
-                                end = place(points[(i + 1) % points.size]),
-                                strokeWidth = 6f
-                            )
-                        }
-                        // Every vertex is a post the crew has to set, so mark them.
-                        points.forEach { drawCircle(lineColor, radius = 9f, center = place(it)) }
-                    }
-
-                    // A gate standing on its own: the opening at its real
-                    // width and the two posts it hangs between, which are what
-                    // the crew sets in concrete. Under the gate's own marker,
-                    // drawn next, so it reads as the same gate as every other.
-                    standaloneByRun[runIndex].forEach { (_, span) ->
-                        val from = place(span.start)
-                        val to = place(span.end)
-                        drawLine(PlanColors.gate, from, to, strokeWidth = 6f)
-                        drawCircle(PlanColors.gate, radius = 9f, center = from)
-                        drawCircle(PlanColors.gate, radius = 9f, center = to)
-                    }
-
-                    FenceCodec.decodeGates(run.gatesEncoded).forEach { gate ->
-                        val at = place(FencePoint(gate.x, gate.y))
-                        drawCircle(PlanColors.gate, radius = 16f, center = at)
-                        drawCircle(Color.White, radius = 16f, center = at, style = Stroke(width = 4f))
-                    }
-                }
-
-                markers.forEach { marker ->
-                    val at = place(FencePoint(marker.x, marker.y))
-                    drawCircle(PlanColors.marker(marker.kind), radius = 13f, center = at)
-                    drawCircle(Color.White, radius = 13f, center = at, style = Stroke(width = 3f))
-                }
-            }
-        }
-    }
-}
-
-/**
- * What the colours on [PlanCanvas] mean, for exactly what is on this job.
- *
- * Site markers used to share one generic amber dot regardless of kind, so
- * this said "Watch out" and left the crew to work out what from the canvas
- * alone. The canvas now draws a pool, a tree and a utility line in three
- * different colours -- the same three the office sees while drawing -- so
- * the legend has to say which is which or it stops explaining what it is
- * next to.
- */
-@Composable
-private fun Legend(runs: List<FenceRun>, markers: List<SiteMarker>) {
-    // Only runs with a line put a line on the plan; a gate-only run is here
-    // for its gate, which the gate dot already explains. On such a job that
-    // dot IS the plan's explanation, so its label is translated like every
-    // other one here -- it was the last English word left on a Spanish or
-    // French crew phone's plan.
-    val lined = remember(runs) { runs.filter { FenceCodec.decodePoints(it.pointsEncoded).size >= 2 } }
-    val hasBuildLine = remember(lined) { lined.any { !it.isTeardown } }
-    val hasTeardownLine = remember(lined) { lined.any { it.isTeardown } }
-    val presentMarkerKinds = remember(markers) { markers.map { it.kind }.distinct() }
-
-    Column(verticalArrangement = Arrangement.spacedBy(Space.xs)) {
-        Row(horizontalArrangement = Arrangement.spacedBy(Space.lg)) {
-            if (hasBuildLine) LegendDot(PlanColors.fenceLine, stringResource(R.string.crew_plan_legend_build))
-            if (hasTeardownLine) LegendDot(PlanColors.teardownLine, stringResource(R.string.crew_plan_legend_teardown))
-            LegendDot(PlanColors.gate, stringResource(R.string.crew_plan_legend_gate))
-        }
-        // Two per row rather than one long row, so this stays legible on a
-        // 360dp phone even on a job with several kinds of marker on it.
-        presentMarkerKinds.chunked(2).forEach { pair ->
-            Row(horizontalArrangement = Arrangement.spacedBy(Space.lg)) {
-                pair.forEach { kind -> LegendDot(PlanColors.marker(kind), kind.label()) }
-            }
-        }
-    }
-}
-
-@Composable
-private fun LegendDot(color: Color, label: String) {
-    Row(verticalAlignment = androidx.compose.ui.Alignment.CenterVertically) {
-        Box(
-            Modifier.padding(end = 6.dp)
-                .size(12.dp)
-                .clip(RoundedCornerShape(50))
-                .background(color)
-        )
-        Text(label, style = MaterialTheme.typography.bodySmall)
-    }
-}
+// PlanCanvas, Legend and LegendDot used to live here as private composables.
+//
+// They moved, unchanged, to ui/components/FencePlanView.kt as
+// [com.fenceestimator.app.ui.components.FencePlanCanvas] and
+// [com.fenceestimator.app.ui.components.FencePlanLegend], because the pull
+// sheet needs the SAME picture and a fence drawn twice is a fence drawn wrong
+// one of those times. Nothing about the geometry, the scale, the grid or the
+// colours changed in the move, and every comment recording why a line of it is
+// the way it is went with it.
 
 /** The spec for one run, in the terms a crew works in. No prices. */
 @Composable
@@ -379,7 +184,7 @@ private fun RunCard(job: Job, run: FenceRun) {
 
     // Honour typed-in footage. Reading "no fence line drawn" on a run that was
     // quoted by typing its length tells the crew the job isn't ready when it is.
-    // Same scale as the drawing screen's dimensions (see PlanCanvas above).
+    // Same scale as the drawing screen's dimensions (see FencePlanCanvas).
     val pxPerFt = SurveyViewModel.drawingScale(job) ?: SurveyViewModel.PIXELS_PER_FOOT_GRID
     val geometry = if (points.size >= 2) FenceGeometryEngine.analyze(points, pxPerFt, run.closedLoop) else null
     val feet = if (usingManual) manual!!.toDouble() else geometry?.totalLinearFeet?.toDouble() ?: 0.0

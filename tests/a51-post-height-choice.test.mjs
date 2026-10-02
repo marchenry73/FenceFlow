@@ -481,7 +481,19 @@ const ROLE_GATE_TS = TS_STEP === null ? "" : "if (" + TS_STEP.cond + ") {";
 
 async function mutant(mutate, label) {
   const dir = mkdtempSync(join(tmpdir(), "a51-mutant-"));
-  for (const f of readdirSync(PRICING_DIR)) if (/^(f32|geometry|index|kotlin-text|line-items|load|takeoff|totals|types|uuid3)\.ts$/.test(f)) copyFileSync(join(PRICING_DIR, f), join(dir, f));
+  // RE-AIMED 2 Oct 2026: this named the engine's modules in a hardcoded list, so the moment the
+  // shared-corner-post work (engine 2026.10.6) added joins.ts the copy was incomplete and every
+  // mutant died on ERR_MODULE_NOT_FOUND -- a harness break reading as three failed teeth.
+  // Copy every module instead, so a module added later cannot silently break this again, and
+  // then PROVE the copy is complete by resolving each relative import rather than trusting the
+  // filter: an unresolvable import is the exact failure this replaces.
+  for (const f of readdirSync(PRICING_DIR)) if (/\.ts$/.test(f) && !/_test\.ts$/.test(f)) copyFileSync(join(PRICING_DIR, f), join(dir, f));
+  const copied = new Set(readdirSync(dir));
+  for (const f of copied) {
+    for (const [, spec] of readFileSync(join(dir, f), "utf8").matchAll(/from "\.\/([^"]+)"/g)) {
+      assert.ok(copied.has(spec), `the mutant directory is missing ${spec}, imported by ${f}: the copy filter has stopped matching this engine's modules`);
+    }
+  }
   const src = readFileSync(join(dir, "line-items.ts"), "utf8");
   const next = mutate(src);
   assert.notEqual(next, src, `the ${label} mutation did not change line-items.ts: the mutant is the real engine`);

@@ -22,7 +22,9 @@
 import { compareString, f32, sortedWith } from "./f32.ts";
 import { trim } from "./kotlin-text.ts";
 import { buildLineItems, claimedByEdits, mergeTakeoff, withQuotedPrices } from "./line-items.ts";
-import { suggestQuantities } from "./takeoff.ts";
+import { adjustJoins, adjustmentForRun, joinHeightFt, readJointId } from "./joins.ts";
+import type { JoinableRun } from "./joins.ts";
+import { resolveGeometry, suggestQuantities } from "./takeoff.ts";
 import type { EstimateSuggestions, TakeoffGroup } from "./takeoff.ts";
 import { computeTotals, linearFeet, teardownLinearFeet } from "./totals.ts";
 import { ALUMINUM_STYLES, FENCE_TYPES, MATERIAL_ROLES, WOOD_STYLES, enumValueOf } from "./types.ts";
@@ -140,8 +142,65 @@ export {
  * not stock. unmatched_roles keeps its meaning -- nothing was billed for this
  * role -- so BLANK_POST leaves it where a GATE_POST row carries the line and
  * stays in it where neither row exists. Anchored totals do not move, as above.
+ *
+ * Bumped 2026.10.6 -> 2026.10.7 (1 Oct 2026) for the gate hardware a fence
+ * type actually uses: the takeoff no longer asks for a BRACE or a STIFFENER on
+ * a gate that does not take one (takeoff.ts BRACED_GATE_TYPES,
+ * STIFFENED_GATE_TYPES -- vinyl alone), and the starting catalog's gate HANDLE
+ * moves from VINYL to UNIVERSAL so the six other types can reach it
+ * (SeedData.universalItems, supabase_r20's list, dashboard.html's CATALOG_SEED
+ * -- all three, or two new companies get different catalogs depending which
+ * door they came through).
+ *
+ * NOBODY'S PRICE MOVES who has a catalog today. Those two roles were unmatched
+ * on all six non-vinyl types in every catalog in production (read-only SELECT,
+ * 1 Oct 2026), so they billed nothing and a takeoff that stops asking
+ * subtracts nothing; what goes is the unmatched-role noise. A vinyl gate is
+ * priced to the cent as before, including the entry ORDER that line sort order
+ * follows. The owner's own company is vinyl with one UNGATED wood run: all
+ * eleven of his live jobs reprice BYTE-IDENTICALLY, measured by replaying his
+ * own cloud rows through this engine and through a copy of this same tree with
+ * only these gate edits undone -- not argued, and not read off the totals
+ * alone (the whole output was compared).
+ *
+ * WHAT DOES MOVE is a NEW company's first non-vinyl gated quote, by the one
+ * handle: +$5.00 of material (plus that company's tax and markup) per gate on
+ * wood, chain link, aluminum, ornamental iron, split rail and composite. An
+ * existing company's catalog is its own and is never rewritten.
+ *
+ * Bumped 2026.10.7 -> 2026.10.8 (1 Oct 2026) because TWO SIDES THE OWNER HAS
+ * JOINED NOW SHARE ONE POST. `fence_runs.start_joint` / `end_joint` reach the
+ * engine (index.ts FenceRunRow + runFromRow, load.ts fenceRunRowToInput), and
+ * `adjustJoins` (joins.ts, the port of the phone's RunJoinArithmetic) is
+ * called once over every run of the job and its per-run answer handed to
+ * suggestQuantities, which applies it at the end of computePostCounts. At a
+ * joint where `degree` run ends meet: end posts fall by `degree`, ONE corner
+ * (or line) post appears, so the job builds `degree - 1` fewer posts -- and
+ * `degree - 1` fewer CAPS (priced off totalPosts) and bags of CONCRETE
+ * (priced off totalPosts - gatePosts), and on chain link fewer tension bands,
+ * brace bands and rail ends (priced off terminalPosts). Two ends that met
+ * become ONE CORNER POST, a different catalog row at a different price, so
+ * getting the count right while leaving both as end posts would have been
+ * only half of it.
+ *
+ * A formula change, so a version change on BOTH engines, and the 85 fixtures
+ * regenerate in the same commit.
+ *
+ * ADDITIVE TO THE CENT where nothing is joined, which is everywhere today: no
+ * run carries a joint id (the columns are new and unapplied, nothing is
+ * backfilled, and the phone does not send one), `adjustJoins` returns
+ * NO_JOIN_ADJUSTMENT before it reads any geometry, and computePostCounts
+ * never reaches applyJoinAdjustment. No recorded fixture carries a joint and
+ * not one of them moves -- tests/a61-corner-post-pricing.test.mjs asserts
+ * that against the real engine rather than reasoning about it. Anchored
+ * (signed/sent) totals do not move regardless, as above.
+ *
+ * INVALID DATA FAILS DEARER, never cheaper: a joint id that is not a uuid is
+ * read as '' (joins.ts readJointId), and a joint only one live run reaches,
+ * or one holding both ends of a single run, is ignored. Each of those prices
+ * exactly as an unjoined job does -- two free ends, two end posts.
  */
-export const PRICING_ENGINE_VERSION = "2026.10.6";
+export const PRICING_ENGINE_VERSION = "2026.10.8";
 
 // ---------------------------------------------------------------------------
 // Contract shapes (docs/PRICING_CONTRACT.md). Column names, never invented.
@@ -199,6 +258,19 @@ export interface FenceRunRow {
   suppressed_roles: string;
   is_teardown: boolean;
   sort_order: number;
+  /**
+   * `fence_runs.start_joint` / `end_joint`: the joint each end of this run
+   * stands at, or '' for a free end (supabase_a32_join_runs.sql).
+   *
+   * OPTIONAL, like `MaterialItemRow.height_ft` and for the same reason: the
+   * 85 recorded fixtures carry no such key, and a caller need not select
+   * every column (`buildSampleRun` invents a run with no joints at all).
+   * Absent, null and '' all read as NOT JOINED, which is the old, DEARER
+   * answer: two free ends, two end posts, two caps, two bags of concrete.
+   * Invalid or missing join data must never make a job cheaper.
+   */
+  start_joint?: string | null;
+  end_joint?: string | null;
 }
 
 export interface MaterialItemRow {
@@ -515,6 +587,13 @@ export function runFromRow(row: FenceRunRow, index: number): FenceRun {
       : floatExact(row.manual_linear_feet, `${at}.manual_linear_feet`),
     manualCornerCount: int(row.manual_corner_count, 0),
     suppressedRoles: parseSuppressedRoles(str(row.suppressed_roles, "")),
+    // VALIDATE ON READ. The column has no CHECK constraint on purpose (one
+    // bad row would fail the whole batched upsert and stop every run of that
+    // company syncing), so anything that is not a uuid becomes '' here and
+    // the run prices with two free ends -- today's answer. joins.ts
+    // readJointId.
+    startJointId: readJointId(row.start_joint),
+    endJointId: readJointId(row.end_joint),
   };
 }
 
@@ -617,6 +696,36 @@ export function priceJob(input: PricingInput): PricingOutput {
   // the phone's, so it is reproduced, not repaired.
   const pixelsPerFoot = floatExact(input.pixels_per_foot, "pixels_per_foot");
 
+  // THE JOINS, worked out ONCE over every run of the job, before the per-run
+  // loop below. Once, and over all of them, because a shared post has to be
+  // billed to exactly one run and which one is decided ACROSS runs (the
+  // taller fence, then sort order, then id): a per-run call would see only
+  // one candidate and every member would keep the post.
+  //
+  // The geometry handed over is the SAME resolveGeometry the run's posts are
+  // counted from, so a typed-footage run arrives with no vertices and a
+  // closed run with no ends -- exactly the two cases the arithmetic refuses
+  // to take a post off. Reusing it rather than re-measuring is what stops
+  // this and computePostCounts disagreeing about whether a run has ends.
+  //
+  // A job where no run carries a joint id returns NO_JOIN_ADJUSTMENT before
+  // any geometry is read, every run below gets a zero delta, and the price
+  // is identical to the cent. That is what protects every quote already
+  // sent.
+  const joinables: JoinableRun[] = runs.map((run) => ({
+    id: run.syncId,
+    geometry: resolveGeometry(run, pixelsPerFoot),
+    // NOT panelHeightFt: chain link keeps its height in fabricHeightFt and
+    // split rail declares none. joins.ts joinHeightFt, which is the same rule
+    // EstimateEngine.joinHeightOf and SurveyViewModel.joinHeightOf apply.
+    heightFt: joinHeightFt(run),
+    sortOrder: run.sortOrder,
+    isTeardown: run.isTeardown,
+    startJointId: run.startJointId,
+    endJointId: run.endJointId,
+  }));
+  const joins = adjustJoins(joinables);
+
   const runOutputs: RunOutput[] = [];
   const takeoffItems: EstimateLineItem[] = [];
   const unmatched: RunRole[] = [];
@@ -624,7 +733,7 @@ export function priceJob(input: PricingInput): PricingOutput {
   const zeroPricedNames: RunName[] = [];
 
   for (const run of runs) {
-    const suggestions = suggestQuantities(run, pixelsPerFoot, job.wastePercent);
+    const suggestions = suggestQuantities(run, pixelsPerFoot, job.wastePercent, adjustmentForRun(joins, run.syncId));
     runOutputs.push(runOutput(run, suggestions));
 
     // This run's lines in the order the phone reads them for a regenerate

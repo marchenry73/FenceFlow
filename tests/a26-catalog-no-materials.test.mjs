@@ -153,10 +153,37 @@ test("there is ONE definition of 'something is drawn', shared with the uncalibra
   assert.equal((ENGINE_CODE + "\ndecodePoints(run.pointsEncoded).size >= 2").match(/decodePoints\(run\.pointsEncoded\)\.size >= 2/g).length, 2);
 });
 
-test("no pricing formula moved: computeTotals and the engine version are untouched by this change", () => {
-  assert.match(ENGINE_CODE, /const val PRICING_ENGINE_VERSION = "2026\.09\.3"/);
+test("no pricing formula moved BY THIS CHANGE: the no-materials warning is not part of computeTotals", () => {
+  // RE-AIMED 2 Oct 2026. This pinned two literals that have both moved for reasons that have
+  // nothing to do with the no-materials warning, so it could only fail:
+  //
+  //   * PRICING_ENGINE_VERSION "2026.09.3" -> "2026.10.8". The version has been bumped by every
+  //     formula change since: 2026.10.1 removed the round-up, .2/.3/.4 the height-aware row
+  //     choice and the gate-post role, .5 the blank-post fallback, .6-.8 the shared corner post.
+  //     JobMoneyDepositRuleTest made the same correction for the same reason on 1 Oct: a test
+  //     that goes red on every legitimate bump is a toll, not a guard.
+  //   * grandTotal = ceil(x / 10) * 10 -> roundToCents(x). The $10 round-up was REMOVED on the
+  //     owner's instruction (engine 2026.10.1); grand totals are exact to the cent now.
+  //
+  // What this test is FOR survives both: the warning must not have crept into the arithmetic.
+  // That is asserted below against the current formula, plus "the version only ever moves
+  // forward", compared component by component the way JobSync decides which engine is stale
+  // ("2026.10.2" is not greater than "2026.09.3" as a string, because "1" sorts below "9").
+  //
+  // The guard against a formula change shipping WITHOUT a bump is not here and is stronger:
+  // ParityFixtureCheck requires the engine version to equal the fixtures' manifest version.
+  const now = /const val PRICING_ENGINE_VERSION = "([0-9.]+)"/.exec(ENGINE_CODE);
+  assert.ok(now, "control: the engine version constant was not found at all");
+  const parts = (v) => v.split(".").map((n) => Number(n));
+  const cmp = (a, b) => parts(a).map((n, i) => n - (parts(b)[i] ?? 0)).find((d) => d !== 0) ?? 0;
+  assert.ok(cmp(now[1], "2026.09.3") > 0, `PRICING_ENGINE_VERSION is ${now[1]}, which is not newer than the 2026.09.3 this file was written against`);
+  assert.equal(cmp("2026.10.2", "2026.09.3") > 0, true, "control: the comparison is component-wise, not a string compare");
+
   const totals = funBody(ENGINE_CODE, "computeTotals");
-  assert.match(totals, /val grandTotal = kotlin\.math\.ceil\(maxOf\(afterDiscount, job\.minimumJobCharge\) \/ 10\.0\) \* 10\.0/);
+  // The exact-to-the-cent total, which is what replaced the round-up. Pinned here so a round-up
+  // creeping back in fails, rather than leaving this file silent about the formula altogether.
+  assert.match(totals, /val grandTotal = roundToCents\(maxOf\(afterDiscount, job\.minimumJobCharge\)\)/);
+  assert.ok(!/ceil\([^)]*\/ 10\.0\) \* 10\.0/.test(totals), "the $10 round-up is back in the grand total");
   assert.ok(!/hasFenceWithNoMaterials|warn_no_materials/.test(totals), "the warning is not part of the arithmetic");
 });
 

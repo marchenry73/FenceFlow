@@ -341,6 +341,10 @@ fun JobDetailScreen(
                         job = currentJob,
                         punchListClear = punchList.isEmpty(),
                         profile = profile,
+                        // The price the job is billed against, so the deposit
+                        // step caps the stored deposit the way every other
+                        // surface caps it (JobMoney.depositAsked).
+                        billableTotal = JobMoney.billableTotal(currentJob, jobTotals.grandTotal, changeOrders),
                         onGoToStage = { action ->
                             when (action) {
                                 StageAction.DRAW -> onOpenSurvey(jobId)
@@ -532,6 +536,120 @@ fun JobDetailScreen(
                     Icon(Icons.Filled.Map, contentDescription = null)
                     Text("  " + stringResource(R.string.jd_show_3d_short))
                 }
+                }
+            }
+            // Email the quote, as a letter rather than the one line above.
+            //
+            // Separate from the share sheet on purpose. That one sends a single
+            // sentence, because half of these go out as a text or on WhatsApp
+            // and nobody wants eight paragraphs in a message bubble. This one
+            // is for the customer who reads email, and it is the same letter
+            // the office sends and the same letter the server would send: the
+            // sentences come out of strings_email.xml, which is GENERATED from
+            // supabase/functions/_shared/email-templates.ts by
+            // tests/a72-quote-email-strings.mjs, so the phone cannot come to
+            // say something the office does not.
+            //
+            // THERE IS NO PRICE IN IT. It goes out before she has accepted
+            // anything, and this job's total is still moving -- JobSync's
+            // `else ->` branch keeps pushing a fresh contract_total for a
+            // phone-priced job after quote_sent_at is set. A figure typed in
+            // here would be wrong in her inbox while the page beside it was
+            // right. The page owns every figure; see the template's header.
+            //
+            // IT DOES NOT MARK THE QUOTE AS SENT, and that is deliberate. All
+            // this can know is that a mail app opened with a draft in it. The
+            // share button above waits for a chosen component for exactly this
+            // reason and its own comment records why stamping on a mere launch
+            // is wrong. The OFFICE's "Email the quote" button does stamp
+            // quote_sent_at, because mail-send tells it the provider took the
+            // message. Marking it from here would be a claim this screen
+            // cannot support.
+            if (session.canSeeMoney) item {
+                val j = job ?: return@item
+                if (j.email.isNotBlank()) {
+                    val shareFailed = stringResource(R.string.jd_quote_link_failed)
+                    val notSyncedYet = stringResource(R.string.jd_quote_link_unsynced)
+                    val signedOutMsg = stringResource(R.string.jd_quote_link_signed_out)
+                    // stringResource is composable, so the words are read here
+                    // and formatted inside the coroutine -- the same split the
+                    // share button's bodyTemplate already makes.
+                    val qeSubject = stringResource(R.string.quote_email_subject)
+                    val qeHello = stringResource(R.string.quote_email_hello)
+                    val qeHelloBlank = stringResource(R.string.quote_email_hello_blank)
+                    val qeIntro = stringResource(R.string.quote_email_intro)
+                    val qeIntroNoAddress = stringResource(R.string.quote_email_intro_no_address)
+                    val qeOpen = stringResource(R.string.quote_email_open)
+                    val qeWhatsOnIt = stringResource(R.string.quote_email_whats_on_it)
+                    val qeApproving = stringResource(R.string.quote_email_approving)
+                    val qePageIsLive = stringResource(R.string.quote_email_page_is_live)
+                    val qeQuestions = stringResource(R.string.quote_email_questions)
+                    val qeQuestionsNoPhone = stringResource(R.string.quote_email_questions_no_phone)
+                    val company = profile.businessName
+                    val companyPhone = profile.phone
+                    // buildQuoteSendEmail(), sentence for sentence. A blank
+                    // name, a blank address and a blank phone each drop their
+                    // own clause rather than printing a gap or a placeholder.
+                    val quoteEmailBody: (String) -> String = { url ->
+                        listOf(
+                            if (j.customerName.isBlank()) qeHelloBlank
+                            else qeHello.format(j.customerName),
+                            "",
+                            if (j.address.isBlank()) qeIntroNoAddress.format(company)
+                            else qeIntro.format(company, j.address),
+                            "",
+                            qeOpen.format(url),
+                            "",
+                            qeWhatsOnIt,
+                            "",
+                            qeApproving.format(company),
+                            "",
+                            qePageIsLive,
+                            "",
+                            if (companyPhone.isBlank()) qeQuestionsNoPhone
+                            else qeQuestions.format(company, companyPhone)
+                        ).joinToString("\n")
+                    }
+                    OutlinedButton(
+                        onClick = {
+                            scope.launch {
+                                // The same three-way answer the share button
+                                // gets, so "no signal" is never blamed for a
+                                // job that simply has not reached the cloud.
+                                val link = quoteLinkFor(context, app, session.signedIn, j.syncId)
+                                val url = (link as? QuoteLink.Ready)?.url
+                                if (url == null) {
+                                    android.widget.Toast.makeText(
+                                        context,
+                                        when (link) {
+                                            is QuoteLink.SignedOut -> signedOutMsg
+                                            is QuoteLink.NotSyncedYet -> notSyncedYet
+                                            is QuoteLink.Failed ->
+                                                if (link.why.isBlank()) shareFailed
+                                                else shareFailed + " (" + link.why.take(90) + ")"
+                                            else -> shareFailed
+                                        },
+                                        android.widget.Toast.LENGTH_LONG
+                                    ).show()
+                                } else {
+                                    val opened = IntentHelpers.openEmailDraft(
+                                        context,
+                                        j.email,
+                                        qeSubject.format(company),
+                                        quoteEmailBody(url)
+                                    )
+                                    if (!opened) {
+                                        android.widget.Toast.makeText(
+                                            context, shareFailed, android.widget.Toast.LENGTH_LONG
+                                        ).show()
+                                    }
+                                }
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(stringResource(R.string.jd_send_quote_short) + " · " + stringResource(R.string.field_email))
+                    }
                 }
             }
             item {
@@ -1991,11 +2109,25 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
     }
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         if (editable) {
+            // ROUNDED AT THE BOUNDARY, not in the field. DraftNumberField is
+            // Float-backed and shared with the run, settings and survey
+            // screens, so a deposit typed with cents came back as float32:
+            // 1234.56 arrives as 1234.5599365234375, and that is what got
+            // stored, synced, capped, subtracted and printed. The field is not
+            // changed (its Float surface belongs to four other screens);
+            // instead the one write that stores money takes it to cents, which
+            // is exact for any deposit this trade will ever see -- float32
+            // carries about seven significant digits, so the error at
+            // $100,000.00 is well under half a cent.
             DraftNumberField(
                 stableKey = job.id,
                 label = stringResource(R.string.jd_deposit_amount), initialValue = job.depositAmount.toFloat(),
                 modifier = Modifier.weight(1f)
-            ) { viewModel.update { j -> j.copy(depositAmount = it.toDouble()) } }
+            ) { typed ->
+                viewModel.update { j ->
+                    j.copy(depositAmount = EstimateEngine.roundToCents(typed.toDouble()))
+                }
+            }
         } else {
             Box(Modifier.weight(1f)) {
                 ReadOnlyField(stringResource(R.string.jd_deposit_amount), Money.format(job.depositAmount))
@@ -2052,10 +2184,16 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
     // once payments cover materials -- so this disappears rather than asking for
     // money that has already changed hands. It is also capped at what is still
     // owed on the price that stands, so it can never ask for more than that.
-    val suggested = viewModel.suggestedDeposit()
+    // The suggestion's OWN capped flag, not a second derivation of it. This
+    // line used to re-derive the uncapped figure as ceil((materials - paid)/10)
+    // * 10 -- the rounding rule as it stood a month ago -- so under the
+    // next-$100-plus-$100 rule the "all that is still owed" label could never
+    // win: the rule's figure is always at least $100 above a next-$10 round,
+    // so the comparison was false even when the cap had bitten.
+    val suggestion = viewModel.depositSuggestion()
+    val suggested = suggestion.amount
     val paidSoFar = JobMoney.netPaid(job)
-    val suggestionIsCapped = suggested > 0.0 &&
-        suggested + 0.005 < kotlin.math.ceil((materialCost - paidSoFar) / 10.0) * 10.0
+    val suggestionIsCapped = suggestion.capped
     if (suggested > 0.0 && job.depositAmount < materialCost &&
         kotlin.math.abs(job.depositAmount - suggested) > 0.005
     ) {
@@ -2068,9 +2206,13 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
-                    // Exact, not rounded: capped, it is the balance to the cent.
+                    // Exact to the cent in BOTH branches. Capped, it is the
+                    // price; uncapped, it is money already paid plus the
+                    // rule's whole-dollar figure -- and money already paid can
+                    // carry cents, so "%.0f" would have shown a button that
+                    // stores a different number from the one it names.
                     if (suggestionIsCapped) stringResource(R.string.jd_set_deposit_capped, Money.format(suggested).removePrefix("$"))
-                    else stringResource(R.string.jd_set_deposit_covers, "%.0f".format(suggested))
+                    else stringResource(R.string.jd_set_deposit_covers, Money.format(suggested).removePrefix("$"))
                 )
             }
         }
@@ -2744,11 +2886,14 @@ private fun ProjectProgressSection(
     job: Job,
     punchListClear: Boolean,
     profile: BusinessProfile,
+    billableTotal: Double,
     onGoToStage: (StageAction) -> Unit
 ) {
     val context = LocalContext.current
     val jobComplete = job.status == JobStatus.COMPLETED && punchListClear
-    val stages = remember(job, punchListClear) { ProjectStatus.stages(job, jobComplete) }
+    val stages = remember(job, punchListClear, billableTotal) {
+        ProjectStatus.stages(job, jobComplete, billableTotal)
+    }
 
     var openStage by remember { mutableStateOf<com.fenceestimator.app.ui.components.ProjectStage?>(null) }
 
@@ -2846,7 +2991,7 @@ private fun ProjectProgressSection(
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         OutlinedButton(
             onClick = {
-                IntentHelpers.openSmsDraft(context, job.phone, ProjectStatus.asMessage(job, jobComplete, profile.businessName, resolve))
+                IntentHelpers.openSmsDraft(context, job.phone, ProjectStatus.asMessage(job, jobComplete, profile.businessName, billableTotal, resolve))
             },
             enabled = job.phone.isNotBlank(),
             modifier = Modifier.weight(1f)
@@ -2855,7 +3000,7 @@ private fun ProjectProgressSection(
             onClick = {
                 IntentHelpers.openEmailDraft(
                     context, job.email, updateSubject,
-                    ProjectStatus.asMessage(job, jobComplete, profile.businessName, resolve)
+                    ProjectStatus.asMessage(job, jobComplete, profile.businessName, billableTotal, resolve)
                 )
             },
             enabled = job.email.isNotBlank(),

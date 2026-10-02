@@ -728,42 +728,46 @@ data class RunPostTally(
  * The post arithmetic for runs the owner has explicitly joined.
  *
  * ---------------------------------------------------------------------------
- * STATUS: NOT YET REACHED BY THE ENGINE.
+ * STATUS: BOTH PRICING ENGINES NOW CALL THIS. The gesture that makes a joint
+ * is still switched off.
  * ---------------------------------------------------------------------------
- * Nothing calls [adjust] today. EstimateEngine.kt, the server takeoff
- * (supabase/functions/_shared/pricing/takeoff.ts) and every screen price a job
- * exactly as they did before this code existed, because no joint is stored
- * anywhere a job is read from: FenceRun has no joint field, and the start_joint
- * and end_joint columns proposed in supabase_a32_join_runs.sql are written but
- * not applied. Neither is supabase_a56_join_reapproval_fingerprint.sql, the
+ * [adjust] is reached from both engines, at engine version 2026.10.8:
+ *
+ *  1. EstimateEngine.joinAdjustments calls it ONCE with every run of the job
+ *     (the owner of a shared post is chosen across runs), and the caller hands
+ *     each run its own [JoinAdjustment.forRun] to
+ *     EstimateEngine.suggestQuantities as an optional argument defaulting to
+ *     null. suggestQuantities passes it to computePostCounts, which applies it
+ *     at the END of the counts -- never into them, see [RunPostAdjustment].
+ *     explainPosts takes the same argument so the post-workings dialog
+ *     explains the number actually billed.
+ *  2. priceJob (supabase/functions/_shared/pricing/index.ts) does the same for
+ *     the office: once over all runs before the per-run loop, then into
+ *     suggestQuantities (takeoff.ts). Its port of this object is
+ *     supabase/functions/_shared/pricing/joins.ts, and a line-for-line one:
+ *     tests/a61-corner-post-pricing.test.mjs runs the port against the same
+ *     transcription tests/a33-join-arithmetic-posts.test.mjs holds against a
+ *     frozen snapshot of THIS file's compiled output, so neither port can
+ *     drift alone.
+ *
+ * Storage: [FenceRun.startJoint] and [FenceRun.endJoint] exist on the phone
+ * (Room schema 50), and [JoinableRun.startJointId] / [JoinableRun.endJointId]
+ * mirror them. The Postgres half, start_joint and end_joint on fence_runs, is
+ * written in supabase_a32_join_runs.sql and NOT APPLIED, so no joint reaches
+ * the office yet and price-job does not select the columns
+ * (JOIN_COLUMNS_LIVE there, false until they exist -- PostgREST refuses a
+ * select naming an unknown column and would take every job's pricing down).
+ * Neither is supabase_a56_join_reapproval_fingerprint.sql applied, the
  * follow-up that teaches the re-approval fingerprint and the drawing snapshot
  * to see a joint; its PART A has to be live before anyone can attach two runs
  * on a job that may be approved, or the post count moves without withdrawing
- * the customer's approval (docs/JOINING_RUNS.md 11.2 and 11.5).
- * [JoinableRun.startJointId] and [JoinableRun.endJointId] mirror
- * those two columns (text, blank for a free end). This file only decides what
- * the numbers WOULD be. It is exercised by
- * tests/a33-join-arithmetic-posts.test.mjs, which runs a line-for-line
- * transcription of it and checks that against a stored snapshot of this file's
- * compiled output; the test does not compile or run this file itself.
+ * the customer's approval (docs/JOINING_RUNS.md 11.2 and 11.5). The attach
+ * gesture itself is behind SurveyViewModel.JOIN_STORAGE_READY.
  *
- * The two call sites that will reach it:
- *
- *  1. EstimateEngine.suggestQuantities. It prices one run at a time, so the
- *     job-level caller (the one that loops the job's runs) calls [adjust] ONCE
- *     with every run of the job, then hands each run its own
- *     [JoinAdjustment.forRun] as a new optional argument defaulting to zero.
- *     suggestQuantities adds it to the counts right after computePostCounts,
- *     before anything reads them. explainPosts takes the same argument so the
- *     post-workings dialog explains the number actually billed.
- *  2. The server takeoff, in priceJob (pricing/index.ts), the same way: once
- *     over all runs before the per-run loop, then into suggestQuantities. The
- *     server needs a TypeScript port of this object; the transcription in the
- *     a33 test is the shape of it.
- *
- * Both engines and the parity fixtures move together when that happens. No
- * fixture changes for a job with no joint, because a job with no joint gets a
- * zero adjustment (see the zero-joints rule below).
+ * NO PRICE HAS MOVED YET, and that is arithmetic rather than hope: no run
+ * anywhere carries a joint id (nothing was backfilled, deliberately), so the
+ * loop below finds no joint and returns [JoinAdjustment.NONE] before it reads
+ * any geometry. No recorded parity fixture carries a joint either.
  *
  * THE MODEL, decided by the owner: a join is an explicit fact he creates, and
  * is never inferred from coordinates. Two points on identical coordinates are

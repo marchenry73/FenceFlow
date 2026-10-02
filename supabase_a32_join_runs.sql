@@ -67,6 +67,27 @@
 --     parseRunSnapshot and the office's reapprovalRestoreState accept a seven-part snapshot;
 --     both refuse anything but 3 or 6 parts today.
 --
+-- WHAT MUST HAPPEN IN THE SAME CHANGE THAT APPLIES THIS (added 1 Oct 2026, when the
+-- phone half landed). The phone now stores a joint: FenceRun.startJoint / endJoint, Room
+-- schema 50 (AppDatabase.SchemaV50), Repository.setRunJointIds, and both EntitySync pull
+-- sites. It does NOT send one, and that is on purpose:
+--
+--   1. Flip EntitySync.JOIN_COLUMNS_LIVE to true. It is false because these columns do not
+--      exist, and fence_runs is pushed as a BATCHED upsert -- PostgREST refuses a body
+--      naming an unknown column (PGRST204) and refuses the WHOLE batch, so sending
+--      start_joint today would stop every fence run of every job syncing for the company.
+--   2. Add 'start_joint' and 'end_joint' to RUN_COLUMNS in price-job/index.ts, or the office
+--      reads no joint and the two engines price one job two ways.
+--   3. Apply PART A of supabase_a56_join_reapproval_fingerprint.sql (see below).
+--   4. Only then flip SurveyViewModel.JOIN_STORAGE_READY, which is what puts the Attach
+--      tool in the mode switcher.
+--
+-- THE ORDER IS NOT COSMETIC. fence_runs pushes a run only when the phone's clock beats the
+-- cloud's. A join made while JOIN_COLUMNS_LIVE is false pushes the run without it, the
+-- cloud's clock then leads, and that run never pushes again on its own -- the join is
+-- stranded on the handset for good and the office goes on pricing two posts. So the tool
+-- must not be offered before step 1.
+--
 -- To undo: the columns can be dropped, but that discards every join anyone has made -- do not,
 --   once the join UI has shipped.
 -- ============================================================

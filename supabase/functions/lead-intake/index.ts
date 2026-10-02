@@ -53,11 +53,50 @@ Deno.serve(async (req) => {
   const f = (v: unknown, max: number) => String(v ?? "").trim().slice(0, max);
   const name = f(body.name, 120);
   const phone = f(body.phone, 40);
-  const email = f(body.email, 120);
+  const rawEmail = f(body.email, 120);
   const address = f(body.address, 200);
   const notes = f(body.notes, 1000);
+
+  // ONE address, or none. This function runs with verify_jwt = false, so
+  // everything above was typed by a stranger with no session, and it writes
+  // straight to jobs.email through the service-role client. The only check here
+  // used to be `email.includes("@")`, which accepts
+  // "her@example.com, attacker@example.com" -- and the contractor's phone then
+  // puts that whole string into Android's EXTRA_EMAIL, which takes a LIST. The
+  // quote email it carries holds the quote link, and that link is a bearer
+  // token: whoever opens it can approve and sign on her behalf.
+  //
+  // Refusing at this door is the point. IntentHelpers.openEmailDraft refuses a
+  // list too (and tests/a76 holds it to that), but that is the far end; this is
+  // where the value gets in, and a bad row here also reaches send-follow-ups,
+  // which emails automatically with figures in it and no further tap from
+  // anyone. Gate the funnel, not each consumer.
+  //
+  // Not a full RFC 5322 validator on purpose: that accepts a quoted local part
+  // containing a comma, which is exactly the shape being refused, and no fence
+  // customer has one. A refused address costs the homeowner a retype. An
+  // accepted list costs the quote.
+  const emailLooksSingle = (() => {
+    if (rawEmail === "") return false;
+    for (const ch of rawEmail) {
+      if (ch === "," || ch === ";" || /\s/.test(ch) || ch.charCodeAt(0) < 0x20) return false;
+    }
+    const at = rawEmail.indexOf("@");
+    if (at <= 0 || at !== rawEmail.lastIndexOf("@") || at === rawEmail.length - 1) return false;
+    const domain = rawEmail.slice(at + 1);
+    const dot = domain.indexOf(".");
+    return dot > 0 && dot < domain.length - 1 && !domain.includes("..");
+  })();
+  // An address that was given but is not usable is dropped rather than stored:
+  // a half-valid string in jobs.email is worse than an empty column, because
+  // send-follow-ups selects on `email <> ''` and would mail it.
+  const email = emailLooksSingle ? rawEmail : "";
+
   if (name.length < 2) return json({ error: "Your name, so they know who to call." }, 400);
-  if (phone.length < 7 && !email.includes("@")) {
+  if (rawEmail !== "" && !emailLooksSingle) {
+    return json({ error: "That email address does not look right — please check it, or leave it blank and give a phone number." }, 400);
+  }
+  if (phone.length < 7 && email === "") {
     return json({ error: "A phone number or an email — they need a way to reach you." }, 400);
   }
 

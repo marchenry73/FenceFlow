@@ -145,8 +145,15 @@ const near = (label, got, want, tol) => {
     COMPOSITE: countItemCalls(grabKtFn('compositeItems')),
     UNIVERSAL: countItemCalls(grabKtFn('universalItems')),
   };
+  // Key order normalised on both sides: eq() compares JSON.stringify output, so
+  // two identical count maps written in a different order read as a mismatch.
+  // That is exactly what happened on 2026-10-02 -- got and want both said
+  // VINYL 18, UNIVERSAL 3, WOOD 10 ... and differed only in where UNIVERSAL
+  // appeared, because the HANDLE move changed which function declares it. The
+  // counts are a set of facts, not a sequence.
+  const byKey = (o) => Object.fromEntries(Object.entries(o).sort(([a], [b]) => a < b ? -1 : 1));
   eq('CATALOG_SEED\'s per-type counts match a live re-parse of SeedData.kt\'s '
-    + 'own item(...) calls', M.catalogSeedCounts(), kotlinCounts);
+    + 'own item(...) calls', byKey(M.catalogSeedCounts()), byKey(kotlinCounts));
   eq('92 seed items total (19+10+18+14+11+8+10+2)',
     M.CATALOG_SEED.length, Object.values(kotlinCounts).reduce((a,b)=>a+b,0));
   // Necessary but nowhere near sufficient -- see the source_doc value
@@ -256,15 +263,65 @@ const near = (label, got, want, tol) => {
         problems.push({ kind: 'count', type, kt: ktRows.length, web: webRows.length });
         continue;
       }
-      for (let i = 0; i < ktRows.length; i++) {
-        if (ktRows[i].name !== webRows[i].name) {
-          problems.push({ kind: 'name', type, at: i, kt: ktRows[i].name, web: webRows[i].name });
+      // Matched BY NAME, not by position.
+      //
+      // This walked the two lists in parallel by index until 2026-10-02, when
+      // the gate HANDLE moved from the vinyl list to the universal one in all
+      // three seed copies. It landed FIRST in the office array and LAST in the
+      // Kotlin one, so all three UNIVERSAL rows reported as name mismatches
+      // while the two lists held exactly the same rows with exactly the same
+      // source_doc. The real defect it was hiding -- four office rows still
+      // shipping untaxed -- was two checks further down and easy to miss in the
+      // noise.
+      //
+      // Position carries no meaning here: nothing derives sort_order from the
+      // array index (the office only counts these rows and lists their roles),
+      // so two copies in different orders are the same catalog. Matching by
+      // name loses nothing -- a row REPLACED by a different one still shows up,
+      // as a leftover on one side or the other, and the count check above
+      // already catches a row added or dropped.
+      // Grouped by name, and the group compared as a MULTISET.
+      //
+      // A plain name -> row Map is wrong here and I got it wrong first: several
+      // types legitimately carry two rows of the same name (CHAIN_LINK has two
+      // `2" Galvanized Terminal Post, 8'`, differing in a column this parse
+      // does not expose), and a Map collapses them, so both sides agreeing read
+      // as two mismatches. Comparing the sorted source_doc list per name
+      // handles duplicates without caring which order either file lists them in.
+      const group = (rows) => {
+        const m = new Map();
+        for (const r of rows) {
+          if (!m.has(r.name)) m.set(r.name, []);
+          m.get(r.name).push(r.source_doc);
+        }
+        for (const v of m.values()) v.sort();
+        return m;
+      };
+      const ktByName = group(ktRows);
+      const webByName = group(webRows);
+      for (const [name, ktDocs] of ktByName) {
+        const webDocs = webByName.get(name);
+        if (!webDocs) {
+          problems.push({ kind: 'name', type, kt: name, web: '(no row of this name)' });
           continue;
         }
-        if (ktRows[i].source_doc !== webRows[i].source_doc) {
-          problems.push({ kind: 'source_doc', type, item: ktRows[i].name,
-            kt: ktRows[i].source_doc, web: webRows[i].source_doc });
+        webByName.delete(name);
+        if (ktDocs.length !== webDocs.length) {
+          problems.push({ kind: 'count', type, item: name, kt: ktDocs.length, web: webDocs.length });
+          continue;
         }
+        for (let i = 0; i < ktDocs.length; i++) {
+          if (ktDocs[i] !== webDocs[i]) {
+            problems.push({ kind: 'source_doc', type, item: name, kt: ktDocs[i], web: webDocs[i] });
+          }
+        }
+      }
+      // Anything left is a name the office has and the phone does not. The
+      // per-type count check above makes this reachable only when the two copies
+      // hold the same NUMBER of rows under different names, which is exactly
+      // the drift worth hearing about.
+      for (const leftover of webByName.keys()) {
+        problems.push({ kind: 'name', type, kt: '(no row of this name)', web: leftover });
       }
     }
     return problems;
@@ -322,8 +379,13 @@ eq('everything else defers to wizFenceTypeLabel', M.catFenceTypeLabel('CHAIN_LIN
 
 /* ---------- catalogExpectedRoles / catalogMissingRoles ---------- */
 
-eq('UNIVERSAL\'s own expected roles are exactly its two seed roles',
-  M.catalogExpectedRoles('UNIVERSAL'), ['CONCRETE_BAG','HOLE_PLUG']);
+// THREE since 2026-10-02, not two. HANDLE moved here from the vinyl list: a 7"
+// stainless pull bolts through any leaf, and filed as vinyl it meant a wood or
+// chain-link gate silently got no handle and showed as an unmatched role. The
+// phone seed and the SQL moved it on 1 Oct; the office copy was missed until the
+// following day, which is what this family of checks exists to catch.
+eq('UNIVERSAL\'s own expected roles are exactly its three seed roles',
+  M.catalogExpectedRoles('UNIVERSAL'), ['CONCRETE_BAG','HANDLE','HOLE_PLUG']);
 {
   const splitRail = M.catalogExpectedRoles('SPLIT_RAIL');
   ok('a real fence type\'s expected roles include its own seed roles (LINE_POST)', splitRail.includes('LINE_POST'));

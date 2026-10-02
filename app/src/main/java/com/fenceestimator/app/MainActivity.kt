@@ -750,14 +750,34 @@ fun FenceEstimatorNavHost(startDestination: String = Routes.JOBS) {
                 runId = runId,
                 onBack = { navController.popBackStack() },
                 onDeleted = { navController.popBackStack() },
-                onDrawRun = { jobId -> navController.navigate(Routes.survey(jobId)) }
+                // Carries the RUN id as well as the job id. It used to pass
+                // only `currentRun.jobId`, so the drawing opened on whatever
+                // run came first and the next corners the user placed were
+                // appended to a side they were not looking at. See
+                // Routes.SURVEY and SurveyViewModel.resolveRunSelection.
+                // Parameters named apart from the `runId` val above on
+                // purpose: shadowing it here would compile, and would read as
+                // though the route were being handed the run it was opened
+                // with rather than the run the button is on. They are the same
+                // id today; naming them the same is how they stop being.
+                onDrawRun = { drawJobId, drawRunId ->
+                    navController.navigate(Routes.survey(drawJobId, drawRunId))
+                }
             )
         }
         composable(
             Routes.SURVEY,
-            arguments = listOf(navArgument("jobId") { type = NavType.LongType })
+            arguments = listOf(
+                navArgument("jobId") { type = NavType.LongType },
+                // Optional, and so it MUST carry a default -- a LongType query
+                // argument without one is required, and "job/7/survey" (the
+                // job-only route JobDetailScreen still navigates to) would
+                // then match nothing. 0 means "no run asked for".
+                navArgument("runId") { type = NavType.LongType; defaultValue = 0L }
+            )
         ) { backStackEntry ->
             val jobId = backStackEntry.arguments?.getLong("jobId") ?: 0L
+            val openRunId = backStackEntry.arguments?.getLong("runId")?.takeIf { it > 0L }
             // The drawing is the one screen with no permission to refuse it
             // with: it is deliberately open to everyone, because crew draw on
             // it, so nothing on it ever asks the session anything. That makes
@@ -776,6 +796,7 @@ fun FenceEstimatorNavHost(startDestination: String = Routes.JOBS) {
             } else {
                 SurveyDrawScreen(
                     jobId = jobId,
+                    openRunId = openRunId,
                     onBack = { navController.popBackStack() },
                     onGoToEstimate = { id -> navController.navigate(Routes.estimate(id)) }
                 )

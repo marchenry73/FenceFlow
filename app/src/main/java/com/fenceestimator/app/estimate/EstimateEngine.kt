@@ -13,6 +13,10 @@ import com.fenceestimator.app.geometry.FenceGeometryEngine
 import com.fenceestimator.app.geometry.FenceGeometryResult
 import com.fenceestimator.app.geometry.GateMarker
 import com.fenceestimator.app.geometry.GateMounting
+import com.fenceestimator.app.geometry.JoinAdjustment
+import com.fenceestimator.app.geometry.JoinableRun
+import com.fenceestimator.app.geometry.RunJoinArithmetic
+import com.fenceestimator.app.geometry.RunPostAdjustment
 import kotlin.math.ceil
 import kotlin.math.roundToInt
 
@@ -64,6 +68,17 @@ data class PostWorkings(
     val endPosts: Int,
     val gatePosts: Int,
     val totalPosts: Int,
+    /**
+     * Posts this run no longer builds because the owner joined one of its
+     * ends to another run's end: two free ends become ONE post in the ground,
+     * so the "why does it say thirty-three posts?" sheet has to say so or
+     * [standardEstimate] above will not add up to [totalPosts] and the
+     * explanation becomes a formula the product does not use.
+     *
+     * Zero on every run of every job that has no joint, which is every job
+     * today. Defaulted so the existing call sites compile unchanged.
+     */
+    val postsSharedAtJoints: Int = 0,
 )
 
 /** One "8 line posts" style readout for the takeoff summary. */
@@ -94,6 +109,65 @@ enum class TakeoffGroup(val heading: String) {
 
 /** Fence types whose gate uses a built gate-frame kit rather than a matching panel. */
 private val FRAME_KIT_GATE_TYPES = setOf(FenceType.WOOD, FenceType.CHAIN_LINK, FenceType.SPLIT_RAIL, FenceType.COMPOSITE)
+
+/**
+ * Fence types whose gate leaf needs a STIFFENER -- the vertical that stops the
+ * leaf racking out of square.
+ *
+ * VINYL alone, and for a physical reason rather than a seeding accident. A
+ * vinyl gate arrives as a hollow extruded leaf, and the part that stiffens it
+ * is sized to the post it bolts to: the one in every catalog here is a 5" econo
+ * stiffener (an H-frame 5x5x96, both suppliers' own wording -- see
+ * SUPPLIER_QUOTES_2026-10-01.md), which fits a 5x5 vinyl post and fits nothing
+ * else. Every other type's gate is already rigid when it reaches site:
+ *
+ *  - CHAIN_LINK is a welded tube frame with fabric stretched in it.
+ *  - ALUMINUM and ORNAMENTAL_IRON arrive as a welded factory gate panel.
+ *  - WOOD, SPLIT_RAIL and COMPOSITE are built on a GATE_FRAME_KIT
+ *    ([FRAME_KIT_GATE_TYPES]) -- the seeded wood one is literally
+ *    "Steel-Reinforced", which IS the member that keeps the leaf square.
+ *
+ * The takeoff asked all seven for one anyway, and six of them had nothing to
+ * price it against: the role landed in [BuiltItems.unmatchedRoles] and billed
+ * nothing, so no money ever moved. Seeding a stiffener for those six instead
+ * would have been the dishonest fix -- a 5x5 vinyl H-frame on a chain-link
+ * quote is a part he would order and could not fit.
+ *
+ * A company that genuinely does stiffen another type's gate adds its own row;
+ * teaching the takeoff to ask for it is a decision for the owner, not a silent
+ * one, because a row nobody sells cannot be told from a row nobody needs.
+ */
+private val STIFFENED_GATE_TYPES = setOf(FenceType.VINYL)
+
+/**
+ * Fence types whose gate needs a BRACE -- the diagonal that stops the leaf
+ * sagging on its hinges.
+ *
+ * Deliberately a SECOND set with the same single member as
+ * [STIFFENED_GATE_TYPES] and not one shared constant: a stiffener and a brace
+ * answer different problems (racking against sagging) and the day a type needs
+ * one and not the other, one list cannot say so.
+ *
+ * VINYL, for the same reason: the seeded "Gate Support Brace, 8'" is a vinyl
+ * part, not a generic one. It is White, it is 8 ft, and the equivalent on the
+ * other supplier's list is a "V-brace white bevelled gate brace 8'" -- a
+ * bevelled white extrusion that goes inside a vinyl gate frame. Neither
+ * supplier quotes it on anything but vinyl.
+ *
+ * A WOOD gate does need bracing, and that is exactly why it is not here: its
+ * brace is not this product. It comes in the steel-reinforced GATE_FRAME_KIT
+ * the takeoff already asks for, so asking for a BRACE as well would bill the
+ * same function twice -- and on the starting catalog it would bill it against a
+ * white vinyl extrusion. Same for SPLIT_RAIL and COMPOSITE, whose kits carry
+ * their own structure, and for CHAIN_LINK, ALUMINUM and ORNAMENTAL_IRON, whose
+ * gates arrive welded. (CHAIN_LINK's BRACE_BAND is a terminal-post fitting and
+ * an unrelated role; it is seeded and asked for already.)
+ *
+ * If a company builds wood gates from stock lumber and an anti-sag kit, the
+ * honest row for that is its GATE_FRAME_KIT. What NOT to do is invent a price
+ * for a wood gate brace: nobody here has quoted one.
+ */
+private val BRACED_GATE_TYPES = setOf(FenceType.VINYL)
 
 /**
  * Turns a calibrated fence run (drawing + gate placements + type/spec) into
@@ -226,8 +300,59 @@ object EstimateEngine {
      * nothing was billed for this role -- so BLANK_POST leaves it where a
      * GATE_POST row carries the line and stays in it where neither row exists.
      * Anchored totals do not move, as above.
+     *
+     * Bumped 2026.10.6 -> 2026.10.7 (1 Oct 2026) for the gate hardware a fence
+     * type actually uses: the takeoff no longer asks for a BRACE or a
+     * STIFFENER on a gate that does not take one ([BRACED_GATE_TYPES],
+     * [STIFFENED_GATE_TYPES] -- vinyl alone), and the starting catalog's gate
+     * HANDLE moves from VINYL to UNIVERSAL so the six other types can reach it
+     * (SeedData.universalItems, supabase_r20's list, dashboard.html's
+     * CATALOG_SEED -- all three, or two new companies get different catalogs
+     * depending which door they came through).
+     *
+     * NOBODY'S PRICE MOVES who has a catalog today. Those two roles were
+     * unmatched on all six non-vinyl types in every catalog in production
+     * (read-only SELECT, 1 Oct 2026), so they billed nothing and a takeoff that
+     * stops asking subtracts nothing; what goes is the unmatched-role noise. A
+     * vinyl gate is priced to the cent as before, including the entry ORDER
+     * that line sort order follows. The owner's own company is vinyl with one
+     * UNGATED wood run: all eleven of his live jobs reprice BYTE-IDENTICALLY,
+     * measured by replaying his own cloud rows through this engine and through
+     * a copy of this same tree with only these gate edits undone -- not argued,
+     * and not read off the totals alone (the whole output was compared).
+     *
+     * WHAT DOES MOVE is a NEW company's first non-vinyl gated quote, by the one
+     * handle: +$5.00 of material (plus that company's tax and markup) per gate
+     * on wood, chain link, aluminum, ornamental iron, split rail and composite.
+     * An existing company's catalog is its own and is never rewritten.
+     *
+     * Bumped 2026.10.7 -> 2026.10.8 (1 Oct 2026) because TWO SIDES THE OWNER
+     * HAS JOINED NOW SHARE ONE POST. [RunJoinArithmetic.adjust] is called once
+     * over every run of the job and each run's own [RunPostAdjustment] handed
+     * to [suggestQuantities], which applies it at the END of
+     * [computePostCounts] -- after the counts are finished, never fed into
+     * them, because corners and ends are carved out of one fixed estimate and
+     * line posts are whatever is left. At a joint where `degree` run ends
+     * meet: end posts fall by `degree`, ONE corner (or line) post appears, so
+     * the job builds `degree - 1` fewer posts -- and `degree - 1` fewer CAPS
+     * (priced off totalPosts) and bags of CONCRETE (priced off totalPosts -
+     * gatePosts), and on chain link fewer tension bands, brace bands and rail
+     * ends (priced off terminalPosts). Two ends that met become ONE CORNER
+     * POST, a different catalog row at a different price, so getting the
+     * count right while leaving both as end posts would have been only half
+     * of it. The server's copy is joins.ts.
+     *
+     * A formula change, so a version change on BOTH engines, and the 85
+     * fixtures regenerate in the same commit.
+     *
+     * ADDITIVE TO THE CENT where nothing is joined, which is everywhere
+     * today: no run carries a joint id, so [RunJoinArithmetic.adjust] returns
+     * [JoinAdjustment.NONE] before it reads any geometry and the default
+     * argument below leaves every existing caller pricing exactly as it did.
+     * Anchored (signed/sent) totals do not move regardless, as above.
+     *
      */
-    const val PRICING_ENGINE_VERSION = "2026.10.6"
+    const val PRICING_ENGINE_VERSION = "2026.10.8"
 
     /**
      * Money, to the cent: the ONE place a total is rounded.
@@ -260,7 +385,15 @@ object EstimateEngine {
         /** Bays the run divides into at the chosen spacing, before any adjustment. */
         val bays: Int = 0,
         /** Posts the run length alone calls for, once ends and gates are accounted for. */
-        val standardEstimate: Int = 0
+        val standardEstimate: Int = 0,
+        /**
+         * Posts this run no longer builds because the owner joined one of its
+         * ends to another run's end. Zero unless a [RunPostAdjustment] was
+         * applied, so zero on every job with no joint -- which is every job
+         * today. Carried only so [explainPosts] can say why [standardEstimate]
+         * no longer adds up to [totalPosts]; nothing is priced off it.
+         */
+        val postsSharedAtJoints: Int = 0
     )
 
     /**
@@ -276,14 +409,27 @@ object EstimateEngine {
 
     /**
      * @param wastePercent extra allowance applied to cut-and-waste roles only.
+     * @param joinAdjustment how THIS run's post counts move because of the
+     *   joints the owner has made between its ends and other runs' ends. Null
+     *   is "no joint touches this run" and prices exactly as before joints
+     *   existed. The caller works it out ONCE over every run of the job
+     *   ([joinAdjustments], which calls [RunJoinArithmetic.adjust]) and hands
+     *   each run its own [JoinAdjustment.forRun], because the run billed a
+     *   shared post is chosen ACROSS runs -- a per-run call would see one
+     *   candidate and every member would keep its post.
      */
-    fun suggestQuantities(run: FenceRun, pixelsPerFoot: Float, wastePercent: Double = 0.0): EstimateSuggestions {
+    fun suggestQuantities(
+        run: FenceRun,
+        pixelsPerFoot: Float,
+        wastePercent: Double = 0.0,
+        joinAdjustment: RunPostAdjustment? = null
+    ): EstimateSuggestions {
         val gates = FenceCodec.decodeGates(run.gatesEncoded)
         val geometry = resolveGeometry(run, pixelsPerFoot)
         val gateWidthTotal = gates.sumOf { it.widthFt.toDouble() }.toFloat()
         val netFt = (geometry.totalLinearFeet - gateWidthTotal).coerceAtLeast(0f)
 
-        val postCounts = computePostCounts(geometry, gates, run.postSpacingFt, netFt)
+        val postCounts = computePostCounts(geometry, gates, run.postSpacingFt, netFt, joinAdjustment)
 
         val entries = mutableListOf<QtyEntry>()
         when (run.fenceType) {
@@ -499,12 +645,16 @@ object EstimateEngine {
      * from the number it explains is worse than no explanation -- it teaches
      * somebody a formula the product does not actually use.
      */
-    fun explainPosts(run: FenceRun, pixelsPerFoot: Float): PostWorkings {
+    fun explainPosts(
+        run: FenceRun,
+        pixelsPerFoot: Float,
+        joinAdjustment: RunPostAdjustment? = null
+    ): PostWorkings {
         val gates = FenceCodec.decodeGates(run.gatesEncoded)
         val geometry = resolveGeometry(run, pixelsPerFoot)
         val gateWidthTotal = gates.sumOf { it.widthFt.toDouble() }.toFloat()
         val netFt = (geometry.totalLinearFeet - gateWidthTotal).coerceAtLeast(0f)
-        val c = computePostCounts(geometry, gates, run.postSpacingFt, netFt)
+        val c = computePostCounts(geometry, gates, run.postSpacingFt, netFt, joinAdjustment)
         return PostWorkings(
             fenceFeet = geometry.totalLinearFeet,
             gateFeet = gateWidthTotal,
@@ -519,14 +669,106 @@ object EstimateEngine {
             endPosts = c.endPosts,
             gatePosts = c.gatePosts,
             totalPosts = c.totalPosts,
+            postsSharedAtJoints = c.postsSharedAtJoints,
         )
     }
 
+    /**
+     * The whole job's join arithmetic, worked out ONCE, for the caller to hand
+     * each run its own slice of.
+     *
+     * ONCE and over EVERY run, never a subset: a shared post has to be billed
+     * to exactly one run (each run has its own lines, its own catalog choice
+     * and its own colour), and which one is decided ACROSS runs -- the taller
+     * fence, then the lower sort order, then the lower sync id. Called per run
+     * it would see one candidate every time and every member would keep its
+     * post, which is the bug this whole change removes.
+     *
+     * The geometry handed over is the SAME [resolveGeometry] the run's posts
+     * are counted from, so typed footage arrives with no vertices and a closed
+     * run with no ends -- the two cases [RunJoinArithmetic] refuses to take a
+     * post off. Reusing it is what stops this and [computePostCounts]
+     * disagreeing about whether a run has ends to give up.
+     *
+     * A job where no run carries a usable joint id gets
+     * [JoinAdjustment.NONE] back before any geometry is read, so every run
+     * prices exactly as it does today, to the cent.
+     */
+    fun joinAdjustments(runs: List<FenceRun>, pixelsPerFoot: Float): JoinAdjustment =
+        RunJoinArithmetic.adjust(
+            runs.map { run ->
+                JoinableRun(
+                    id = run.syncId,
+                    geometry = resolveGeometry(run, pixelsPerFoot),
+                    heightFt = joinHeightOf(run),
+                    sortOrder = run.sortOrder,
+                    isTeardown = run.isTeardown,
+                    startJointId = usableJointId(run.startJoint),
+                    endJointId = usableJointId(run.endJoint),
+                )
+            }
+        )
+
+    /**
+     * The height that decides which run is billed the shared post: the taller
+     * post is the one that has to be built, and a taller post can carry a
+     * shorter panel but not the reverse (docs/JOINING_RUNS.md 2.4, Q1).
+     *
+     * NOT simply [FenceRun.panelHeightFt]: chain link keeps its height in
+     * fabricHeightFt and split rail declares none. It is a different question
+     * from the one [buildLineItems] asks when it picks a catalog row -- that
+     * reads panelHeightFt even on a chain-link run, deliberately, because no
+     * chain-link post row declares a height. This one is "which post is taller
+     * in the ground".
+     *
+     * THE SAME RULE IS WRITTEN IN THREE PLACES and must stay identical, or the
+     * gesture, the phone's price and the office's price can name three
+     * different owners for one post: here, `SurveyViewModel.joinHeightOf`
+     * (the attach gesture) and `joinHeightFt` in
+     * supabase/functions/_shared/pricing/joins.ts (the office).
+     * tests/a61-corner-post-pricing.test.mjs reads all three and fails if any
+     * one of them drops a branch.
+     */
+    private fun joinHeightOf(run: FenceRun): Float = when (run.fenceType) {
+        FenceType.CHAIN_LINK -> run.fabricHeightFt
+        FenceType.SPLIT_RAIL -> 0f
+        else -> run.panelHeightFt
+    }
+
+    /**
+     * A stored joint id as the ENGINE should read it: the id, or blank for
+     * "not joined".
+     *
+     * [FenceRun.startJoint] accepts any text, because fence_runs upserts are
+     * batched and one row a constraint refuses fails the whole batch, so no
+     * run of that company would sync at all. The readers judge instead, and
+     * every one of them has to judge the same way: this is the engine's copy
+     * of `SurveyViewModel.jointIdsOf` and of `readJointId` in joins.ts.
+     *
+     * Length first, because `UUID.fromString` accepts short non-canonical
+     * forms ("1-1-1-1-1") and a joint id is only ever one this app generated
+     * with `UUID.randomUUID().toString()`. Anything else reads as a free end,
+     * which is the HIGHER post count and today's price -- bad data must never
+     * make a job cheaper.
+     */
+    private fun usableJointId(stored: String): String =
+        if (stored.length == 36 && runCatching { java.util.UUID.fromString(stored) }.isSuccess) stored else ""
+
+    /**
+     * @param joinAdjustment applied LAST, to the finished counts, and only
+     *   when the owner has attached this run's end to another run's end. It is
+     *   NOT fed into the estimate below: corner and end posts are CARVED OUT
+     *   of one fixed pool (`standardPostEstimate`) and line posts are whatever
+     *   is left, so lowering the end count before that runs hands the same
+     *   number straight back as line posts and the total does not move at all.
+     *   See [RunJoinArithmetic] and [RunPostAdjustment].
+     */
     private fun computePostCounts(
         geometry: FenceGeometryResult,
         gates: List<GateMarker>,
         postSpacingFt: Float,
-        netFt: Float
+        netFt: Float,
+        joinAdjustment: RunPostAdjustment? = null
     ): PostCounts {
         val gateCount = gates.size
         // Two end posts per gate, except LINE_TO_WALL, which ends the fence
@@ -569,10 +811,32 @@ object EstimateEngine {
         val linePosts = (standardPostEstimate - cornerPosts - endPosts).coerceAtLeast(0)
         val totalPosts = linePosts + cornerPosts + endPosts + gatePosts
 
-        return PostCounts(
+        val counts = PostCounts(
             linePosts, cornerPosts, endPosts, gatePosts,
             cornerPosts + endPosts + gatePosts, totalPosts,
             bays = bays, standardEstimate = standardPostEstimate
+        )
+        // Two sides the owner has JOINED share ONE post, so the second one --
+        // and its cap, and its bag of concrete -- come off here, and the two
+        // end posts that met become one CORNER post, a different catalog row.
+        // Nothing to apply on a job with no joint, which is every job today.
+        if (joinAdjustment == null || joinAdjustment.isZero) return counts
+        val joinedLine = linePosts + joinAdjustment.linePostsDelta
+        val joinedCorner = cornerPosts + joinAdjustment.cornerPostsDelta
+        val joinedEnd = endPosts + joinAdjustment.endPostsDelta
+        // Deliberately NOT clamped at zero, because joins.ts
+        // applyJoinAdjustment is not either and a clamp that fires on one
+        // engine and not the other is a price disagreement. It cannot fire:
+        // a run only reaches a joint when RunJoinArithmetic.isLive finds
+        // geometry.endCount >= 2, endPosts IS that end count, and a run has
+        // two ends -- so the most it can give up is the two it has.
+        return counts.copy(
+            linePosts = joinedLine,
+            cornerPosts = joinedCorner,
+            endPosts = joinedEnd,
+            terminalPosts = joinedCorner + joinedEnd + gatePosts,
+            totalPosts = joinedLine + joinedCorner + joinedEnd + gatePosts,
+            postsSharedAtJoints = -joinAdjustment.totalPostsDelta
         )
     }
 
@@ -641,10 +905,26 @@ object EstimateEngine {
     }
 
     /**
-     * Every gate gets its hinges, latch, handle, and brace regardless of fence
-     * type -- forgetting one of those is what sends a crew back to the supply
+     * Every gate gets its hinges, latch and handle whatever the fence is made
+     * of -- forgetting one of those is what sends a crew back to the supply
      * house mid-install. Anything the contractor doesn't want is removed on the
      * estimate and stays removed (see FenceRun.suppressedRoles).
+     *
+     * The BRACE is NOT one of the three. It used to be, for all seven types,
+     * and six of them had nothing in any catalog to price it against -- the
+     * role was reported unmatched and billed nothing. See [BRACED_GATE_TYPES]
+     * for why the honest fix is to stop asking rather than to seed a white
+     * vinyl extrusion for a chain-link gate. HINGE_SET, LATCH and HANDLE stay
+     * universal because they genuinely are: a hinge, a catch and a pull fit
+     * any leaf, and every fence type's starting catalog already prices a hinge
+     * set and a latch.
+     *
+     * Order is load-bearing, not style. A line item's sort order follows the
+     * order a role is first seen in these entries, so the branches below are
+     * arranged to leave a VINYL gate's sequence byte for byte what it was --
+     * panel, hinges, latch, handle, brace, (second brace, second hinge set),
+     * trim. Only the non-vinyl types, which never had a brace line to begin
+     * with, see anything change.
      */
     private fun gateEntries(fenceType: FenceType, gate: GateMarker): List<QtyEntry> {
         val panelRole = if (fenceType in FRAME_KIT_GATE_TYPES) MaterialRole.GATE_FRAME_KIT else MaterialRole.GATE_PANEL
@@ -652,16 +932,19 @@ object EstimateEngine {
         entries += QtyEntry(MaterialRole.HINGE_SET, 1.0)
         entries += QtyEntry(MaterialRole.LATCH, 1.0)
         entries += QtyEntry(MaterialRole.HANDLE, 1.0)
-        entries += QtyEntry(MaterialRole.BRACE, 1.0)
-        // A wide gate sags without a second brace and a heavier hinge set.
+        val braced = fenceType in BRACED_GATE_TYPES
+        if (braced) entries += QtyEntry(MaterialRole.BRACE, 1.0)
+        // A wide gate sags without a second brace and a heavier hinge set. The
+        // heavier hinge set is wanted whatever the leaf is made of; the second
+        // brace only where the first one was asked for at all.
         if (gate.widthFt >= 8f) {
-            entries += QtyEntry(MaterialRole.BRACE, 1.0)
+            if (braced) entries += QtyEntry(MaterialRole.BRACE, 1.0)
             entries += QtyEntry(MaterialRole.HINGE_SET, 1.0)
         }
         if (fenceType == FenceType.VINYL) {
             entries += QtyEntry(MaterialRole.TRIM, 4.0)
         }
-        entries += gateAreaEntries(gate)
+        entries += gateAreaEntries(fenceType, gate)
         return entries
     }
 
@@ -669,13 +952,25 @@ object EstimateEngine {
      * What the gate area itself is built from, which depends on where the gate
      * hangs rather than on the fence type.
      *
-     * Every gate takes one econo stiffener. After that the three cases are
-     * genuinely different builds, and treating them alike is a truck going back
-     * to the yard:
+     * A VINYL gate takes one econo stiffener, and only a vinyl one does --
+     * [STIFFENED_GATE_TYPES] has the reason, which is that the part is sized to
+     * a 5x5 vinyl post and every other type's gate reaches site already rigid.
+     * This asked for one on all seven types; the other six had nothing to price
+     * it against, so the role was reported unmatched and billed nothing. The
+     * posts, plugs and concrete below are unchanged and still depend only on
+     * where the gate hangs.
+     *
+     * After that the three cases are genuinely different builds, and treating
+     * them alike is a truck going back to the yard:
      *
      *  - **On the wall**: the hinge side bolts through a blank post. Four 5/8"
-     *    holes are drilled through the stiffener into that post, so it needs
-     *    plugs to close them. Nothing is set in the ground, so **no concrete** --
+     *    holes are drilled through the leaf (through the stiffener, where there
+     *    is one) into that post, so it needs plugs to close them -- which is
+     *    why the plugs do NOT follow the stiffener out on a non-vinyl wall gate:
+     *    the holes are in the post either way. Whether a 5/8" plug is the right
+     *    part for a steel or timber post is a separate question nobody has put
+     *    to him; HOLE_PLUG is seeded UNIVERSAL and has always billed on every
+     *    type. Nothing is set in the ground, so **no concrete** --
      *    this is the case the old code got most wrong, since it charged concrete
      *    for every gate regardless. Takes a blank post plus the latch post.
      *  - **In the line**: two posts at the opening, set in concrete -- two bags.
@@ -719,8 +1014,9 @@ object EstimateEngine {
      * Gate posts are counted separately by [computePostCounts]; these are the
      * posts the gate area needs on top of that.
      */
-    private fun gateAreaEntries(gate: GateMarker): List<QtyEntry> {
-        val entries = mutableListOf(QtyEntry(MaterialRole.STIFFENER, 1.0))
+    private fun gateAreaEntries(fenceType: FenceType, gate: GateMarker): List<QtyEntry> {
+        val entries = mutableListOf<QtyEntry>()
+        if (fenceType in STIFFENED_GATE_TYPES) entries += QtyEntry(MaterialRole.STIFFENER, 1.0)
         when (gate.mounting) {
             GateMounting.WALL -> {
                 entries += QtyEntry(MaterialRole.BLANK_POST, 1.0)

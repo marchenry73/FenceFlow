@@ -362,7 +362,102 @@ class SettingsStore(private val context: Context) {
         }
     }
 
+    /**
+     * This phone's working copy of the company's payment methods.
+     *
+     * [PaymentMethodsCache.loaded] false means no server read has ever
+     * succeeded on this phone, which is NOT the same as "the company has set
+     * nothing up" -- the panel refuses to be editable in that state rather than
+     * offering a blank form whose Save would queue blanks over real details.
+     */
+    val paymentMethods: Flow<PaymentMethodsCache> = context.dataStore.data.map { prefs ->
+        PaymentMethodsCache(
+            methodsJson = prefs[Keys.PM_METHODS_JSON] ?: "",
+            limitsJson = prefs[Keys.PM_LIMITS_JSON] ?: "",
+            loaded = prefs[Keys.PM_LOADED] ?: false,
+            pending = prefs[Keys.PM_PENDING] ?: false
+        )
+    }
+
+    /**
+     * Keep what the server just handed us. NOT an edit: [Keys.UPDATED_AT] is
+     * untouched.
+     *
+     * That is the whole point of this function existing separately from [save].
+     * UPDATED_AT is the company settings blob's edit clock, and
+     * [SettingsSync.pull] only lets the cloud win when the cloud is newer. A
+     * bookkeeping write that bumped it -- and opening this panel is a
+     * bookkeeping write -- would make this phone look like the newest editor of
+     * the WHOLE blob, so the office's next change to the labour rate, markup or
+     * minimum charge would stop reaching this phone. The payment methods are
+     * not part of [BusinessProfile] or CloudSettings for the same reason.
+     *
+     * A pending outbox write is never overwritten by a server read: his unsent
+     * edit is the thing he typed and must not be quietly replaced by the older
+     * copy it was about to supersede.
+     */
+    suspend fun cachePaymentMethods(methodsJson: String, limitsJson: String) {
+        context.dataStore.edit { prefs ->
+            if (prefs[Keys.PM_PENDING] == true) {
+                // Still say the read worked -- it did -- without touching the
+                // unsent copy.
+                prefs[Keys.PM_LOADED] = true
+                return@edit
+            }
+            writePaymentMethods(prefs, methodsJson, limitsJson, loaded = true, pending = false)
+        }
+    }
+
+    /**
+     * He pressed Save and the server took it. Also clears the outbox.
+     * Not stamped, for the reason in [cachePaymentMethods].
+     */
+    suspend fun savePaymentMethodsSynced(methodsJson: String, limitsJson: String) {
+        context.dataStore.edit { writePaymentMethods(it, methodsJson, limitsJson, loaded = true, pending = false) }
+    }
+
+    /**
+     * He pressed Save and the server did not take it. Kept on the phone and
+     * flagged, so the panel can say "on this phone, not sent yet" instead of
+     * "Saved". Not stamped, for the reason in [cachePaymentMethods].
+     */
+    suspend fun savePaymentMethodsPending(methodsJson: String, limitsJson: String) {
+        context.dataStore.edit { writePaymentMethods(it, methodsJson, limitsJson, loaded = true, pending = true) }
+    }
+
+    /**
+     * Give up on sending the queued edit, WITHOUT claiming it was stored.
+     *
+     * For the one case where retrying is pointless: the server answered and
+     * refused, or stored something other than what was sent. Only the flag
+     * moves -- marking his rejected values "synced" would have left the phone
+     * presenting them as the company's stored details. The caller re-reads
+     * immediately, and the flag has to be down first or that read is skipped
+     * by [cachePaymentMethods]'s guard.
+     */
+    suspend fun clearPaymentMethodsPending() {
+        context.dataStore.edit { it[Keys.PM_PENDING] = false }
+    }
+
     companion object {
+        /**
+         * The body of the three payment-method writes, kept apart from
+         * DataStore so a test can run it on a plain [MutablePreferences] and
+         * see exactly which keys it touched. FOUR keys, and never UPDATED_AT.
+         */
+        internal fun writePaymentMethods(
+            prefs: MutablePreferences,
+            methodsJson: String,
+            limitsJson: String,
+            loaded: Boolean,
+            pending: Boolean
+        ) {
+            prefs[Keys.PM_METHODS_JSON] = methodsJson
+            prefs[Keys.PM_LIMITS_JSON] = limitsJson
+            prefs[Keys.PM_LOADED] = loaded
+            prefs[Keys.PM_PENDING] = pending
+        }
+
         /**
          * The body of [saveDevicePrefs], kept apart from DataStore so a unit
          * test can run it on a plain [MutablePreferences] and see exactly which
@@ -594,6 +689,32 @@ class SettingsStore(private val context: Context) {
         val HOURS_PER_CORNER = doublePreferencesKey("hours_per_corner")
         val SETUP_HOURS = doublePreferencesKey("setup_hours")
         val TEARDOWN_HOURS_FT = doublePreferencesKey("teardown_hours_ft")
+
+        // ---- How customers can pay (see data/PaymentMethods.kt) -------------
+        //
+        // The phone's working copy of two keys that LIVE IN THE CLOUD, in
+        // company_settings.settings: 'payment_methods' and 'payment_limits'.
+        // The cloud is the store; these three keys are a cache plus an outbox,
+        // so the panel works in the yard with no signal.
+        //
+        // Held as the raw JSON text of each key rather than as parsed fields,
+        // for the same reason SettingsSync's decoder sets ignoreUnknownKeys: if
+        // the office adds a fifth method tomorrow, a phone running today's
+        // build carries it through its own outbox untouched instead of
+        // dropping it on the next save.
+        //
+        // PM_LOADED says a real server read once succeeded. Without it the
+        // panel must not be editable: saving a blank form over real details is
+        // the office's own refused case (loadPaymentMethods locks on a failed
+        // read), and here it would be worse, because the phone would queue that
+        // blank and send it later.
+        val PM_METHODS_JSON = stringPreferencesKey("payment_methods_json")
+        val PM_LIMITS_JSON = stringPreferencesKey("payment_limits_json")
+        val PM_LOADED = booleanPreferencesKey("payment_methods_loaded")
+        // Set when a save landed on this phone but NOT on the server. The panel
+        // says so in words and keeps saying so until a flush succeeds, which is
+        // the difference between "offline for a bit" and silently lost.
+        val PM_PENDING = booleanPreferencesKey("payment_methods_pending")
     }
 
     val profile: Flow<BusinessProfile> = context.dataStore.data.map { prefs ->

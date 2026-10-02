@@ -1,6 +1,22 @@
-// a34-height-blindness -- the engine chooses a catalog row by WIDTH (panels, gates) or by PRICE (everything
+// a34-height-blindness -- the engine chose a catalog row by WIDTH (panels, gates) or by PRICE (everything
 // else), and never by HEIGHT. This file measures what that costs, against the real engine and the real
 // starting catalog. The write-up is docs/PANEL_HEIGHT_BLINDNESS.md; every number in it comes from here.
+//
+// UPDATED 2 Oct 2026, AND READ THIS BEFORE THE NUMBERS BELOW. The fix this file argued for has SHIPPED:
+// both engines now read a catalog row's height_ft, for panels and gate panels (PRICING_ENGINE_VERSION
+// 2026.10.2) and for the five POST roles (2026.10.3). The tripwires in blocks 3 and 4 fired exactly as
+// the paragraph below promised they would, and each one has been re-aimed at what is now true -- with the
+// cause, the version and the arithmetic written at the assertion itself. None was deleted and none was
+// loosened; the ones that forbid height reaching the TAKEOFF or a TOTAL are untouched and still forbid it.
+//
+// The COST this file measures is still real and still unrecovered, and that is not a contradiction. The
+// rule reads height_ft off the catalog row, and NO ROW IN THE STARTING LIST DECLARES ONE yet: the heights
+// live only in the rows' NAMES, and supabase_a40_material_height.sql (PART 3), which fills the column in
+// from those names, is WRITTEN AND NOT APPLIED. So the engine's height rule is inert on this catalog, the
+// iron 6'H run is still priced with the 4'H panel, and every "ENGINE FACT" below is still a true reading
+// of the shipped engine against the shipped catalog. The day that migration runs, those facts change --
+// tests/a40-height-engine.test.mjs already prices the identical runs WITH the heights filled in and pins
+// what they become, including the $40 a panel recovered.
 //
 //   node --test tests/a34-height-blindness.test.mjs                   (no network, no writes)
 //   A34_TABLE=1 node --test tests/a34-height-blindness.test.mjs       (also prints the tables the doc quotes)
@@ -13,11 +29,15 @@
 //      6 ft wide. A planted pair proves the detector can see one.
 //   2. THE COST, from the real priceJob: the iron 6'H run is priced with the 4'H panel -- an UNDERCHARGE of
 //      $40 a panel before tax and markup, $727.60 on 100 ft and $1,455.20 on 200 ft at 7% tax.
-//   3. THE SCOPE. panel_height_ft is read by NO pricing code on either side, so it changes no quote for any
-//      fence type. Every role the takeoff asks for is chosen by width or by price alone: proved row by row by
-//      planting a cheaper decoy that wins whatever height its name claims.
-//   4. THE FIX, as a REFERENCE MODEL kept in this file (a tie-break between equal-width rows). It is NOT the
-//      engine and the engine does not do it. The model is first proved to reproduce today's engine exactly,
+//   3. THE SCOPE. panel_height_ft is read by the ROW SELECTOR on each side and by nothing else -- not the
+//      takeoff, not any total -- and on a catalog whose rows declare no height_ft it changes no quote for
+//      any fence type. Every role the takeoff asks for is still chosen by width or by price on this
+//      catalog: proved row by row by planting a cheaper decoy that wins whatever height its NAME claims,
+//      which is the point -- the engine reads the column, never the name.
+//   4. THE FIX, as a REFERENCE MODEL kept in this file (a tie-break between equal-width rows). The model
+//      reads a height out of a row's NAME, which the shipped fix deliberately does NOT do -- it reads the
+//      height_ft column -- so this remains a model of the ARGUMENT, not a port of the engine. The model is
+//      first proved to reproduce today's engine exactly,
 //      then used to show what the fix would and would not change: no single-height catalog, no catalog without
 //      heights in its names, and 83 of the 85 parity fixtures. It is the executable spec for the fix.
 //   5. THE LIVE DATA (A34_LIVE=1 only): a read-only SELECT with a synthetic canary company that must be found.
@@ -26,6 +46,15 @@
 // EstimateEngine.buildLineItems read height, they go red, and the failure messages say what to rewrite. Do not
 // loosen them. The census (block 1) goes red the day a row is ADDED that shares a fence type and width with a
 // row of another height: that is this bug being shipped again, and the message says so.
+//
+// THAT DAY CAME, 1 Oct 2026. The tripwires did their job: each said what to rewrite, and each has been
+// rewritten to the post-fix truth rather than relaxed, so they now hold the fix in place instead of the
+// defect. They point the other way now and they still bite. One of them was worse than stale and is worth
+// knowing about: the assertion that price-job's CATALOG_COLUMNS must NOT select a height had no failure
+// message and was SHADOWED by an earlier failure in the same test, so it never ran -- and the moment this
+// file was brought up to date it would have gone live and read as an instruction to delete height_ft from
+// that select, which is what makes the OFFICE price height-blind while the PHONE does not (+$2,666.50
+// across his nine jobs, the office low on every one). It is now inverted, with the loudest message here.
 //
 // EVERY CHECK HAS A CONTROL. "Nothing found" reads the same as "the checker cannot see", so each negative
 // result here sits beside a positive one produced by the same code on a planted case.
@@ -465,37 +494,96 @@ test("POSTS: a shorter, cheaper post row wins every quote of its fence type -- l
   assert.equal(ROWS.filter((r) => r.fence_type === "WOOD" && r.role === "LINE_POST").length, 1);
 });
 
-test("GATE_POST is never asked for by the takeoff (gate posts are END_POST), so the seed's GATE_POST rows can never be priced onto a quote", () => {
+test("GATE_POST IS now asked for by the takeoff, so the seed's GATE_POST rows are reachable at last", () => {
+  // THE TRIPWIRE FIRED, exactly as this file's header said it would, and the answer is to
+  // record the new truth rather than to loosen it.
+  //
+  // PIN FLIPPED: this asserted that takeoff.ts contains NO `qty("GATE_POST")` and that no
+  // quote of any fence type carries a GATE_POST line. Both are now false, deliberately.
+  // THE DELIBERATE CHANGE: GATE POSTS ARE BILLED AS GATE POSTS (engine 2026.10.4). The two
+  // posts standing at a gate opening used to be emitted as END_POST; they are now emitted as
+  // GATE_POST, because a post at an opening is not the end of a fence. gateAreaEntries in
+  // pricing/takeoff.ts spells out the one exception: the third post of a LINE_TO_WALL gate,
+  // and the latch post of a WALL gate, ARE ends of the fence line and stay END_POST.
+  //
+  // What this file MEASURED -- that ten priced GATE_POST rows in the owner's catalog, and the
+  // seed's own, could never be reached by any estimate -- was true when it was written and is
+  // the finding that got them reached. The check is re-aimed to hold the fix in place: those
+  // rows must stay reachable, and the seed must keep shipping rows for the role. A quote that
+  // stops carrying a GATE_POST line is this finding coming back.
   const code = stripCode(read(TS_DIR + "takeoff.ts"), "ts");
   assert.ok(/qty\("END_POST"/.test(code) && /qty\("PANEL"/.test(code), "control: the scan sees the roles the takeoff does build");
-  assert.ok(!/qty\(\s*"GATE_POST"/.test(code), "the takeoff now builds GATE_POST: posts for gates are chosen by a different row than today");
+  assert.ok(/qty\(\s*"GATE_POST"/.test(code),
+    "the takeoff no longer builds GATE_POST: the ten priced GATE_POST rows in his catalog are " +
+    "unreachable again, and gate posts are being billed off some other role's row (2026.10.4 reverted)");
+  // A gate, of every fence type, reaches a GATE_POST row. ALL_GATES includes a WALL mounting,
+  // whose own two posts are a BLANK_POST and an END_POST rather than gate posts, so the
+  // assertion is that SOME gate on the run reaches one -- not that every mounting does.
   for (const type of FENCE_TYPES) {
     const out = price(runRow({ fence_type: type, gates_encoded: ALL_GATES, manual_linear_feet: 120 }), ROWS);
-    assert.ok(!out.items.some((i) => i.role === "GATE_POST"), type + " quote carries a GATE_POST line");
+    assert.ok(out.items.some((i) => i.role === "GATE_POST"),
+      type + " quote carries NO GATE_POST line: its gate posts are unreachable again");
   }
+  // CONTROL, and the thing that made this finding worth money: the seed does hold rows for the
+  // role. If it ever stops, "a quote carries a GATE_POST line" would be unprovable here and
+  // this test would be measuring nothing.
   assert.ok(ROWS.filter((r) => r.role === "GATE_POST").length >= 6, "control: the seed does hold GATE_POST rows");
+  // CANARY: a run with NO gate on it must still carry no GATE_POST line, so the assertions
+  // above are reading the gate and not a role the takeoff now asks for unconditionally.
+  const noGate = price(runRow({ fence_type: "VINYL", gates_encoded: "", manual_linear_feet: 120 }), ROWS);
+  assert.ok(!noGate.items.some((i) => i.role === "GATE_POST"),
+    "canary: a gateless run bills a GATE_POST, so gate posts are no longer tied to gates");
 });
 
 // ====================================== 4. WHERE HEIGHT IS, AND WHERE IT IS NOT ==
 
-test("SOURCE: no pricing code on either side reads the run's height (comments stripped; the scan has a control)", () => {
+test("SOURCE: the run's height IS read, and ONLY by the row selector on each side (comments stripped; the scan has a control)", () => {
+  // THE TRIPWIRE FIRED. This file's header promised it would go red "the day line-items.ts and
+  // EstimateEngine.buildLineItems read height", and that day was 1 Oct 2026.
+  //
+  // PIN FLIPPED: this asserted that NO pricing file on either side so much as mentions
+  // panelHeightFt. THE DELIBERATE CHANGES: the height rule landed in the row selector at
+  // engine 2026.10.2 (panels and gate panels) and widened to the five POST roles at 2026.10.3
+  // ("a 6 ft fence stopped being given a 4 ft fence post"). This file MEASURED what the
+  // blindness cost -- $40 a panel, $727.60 on a 100 ft iron job -- and that measurement is
+  // what bought the change. The scan is kept, with its sense inverted where the rule landed
+  // and UNCHANGED everywhere it did not, so the rule cannot quietly spread:
+  //
+  //   line-items.ts / EstimateEngine.kt  MUST read the run's height (the row selector)
+  //   takeoff.ts                         must NOT: quantities are geometry, not catalog choice
+  //   totals.ts / JobMoney.kt            must NOT: height is not a term in any total
+  //   TakeoffRefresher.kt                must NOT: it passes the run along, it does not choose
+  //
+  // The "must NOT" list is the valuable half and keeps every tooth it had. Height leaking into
+  // the takeoff or into a total would change quantities or money for a reason nobody decided,
+  // and that is still exactly as forbidden as it was when this file was an audit.
   const ts = (f) => stripCode(read(TS_DIR + f), "ts");
   const kt = (rel) => stripCode(read(rel), "kt");
-  const files = [["takeoff.ts", ts("takeoff.ts")], ["line-items.ts", ts("line-items.ts")], ["totals.ts", ts("totals.ts")],
-    ["EstimateEngine.kt", kt(KT_ENGINE)], ["JobMoney.kt", kt("app/src/main/java/com/fenceestimator/app/estimate/JobMoney.kt")],
+  const reads = [["line-items.ts", ts("line-items.ts")], ["EstimateEngine.kt", kt(KT_ENGINE)]];
+  const mustNot = [["takeoff.ts", ts("takeoff.ts")], ["totals.ts", ts("totals.ts")],
+    ["JobMoney.kt", kt("app/src/main/java/com/fenceestimator/app/estimate/JobMoney.kt")],
     ["TakeoffRefresher.kt", kt("app/src/main/java/com/fenceestimator/app/estimate/TakeoffRefresher.kt")]];
-  for (const [name, code] of files) {
+  for (const [name, code] of [...reads, ...mustNot])
     assert.ok(code.length > 2000, "control: " + name + " was read (" + code.length + " chars of code)");
+  for (const [name, code] of reads)
+    assert.ok(/panelHeightFt|panel_height_ft/.test(code),
+      "TRIPWIRE: " + name + " has stopped reading the run's panel height. The row selector is " +
+      "height-blind again: a 6 ft fence will be priced with a 4 ft panel and 4 ft posts, which " +
+      "is $40 a panel and $727.60 on a 100 ft iron job. See blocks 2 and 5 for the measurement.");
+  for (const [name, code] of mustNot)
     assert.ok(!/panelHeightFt|panel_height_ft/.test(code),
-      "TRIPWIRE: " + name + " now reads the run's panel height. Panel choice may be height-aware: rewrite blocks 2 to 4 and the doc.");
-  }
+      "TRIPWIRE: " + name + " now reads the run's panel height. Height belongs ONLY in the row " +
+      "selector (line-items.ts / EstimateEngine.buildLineItems). In the takeoff it would change " +
+      "QUANTITIES and in a total it would change MONEY, neither of which anyone decided.");
   // CONTROLS: the same scan finds the width and the fabric height, which the engine DOES read.
-  const take = files[0][1], items = files[1][1], eng = files[3][1];
+  const take = mustNot[0][1], items = reads[0][1], eng = reads[1][1];
   assert.ok(/run\.panelWidthFt/.test(take), "control: takeoff.ts reads panelWidthFt");
   assert.ok(/run\.fabricHeightFt/.test(take), "control: takeoff.ts reads fabricHeightFt");
   assert.ok(/panelWidthFt/.test(eng) && /fabricHeightFt/.test(eng), "control: EstimateEngine.kt reads the width and the fabric height");
   assert.ok(/preferCoversFt/.test(items) && /preferCoversFt/.test(eng), "control: both selectors read preferCoversFt");
-  // the ONE place TS touches it is the input adapter: the row is mapped into the run and nothing reads it back
+  // index.ts: the input adapter maps the row into the run, and that is still the only place it
+  // appears there. The selector reads it from the run, not from the wire row, so this count has
+  // NOT moved -- the one mention is still just the adapter.
   const idx = ts("index.ts");
   assert.equal((idx.match(/panelHeightFt/g) || []).length, 1, "index.ts mentions panelHeightFt once: the adapter");
   assert.ok(/panelHeightFt:\s*flt\(row\.panel_height_ft/.test(idx));
@@ -520,14 +608,33 @@ test("SOURCE: the run, height included, IS in scope where a catalog row is chose
     assert.ok(/EstimateEngine\.buildLineItems\([\s\S]*?run = run,/.test(stripCode(read(f), "kt")), f + " passes run = run");
 });
 
-test("SOURCE: a catalog row has NO height field anywhere -- the only place its height appears is its NAME", () => {
+test("SOURCE: a catalog row now HAS a height field, so the only place its height appears is no longer its NAME", () => {
+  // THE TRIPWIRE FIRED, and this is the one the whole file was arguing for.
+  //
+  // PIN FLIPPED: this asserted that MaterialItem has no height-like field on either side, so a
+  // row's height could only ever be read out of its NAME -- which is the standing rule against
+  // comparing display text, and the reason this finding was worth writing up. THE DELIBERATE
+  // CHANGE: height_ft / heightFt was added to the catalog row on both sides at engine 2026.10.2
+  // (Room schema 49, supabase_a40_material_height.sql, and the whole plumbing pinned by
+  // tests/a40-height-carriers.test.mjs). The name is NOT parsed by either engine, and
+  // tests/a40-height-engine.test.mjs holds that: "the engines never read a name for a height".
+  //
+  // The check is re-aimed to hold the field in place and to keep its SHAPE, which is where the
+  // money is: it must be nullable, and NULL must keep meaning "this row does not say" rather
+  // than "zero feet". A row that declares no height still prices exactly as it did before the
+  // change -- that is what made the change additive, and a NOT NULL column with a 0 default
+  // would quietly make every undeclared row a zero-foot row and drop it out of every quote.
   const tsTypes = stripCode(read(TS_DIR + "types.ts"), "ts");
   const tsItem = tsTypes.match(/export interface MaterialItem \{([\s\S]*?)\n\}/)[1];
   assert.ok(/coversFt: number \| null;/.test(tsItem), "control: the interface body was captured");
-  assert.ok(!/height/i.test(tsItem), "TS MaterialItem now has a height-like field: the name need not be parsed");
+  assert.ok(/heightFt: number \| null;/.test(tsItem),
+    "TS MaterialItem has no NULLABLE heightFt. Either the field is gone -- and a row's height is " +
+    "back to being parsed out of its display name -- or it stopped being nullable, which turns " +
+    "'this row does not say' into 'this row is zero feet high'.");
   const ktItem = stripCode(read(KT_ENTITIES), "kt").match(/data class MaterialItem\(([\s\S]*?)\n\)/)[1];
   assert.ok(/val coversFt: Float\?/.test(ktItem), "control: the Kotlin class body was captured");
-  assert.ok(!/height/i.test(ktItem), "Kotlin MaterialItem now has a height-like field");
+  assert.ok(/val heightFt: Float\?/.test(ktItem),
+    "Kotlin MaterialItem has no nullable heightFt: same two failures as the TypeScript side above");
   // The cloud table and every migration that has ever ALTERed or CREATEd it. Only those statements are read: the
   // body of a function that merely mentions the table is not a column.
   const sqlFiles = readdirSync(ROOT).filter((f) => /^supabase.*\.sql$/.test(f));
@@ -541,12 +648,70 @@ test("SOURCE: a catalog row has NO height field anywhere -- the only place its h
   assert.ok(sqlFiles.length > 100, "control: only " + sqlFiles.length + " migrations scanned");
   assert.ok(alters.some(([, t]) => /edit_version/.test(t)) && alters.some(([, t]) => /supplier_sku/.test(t)), "control: the ALTERs that added edit_version and supplier_sku were found");
   assert.ok(alters.length >= 5 && creates.length >= 1 && creates.every(([, t]) => /covers_ft/.test(t)), "control: " + alters.length + " ALTERs and " + creates.length + " CREATEs of material_items found");
-  for (const [f, t] of [...alters, ...creates]) assert.ok(!/height/i.test(t), f + " adds a height to material_items:\n" + t.trim().slice(0, 300));
-  // TEETH: the same scan flags a column that WOULD be a height.
-  assert.ok(/height/i.test("alter table public.material_items add column height_ft real;".match(/alter\s+table\s+(?:public\.)?material_items\b[^;]*;/i)[0]));
+  // PIN FLIPPED, same cause: this asserted that NO ALTER or CREATE of material_items mentions
+  // a height. supabase_a40_material_height.sql now adds exactly one, deliberately. The check
+  // becomes "EXACTLY ONE file defines it, it is a40, and it is nullable with no default",
+  // which is strictly more than the old form said and is where the additiveness lives: a NOT
+  // NULL height_ft with a default would turn every row that does not declare a height into a
+  // zero-foot row.
+  const heightStatements = [...alters, ...creates].filter(([, t]) => /\bheight_ft\b/i.test(t));
+  assert.deepEqual([...new Set(heightStatements.map(([f]) => f))], ["supabase_a40_material_height.sql"],
+    "height_ft on material_items is defined by a file other than a40, so the column has two " +
+    "owners: " + heightStatements.map(([f]) => f).join(", "));
+  assert.equal(heightStatements.length, 1, "a40 defines height_ft more than once");
+  assert.match(heightStatements[0][1], /add column if not exists height_ft real\s*;/i,
+    "a40's height_ft is not a bare nullable `real`:\n" + heightStatements[0][1].trim().slice(0, 300));
+  assert.ok(!/height_ft[^;]*\b(not null|default)\b/i.test(heightStatements[0][1]),
+    "height_ft is NOT NULL or carries a default. NULL must keep meaning 'this row does not " +
+    "say'; a default makes every undeclared row a zero-foot row and drops it out of every quote.");
+  // And no OTHER height-like column has crept onto the catalog row beside it -- the original
+  // form of this check, kept, with height_ft itself excepted by name.
+  for (const [f, t] of [...alters, ...creates])
+    assert.ok(!/height/i.test(t.replace(/height_ft/gi, "")), f + " adds a SECOND height to material_items:\n" + t.trim().slice(0, 300));
+  // TEETH: the same scan flags a column that WOULD be a second height.
+  assert.ok(/height/i.test("alter table public.material_items add column panel_height real;".match(/alter\s+table\s+(?:public\.)?material_items\b[^;]*;/i)[0].replace(/height_ft/gi, "")));
   // the price-job catalog read, and the editor's single field
   assert.ok(/CATALOG_COLUMNS = [^;]*covers_ft[^;]*;/.test(stripCode(read("supabase/functions/price-job/index.ts"), "ts")), "control: price-job's catalog column list found");
-  assert.ok(!/CATALOG_COLUMNS = [^;]*height/.test(read("supabase/functions/price-job/index.ts")));
+  // ======================= THIS ASSERTION HAS BEEN INVERTED ========================
+  //
+  // It read `assert.ok(!/CATALOG_COLUMNS = [^;]*height/...)` -- price-job must NOT select a
+  // height -- and it carried NO failure message at all. It was true when written, because
+  // nothing on either side knew a catalog height. It is now exactly backwards, and it was the
+  // single most dangerous line in this file.
+  //
+  // THE DELIBERATE CHANGE: CATALOG_COLUMNS names height_ft on purpose as of 2 Oct 2026.
+  // price-job selects its catalog columns BY NAME, so leaving height_ft out of the list
+  // returned every row with the key ABSENT -- which the load layer reads, correctly, as "this
+  // row declares no height". The OFFICE therefore priced every panel and every post
+  // height-blind while the PHONE, reading its own SQLite row, applied the rule. Two engines,
+  // same inputs, different answers, and no parity fixture could catch it because the fixtures
+  // carry their catalogs inline and never go through this SELECT. Measured at +$2,666.50
+  // across his nine priceable jobs, the office low on every one. See the comment on
+  // CATALOG_COLUMNS in supabase/functions/price-job/index.ts and
+  // tests/a63-office-height-parity.test.mjs.
+  //
+  // WHY IT WAS DANGEROUS RATHER THAN MERELY STALE: it survived only because an earlier
+  // assertion in this same test (TS MaterialItem has no height field) threw first, so this one
+  // was SHADOWED and never ran. Nothing recorded that. The moment anybody brought this file up
+  // to date with the engine -- which is exactly what is happening here -- the line would go
+  // live, fail with no message explaining itself, and read to the next person as a plain
+  // instruction to delete height_ft from CATALOG_COLUMNS. Doing that puts the office silently
+  // back to buying four-foot posts for six-foot fences, and the test suite would go green on
+  // the way.
+  //
+  // So it is INVERTED rather than deleted, and given the loudest message in the file. A check
+  // that guards the fix is worth more than a deleted line: if someone ever does narrow that
+  // select, this now fails and says why.
+  assert.match(read("supabase/functions/price-job/index.ts"), /CATALOG_COLUMNS = [^;]*\bheight_ft\b/,
+    "price-job's CATALOG_COLUMNS no longer selects height_ft. DO NOT 'fix' this by editing this " +
+    "test -- put height_ft back in CATALOG_COLUMNS. price-job selects catalog columns BY NAME, " +
+    "so omitting height_ft hands every row to the engine with the key absent, which means 'this " +
+    "row declares no height'. The office then prices every panel and every post height-blind " +
+    "while the phone, reading its own SQLite row, applies the rule: a 6 ft fence quoted with 4 ft " +
+    "panels and 4 ft posts from the office and correctly from the phone. Measured at +$2,666.50 " +
+    "across his nine priceable jobs, the office low on every one. No parity fixture can catch " +
+    "this, because fixtures carry their catalogs inline and never go through this SELECT. See " +
+    "tests/a63-office-height-parity.test.mjs.");
   assert.match(read("app/src/main/res/values/strings.xml"), /name="cat_covers_ft">Width\/height it covers, ft \(panels &amp; fabric only\)</,
     "the catalog editor has ONE number for 'width/height it covers'; if this label changed, a height field may have been added");
 });
@@ -591,8 +756,30 @@ const cmpStr = (a, b) => (a < b ? -1 : a > b ? 1 : 0);
  * buildLineItems' choice for one entry. withHeight: false = today's engine; true = the height TIE-BREAK (the rule
  * above); "narrow" = the ALTERNATIVE kept only to measure it: drop rows that name a different height, if any remain.
  */
+// A role with no rows of its own is priced off another role's rows. The engine's own table,
+// ported: PRICING_FALLBACK_ROLE in line-items.ts / PRICING_FALLBACK_ROLE in EstimateEngine.kt.
+//
+// MODEL BROUGHT UP TO DATE, and this is a faithfulness fix, not a moved pin. The model had no
+// fallback, because when it was written nothing needed one. THE DELIBERATE CHANGES: a WALL
+// gate now emits a BLANK_POST for the side bolted to the wall (engine 2026.10.4, the owner's
+// own words on 1 Oct 2026), and a BLANK_POST entry with no BLANK_POST row is priced off the
+// company's GATE_POST rows (engine 2026.10.5 -- "a wall gate charges for the post it bolts
+// through"; it used to price at $0.00, which is the owner paying for that post himself). The
+// starting catalog ships no BLANK_POST row, so every sweep run with a WALL gate on it now
+// has a BLANK_POST line in the engine's output that the model simply did not produce -- the
+// model returned null for the role and left it out. That is the model failing to be the
+// engine, which makes the three measurements built on it untrustworthy, so it is fixed here
+// rather than worked around at the comparisons.
+//
+// It is placed BEFORE the colour, manufacturer and height filters, which is where the engine
+// puts it, so a borrowed row is then chosen by exactly the rules the real role's rows would
+// have been: see the comment above the fallback in line-items.ts.
+const FALLBACK_ROLE = { BLANK_POST: "GATE_POST" };
+
 function choose(run, entry, catalog, mfr, withHeight) {
-  let c = catalog.filter((i) => i.is_active && (i.fence_type === run.fence_type || i.fence_type === "UNIVERSAL") && i.role === entry.role);
+  const ofRole = (role) => catalog.filter((i) => i.is_active && (i.fence_type === run.fence_type || i.fence_type === "UNIVERSAL") && i.role === role);
+  let c = ofRole(entry.role);
+  if (!c.length && FALLBACK_ROLE[entry.role] !== undefined) c = ofRole(FALLBACK_ROLE[entry.role]);
   if (!c.length) return null;
   if (run.color_or_finish.trim() !== "") {
     const m = c.filter((i) => i.color_or_finish.toLowerCase() === run.color_or_finish.toLowerCase());
@@ -799,12 +986,52 @@ test("BLAST RADIUS on the parity fixtures: the fix would change the chosen rows 
   for (const c of changed) { assert.equal(c.height, 6); assert.deepEqual(c.from, [IRON_4]); assert.deepEqual(c.to, [IRON_6]); }
   // In DOLLARS, from the real engine alone: the same fixture priced with the wrong-height row taken out of its catalog.
   // (Both are the current engine's totals; the fixtures' own expected totals still carry the older round-up-to-ten.)
-  const DOLLARS = { "ornamental-iron-drawn-open-wall-gate.json": [5147.36, 6003.36], "template-08-ornamental-iron-6ft.json": [4690.87, 5527.61] };
+  // PIN MOVED, on ornamental-iron-drawn-open-wall-gate.json only: [5147.36, 6003.36] ->
+  // [5186.95, 6042.95]. Both figures up by exactly the same $39.59, so the SHORTFALL this
+  // block measures -- $856.00 between the two -- has not moved at all, which is the number
+  // this test is actually about. template-08-ornamental-iron-6ft.json is untouched: it has no
+  // gate on it, and both changes below are gate hardware.
+  //
+  // THE TWO DELIBERATE CHANGES, each worth exactly one named catalog row on this fixture:
+  //
+  //  (1) A WALL GATE CHARGES FOR THE POST IT BOLTS THROUGH (engine 2026.10.5). This fixture's
+  //      one gate is `600.0:0.0:5.0:WALL:IN`, so the takeoff emits a BLANK_POST for the side
+  //      bolted to the wall. The catalog holds no BLANK_POST row, so that post used to price
+  //      at $0.00 -- the owner paying for it himself -- and is now priced off the catalog's
+  //      GATE_POST row (`4"x4" Steel Post, 6', Black`, $32.00), the same row its END_POST and
+  //      LINE_POST lines already use.
+  //        materials 3857.35 -> 3889.35 (+32.00), tax +32.00 x 7% = +2.24, grand +34.24
+  //  (2) GATE HARDWARE IS PER FENCE TYPE, AND HANDLE IS UNIVERSAL (engine 2026.10.7). An
+  //      ornamental iron gate arrives as a welded factory panel, so it takes no stiffener and
+  //      no brace -- but it still takes a handle, and the catalog's one HANDLE row is
+  //      fence_type UNIVERSAL (`7" SS Gate Handle (box of 50)`, $5.00). The iron gate got no
+  //      handle at all before.
+  //        materials 3889.35 -> 3894.35 (+5.00), tax +5.00 x 7% = +0.35, grand +5.35
+  //
+  //  Together: +37.00 materials, +2.59 tax, +39.59 billed. Markup and discount are 0 here, so
+  //  grand = materials + tax + labour 920 + gate charge 100:
+  //    today: 3894.35 + 272.6045 + 920 + 100 = 5186.9545 -> 5186.95
+  //    right: 4694.35 + 328.6045 + 920 + 100 = 6042.9545 -> 6042.95
+  //  and 4694.35 - 3894.35 = 800.00 is still 20 panels at $175 instead of $135, the whole of
+  //  what the height blindness costs on this job.
+  //
+  // Both moves are UPWARD and each is the exact unit price of one row the engine can now
+  // reach. A move DOWNWARD, or one these two unit prices cannot account for, would not be
+  // either of these changes.
+  const DOLLARS = { "ornamental-iron-drawn-open-wall-gate.json": [5186.95, 6042.95], "template-08-ornamental-iron-6ft.json": [4690.87, 5527.61] };
+  // The shortfall each fixture carries, which is what the undercharge IS and which no gate
+  // hardware change can move. Asserted separately so a future hardware or post change moves
+  // the pair above without being able to touch the finding.
+  const SHORTFALL = { "ornamental-iron-drawn-open-wall-gate.json": 856, "template-08-ornamental-iron-6ft.json": 836.74 };
   for (const c of changed) {
     const today = priceJob(c.input).totals.grand_total;
     const right = priceJob({ ...c.input, catalog: c.input.catalog.filter((r) => r.name !== IRON_4) }).totals.grand_total;
     show("  " + c.f + ": grand total today " + today + ", with the 6'H panel " + right + ", short " + money(right - today));
     assert.deepEqual([today, right], DOLLARS[c.f], c.f + ": the dollars moved");
+    assert.equal(Math.round((right - today) * 100) / 100, SHORTFALL[c.f],
+      c.f + ": THE SHORTFALL ITSELF moved. The two totals above can move with gate hardware " +
+      "or post pricing, but the gap between them is 20 panels at $175 instead of $135 and " +
+      "nothing else should touch it.");
     assert.ok(right > today, "UNDERCHARGE: the fixture's own quote is the lower one");
   }
 });

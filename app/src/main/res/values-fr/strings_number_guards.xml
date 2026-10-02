@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  A65 French: what a refused number says. Same key set as
+  values/strings_number_guards.xml and values-es/strings_number_guards.xml;
+  tests/strings-xml-wellformed.test.mjs fails if any key is missing from one
+  locale.
+
+  Apostrophes are escaped, because aapt refuses the build on a bare one in any
+  string resource. No double hyphen inside any comment.
+-->
+<resources>
+    <string name="num_blank">Saisissez un nombre ici. Vide, cette clôture n\'aurait aucune dimension.</string>
+    <string name="num_not_a_number">Ce n\'est pas un nombre. Chiffres seulement, sans unité : tapez 5, pas 5ft.</string>
+    <string name="num_not_finite">Ce n\'est pas une mesure réelle. Tapez un nombre simple, comme 5 ou 5.5.</string>
+    <string name="num_not_positive">Cela doit être supérieur à zéro. Un zéro ici chiffre la clôture à rien.</string>
+    <string name="num_kept_last_good">Non enregistré. Toujours %1$s.</string>
+    <string name="num_calibration_refused_title">Échelle non définie</string>
+    <string name="num_gate_width_refused">La barrière n\'a pas été ajoutée.</string>
+</resources>

@@ -63,16 +63,31 @@ class JobDetailViewModel(
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     /**
-     * Everything you have to buy before this job can be finished: the estimate's
-     * materials plus the materials on any approved change order. A deposit below
+     * Everything you have to buy before this job can be finished, WITH THE
+     * SALES TAX ON IT: the estimate's material lines, the tax charged on the
+     * taxable ones, and the materials on any change order. A deposit below
      * this means fronting the customer's material out of pocket, so the deposit
      * suggestion uses it as a floor.
+     *
+     * ONE basis, [JobMoney.materialsToBuy], shared with the note under the
+     * button and (once EstimateEngine is updated -- see that function's doc)
+     * the estimate's own affordability warning. It used to be the bare line
+     * sum: no tax, so it was short by the Florida sales tax on the biggest
+     * number on the estimate, on every job.
      */
     val materialCost: StateFlow<Double> = combine(
+        repository.observeJob(jobId),
         repository.observeLineItems(jobId),
+        repository.observeFenceRuns(jobId),
         repository.observeChangeOrders(jobId)
-    ) { items, orders ->
-        items.sumOf { it.lineTotal } + orders.sumOf { it.materialCost }
+    ) { currentJob, items, runs, orders ->
+        if (currentJob == null) 0.0
+        else JobMoney.materialsToBuy(
+            EstimateEngine.computeTotals(
+                currentJob, items, EstimateEngine.linearFeet(currentJob, runs), orders, runs
+            ),
+            orders
+        )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
     /**
@@ -105,10 +120,12 @@ class JobDetailViewModel(
         JobMoney.billableTotal(current, contractTotal.value.grandTotal, changeOrders.value)
 
     /**
-     * What still needs collecting to cover materials, rounded up to the next
-     * $10 so it reads like a real figure rather than a calculation -- and never
-     * more than is still owed on [billableTotal]. See
-     * [JobMoney.suggestedMaterialsDeposit].
+     * The deposit to STORE so that what is left to collect covers the
+     * materials: the rule's figure (materials with tax still to buy, up to the
+     * next $100, plus $100) ON TOP OF what has already been paid, capped at
+     * the price. See [JobMoney.depositSuggestion], which carries the whole
+     * reasoning for why the stored column is cumulative and the rule's figure
+     * is incremental.
      *
      * Net of what the customer has already paid. Without that subtraction,
      * adding materials to a job that was already part paid produced a
@@ -128,9 +145,18 @@ class JobDetailViewModel(
      * (dashboard: deposit_percent was removed as decoration, pending the
      * owner's decision), so the deposit is whatever a person types or taps.
      */
-    fun suggestedDeposit(): Double {
-        val current = job.value ?: return 0.0
-        return JobMoney.suggestedMaterialsDeposit(current, materialCost.value, billableTotal(current))
+    fun suggestedDeposit(): Double = depositSuggestion().amount
+
+    /**
+     * The same suggestion with its own `capped` flag, so the button's label
+     * says which of the two things it is doing. The screen used to decide that
+     * for itself by re-deriving the uncapped figure with `ceil(x / 10) * 10` --
+     * the rounding rule of a month ago -- so under the next-$100-plus-$100 rule
+     * the "all that is still owed" wording could never appear.
+     */
+    fun depositSuggestion(): JobMoney.DepositSuggestion {
+        val current = job.value ?: return JobMoney.DepositSuggestion.NONE
+        return JobMoney.depositSuggestion(current, materialCost.value, billableTotal(current))
     }
 
     fun applySuggestedDeposit() {
@@ -434,6 +460,13 @@ class JobDetailViewModel(
         val settled = net + 0.005 >= total
         val target = when {
             settled -> PaymentStatus.PAID_IN_FULL
+            // DEPOSIT_PAID is the column's value for "money has started
+            // arriving" -- it is set by the server on every payment, including
+            // the last one, and here on any net payment. It does NOT mean the
+            // deposit is covered, which is why it now reads "Part paid" on
+            // every screen (2 Oct 2026). The one meaning of a received deposit
+            // is JobMoney.depositSettled. The enum constant keeps its name so
+            // the column, the server and the office stay compatible.
             net > 0.005 -> PaymentStatus.DEPOSIT_PAID
             else -> PaymentStatus.UNPAID
         }

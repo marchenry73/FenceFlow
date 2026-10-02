@@ -459,9 +459,13 @@ const pushed = (w) => w.db.log.some((e) => e.table === "device_tokens");
 
 test("approving records the total the page showed, in the same update as the approval", async () => {
   // Not signed, not approved: the page shows contract_total as stored -- the
-  // figure the payment link charges from. (The engine always writes a
-  // multiple of ten; an odd figure is an import, and rounding it up on the
-  // page alone put $7 between the page and the card machine.)
+  // figure the payment link charges from. (Rounding a stored total up on the page
+  // alone put $7 between the page and the card machine. The parenthesis here used
+  // to say "the engine always writes a multiple of ten, so an odd figure is an
+  // import" -- that stopped being true at PRICING_ENGINE_VERSION 2026.10.1, which
+  // removed the $10 round-up. Every engine total is now exact to the cent, so an
+  // odd figure is the NORMAL case and passing it through untouched matters more,
+  // not less, than it did when this was written.)
   const w = quoteWorld({ job: { accepted_total: null, signed_at: null, contract_total: 13403 } });
   const shown = (await view(w)).body.total;
   assert.equal(shown, 13403);
@@ -526,10 +530,42 @@ test("with nothing priced the page still falls back to the lines", async () => {
     job: { accepted_total: null, signed_at: null, contract_total: null, tax_rate_percent: 10 },
     lines: [{ quantity: 10, unit_price: 20, taxable: true }, { quantity: 1, unit_price: 55 }],
   });
-  // 200 + 55 + 20 tax = 275 -> 280.
-  assert.equal((await view(w)).body.total, 280);
+  // 10 x $20 = $200 taxable, plus 1 x $55 untaxed = $255 subtotal; tax is 10% of the
+  // taxable $200 = $20. EXACT: $275.
+  //
+  // PIN MOVED 280 -> 275. $280 was ceil(275 / 10) * 10 -- the $10 round-up, removed from
+  // the engine at PRICING_ENGINE_VERSION 2026.10.1 on the owner's decision, and removed
+  // from this fallback in the same change so the page and the engine cannot disagree by
+  // up to $9.99 on one job. Not a loosening, and the direction matters: the figure went
+  // DOWN to the exact one. Rounding the fallback up is how an accepted price of $10,165
+  // got recorded as $10,170 -- $5 above anything anybody agreed to -- while the balance
+  // link still charged from $10,165 (the comment on `total` in quote-view/index.ts).
+  const EXACT = 275;
+  assert.equal((await view(w)).body.total, EXACT);
+
+  // Teeth, in the shape this file already uses above: the round-up must be GONE, not
+  // merely absent from this one arithmetic. If it comes back, 275 becomes 280 and this
+  // says so rather than quietly agreeing.
+  assert.notEqual(EXACT, Math.ceil(EXACT / 10) * 10);
+
+  // And the figure RECORDED is the figure SHOWN. These two being one number is the whole
+  // subject of this file -- the customer is billed what the page asked them to accept.
   await approve(w);
-  assert.equal(jobRow(w).accepted_total, 280);
+  assert.equal(jobRow(w).accepted_total, EXACT);
+});
+
+// The live shape of the case above: the real job has contract_total 0.00, not NULL. Zero and
+// null must take the same fallback, or a job the office has not priced yet shows $0.00 to a
+// customer instead of the lines that exist. (billableTotal clamps a zero contract total to 0
+// and returns it, so the `money.total > 0` test is what sends both down the fallback.)
+test("a contract total of ZERO falls back to the lines exactly as a null one does", async () => {
+  const lines = [{ quantity: 10, unit_price: 20, taxable: true }, { quantity: 1, unit_price: 55 }];
+  const zero = quoteWorld({ job: { accepted_total: null, signed_at: null, contract_total: 0, tax_rate_percent: 10 }, lines });
+  assert.equal((await view(zero)).body.total, 275);
+  // Positive control: the same world with a priced contract total does NOT reach the
+  // fallback, so the equality above is the fallback running and not every path returning 275.
+  const priced = quoteWorld({ job: { accepted_total: null, signed_at: null, contract_total: 7740, tax_rate_percent: 10 }, lines });
+  assert.equal((await view(priced)).body.total, 7740);
 });
 
 test("a page that saw an older total is told to reload, and nothing is recorded", async () => {

@@ -68,6 +68,33 @@ private class PdfLabels(language: AppLanguage) {
     /** The price the customer agreed to, when the working estimate has since moved off it. */
     val acceptedPrice = pick("Accepted price", "Precio aceptado", "Prix accepté")
     val deposit = pick("Deposit", "Depósito", "Acompte")
+
+    /**
+     * WHAT the deposit is for, printed under the figure on the contract.
+     *
+     * The owner asked for it in his own words: "let the customer [know] the
+     * deposit is to put you on the schedule and to get the materials, the rest
+     * is for labor". The PURPOSE is his to tell; the ARITHMETIC is not -- the
+     * rule behind the figure (the materials up to the next hundred, plus
+     * another hundred) is deliberately his own business. So there is no
+     * figure in this sentence, no second amount, no percentage and no basis
+     * for the deposit: nothing a reader could run backwards.
+     *
+     * It reserves a PLACE in the queue, not a date. He schedules the work
+     * himself and the weather moves it, and a customer who reads a date into
+     * this is a customer disappointed by the first rain.
+     *
+     * Not written into the contract TERMS, which are the owner's own editable
+     * text: an owner who has edited his terms would never receive it. It is
+     * printed beside the deposit figure instead, where the deposit is asked
+     * for. Only on the contract, and only when a deposit is actually asked
+     * for -- see the gate at the payment-status block below.
+     */
+    val depositPurpose = pick(
+        "Your deposit reserves your place on the schedule and pays for the materials. The rest covers the labor.",
+        "Su depósito aparta su turno en la agenda y paga los materiales. El resto cubre la mano de obra.",
+        "Votre acompte réserve votre place dans le planning et paie les matériaux. Le reste couvre la main-d'œuvre."
+    )
     val amountPaid = pick("Amount Paid", "Monto Pagado", "Montant Payé")
     val balanceDue = pick("Balance Due", "Saldo Pendiente", "Solde Dû")
     val totalLinearFeet = pick(
@@ -156,6 +183,11 @@ object PdfExporter {
         // live estimate, so an invoice for a job accepted at $9,710 could go
         // out at a recomputed $13,410. See JobMoney.documentTotal.
         val billable = JobMoney.documentTotal(job, totals.grandTotal, totals.changeOrderCost, changeOrders)
+        // The deposit this document may ask for: the stored figure capped at
+        // the price, exactly as every other surface caps it
+        // (JobMoney.depositAsked == depositFigures().asked). ONE decision, one
+        // place; the two uses below and the purpose sentence all read it.
+        val depositAsked = JobMoney.depositAsked(job, billable)
         val labels = PdfLabels(business.language)
         val dateFormat = dateFormatFor(business.language)
         val document = PdfDocument()
@@ -238,6 +270,32 @@ object PdfExporter {
             val labelWidth = paint.measureText(label)
             canvas.drawText(label, rightX - valueWidth - 16f - labelWidth, y, paint)
             y += 18f
+        }
+
+        /**
+         * A sentence under the figures, wrapped by measuring rather than by
+         * guessing at a character count -- a note that runs off the edge of
+         * the page is a note the customer never read. Same idiom as the
+         * contract terms block further down; the three languages are
+         * different lengths, so a fixed cut would truncate one of them.
+         */
+        fun noteLine(text: String, paint: Paint) {
+            if (text.isBlank()) return
+            val maxWidth = rightX - MARGIN
+            var remaining = text.trim()
+            while (remaining.isNotEmpty()) {
+                val count = paint.breakText(remaining, true, maxWidth, null)
+                var cut = count
+                if (cut < remaining.length) {
+                    val lastSpace = remaining.lastIndexOf(' ', cut)
+                    if (lastSpace > 0) cut = lastSpace
+                }
+                if (cut <= 0) cut = remaining.length
+                newPageIfNeeded(14f)
+                canvas.drawText(remaining.substring(0, cut).trim(), MARGIN, y, paint)
+                y += 12f
+                remaining = remaining.substring(cut).trim()
+            }
         }
 
         // ---- Header ----
@@ -462,7 +520,15 @@ object PdfExporter {
 
         if (docKind.showsPaymentStatus) {
             y += 4f
-            if (job.depositAmount > 0.0) totalRow(labels.deposit, currency.format(job.depositAmount))
+            // The deposit the customer may be ASKED for, not the raw stored
+            // figure: JobMoney.depositAsked, the same cap the quote page, the
+            // approval email, the pay link and the office all apply. This row
+            // and the {DEPOSIT} in the terms below printed the stored number
+            // uncapped, so a signed contract could state a deposit LARGER than
+            // the price on the customer's own page (a $3,963 deposit on a
+            // $3,620 job). Why it is capped rather than refused is written out
+            // on JobMoney.depositAsked.
+            if (depositAsked > 0.0) totalRow(labels.deposit, currency.format(depositAsked))
             // Net of refunds, and from the same place every other screen reads,
             // so the bill cannot disagree with the app.
             totalRow(labels.amountPaid, currency.format(JobMoney.netPaid(job)))
@@ -471,6 +537,21 @@ object PdfExporter {
                 currency.format(JobMoney.stillOwed(job, billable)),
                 bold = true
             )
+            // WHAT the deposit is for -- see PdfLabels.depositPurpose.
+            //
+            // The CONTRACT only (showsContractTerms is CUSTOMER_CONTRACT and
+            // nothing else). The invoice is a bill for work already agreed;
+            // explaining there what the deposit was for is answering a
+            // question nobody asked at that point.
+            //
+            // Gated on the same deposit figure the row above prints, so the
+            // sentence cannot appear where no deposit is being asked for --
+            // five of his jobs ask for nothing.
+            if (docKind.showsContractTerms && depositAsked > 0.0) {
+                y += 4f
+                noteLine(labels.depositPurpose, labelPaint)
+                y += 6f
+            }
         }
 
         y += 20f
@@ -569,14 +650,20 @@ object PdfExporter {
             // an owner has edited print exactly as written. The terms used to
             // come out in English whatever language the rest of the document
             // was in, which made a Spanish contract half a Spanish contract.
-            val source = if (com.fenceestimator.app.data.isDefaultContractTerms(business.contractTerms))
+            val source0 = if (com.fenceestimator.app.data.isDefaultContractTerms(business.contractTerms))
                 com.fenceestimator.app.data.defaultContractTermsFor(business.language)
             else business.contractTerms
+            // NO DEPOSIT ASKED FOR MEANS SAY NOTHING, not say zero. The terms
+            // printed "A deposit of $0.00 is due before materials are ordered"
+            // on every job with no deposit -- five of his -- which reads as a
+            // term of the contract rather than as an empty field, and invites
+            // a customer to ask what the zero means. See [dropDepositClause].
+            val source = if (depositAsked > 0.0) source0 else dropDepositClause(source0)
             val filled = source
                 .replace("{COMPANY}", business.businessName.ifBlank { "The contractor" })
                 .replace("{ADDRESS}", job.address.ifBlank { "the address above" })
                 .replace("{TOTAL}", currency.format(billable))
-                .replace("{DEPOSIT}", currency.format(job.depositAmount))
+                .replace("{DEPOSIT}", currency.format(depositAsked))
                 .replace("{WARRANTY_PERIOD}", labels.warrantyPeriod)
 
             val maxWidth = rightX - MARGIN
@@ -654,6 +741,89 @@ object PdfExporter {
 
     fun shareUri(context: Context, file: File) =
         FileProvider.getUriForFile(context, "${context.packageName}.fileprovider", file)
+
+    /** The placeholder the contract terms carry where the deposit figure goes. */
+    private const val DEPOSIT_PLACEHOLDER = "{DEPOSIT}"
+
+    /**
+     * The contract terms with the deposit sentence taken out, for a job that
+     * asks for no deposit.
+     *
+     * SAY NOTHING RATHER THAN $0.00. "A deposit of $0.00 is due before
+     * materials are ordered" is not an empty field, it is a sentence, and the
+     * customer reads it as one. Five of his jobs ask for no deposit.
+     *
+     * Works on the sentence, not on a known phrase, because the terms may have
+     * been edited by the owner into any wording in any of the three languages:
+     *
+     *  - the sentence holding the placeholder starts after the nearest full
+     *    stop (or '!' / '?' / blank line) before it;
+     *  - it is cut at the first ';' or full stop after it. A ';' means the
+     *    sentence carries on with a clause that is still true -- "the balance
+     *    is due on completion", "el saldo vence al terminar", "le solde est dû
+     *    à l'achèvement" -- so that clause is kept and its first letter
+     *    capitalised rather than left dangling in lower case.
+     *
+     * The PDF wraps every line by measuring it, so a sentence that gets
+     * shorter or a line that gets longer is re-wrapped; nothing runs off the
+     * page. Terms that do not carry the placeholder come back untouched.
+     */
+    internal fun dropDepositClause(terms: String): String {
+        var out = terms
+        // Bounded: the owner could in principle have pasted the placeholder in
+        // several times, and each pass removes one. A pass that removes
+        // nothing stops the loop.
+        repeat(8) {
+            val next = dropOneDepositClause(out)
+            if (next == out) return out
+            out = next
+        }
+        return out
+    }
+
+    private fun dropOneDepositClause(terms: String): String {
+        val at = terms.indexOf(DEPOSIT_PLACEHOLDER)
+        if (at < 0) return terms
+
+        var start = 0
+        var i = at - 1
+        while (i >= 0) {
+            val c = terms[i]
+            if (c == '.' || c == '!' || c == '?') { start = i + 1; break }
+            if (c == '\n' && i > 0 && terms[i - 1] == '\n') { start = i + 1; break }
+            i--
+        }
+
+        var end = terms.length
+        var cutAtSemicolon = false
+        var j = at + DEPOSIT_PLACEHOLDER.length
+        while (j < terms.length) {
+            val c = terms[j]
+            if (c == ';') { end = j + 1; cutAtSemicolon = true; break }
+            if (c == '.' || c == '!' || c == '?') { end = j + 1; break }
+            j++
+        }
+
+        val head = terms.substring(0, start).trimEnd(' ')
+        val tail = terms.substring(end)
+        // The whitespace the cut left in front of the rest of the paragraph.
+        // A blank line in it is a paragraph break and is kept; a single line
+        // break becomes a space, because the document re-wraps every line by
+        // measuring it, so joining two half-lines costs nothing.
+        val lead = tail.takeWhile { it == ' ' || it == '\n' }
+        val body0 = tail.substring(lead.length)
+        val body = if (cutAtSemicolon && body0.isNotEmpty()) {
+            body0.replaceFirstChar { it.uppercaseChar() }
+        } else body0
+        val separator = when {
+            head.isEmpty() -> ""
+            head.endsWith("\n") -> ""
+            body.isEmpty() -> ""
+            lead.contains("\n\n") -> "\n\n"
+            else -> " "
+        }
+        return head + separator + body
+    }
 
     private fun truncate(s: String, max: Int): String = if (s.length <= max) s else s.take(max - 1) + "…"
 

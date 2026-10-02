@@ -449,6 +449,16 @@ fun SettingsScreen(
                 }
             }
             item {
+                // "How customers can pay you" -- the office has had this since
+                // 1 October and he asked for it on the phone too ("Leave it in
+                // app and the website to add the payment methods"). Same key in
+                // company_settings, same RPC, no second store. The card hides
+                // itself for anyone without SEE_MONEY: a wire routing number is
+                // money, and the database refuses the row to a crew login
+                // anyway. See PaymentMethodsPanel.kt.
+                PaymentMethodsCard(editable = editable)
+            }
+            item {
                 SectionCard(stringResource(R.string.set_pricing_tiers), icon = Icons.Filled.Sell) {
                     Text(
                         stringResource(R.string.set_pricing_tiers_explain),

@@ -123,14 +123,22 @@ console.log("\n2. POSITIVE CONTROL -- the identical job, calibrated, bills the w
   ok("calibrated: the run's gates are NOT blanked", input.runs[0].gates_encoded === twoGatesNoFence.gates_encoded);
   ok("bills the real 12 ft of gate opening", output.totals.gate_feet === 12, `gate_feet=${output.totals.gate_feet}`);
   ok("gate_charge: 12 ft x $35/ft = $420", output.totals.gate_charge === 420, `gate_charge=${output.totals.gate_charge}`);
-  // $420 marked up 25% is $525 -- the wave brief's own figure -- before
-  // computeTotals' own "always up to the next $10" rounding (unrelated to
-  // this fix) takes it the rest of the way to $530.
+  // $420 marked up 25% is $525 -- the wave brief's own figure -- and that is
+  // now what the job bills, to the cent.
   ok("premarkup + markup is exactly $525, the wave brief's own figure",
     output.totals.pre_markup_total === 420 && output.totals.markup_amount === 105,
     `pre_markup_total=${output.totals.pre_markup_total} markup_amount=${output.totals.markup_amount}`);
-  ok("grand_total: $525 rounded up to the next $10 is $530",
-    output.totals.grand_total === 530, `grand_total=${output.totals.grand_total}`);
+  // PIN MOVED 530 -> 525. THE DELIBERATE CHANGE: the $10 round-up was removed at
+  // PRICING_ENGINE_VERSION 2026.10.1 (the owner's decision, 1 Oct 2026 -- see the comment
+  // on grandTotal in pricing/totals.ts). computeTotals rounded the final figure UP to the
+  // next ten; it now rounds to the cent and nothing else.
+  //   old: ceil(525 / 10) * 10 = 530
+  //   new: roundToCents(525)   = 525
+  // This is strictly BETTER for this file's purpose: the wave brief's figure was always
+  // $525, and $530 was only ever the round-up sitting on top of it.
+  ok("grand_total is exactly the $525 the wave brief names -- the $10 round-up that used to " +
+     "carry it to $530 went in 2026.10.1",
+    output.totals.grand_total === 525, `grand_total=${output.totals.grand_total}`);
 }
 
 // ===========================================================================
@@ -145,8 +153,12 @@ console.log("\n3. CANARY: uncalibrated GRID job (no photo) is unaffected, still 
   const { input, output } = priceIt(job, [twoGatesNoFence]);
 
   ok("a grid job's gates are NOT blanked", input.runs[0].gates_encoded === twoGatesNoFence.gates_encoded);
-  ok("still bills 12 ft / $420 / $530, exactly as the calibrated case above",
-    output.totals.gate_feet === 12 && output.totals.gate_charge === 420 && output.totals.grand_total === 530);
+  // PIN MOVED 530 -> 525, same single cause as section 2: the $10 round-up was removed at
+  // 2026.10.1. ceil(525/10)*10 = 530; roundToCents(525) = 525. The gate footage and the
+  // gate charge -- what this canary is actually about -- have not moved.
+  ok("still bills 12 ft / $420 / $525, exactly as the calibrated case above",
+    output.totals.gate_feet === 12 && output.totals.gate_charge === 420 && output.totals.grand_total === 525,
+    `gate_feet=${output.totals.gate_feet} gate_charge=${output.totals.gate_charge} grand_total=${output.totals.grand_total}`);
 }
 
 // ===========================================================================
@@ -183,9 +195,13 @@ console.log("\n4. Prove teeth -- un-blank only the gates in a scratch copy, conf
 
   ok("RED under the weakened rule: gates are NOT blanked even though points still are",
     weakenedInput.runs[0].points_encoded === "" && weakenedInput.runs[0].gates_encoded === twoGatesNoFence.gates_encoded);
+  // PIN MOVED 530 -> 525, same single cause again: the $10 round-up was removed at
+  // 2026.10.1 (ceil(525/10)*10 = 530 -> roundToCents(525) = 525). What this check proves --
+  // that the weakened guard bills a gate charge on a job whose fence line measures nothing --
+  // is unchanged, and gate_charge is still pinned at the same $420 it always was.
   ok("RED under the weakened rule: this reproduces exactly the bug report's shape -- " +
-     "gate_charge billed ($420, marked up and rounded to $530) while the fence line bills $0",
-    weakenedOutput.totals.gate_charge === 420 && weakenedOutput.totals.grand_total === 530,
+     "gate_charge billed ($420, $525 marked up) while the fence line bills $0",
+    weakenedOutput.totals.gate_charge === 420 && weakenedOutput.totals.grand_total === 525,
     `gate_charge=${weakenedOutput.totals.gate_charge} grand_total=${weakenedOutput.totals.grand_total}`);
 
   rmSync(scratchRoot, { recursive: true, force: true });
