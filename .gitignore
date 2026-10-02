@@ -77,3 +77,7 @@ unit-tests.log
 # touches website/dashboard.html, so a bad run is recoverable. Not a
 # deliverable, and named rather than globbed for the same reason.
 dashboard.html.bak-office-recipient
+
+# Deploy and publish logs, named rather than globbed (see the block above).
+deploy-[0-9]*.log
+publish-[0-9]*.log

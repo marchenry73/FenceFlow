@@ -180,7 +180,21 @@ class SurveySavedTest {
             "a new scale changes every length on the drawing; the stored materials must follow it",
             calibrate.contains("repriceAfterScaleChange()")
         )
-        val reprice = bodyOf(viewModel, "private suspend fun repriceAfterScaleChange() {")
+        // FOLLOWED, not deleted, 2026-10-02. repriceAfterScaleChange is now a
+        // one-line delegate -- `= repriceEveryRun()` -- because changing a
+        // SIDE'S FENCE TYPE needs the same whole-job re-price a new scale does,
+        // so the body moved to the general function rather than being copied.
+        // bodyOf() looks for a brace body and could not find an expression one,
+        // which is why this failed rather than the guarantees disappearing.
+        //
+        // The four things this test exists to hold are asserted on whichever
+        // function actually carries them, so a future inlining moves the
+        // assertions again instead of quietly dropping them.
+        assertTrue(
+            "the scale-change path must still reach the whole-job re-price",
+            viewModel.contains("private suspend fun repriceAfterScaleChange() = repriceEveryRun()")
+        )
+        val reprice = bodyOf(viewModel, "private suspend fun repriceEveryRun() {")
         assertTrue("only a phone that prices, and never the crew's read-only plan", reprice.contains("viewerMayReprice()") && reprice.contains("repriceOnDrawingChange"))
         assertTrue("through the same refresher a drawing change uses", reprice.contains("TakeoffRefresher.refreshRun("))
         assertTrue("and the same failure banner", reprice.contains("_repriceFailed.value = true"))

@@ -745,6 +745,38 @@ class Repository(private val db: AppDatabase) {
      */
     suspend fun deleteFenceRun(run: FenceRun) {
         val goingWithIt = lineItemDao.allForRun(run.id).map { it.syncId }
+
+        // FREE THE OTHER SIDE FIRST.
+        //
+        // If this run shared a post with another, the partner's end still names
+        // the joint after this row is gone -- an id pointing at a side that no
+        // longer exists. Added 2026-10-02 after he reported "I deleted a side and
+        // it was not completely deleted"; before this, nothing anywhere cleared
+        // a joint when its partner was deleted.
+        //
+        // It degrades safely for the PRICE: adjustJoins groups ends by id, and an
+        // id only one run holds is read as a free end (the dearer answer, a post
+        // too many rather than too few). So this is not a wrong bill. It is
+        // residue -- a drawing that still shows a shared post where there is only
+        // one side left, and a stale id sitting on an end he may later attach to
+        // something else.
+        //
+        // Done BEFORE the delete, while the row is still readable, and through
+        // updateFenceRun so each partner rides its own row up to the cloud the
+        // way any other edit does. A partner on another job cannot hold this
+        // joint -- joinRunEnds refuses an end that is not on the same job -- so
+        // the job's own runs are the whole search.
+        val orphaned = setOf(run.startJoint, run.endJoint).filter { it.isNotBlank() }.toSet()
+        if (orphaned.isNotEmpty()) {
+            for (other in fenceRunDao.getForJob(run.jobId)) {
+                if (other.id == run.id) continue
+                var freed = other
+                if (freed.startJoint.isNotBlank() && freed.startJoint in orphaned) freed = freed.copy(startJoint = "")
+                if (freed.endJoint.isNotBlank() && freed.endJoint in orphaned) freed = freed.copy(endJoint = "")
+                if (freed != other) updateFenceRun(freed)
+            }
+        }
+
         deleteSynced(run.syncId, "fence_runs") { fenceRunDao.delete(run) }
         goingWithIt.forEach { syncId -> queueDeletion(syncId, "estimate_line_items") }
     }

@@ -63,6 +63,11 @@
   #mapCred{align-self:flex-start;max-width:62%;
            font-size:9.5px;color:rgba(15,24,38,.65);background:rgba(255,255,255,.55);
            padding:1px 6px;border-radius:4px}
+  /* Says whether the fence's position on the photo is anchored to the house
+     or a guess. Sits with the hint, above the imagery credit. */
+  #mapNote{text-align:center;max-width:94%;
+           font-size:11px;color:rgba(11,18,32,.82);background:rgba(255,255,255,.62);
+           padding:2px 7px;border-radius:5px}
   #stageHint{text-align:center;
              font-size:12.5px;color:rgba(11,18,32,.78);
              text-shadow:0 1px 3px rgba(255,255,255,.75)}
@@ -251,6 +256,8 @@ const L = {
     badge: 'Your fence · 3D preview',
     removeOld: 'Remove the old fence',
     turnFence: 'Turn the fence to match',
+    posFromHouse: 'Placed from the house on the plan · turn it to match your yard',
+    posApprox: 'Position is approximate · slide the fence into place',
     slideIn: 'Slide into place',
     topView: 'Top view',
     groundView: 'Ground view',
@@ -354,6 +361,8 @@ const L = {
     badge: 'Su cerca · vista 3D',
     removeOld: 'Quitar la cerca vieja',
     turnFence: 'Girar la cerca',
+    posFromHouse: 'Ubicada según la casa del plano · gírela para que coincida con su jardín',
+    posApprox: 'La posición es aproximada · deslice la cerca a su lugar',
     slideIn: 'Colocar en su sitio',
     topView: 'Vista desde arriba',
     groundView: 'Vista a pie de obra',
@@ -449,6 +458,8 @@ const L = {
     badge: 'Votre clôture · aperçu 3D',
     removeOld: 'Retirer l’ancienne clôture',
     turnFence: 'Faire pivoter la clôture',
+    posFromHouse: 'Placée d’après la maison du plan · faites-la pivoter selon votre terrain',
+    posApprox: 'La position est approximative · faites glisser la clôture à sa place',
     slideIn: 'Mettre en place',
     topView: 'Vue de dessus',
     groundView: 'Vue au sol',
@@ -601,6 +612,7 @@ function setLang(code) {
       </div>
       <div id="stageFoot">
         <div id="stageHint" data-t="dragHint">Drag to look around &middot; two fingers to move &middot; pinch to zoom</div>
+        <div id="mapNote" style="display:none"></div>
         <div id="mapCred" style="display:none">
           <span id="imageryCredit">Imagery &copy; Esri, Maxar, Earthstar Geographics &middot; US Census</span></div>
       </div>
@@ -2579,6 +2591,98 @@ function sceneSatelliteNeedFt(fenceRadiusFt){
 }
 
 /**
+ * WHERE THE ADDRESS IS ON THE DRAWING.
+ *
+ * The imagery is centred on the geocoded address, and the geocoded address is
+ * the HOUSE -- not the fence. This page used to put that pixel under the
+ * fence's own middle, which draws every fence straddling the house: a back-
+ * yard fence reads as a fence across the front of the property. That is the
+ * bug this function exists to fix.
+ *
+ * The drawing already has somewhere to say where the house is -- a HOUSE site
+ * marker, dropped in Marker mode on the survey screen, in the SAME pixel space
+ * as the fence points. So this is a read of something the owner placed, never
+ * a guess at it.
+ *
+ * Returns scene feet, or null when the drawing does not say. null means FALL
+ * BACK AND SAY SO; it must never be quietly treated as the origin.
+ *
+ * Two HOUSE markers return null as well. One house per property is the whole
+ * premise; two is a mistake or a shed that got the wrong chip, and picking one
+ * of them would be exactly the silent guess this is replacing.
+ *
+ * `pxPerFoot` is the JOB's calibration, because a marker is stored in grid
+ * pixels. A run carrying its own typed length is scaled by ITS own ftPerPx in
+ * scenePlanRun, so on a job mixing typed and drawn runs the marker and that run
+ * are already in different scales -- a pre-existing wart of per-run scaling,
+ * not something this introduces.
+ */
+function sceneHouseAnchor(markers, pxPerFoot){
+  const houses=(Array.isArray(markers)?markers:[])
+    .filter(m=>m && String(m.kind||'').toUpperCase()==='HOUSE');
+  if(houses.length!==1) return null;
+  const ppf=Number(pxPerFoot)||20;
+  const x=Number(houses[0].x), z=Number(houses[0].y);
+  if(!isFinite(x)||!isFinite(z)||!(ppf>0)) return null;
+  return { x:x/ppf, z:z/ppf };
+}
+
+/**
+ * How far the imagery must reach from the ANCHOR to still hold the fence.
+ *
+ * Once the address stops being the fence's middle, the fence's own radius is
+ * the wrong number: the frame has to contain the house AND the fence, and the
+ * fence can sit entirely off to one side of the house. Measured from the
+ * anchor, so with no house marker (anchor = the fence centroid) it returns
+ * exactly the old fenceR and no existing quote's framing moves.
+ */
+function sceneAnchorRadiusFt(worldPts, anchor){
+  if(!worldPts||!worldPts.length) return 0;
+  return Math.max(...worldPts.map(p=>Math.hypot(p.x-anchor.x, p.z-anchor.z)));
+}
+
+/**
+ * Where the centre of the stitched NxN photo goes, in scene feet, so that the
+ * address pixel inside it lands exactly on `anchor`.
+ *
+ * The address is not at the middle of the stitched square -- it is wherever
+ * inside the centre tile it happens to fall (grid.ox/oy are tile-fractions
+ * from the grid's top-left). (ox/N-0.5)*sideFt is its offset from the square's
+ * centre in feet, so subtracting that from the anchor puts the anchor under the
+ * address. Both axes are feet on the ground at this latitude and the photo is
+ * laid down north-up, so this agrees with the fence about SIZE and about
+ * OFFSET.
+ *
+ * BEARING is the limitation, and it depends on how the job was drawn.
+ *
+ * The photo's north is -z here: the stitched canvas has its northmost tile row
+ * first, CanvasTexture flips Y so that row is the plane's local +Y, and
+ * plane.rotation.x=-PI/2 sends local +Y to world -Z. So increasing Mercator y
+ * (southward) is increasing +z, which is the sense grid.oy is used in above.
+ *
+ * A fence point's z is its DRAWING y. On a job traced in satellite mode those
+ * already agree: SurveyDrawScreen's SatelliteAnchor maps Mercator y to canvas
+ * y with a positive scale about a canvas centre that IS the geocoded address,
+ * so the canvas is north-up at the same handedness and rotation 0 is correct.
+ * (That also means the house marker on such a job sits within a foot of the
+ * canvas centre -- the live one measured 0.7ft off, which is a useful check
+ * that a marker was placed on the house and not somewhere hopeful.)
+ *
+ * On a job drawn on the blank grid, or traced over a photographed site plan,
+ * "up" is whatever the person happened to face. The offset is still right; the
+ * bearing is unknown, and the turn slider is the only thing that can fix it.
+ * Nothing on the drawing records which of the two cases a job is, so the page
+ * does not claim to know -- it says the fence was placed from the house and
+ * offers the control.
+ */
+function sceneGroundCentre(grid, anchor){
+  const sideFt=grid.sideFt;
+  return { x: anchor.x-(grid.ox/grid.N-0.5)*sideFt,
+           z: anchor.z-(grid.oy/grid.N-0.5)*sideFt,
+           sideFt };
+}
+
+/**
  * The tile grid at a zoom: which tiles, how many feet each, and how far the
  * address pixel is from the grid's nearest edge. The address lands somewhere
  * inside the centre tile, so that clearance is between 2 and 2.5 tiles, and
@@ -2802,6 +2906,15 @@ function build3D(runs,attempt){
     r=Math.max(14,fenceR)*1.35+8;
   }
 
+  // The point the aerial photo is pinned to: the house if the drawing says
+  // where it is, else the fence's middle -- which is a guess, and is labelled
+  // as one on the page (mapNote below). anchorR is what the photo must reach
+  // to hold both; it is identical to fenceR when there is no house, so a quote
+  // already open gets exactly the framing it has today.
+  const houseAnchor=sceneHouseAnchor(quote.markers, quote.pxPerFoot||20);
+  const anchor=houseAnchor||{x:cx,z:cz};
+  const anchorR=sceneAnchorRadiusFt(all,anchor);
+
   // Ground, sky and sun are all sized off the job's own footprint -- a
   // 40ft backyard fence and a 1200ft property line need very different
   // yards around them.
@@ -2838,14 +2951,24 @@ function build3D(runs,attempt){
   scene.add(new THREE.HemisphereLight(0xBFD9EA,0x4c7a3f,0.55));
   scene.add(new THREE.AmbientLight(0xffffff,0.28));
 
-  // Re-hang the fence from a pivot at its own centroid, so "turn it" and
-  // "slide it" are each one line on the pivot instead of trigonometry in
-  // every handler.
+  // Re-hang the fence from a pivot at the ANCHOR, so "turn it" and "slide it"
+  // are each one line on the pivot instead of trigonometry in every handler.
+  //
+  // The pivot is the house when there is one, not the fence's centroid, and
+  // that is load-bearing. The house is the only point whose real position is
+  // known, so it is the one that must stay nailed under the address while the
+  // fence turns; pivot on the centroid and the first nudge of the slider
+  // swings the house out from under the address and the offset is lost again.
+  // Pivoting here also makes the slider do the useful thing -- it sweeps the
+  // fence around the house at the true house-to-fence distance, so the one
+  // unknown left (which way the yard faces) is exactly the one it adjusts.
+  //
+  // With no house marker anchor === {cx,cz} and these are the old lines.
   scene.remove(fence);
   const pivot=new THREE.Group();
-  pivot.position.set(cx,0,cz);
-  fence.position.set(-cx,0,-cz);
-  oldFence.position.set(-cx,0,-cz);
+  pivot.position.set(anchor.x,0,anchor.z);
+  fence.position.set(-anchor.x,0,-anchor.z);
+  oldFence.position.set(-anchor.x,0,-anchor.z);
   pivot.add(fence);
   pivot.add(oldFence);
   scene.add(pivot);
@@ -2956,7 +3079,9 @@ function build3D(runs,attempt){
   // -- which the rotate slider and slide-into-place drag both change -- so
   // the walk-it path always follows where the fence actually is right now.
   function toWorld(p){
-    const lx=p.x-cx, lz=p.z-cz;
+    // anchor, NOT cx/cz: this has to undo exactly the offset fence.position
+    // was given above, or the walk-it path peels away from the fence.
+    const lx=p.x-anchor.x, lz=p.z-anchor.z;
     const cr=Math.cos(pivot.rotation.y), sr=Math.sin(pivot.rotation.y);
     return { x: pivot.position.x + lx*cr - lz*sr, z: pivot.position.z + lx*sr + lz*cr };
   }
@@ -2978,7 +3103,11 @@ function build3D(runs,attempt){
     savedPitch=pitch; savedDist=dist;
     mode='top'; auto=false;
     pitch=1.47; dist=r*1.55+14;
-    tx=pivot.position.x; tz=pivot.position.z;
+    // The fence's centroid where it NOW stands, through whatever the slider and
+    // the slide drag have done. Reading pivot.position was the same thing while
+    // the pivot was the centroid; with the pivot on the house it would look
+    // straight down at the roof and leave the fence off the edge.
+    const fc=toWorld({x:cx,z:cz}); tx=fc.x; tz=fc.z;
     topBtn.textContent=tr('groundView');
     hintEl.textContent=tr('topHint');
   });
@@ -3030,7 +3159,7 @@ function build3D(runs,attempt){
    * 20 this page shipped with. `zoom` is only ever passed by the step-down.
    */
   window.__fence.attachSatellite=async function(lat,lon,zoom){
-    const Z=zoom||sceneSatelliteZoom(lat,lon,fenceR);
+    const Z=zoom||sceneSatelliteZoom(lat,lon,anchorR);
     const grid=sceneSatelliteGrid(lat,lon,Z);
     const N=grid.N, cxT=grid.cxT, cyT=grid.cyT;
     const cvs=document.createElement('canvas');
@@ -3073,7 +3202,7 @@ function build3D(runs,attempt){
     // A tile the fence never stands on may go missing without costing the
     // sharpest imagery. One under the fence, or more than half the grid,
     // steps down a level -- the same chain as before, ending at 19.
-    const verdict=sceneSatelliteVerdict(loaded,grid,fenceR);
+    const verdict=sceneSatelliteVerdict(loaded,grid,anchorR);
     if(verdict==='stepdown'){
       return Z>19 ? window.__fence.attachSatellite(lat,lon,Z-1) : false;
     }
@@ -3094,11 +3223,11 @@ function build3D(runs,attempt){
       });
     }
 
-    const sideFt=grid.sideFt;
-    // Where inside the stitched image the address itself is, so that pixel
-    // lands under the fence centre rather than the house drifting a tile off.
-    const px=(grid.ox/N - .5)*sideFt;
-    const pz=(grid.oy/N - .5)*sideFt;
+    // Puts the address pixel under the anchor -- the house, when the drawing
+    // says where it is. THIS is the line that stops a back-yard fence being
+    // drawn across the front of the property.
+    const ground=sceneGroundCentre(grid, anchor);
+    const sideFt=ground.sideFt;
 
     // The photo carries its own sun. Lit again as a MeshStandardMaterial under
     // this scene's lights and ACES tone mapping, an sRGB mid-grey of 102 came
@@ -3115,7 +3244,7 @@ function build3D(runs,attempt){
       new THREE.PlaneGeometry(sideFt,sideFt),
       new THREE.MeshBasicMaterial({map:tex, toneMapped:false}));
     plane.rotation.x=-Math.PI/2;
-    plane.position.set(cx-px, 0.02, cz-pz);
+    plane.position.set(ground.x, 0.02, ground.z);
     scene.add(plane);
     // An unlit plane cannot receive a shadow, so the fence's own is caught on
     // a transparent plane just above the photo. The lit ground darkened its
@@ -3125,7 +3254,7 @@ function build3D(runs,attempt){
       new THREE.PlaneGeometry(sideFt,sideFt),
       new THREE.ShadowMaterial({opacity:0.4, transparent:true}));
     shade.rotation.x=-Math.PI/2;
-    shade.position.set(cx-px, 0.1, cz-pz);
+    shade.position.set(ground.x, 0.1, ground.z);
     shade.receiveShadow=true;
     scene.add(shade);
     grass.visible=false;
@@ -3134,6 +3263,15 @@ function build3D(runs,attempt){
     const rot=document.getElementById('rotSlider');
     document.getElementById('rotCtl').style.display='';
     document.getElementById('mapCred').style.display='';
+    // Tell her which picture this is. A homeowner believes what a photo shows
+    // of her own garden, so an anchored fence and a guessed one must not look
+    // alike. Anchored: the distance from the house is real, the compass
+    // bearing is not, and the slider is how she fixes that. Not anchored: the
+    // position itself is a guess, and saying so is the entire point -- the
+    // alternative, drawing it through the middle in silence, is the bug.
+    const note=document.getElementById('mapNote');
+    note.textContent=tr(houseAnchor?'posFromHouse':'posApprox');
+    note.style.display='';
     // At phone width the stylesheet gives the turn panel the top row and
     // drops the badge while it is up (see #stage.has-map).
     stage.classList.add('has-map');

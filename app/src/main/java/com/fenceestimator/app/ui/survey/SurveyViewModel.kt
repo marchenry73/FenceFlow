@@ -88,6 +88,23 @@ data class JoinOffer(
     val memberRunIds: List<String>,
     /** True when a customer approval is on the line and he has to be told first. */
     val approvalAtRisk: Boolean,
+    /**
+     * The corner this attach will MOVE so the two ends become one point, or
+     * null when nothing moves (both ends are already on one point, which is
+     * every join made from a draw snap).
+     *
+     * His words, on seeing the first version: "When I attach them together, I
+     * need to see the line move there too so there is no confusion, need it to
+     * be more seamless than that." So an attach now closes the gap, the dialog
+     * names the side that moves and the footage it gains or loses, and a gap
+     * too wide to close is refused outright
+     * ([com.fenceestimator.app.geometry.JoinRefusal.TOO_FAR_APART]) rather
+     * than recorded as a join across the yard.
+     *
+     * Always null on a detach: taking a post apart puts no corner back. See
+     * [confirmJoinOffer].
+     */
+    val gapCloser: RunJoinGesture.JoinGapCloser? = null,
 )
 
 class SurveyViewModel(
@@ -271,6 +288,10 @@ class SurveyViewModel(
 
     fun selectRun(id: Long) {
         _selectedRunId.value = id
+        // A standing "these two meet -- one post?" offer belongs to the side he
+        // was drawing. Switching sides puts it away rather than leaving it
+        // hanging over a drawing he is no longer looking at.
+        _snapJoinOffer.value = null
     }
 
     /**
@@ -367,6 +388,63 @@ class SurveyViewModel(
     val lengthRefused: SharedFlow<Unit> = _lengthRefused
 
     private fun FenceRun.drawingSnapshot() = DrawingSnapshot(pointsEncoded, gatesEncoded, closedLoop)
+
+    /**
+     * Frees a joint whose corner has just stopped being where it was.
+     *
+     * UNDO CANNOT LEAVE A JOINT ON A CORNER THAT IS NOT THERE. [DrawingSnapshot]
+     * carries the points, the gates and the closed flag and nothing else -- it
+     * is deliberately the stored strings, byte for byte, so that Redo puts back
+     * exactly what Undo took. Which means Undo and Redo restore a drawing
+     * WITHOUT restoring the joints. Undo the very point a join was made on and
+     * the joint stays recorded at the run's first or last point -- which is now
+     * a DIFFERENT corner. The arithmetic would bill a shared post for a corner
+     * nobody drew, at a place the crew would not find one.
+     *
+     * So: an end whose point is not the same point after the restore is freed.
+     * Only THIS run's end is freed, which is enough -- an id held by one end is
+     * read as a free end everywhere ([jointIdsOf]'s note,
+     * RunJoinGesture.liveJointOf, RunJoinArithmetic.isLive) -- so the partner is
+     * left harmlessly stranded and the job goes back to its own end posts. That
+     * is a post MORE in the ground, which is today's price and the only
+     * direction this is allowed to fail in.
+     *
+     * An end whose point is unchanged keeps its joint, so undoing a gate, or a
+     * drag at the other end of the run, does not quietly take a corner post
+     * apart.
+     *
+     * THROUGH [writeJointIds], not through a copy of the run, because there is
+     * ONE write path for a joint and tests/a59 check 7 holds it there. Which
+     * also means the office hears about it the same way it hears about a
+     * Detach, and the price follows the same way: both are right. An undone
+     * corner IS a detached corner.
+     *
+     * NOT a substitute for Detach: this is the narrow case of a corner ceasing
+     * to exist, not a way to un-attach one that is still drawn.
+     */
+    private suspend fun freeJointsAtVanishedEnds(before: FenceRun, after: FenceRun) {
+        val joints = jointIdsOf(after)
+        if (joints.first.isBlank() && joints.second.isBlank()) return
+        val was = FenceCodec.decodePoints(before.pointsEncoded)
+        val now = FenceCodec.decodePoints(after.pointsEncoded)
+        fun same(a: FencePoint?, b: FencePoint?): Boolean =
+            a != null && b != null && a.x == b.x && a.y == b.y
+        val writes = buildList {
+            if (joints.first.isNotBlank() && !same(was.firstOrNull(), now.firstOrNull())) {
+                add(JoinEnd(after.syncId, false) to "")
+            }
+            if (joints.second.isNotBlank() && !same(was.lastOrNull(), now.lastOrNull())) {
+                add(JoinEnd(after.syncId, true) to "")
+            }
+        }
+        if (writes.isEmpty()) return
+        writeJointIds(writes)
+        // The partner run keeps a joint nothing else holds, so IT loses a
+        // shared post too -- and its own row never changed, so the signature
+        // watcher will never look at it. Same reason confirmJoinOffer does
+        // this; see [repriceEveryRun].
+        repriceEveryRun()
+    }
 
     /**
      * Runs [change] against a fresh read of run [runId], behind
@@ -862,6 +940,9 @@ class SurveyViewModel(
                         closedLoop = plan.snapshot.closedLoop
                     )
                     repository.updateFenceRun(restored)
+                    // A corner that has just stopped existing cannot go on
+                    // billing a shared post. See [freeJointsAtVanishedEnds].
+                    freeJointsAtVanishedEnds(run, restored)
                     // A footage change is reported whichever way it goes, as
                     // it always was when Undo took a point away. A gate-only
                     // step moves no footage and so reports nothing, as before.
@@ -904,6 +985,9 @@ class SurveyViewModel(
                         closedLoop = plan.snapshot.closedLoop
                     )
                     repository.updateFenceRun(restored)
+                    // Redo moves the same corners Undo did, so it frees the
+                    // same joints. See [freeJointsAtVanishedEnds].
+                    freeJointsAtVanishedEnds(run, restored)
                     // Same footage report Undo made when it took the point away.
                     noteFootageChange(run, measure(run), measure(restored))
                     _redo.update { it.afterRedo(run.id) }
@@ -1015,26 +1099,27 @@ class SurveyViewModel(
     private val _joinRefused = MutableSharedFlow<JoinRefusal>(extraBufferCapacity = 1)
     val joinRefused: SharedFlow<JoinRefusal> = _joinRefused
 
+    private val _joinTooFarFeet = MutableStateFlow(0f)
+
+    /**
+     * How far apart the two ends were when [JoinRefusal.TOO_FAR_APART] was
+     * raised, in feet, so the refusal can say the distance back to him.
+     *
+     * Only meaningful while handling that one refusal; written immediately
+     * before the emit (see [tapJoinEnd]). Kept beside the event rather than in
+     * it because [joinRefused] is a bare enum by design -- every other refusal
+     * has a fixed sentence, and widening the event for one of them would make
+     * the other seven carry a payload that means nothing.
+     */
+    val joinTooFarFeet: StateFlow<Float> = _joinTooFarFeet
+
     /**
      * Every run of this job as the attach gesture reads it.
      *
      * Every run, never a subset: the shared post is billed to the tallest
      * member, so an answer worked out from two runs can name the wrong owner.
      */
-    private fun joinCandidates(): List<JoinCandidateRun> = runs.value.map { run ->
-        val joints = jointIdsOf(run)
-        JoinCandidateRun(
-            runId = run.syncId,
-            points = FenceCodec.decodePoints(run.pointsEncoded),
-            closedLoop = run.closedLoop,
-            typedFootage = run.usesManualFeet,
-            isTeardown = run.isTeardown,
-            heightFt = joinHeightOf(run),
-            sortOrder = run.sortOrder,
-            startJointId = joints.first,
-            endJointId = joints.second,
-        )
-    }
+    private fun joinCandidates(): List<JoinCandidateRun> = runs.value.map { candidateOf(it) }
 
     /**
      * The height that decides which run is billed the shared post: the taller
@@ -1237,6 +1322,28 @@ class SurveyViewModel(
             _joinRefused.tryEmit(refusal)
             return
         }
+        // ATTACHED MEANS ONE POINT. A join made here can be between two ends
+        // that are nowhere near each other, and until now it recorded them as
+        // one post and left the plan showing a gap -- which is exactly the
+        // confusion he came back about. So the gap is closed as part of
+        // attaching, and a gap too wide to be a tracing error is refused
+        // instead: closing THAT would drag a corner across the yard and move a
+        // side's footage, its labour and possibly a panel, which is a redraw
+        // and not what two taps asked for. He has a way to do it on purpose --
+        // drag the end over, where the snap lands it exactly on the corner and
+        // the offer comes to him there.
+        val gapCloser = RunJoinGesture.gapCloserFor(candidates, decision, editScale())
+        if (gapCloser != null && gapCloser.distanceFeet > RunJoinGesture.CLOSE_GAP_MAX_FT) {
+            // Set BEFORE the emit, and read by the screen inside the collector
+            // for that emit. [joinRefused] carries a bare enum and several
+            // tests pin that shape, so the one refusal that needs a number
+            // parks it here rather than widening the event for everybody. Safe
+            // because a refusal comes from one tap: there is no second tap in
+            // flight to overwrite it between the set and the collector.
+            _joinTooFarFeet.value = gapCloser.distanceFeet
+            _joinRefused.tryEmit(JoinRefusal.TOO_FAR_APART)
+            return
+        }
         _joinOffer.value = JoinOffer(
             detach = false,
             decision = decision,
@@ -1246,6 +1353,7 @@ class SurveyViewModel(
                 RunJoinGesture.withDecisionApplied(candidates, decision), decision.jointId
             ),
             approvalAtRisk = approvalAtRisk(),
+            gapCloser = gapCloser,
         )
     }
 
@@ -1253,6 +1361,189 @@ class SurveyViewModel(
     fun clearJoinPick() {
         _joinPick.value = null
         _joinOffer.value = null
+    }
+
+    // -----------------------------------------------------------------------
+    // THE OFFER WHERE THE SNAP ALREADY LANDED
+    //
+    // "Make it easier to connect the sides when I draw." The snap has done the
+    // hard half for months: a point placed within reach of another run's
+    // corner is moved onto it EXACTLY ([snapTargets] collects across every run
+    // of the job). What was missing is that nothing asked whether the two
+    // sides now MEET -- so on his own job two sides had their ends on the
+    // identical point and the takeoff still bought two end posts.
+    //
+    // WHY A STANDING OFFER AND NOT A DIALOG. He is in a yard, one-handed, in
+    // sunlight, and the next thing he does is almost always another tap. A
+    // dialog in front of that tap is worse than no offer at all: it costs a
+    // dismissal every time he traces beside a neighbour's fence, and a
+    // question he dismisses by reflex is a question that eventually gets
+    // answered by reflex too. So the offer sits beside the drawing, one tap
+    // takes it, and anything else leaves it.
+    //
+    // CARRYING ON DRAWING IS NOT A YES. The offer is dropped by the next
+    // drawing edit, by changing run, by leaving Draw and Adjust, and by
+    // leaving the screen. Nothing it carries can write; [acceptSnapJoinOffer]
+    // re-reads the runs and re-derives the whole decision from scratch, so a
+    // yes that arrives a moment late lands on today's drawing or on nothing.
+    //
+    // WHY NOT "JOINED -- UNDO". Because that attaches first and asks after,
+    // and the rule is that nothing joins without him saying so. A post coming
+    // off the order on a timer, in a yard, on a phone he may have put in his
+    // pocket, is the same mistake as inferring a join from proximity, only
+    // faster.
+    // -----------------------------------------------------------------------
+
+    private val _snapJoinOffer = MutableStateFlow<RunJoinGesture.SnapJoinOffer?>(null)
+
+    /**
+     * "These two sides meet here -- make it one post?", or null.
+     *
+     * Raised by [offerJoinFromSnap] after a point was drawn or dragged onto
+     * another run's free end, and taken by [acceptSnapJoinOffer]. Carries no
+     * authority: it is a question, and until it is answered the drawing and
+     * the price are exactly what they were.
+     */
+    val snapJoinOffer: StateFlow<RunJoinGesture.SnapJoinOffer?> = _snapJoinOffer
+
+    /** Puts the offer away without attaching anything. */
+    fun dismissSnapJoinOffer() {
+        _snapJoinOffer.value = null
+    }
+
+    /**
+     * Asks whether the point just placed made two sides meet, and raises the
+     * offer if it did.
+     *
+     * Called by the screen straight after [addDrawPoint] or [movePoint], with
+     * the [SnapKind] the snap reported. Only a VERTEX snap is even asked
+     * about: a heading snap and a whole-foot snap do not land ON anything, so
+     * there is no other side to be one post with.
+     *
+     * Deliberately asked AFTER the write rather than inside the snap. The snap
+     * is pure and is called while a finger is still down (the drag preview
+     * asks it every frame); an offer raised from there would flicker under the
+     * finger and would be computed against a drawing that is not saved yet.
+     * Asked here, the runs it reads are the runs the price will read.
+     *
+     * Reads the drawing back out of the repository rather than trusting
+     * [runs], whose flow may be a beat behind its own write -- the offer names
+     * a specific pair of ends and a specific point, and a stale read is how it
+     * would come to name the wrong one.
+     */
+    fun offerJoinFromSnap(index: Int, kind: com.fenceestimator.app.geometry.SnapKind) {
+        _snapJoinOffer.value = null
+        if (!JOIN_STORAGE_READY) return
+        if (kind != com.fenceestimator.app.geometry.SnapKind.VERTEX) return
+        if (viewerIsGuestDemo()) return
+        val runId = _selectedRunId.value ?: return
+        viewModelScope.launch {
+            // Behind [drawingWrites], the same lock every drawing edit holds,
+            // so this read happens AFTER the point that prompted it has landed.
+            // The screen calls addDrawPoint/movePoint and this one after it, but
+            // both are coroutines and neither waits for the other -- without the
+            // lock the offer would sometimes be worked out from the drawing as
+            // it was a moment ago, and would name the wrong corner.
+            val fresh = drawingWrites.withLock {
+                withContext(Dispatchers.IO) { repository.getFenceRuns(jobId) }
+            }
+            val selected = fresh.firstOrNull { it.id == runId } ?: return@launch
+            val candidates = fresh.map { candidateOf(it) }
+            val me = candidates.firstOrNull { it.runId == selected.syncId } ?: return@launch
+            // LAST_POINT resolves against the FRESH run, not against the
+            // screen's copy: a point that was just added is the run's last, and
+            // asking the database which index that is cannot be a beat behind
+            // its own write.
+            val at = if (index == LAST_POINT) me.points.lastIndex else index
+            // Only an END of the selected run can be joined -- a bend in the
+            // middle has nowhere to be stored and is already a corner post.
+            val movingEnd = RunJoinGesture.endAtVertex(me, at) ?: return@launch
+            _snapJoinOffer.value = RunJoinGesture.offerFromSnap(
+                runs = candidates,
+                movingEnd = movingEnd,
+                newJointId = UUID.randomUUID().toString(),
+                pxPerFt = editScale(),
+            )
+        }
+    }
+
+    /**
+     * The same question after a point was ADDED rather than dragged.
+     *
+     * The screen knows it drew a point; it does not know, without racing its
+     * own write, which index that point ended up at. [LAST_POINT] says "the
+     * run's last point, whatever index that is now" and is resolved inside
+     * [offerJoinFromSnap] against the fresh read.
+     */
+    fun offerJoinAfterDraw(kind: com.fenceestimator.app.geometry.SnapKind) =
+        offerJoinFromSnap(LAST_POINT, kind)
+
+    /**
+     * Takes the standing offer: writes the joint, and nothing else.
+     *
+     * NO POINT MOVES HERE, and that is not an omission. The snap put the two
+     * ends on one point before the offer was ever raised -- that is condition
+     * (1) of [RunJoinGesture.offerFromSnap], checked by exact equality -- so
+     * the line has already moved, he has already watched it move, and the
+     * footage change was the drawing edit he made, not a surprise the join
+     * sprang afterwards. An attach from this path costs 0.00 ft by
+     * construction, which is why nothing is said about feet.
+     *
+     * THE WHOLE DECISION IS RE-DERIVED from a fresh read, against the ends the
+     * offer named. If either end has moved, been deleted, closed its loop,
+     * turned into a teardown or gained a joint since the offer appeared, the
+     * answer is no and the refusal says which -- rather than writing a joint
+     * for a corner that is no longer there.
+     */
+    fun acceptSnapJoinOffer() {
+        val offer = _snapJoinOffer.value ?: return
+        _snapJoinOffer.value = null
+        if (viewerIsGuestDemo()) return
+        viewModelScope.launch {
+            val fresh = withContext(Dispatchers.IO) { repository.getFenceRuns(jobId) }
+            val candidates = fresh.map { candidateOf(it) }
+            val decision = RunJoinGesture.decide(
+                candidates, offer.movingEnd, offer.targetEnd, offer.decision.jointId
+            )
+            val refusal = decision.refusal
+            if (refusal != null) {
+                _joinRefused.tryEmit(refusal)
+                return@launch
+            }
+            // Still one point? The offer was raised because they were, and
+            // this is an attach that promises to move nothing -- so if the
+            // drawing has moved underneath it, the promise is void and the
+            // honest answer is to say the side is not where it was.
+            val a = RunJoinGesture.pointOf(candidates, offer.movingEnd)
+            val b = RunJoinGesture.pointOf(candidates, offer.targetEnd)
+            if (a == null || b == null || a.x != b.x || a.y != b.y) {
+                _joinRefused.tryEmit(com.fenceestimator.app.geometry.JoinRefusal.NOT_FOUND)
+                return@launch
+            }
+            val writes = decision.ends.map { it to decision.jointId }
+            val kept = drawingWrites.withLock { writeJointIds(writes) }
+            if (!kept) {
+                _joinRefused.tryEmit(com.fenceestimator.app.geometry.JoinRefusal.NO_STORAGE)
+                return@launch
+            }
+            repriceEveryRun()
+        }
+    }
+
+    /** One run as the join layer reads it. Shared by every path that asks. */
+    private fun candidateOf(run: FenceRun): JoinCandidateRun {
+        val joints = jointIdsOf(run)
+        return JoinCandidateRun(
+            runId = run.syncId,
+            points = FenceCodec.decodePoints(run.pointsEncoded),
+            closedLoop = run.closedLoop,
+            typedFootage = run.usesManualFeet,
+            isTeardown = run.isTeardown,
+            heightFt = joinHeightOf(run),
+            sortOrder = run.sortOrder,
+            startJointId = joints.first,
+            endJointId = joints.second,
+        )
     }
 
     /**
@@ -1286,7 +1577,89 @@ class SurveyViewModel(
         }
         viewModelScope.launch {
             val kept = drawingWrites.withLock { writeJointIds(writes) }
-            if (!kept) _joinRefused.tryEmit(JoinRefusal.NO_STORAGE)
+            if (!kept) {
+                _joinRefused.tryEmit(JoinRefusal.NO_STORAGE)
+                return@launch
+            }
+            // THE LINE MOVES, and it moves AFTER the joint is stored, never
+            // before. A move written first and a joint write that then failed
+            // would leave a corner dragged across the drawing with nothing
+            // attached -- a line that moved for no reason, which is worse than
+            // the gap. This order can only fail the other way: an attachment
+            // whose gap did not close, which is precisely today's behaviour and
+            // the safe direction (one post too few is never billed).
+            //
+            // Through [moveJoinedEnd] -- the ordinary drawing door -- so it is
+            // ONE Undo step, it re-prices like any other drawing edit, and the
+            // office hears about the footage the same way it hears about a
+            // dragged corner.
+            offer.gapCloser?.let { moveJoinedEnd(it) }
+            // Every run of the job, not just the rows written. A detach writes
+            // ONE end blank and a T-join writes only the two ends tapped, so
+            // the run that was the post's OWNER can keep a corner post in its
+            // stored line items for a post that no longer exists, or lose one
+            // it has just gained -- its own row never changed, so the signature
+            // watcher ([watchDrawingForRepricing]) never sees it move. This is
+            // the same answer [repriceAfterScaleChange] gives for the same
+            // reason: a join is rare, a job is small, and a member missed here
+            // is a stale price on a customer's quote.
+            repriceEveryRun()
+        }
+    }
+
+    /**
+     * Moves the corner an attach promised to move, as an ordinary edit.
+     *
+     * Through [editRun] and [writePoints], so it is one Undo step, it reports
+     * the footage change to the office like any other drag, and the takeoff
+     * re-prices from it the way it re-prices from a finger.
+     *
+     * Re-reads and re-checks rather than trusting the figures in the offer: the
+     * end has to still be at the point the offer measured from, or this is a
+     * corner being dragged somewhere nobody asked for. Silent when it is not --
+     * the joint is already stored and honoured, so the drawing keeps its gap
+     * and that is the state the app was in before today.
+     */
+    private fun moveJoinedEnd(closer: RunJoinGesture.JoinGapCloser) {
+        val target = runs.value.firstOrNull { it.syncId == closer.end.runId } ?: return
+        editRun(target.id) { run ->
+            val points = FenceCodec.decodePoints(run.pointsEncoded).toMutableList()
+            val index = if (closer.end.atEnd) points.lastIndex else 0
+            if (index !in points.indices) return@editRun
+            val at = points[index]
+            if (at.x != closer.from.x || at.y != closer.from.y) return@editRun
+            if (!isWritablePoint(closer.to.x, closer.to.y)) return@editRun
+            points[index] = closer.to
+            writePoints(run, points)
+        }
+    }
+
+    /**
+     * Re-prices every run's materials, for a change that moved a price without
+     * moving the row the watcher follows.
+     *
+     * [watchDrawingForRepricing] compares each run's own
+     * [TakeoffRefresher.pricingSignature], so it only ever refreshes the rows
+     * that changed. That is right for a drag and wrong for a join: the shared
+     * post is billed to ONE member chosen across runs, so attaching or
+     * detaching can change what a run that was not written owes.
+     *
+     * Same gate, same failure banner and same reporting as every other
+     * re-price ([viewerMayReprice], [repriceAfterScaleChange]) -- a crew phone
+     * still may not re-price, and a failure still says so on the canvas rather
+     * than leaving the materials quietly behind the drawing.
+     */
+    private suspend fun repriceEveryRun() {
+        if (!repriceOnDrawingChange || !viewerMayReprice()) return
+        withContext(Dispatchers.IO) {
+            repository.getFenceRuns(jobId).forEach { run ->
+                runCatching { TakeoffRefresher.refreshRun(repository, run, true) }
+                    .onSuccess { _repriceFailed.value = false }
+                    .onFailure { e ->
+                        CrashReporter.report(appContext, "survey-reprice", e)
+                        _repriceFailed.value = true
+                    }
+            }
         }
     }
 
@@ -1448,19 +1821,7 @@ class SurveyViewModel(
      * the same people ([viewerMayReprice]) and with the same failure banner.
      * [TakeoffRefresher.refreshRun] still declines a run nobody has priced.
      */
-    private suspend fun repriceAfterScaleChange() {
-        if (!repriceOnDrawingChange || !viewerMayReprice()) return
-        withContext(Dispatchers.IO) {
-            repository.getFenceRuns(jobId).forEach { run ->
-                runCatching { TakeoffRefresher.refreshRun(repository, run, true) }
-                    .onSuccess { _repriceFailed.value = false }
-                    .onFailure { e ->
-                        CrashReporter.report(appContext, "survey-reprice", e)
-                        _repriceFailed.value = true
-                    }
-            }
-        }
-    }
+    private suspend fun repriceAfterScaleChange() = repriceEveryRun()
 
     val siteMarkers: StateFlow<List<SiteMarker>> = repository.observeSiteMarkers(jobId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
@@ -2224,6 +2585,12 @@ class SurveyViewModel(
         // pins this flag to EntitySync.JOIN_COLUMNS_LIVE and to price-job's
         // RUN_COLUMNS, so neither can move without the others.
         const val JOIN_STORAGE_READY = true
+
+        /**
+         * "The point just added, whichever index that turned out to be."
+         * See [offerJoinAfterDraw].
+         */
+        const val LAST_POINT = -1
 
         /**
          * Whether the ESTIMATE reads attachments yet.

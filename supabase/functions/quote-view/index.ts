@@ -1079,7 +1079,8 @@ Deno.serve(async (req) => {
     reapprovalRunLabel = String(withdrawal?.run_label ?? "").trim();
   }
 
-  const [{ data: company }, figures, { data: runs }, { data: conn }, signatureUrl, paymentMethods] =
+  const [{ data: company }, figures, { data: runs }, { data: houseMarkers }, { data: conn },
+         signatureUrl, paymentMethods] =
     await Promise.all([
       admin.from("companies").select("name, phone, email").eq("id", job.company_id).single(),
       pageFigures(admin, job),
@@ -1089,6 +1090,25 @@ Deno.serve(async (req) => {
           "wood_style, aluminum_style, fabric_height_ft, split_rail_count, is_teardown")
         .eq("company_id", job.company_id)
         .eq("job_sync_id", job.sync_id).is("deleted_at", null),
+      // WHERE THE HOUSE IS. The page centres the aerial photo on the geocoded
+      // address, and the address is the house -- so without this the fence can
+      // only be drawn through the middle of it, which is how a back-yard fence
+      // came to read as a fence across the front.
+      //
+      // kind = HOUSE and nothing else, on purpose. The other eight kinds are
+      // the contractor's own notes about the site -- an easement he cannot
+      // build in, a utility he has to dig around -- and a customer's quote
+      // link is not where those belong. x/y only: a marker's free-text label
+      // is his note to himself too.
+      //
+      // Same scoping as the runs read directly above (company + job sync id,
+      // not-deleted) and the same admin client, so this reaches exactly the
+      // rows that quote already shows a drawing of. No policy changes.
+      admin.from("site_markers")
+        .select("kind, x, y")
+        .eq("company_id", job.company_id)
+        .eq("job_sync_id", job.sync_id)
+        .eq("kind", "HOUSE").is("deleted_at", null),
       admin.from("payment_connections")
         .select("processor, external_id, access_token")
         .eq("company_id", job.company_id).maybeSingle(),
@@ -1213,6 +1233,15 @@ Deno.serve(async (req) => {
       manualFeet: Number(r.manual_linear_feet) || 0,
       woodStyle: r.wood_style, aluminumStyle: r.aluminum_style,
       splitRails: Number(r.split_rail_count) || 2,
+    })),
+    // The house, in the same drawing pixels as a run's points, so the page can
+    // put the address under it instead of under the fence's middle. Normally
+    // one row or none; the page refuses to guess when there are two (see
+    // sceneHouseAnchor) and says on screen that the position is approximate.
+    markers: (houseMarkers ?? []).map((m) => ({
+      kind: String(m.kind),
+      x: Number(m.x) || 0,
+      y: Number(m.y) || 0,
     })),
   });
 });

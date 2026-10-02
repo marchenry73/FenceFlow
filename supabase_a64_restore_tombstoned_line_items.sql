@@ -597,14 +597,59 @@ begin
           'a64: expected to match 77 named rows on job, role and run, matched %. Something has changed since this was measured. Refusing -- re-measure before restoring.', n_found;
     end if;
 
-    -- They must all still be TOMBSTONED. If some are already live, this file has
-    -- been applied once already.
+    -- RELAXED 2026-10-02, deliberately, and the reason matters.
+    --
+    -- This demanded all 77 still be tombstoned, on the reasoning that anything
+    -- else meant the file had already run. That turned out to be a third
+    -- possibility nobody had allowed for: the app REVIVED them by itself. After
+    -- APK 575 went out, re-pricing a job brought its own lines back through
+    -- LineItemResurrections -- 49 of the 77 came back with no SQL at all, and
+    -- jobs 5 and 9 healed completely. Measured live, read-only, with a control
+    -- and a canary: 49 live again, 43 still dead, and ZERO (job, role, run)
+    -- carrying more than one live line. Nothing was doubled.
+    --
+    -- Refusing on that was right (it stopped a blind double-apply) but staying
+    -- refused would leave three jobs permanently empty -- including the two
+    -- signed ones -- because their lines never got revived.
+    --
+    -- The updates below are already safe for a partial run: every one is
+    -- `where e.deleted_at is not null`, so a revived row is skipped, not
+    -- written twice. What was missing is the check immediately after this one.
     select count(*) into n_tombstoned
       from a64_all t join public.estimate_line_items e on e.sync_id = t.sync_id
      where e.deleted_at is not null;
-    if n_tombstoned <> 77 then
+    if n_tombstoned = 0 then
         raise exception
-          'a64: expected all 77 named rows to still be deleted, % are. Has this already been applied? Refusing.', n_tombstoned;
+          'a64: none of the 77 named rows is still deleted. There is nothing to restore. Refusing.';
+    end if;
+    if n_tombstoned > 77 then
+        raise exception
+          'a64: % of the named rows are deleted, which is more than the 77 named. The list has drifted. Refusing.', n_tombstoned;
+    end if;
+    raise notice 'a64: % of the 77 named rows are still deleted; the other % revived themselves.',
+                 n_tombstoned, 77 - n_tombstoned;
+
+    -- THE CHECK THAT REPLACES IT, and the one that actually protects the money.
+    --
+    -- A row that revived on its own may stand for the SAME (job, role, run) as
+    -- one still in the dead list. Restoring that one would put two live lines on
+    -- one role of one side and bill it twice -- the exact doubling this whole
+    -- repair has been careful about since it was written. The old all-or-nothing
+    -- test never checked this; it only inferred it from "nothing has moved".
+    select count(*) into n_check
+      from a64_all t
+      join public.estimate_line_items dead on dead.sync_id = t.sync_id
+     where dead.deleted_at is not null
+       and exists (
+         select 1 from public.estimate_line_items live
+          where live.deleted_at is null
+            and live.job_sync_id = dead.job_sync_id
+            and live.role = dead.role
+            and coalesce(live.fence_run_sync_id::text, '') = coalesce(dead.fence_run_sync_id::text, '')
+       );
+    if n_check > 0 then
+        raise exception
+          'a64: % of the rows still to restore already have a LIVE line for the same job, role and run. Restoring them would bill that line twice. Refusing.', n_check;
     end if;
 
     -- THE FINGERPRINT. Every row restored here must carry deleted_by = '' --

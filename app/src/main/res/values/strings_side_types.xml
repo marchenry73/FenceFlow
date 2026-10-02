@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  WHAT KIND OF FENCE IS ON EACH SIDE.
+
+  His words: "after I create the drawing I need a spot to set what kind of fence
+  is on each side, use the default, but I also want to set what type of fence it
+  is on each side." And: "Also for everything that's connected to it for it to
+  work too."
+
+  A SEPARATE FILE, not strings.xml, for the same reason strings_join_offer.xml
+  is one: strings.xml is edited by several waves at once and two agents in one
+  file loses an edit. Android merges every values/*.xml, so these resolve
+  exactly as if they were in it.
+
+  WORDING NOTE. "Side", not "run". He says side; the data model says run, and
+  every string a customer or a crew member reads should use his word. The
+  existing draw_editing_run / est2_fence_run_title strings are left alone -
+  renaming them is a separate decision and not one to make quietly.
+-->
+<resources>
+    <string name="sides_types_title">Fence on each side</string>
+    <!-- %1$d sides, %2$s is either one type name or "2 Vinyl, 1 Wood". -->
+    <string name="sides_types_summary">%1$d sides · %2$s</string>
+    <string name="sides_types_expand">Show every side</string>
+    <string name="sides_types_collapse">Hide the list</string>
+    <string name="sides_spec_height_ft">%1$s ft high</string>
+
+    <!--
+      "Not set yet", never a price built on a zero. The engine does not throw on
+      a zero: it quietly produces a quantity of 0 and the role is simply absent
+      from the estimate, which on screen is indistinguishable from a fence that
+      needs no panels. So the refusal is raised beside the field.
+    -->
+    <string name="sides_spec_missing_post_spacing">Post spacing is not set on this side, so no posts or concrete are priced on it.</string>
+    <string name="sides_spec_missing_panel_width">Panel width is not set on this side, so no panels or line posts are priced on it.</string>
+    <string name="sides_spec_missing_panel_height">Fence height is not set on this side.</string>
+    <string name="sides_spec_missing_picket">Picket width is not set on this side, so the picket count is not priced on it.</string>
+    <string name="sides_spec_missing_rails">Rail count is not set on this side, so no rails are priced on it.</string>
+    <string name="sides_spec_missing_fabric_height">Fabric height is not set on this side, so no chain link is priced on it.</string>
+
+    <!--
+      The one outcome worth a sentence. Everything else is the price quietly
+      following the type, which is what he expects. This is the price NOT
+      following, because the catalog holds no rows for the type he just picked
+      - and the alternative (leaving the old type's lines standing) is a quote
+      for a fence nobody is building.
+    -->
+    <string name="sides_types_nothing_priced">Nothing in your price list fits this type yet, so the materials on this side were cleared. Add its prices in the catalog, then press Suggest Quantities.</string>
+</resources>

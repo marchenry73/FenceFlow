@@ -188,3 +188,107 @@ teaches people to ignore the one that matters."
 This build qualifies on the merits: the sync fault silently destroyed priced
 line items on signed jobs. But it would also force nine other companies' phones,
 and that is March's call rather than mine. Ask before passing the flag.
+
+## 8. The house is a BOX, not a point (his words, 2 Oct)
+
+"When I say add the house, I want a larger box, something like that or something
+that looks like a house." And earlier, on the same idea: "rectangle I can drag
+and rotate."
+
+The house-anchor work now in flight was briefed to decide whether a point was
+enough. It is not -- he has answered. But the point version is NOT wasted: the
+anchor transform is the hard part and it works off the house's CENTRE either way,
+so a box is an extension, not a rewrite.
+
+WHAT A BOX COSTS, and why it is a separate change: `SiteMarker` carries only
+`x, y` (Entities.kt:999). A draggable, rotatable rectangle needs width, height
+and rotation, which is a Room migration AND two Postgres columns AND the sync
+carrying them -- the same four-part change the joint columns needed. Do it as its
+own piece with its own migration, not smuggled into the anchor fix.
+
+TWO THINGS TO GET RIGHT WHEN IT IS BUILT:
+- Rotation is what makes it a HOUSE rather than a square, and it is also what
+  decides which side of it the fence is on. A box with no rotation is barely
+  better than a point.
+- The quote image still has no compass. Even a perfectly placed, perfectly
+  rotated house does not tell the renderer which way is north unless the drawing
+  itself is oriented. Say so to him rather than let the picture imply a bearing
+  it does not know.
+
+## 9. Making two sides connect while drawing -- the crux, found 2 Oct
+
+THE SNAP ALREADY DOES THE HARD HALF. `SurveyViewModel.snapTargets` collects
+vertices from EVERY run (not just the selected one) and `snapForDraw` feeds them
+to `snapDrawPoint`, so a point drawn near another side's corner lands EXACTLY on
+it. Its own comment says why, and names this very problem:
+
+    "Across runs on purpose. A back fence and a side fence that meet share one
+     corner post; if the two runs each keep their own corner a few inches apart,
+     the takeoff sets two posts and the crew arrives with a spare."
+
+That is PROVEN on his own job: Back's end and Left Side's start were the
+identical point, (2000.2798, 803.1039), to four decimals. The snap put them
+there.
+
+SO THE GAP IS NARROW: the snap makes the two ends coincide and then nothing
+records that they are JOINED, because `adjustJoins` groups by joint id and never
+looks at position (deliberately -- tests/a33 pins two ends on one point still
+billing two end posts, so a price cannot move because a finger wobbled).
+
+THE FIX IS THEREFORE SMALL AND SHOULD STAY SMALL: when `snapForDraw` (or
+`snapForMove`) returns a VERTEX snap whose target is another run's FREE END,
+offer the joint there and then -- one tap, in the flow of drawing, not a separate
+mode. The arithmetic, the storage, the sync and the pricing are all already
+built and shipped in 575.
+
+Do NOT make it automatic. A silent join would move the price without him asking,
+which is the thing a33 exists to prevent. Offer it; let him say yes.
+
+## 10. THE GATE POSTS ARE MODELLED WRONG (his correction, 2 Oct)
+
+His words: "I have one gate and it shows gate posts (one end + econo stiffener),
+it should not be like that. The end post for the gate should be one with one gate
+with the econo stiffener, and we would need an end post if it is connected to the
+fence, or a blank if disconnected."
+
+TODAY the estimate shows "Gate posts (end posts + stiffener)  2" -- two posts of
+one kind, with the stiffener spread across the pair.
+
+WHAT HE ACTUALLY BUILDS, and it is two DIFFERENT posts:
+  - THE HINGE SIDE carries the gate's whole weight. That is the post that gets
+    the econo stiffener. ONE post, one stiffener, per gate.
+  - THE LATCH SIDE depends on what is there:
+      * fence continues past it  ->  END POST
+      * nothing continues        ->  BLANK POST
+
+This is the same distinction he already corrected once, on 1 Oct, for a WALL
+gate: "if It's against the wall, It's a blank post, and then an end post for the
+fence line that the gate latches to." That fix was applied to the WALL case only.
+He is now saying the rule is general: the stiffener belongs to ONE post, and the
+other post's kind is decided by whether the fence carries on.
+
+WHY IT MATTERS BEYOND THE LABEL: a blank post and an end post are different
+catalog rows at different prices, and the stiffener is quoted per gate, not per
+post. Counting two generic "gate posts" bills the wrong rows and can bill the
+stiffener twice or spread it.
+
+CHECK AGAINST THE CATALOG FIRST: his own rows include "5x5 Co-Ex Utility Post
+White 8.5' - Blank (Flori)" and separate End/Gate post rows, so the parts exist
+to bill this correctly.
+
+## 11. A GATE THAT IS NOT ON A FENCE LINE (same message)
+
+"I should be able to put gate on the grid even if it's not connected to the
+fence, the wall and it latches on the fence."
+
+So a gate must be placeable as its own thing: hung off a wall or a building on
+one side, latching onto a fence line on the other, with no fence run passing
+through it. Today a gate is encoded INSIDE a run (gates_encoded on fence_runs,
+position:offset:width:MOUNTING:side), so a gate with no run has nowhere to live.
+
+That is a storage change, not a drawing tweak -- think about it properly rather
+than faking it with a zero-length run, which would bill phantom posts and
+footage. Note the existing LINE_TO_WALL and WALL mountings already describe part
+of this; the gap is a gate with NO host run at all.
+
+Do both of these AFTER the current build ships -- his instruction.

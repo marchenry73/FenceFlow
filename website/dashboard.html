@@ -20435,7 +20435,7 @@ function satWire(){
   $('satUndo').addEventListener('click', () => { SAT.pts.pop(); satDraw(); });
   $('satClear').addEventListener('click', () => { SAT.pts = []; SAT.gates = []; hideSatGatePopup(); satDraw(); });
   $('satLoop').addEventListener('change', () => satDraw());
-  $('satIn').addEventListener('click', () => { if(SAT.z < 20){ SAT.z++; satDraw(); } });
+  $('satIn').addEventListener('click', () => { if(SAT.z < 21){ SAT.z++; satDraw(); } });
   $('satOut').addEventListener('click', () => { if(SAT.z > 16){ SAT.z--; satDraw(); } });
   $('satGateMode').addEventListener('click', () => satSetMode(SAT.mode==='gate' ? 'draw' : 'gate'));
   $('satGateAdd').addEventListener('click', () => {

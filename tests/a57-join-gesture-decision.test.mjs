@@ -254,10 +254,29 @@ function pricingFlag(text) {
     /attach_refused_no_storage/.test(screenCode) &&
       /Nothing was attached/.test(read("app/src/main/res/values/strings.xml")));
 
-  // No third home: the join section holds the half-made gesture and nothing else.
-  const flows = [...vmSrc.matchAll(/private val (_join\w+)\s*=\s*Mutable(StateFlow|SharedFlow)/g)].map((m) => m[1]);
-  eq("2g", "the view model holds exactly three pieces of join state -- the lifted end, the offer, the refusal -- and no in-memory list of attachments standing in for storage",
-    flows.sort(), ["_joinOffer", "_joinPick", "_joinRefused"]);
+  // No third home: the join section holds what a gesture is in the middle of
+  // and nothing else.
+  //
+  // WIDENED on 2 Oct 2026, from three names to five, for the draw-time offer
+  // (tests/a80-snap-to-connect.test.mjs). The rule this check exists to hold is
+  // unchanged and is NOT the number: it is that no in-memory collection stands
+  // in for the stored joint. The two additions are a single pending question
+  // (_snapJoinOffer: "these two sides meet -- one post?", which writes nothing
+  // and is re-derived from the database before it can be taken) and one number
+  // attached to one refusal (_joinTooFarFeet, the gap a TOO_FAR_APART names).
+  // The scan is also widened to catch _snapJoin*, which the old `_join\w+`
+  // pattern would have missed entirely -- so this is a stricter check than the
+  // one it replaces, not a looser one.
+  const flows = [...vmSrc.matchAll(/private val (_(?:join|snapJoin)\w+)\s*=\s*Mutable(StateFlow|SharedFlow)/g)].map((m) => m[1]);
+  eq("2g", "the view model holds exactly five pieces of join state -- the lifted end, the confirmation, the refusal, that refusal's one number, and the standing draw-time offer -- and no in-memory list of attachments standing in for storage",
+    flows.sort(), ["_joinOffer", "_joinPick", "_joinRefused", "_joinTooFarFeet", "_snapJoinOffer"]);
+  ok("2g-teeth", "TEETH: none of that state is a COLLECTION of attachments -- a list, set or map standing in for the stored joint",
+    flows.every((name) => {
+      const decl = vmSrc.slice(vmSrc.indexOf(`private val ${name}`), vmSrc.indexOf(`private val ${name}`) + 180);
+      return !/Mutable(StateFlow|SharedFlow)<\s*(List|Set|Map|MutableList|MutableSet|MutableMap)</.test(decl);
+    }));
+  ok("2g-teeth2", "and that probe can see one: a planted list-of-attachments declaration is caught",
+    /Mutable(StateFlow|SharedFlow)<\s*(List|Set|Map)</.test('private val _joinStore = MutableStateFlow<List<JoinEnd>>(emptyList())'));
 
   // The price half, and its own honesty check: the same predicate a33's 7h uses.
   const engineFiles = [

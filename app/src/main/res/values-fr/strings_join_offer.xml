@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Relier les côtés pendant qu'il dessine, et la ligne qui se déplace quand ils
+  se relient. Fichier séparé à dessein : strings.xml est modifié par plusieurs
+  tâches à la fois. Écrit en ce que cela lui coûte, pas en ce que fait le code.
+-->
+<resources>
+
+    <string name="snap_join_offer">Ces deux côtés se rejoignent ici. En faire un seul poteau ?</string>
+    <string name="snap_join_offer_saving">Un poteau au lieu de deux : un poteau, son capuchon et son béton sortent de la commande.</string>
+    <string name="snap_join_offer_action">Un seul poteau</string>
+    <string name="snap_join_offer_line">Ces deux côtés se rejoignent ici. En faire un seul poteau ? Un poteau, son capuchon et son béton sortent de la commande.</string>
+
+    <string name="attach_moves">%1$s se déplace de %2$s pour les rejoindre : les deux extrémités ne font plus qu’un seul point sur le plan.</string>
+    <string name="attach_moves_footage">%1$s mesure %2$s aujourd’hui et %3$s ensuite, donc sa main-d’œuvre suit.</string>
+    <string name="attach_already_together">Ces deux extrémités sont déjà sur un seul point : rien ne bouge sur le plan.</string>
+
+    <string name="attach_refused_too_far">Ces deux extrémités sont à %1$s l’une de l’autre. Les relier tirerait un côté sur cette distance et changerait sa longueur : cela ne se fait pas d’ici. Faites d’abord glisser l’extrémité jusqu’à l’autre coin — elle s’y accroche — et l’application proposera d’en faire un seul poteau.</string>
+
+    <string name="attach_detach_keeps_drawing">La ligne reste où elle est. Chaque côté retrouve son propre poteau ; déplacez vous-même le coin s’il doit aussi se séparer sur le plan.</string>
+
+</resources>

@@ -1,0 +1,50 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  CONNECTING THE SIDES WHILE HE DRAWS, and the line moving when they connect.
+
+  His words: "make it easier to connect the sides when I draw", and then, on
+  seeing the first version: "When I attach them together, I need to see the line
+  move there too so there is no confusion, need it to be more seamless than
+  that."
+
+  A SEPARATE FILE, not strings.xml, on purpose: strings.xml is edited by several
+  waves at once and two agents in one file loses an edit. Android merges every
+  values/*.xml, so these resolve exactly as if they were in it.
+
+  WRITTEN IN WHAT IT COSTS HIM, never in what the code does. Not "create
+  joint", but one post instead of two where the sides meet, one less cap, one less
+  bag. He is deciding whether to tap, in a yard, in sunlight, holding a phone in
+  one hand.
+-->
+<resources>
+
+    <!-- THE STANDING OFFER, beside the drawing, after a point lands on another
+         side's end. One tap takes it; anything else leaves it. Carrying on
+         drawing is never a yes. -->
+    <string name="snap_join_offer">These two sides meet here. Make it one post?</string>
+    <string name="snap_join_offer_saving">One post instead of two: a post, its cap and its concrete come off the order.</string>
+    <string name="snap_join_offer_action">One post</string>
+
+    <!-- The whole offer as one snackbar line, for the version of the screen
+         that has no room for two. Kept as its own string rather than joined in
+         code, so a translator can put the saving first if that reads better. -->
+    <string name="snap_join_offer_line">These two sides meet here. Make it one post? A post, its cap and its concrete come off the order.</string>
+
+    <!-- ATTACHING FROM THE ATTACH TOOL, where the two ends may not be together
+         yet. The side that moves is named, and so is what it does to the
+         footage, because footage is labour. %1$s is the side, %2$s the distance. -->
+    <string name="attach_moves">%1$s moves %2$s to meet it, so the two ends become one point on the plan.</string>
+    <!-- %1$s is the side, %2$s its footage now, %3$s its footage after. -->
+    <string name="attach_moves_footage">%1$s measures %2$s now and %3$s after, so its labour follows.</string>
+    <!-- Nothing to move: the drawing already shows them meeting. -->
+    <string name="attach_already_together">These two ends are already on one point, so nothing on the plan moves.</string>
+
+    <!-- Too far apart to close. Says what to do instead, in the gesture he
+         already knows. %1$s is the distance. -->
+    <string name="attach_refused_too_far">Those two ends are %1$s apart. Attaching them would drag one side that far and change its length, so it is not done from here: drag the end over to the other corner first — it snaps onto it — and the app will offer to make it one post.</string>
+
+    <!-- Detach is the opposite of attach about the POST, not about the drawing.
+         Said in the dialog so it is never a surprise. -->
+    <string name="attach_detach_keeps_drawing">The line stays where it is. Each side gets its own post back; move the corner yourself if it should come apart on the plan too.</string>
+
+</resources>

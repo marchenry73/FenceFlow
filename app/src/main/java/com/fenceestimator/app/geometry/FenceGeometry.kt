@@ -1031,6 +1031,30 @@ enum class JoinRefusal {
      * or travel to the office. See SurveyViewModel.JOIN_STORAGE_READY.
      */
     NO_STORAGE,
+
+    /**
+     * The two ends are too far apart in the yard to be made one point.
+     *
+     * ATTACHED MEANS ONE POINT -- his words, on seeing the first version:
+     * "When I attach them together, I need to see the line move there too so
+     * there is no confusion." So attaching now closes the gap
+     * ([RunJoinGesture.gapCloserFor]). A gap wider than
+     * [RunJoinGesture.CLOSE_GAP_MAX_FT] is refused rather than closed, because
+     * closing it would drag a corner across the yard and change that side's
+     * footage, its labour and possibly a panel -- a redraw, not a tidy-up, and
+     * not what a tap on two ends asked for.
+     *
+     * THIS IS NOT HYPOTHETICAL. Probed read-only on 2 Oct 2026: one live joint
+     * holds two ends 4425 drawing units apart -- 110.6 ft at that job's own
+     * calibration -- both runs open and measurable, so the arithmetic counts
+     * ONE shared corner post while the plan shows two ends 110 ft apart. That
+     * joint was made by the path this refusal now closes.
+     *
+     * The way through is the way he already knows: drag the end over (the draw
+     * snap puts it exactly on the other corner, [snapDrawPoint]) and the offer
+     * comes to him there.
+     */
+    TOO_FAR_APART,
 }
 
 /** What [RunJoinGesture.decide] decided: the post both ends go to, or why not. */
@@ -1219,6 +1243,235 @@ object RunJoinGesture {
 
     fun pointOf(runs: List<JoinCandidateRun>, end: JoinEnd): FencePoint? =
         runOf(runs, end)?.pointAt(end.atEnd)
+
+    // -----------------------------------------------------------------------
+    // OFFERING THE CORNER WHERE THE SNAP ALREADY LANDED
+    //
+    // His words: "make it easier to connect the sides when I draw." The hard
+    // half was already done and had been for months -- [snapDrawPoint] pulls a
+    // point being placed onto an existing corner from ANY run of the job
+    // (SurveyViewModel.snapTargets collects across runs on purpose), so the
+    // two ends he wants to connect are already on one another, to the last
+    // decimal. PROVEN on his own job: two sides had their ends on the
+    // identical point and the app still billed two end posts, because nothing
+    // had RECORDED them as joined.
+    //
+    // So this is not a new gesture. It is a question asked at the one moment
+    // the answer is obvious, about a point that is already in the right place.
+    //
+    // IT IS AN OFFER AND NOTHING ELSE. [JoinRefusal] and [decide] still decide
+    // whether it may be taken, [SnapJoinOffer] carries no authority to write,
+    // and carrying on drawing is not a yes -- the view model drops the offer on
+    // the next edit. The rule this layer has always had is unchanged: a join is
+    // something he says, never something the app notices. What is new is that
+    // the app now notices he is probably about to say it.
+    // -----------------------------------------------------------------------
+
+    /**
+     * The widest gap, in feet, that attaching may close by moving a corner.
+     *
+     * ATTACHED MEANS ONE POINT (see [JoinRefusal.TOO_FAR_APART]), so attaching
+     * closes the gap -- but only a gap that is a tracing error rather than a
+     * real distance. Two feet is the line: it is shorter than the shortest
+     * panel this app quotes and shorter than one post spacing, so a corner
+     * moved that far is being tidied onto the corner it was aiming at. Beyond
+     * it the two ends are in different places in the yard, and moving one is a
+     * redraw -- it changes that side's footage, therefore its labour, and he
+     * asked for neither by tapping two ends.
+     *
+     * A snap-made offer never reaches this: the snap has already put the two
+     * ends on one point, so its gap is 0.0 ft by construction.
+     */
+    const val CLOSE_GAP_MAX_FT = 2.0f
+
+    /**
+     * The two ends a drawn or dragged point landed on, offered as one post.
+     *
+     * [movingEnd] is the end HE just placed -- the one under his finger, the
+     * one the snap moved, the one he can see. [targetEnd] is the other run's
+     * free end it landed on, which does not move and never has: a vertex snap
+     * copies an existing corner's position and never shifts that corner
+     * ([snapDrawPoint]'s own contract).
+     */
+    data class SnapJoinOffer(
+        val decision: JoinDecision,
+        val movingEnd: JoinEnd,
+        val targetEnd: JoinEnd,
+        /** Where both ends now are. The same point, to the last decimal. */
+        val at: FencePoint,
+        /** What it takes off the order, or null when it changes no material. */
+        val effect: JoinEffect?,
+    )
+
+    /**
+     * The corner an attach is about to move, where to, and what that costs in
+     * feet -- or null when nothing needs to move.
+     *
+     * [runFeetBefore] and [runFeetAfter] are the whole run's measured footage,
+     * not the one side's, because that is what the labour is charged on.
+     */
+    data class JoinGapCloser(
+        val end: JoinEnd,
+        val from: FencePoint,
+        val to: FencePoint,
+        val distanceFeet: Float,
+        val runFeetBefore: Float,
+        val runFeetAfter: Float,
+    )
+
+    /**
+     * Whether this end is the FIRST or LAST point of its run, and which.
+     *
+     * Null for a vertex in the middle of a run, which is a bend inside that
+     * run and not an end at all. A middle corner cannot be joined and must not
+     * be offered: the storage is two columns, start_joint and end_joint, so
+     * there is nowhere to record it -- and the post is already a corner post
+     * there, so there is nothing to save either.
+     */
+    fun endAtVertex(run: JoinCandidateRun, index: Int): JoinEnd? {
+        if (!run.attachable) return null
+        if (index == 0) return JoinEnd(run.runId, false)
+        if (index == run.points.lastIndex) return JoinEnd(run.runId, true)
+        return null
+    }
+
+    /**
+     * The offer to raise after a point was drawn or dragged, or null.
+     *
+     * [runs] must already carry the placed point, so [movingEnd] reports where
+     * the snap actually put it. Everything below is a reason to stay silent:
+     *
+     *  1. **The two ends must be on ONE point, exactly.** Float equality, on
+     *     purpose, and it is the whole filter between a VERTEX snap and the
+     *     other two. A vertex snap RETURNS the existing corner's own
+     *     coordinates, so the two are bit-identical; a heading snap and a
+     *     whole-foot snap land on a point computed from an angle and a
+     *     distance, which does not come out bit-identical to an existing
+     *     corner except by accident. A tolerance here would start offering
+     *     joins for ends that are merely near, which is proximity deciding a
+     *     join -- the one thing he said never to do.
+     *  2. **The target must be another run's END.** Not a bend in the middle
+     *     (nowhere to store it, nothing to save), and not this run's own
+     *     earlier corner -- that is closing a loop, which [decide] refuses as
+     *     SAME_RUN and which has its own control on the screen.
+     *  3. **The target must be FREE.** An end already at a post would be a T,
+     *     and a snap cannot say T: three ends at one post are coincident, so
+     *     "the end I landed on" does not name which post member he meant.
+     *     That is what the Attach tool's two deliberate taps are for.
+     *  4. **[decide] has the last word.** Teardown against new, a closed loop,
+     *     typed footage, already attached -- re-derived here rather than
+     *     re-written, so the offer can never be made for something the write
+     *     would refuse.
+     *
+     * Returns the FIRST qualifying partner in run order. There can be more than
+     * one only when two other runs already have free ends on the identical
+     * point, which is the T case (3) says a snap cannot resolve -- so the order
+     * is made deterministic by run id and the offer is honest about naming one
+     * pair, not a crowd.
+     */
+    fun offerFromSnap(
+        runs: List<JoinCandidateRun>,
+        movingEnd: JoinEnd,
+        newJointId: String,
+        pxPerFt: Float,
+    ): SnapJoinOffer? {
+        val movingRun = runOf(runs, movingEnd) ?: return null
+        if (!movingRun.attachable) return null
+        // The end he just placed must itself be free: landing a second side on
+        // a corner that is already a shared post is the T case again.
+        if (liveJointOf(runs, movingEnd).isNotBlank()) return null
+        val at = movingRun.pointAt(movingEnd.atEnd) ?: return null
+
+        for (candidate in runs.sortedBy { it.runId }) {
+            if (candidate.runId == movingRun.runId) continue
+            if (!candidate.attachable) continue
+            for (atEnd in listOf(false, true)) {
+                val other = JoinEnd(candidate.runId, atEnd)
+                val point = candidate.pointAt(atEnd) ?: continue
+                // (1) One point, exactly.
+                if (point.x != at.x || point.y != at.y) continue
+                // (3) Free.
+                if (liveJointOf(runs, other).isNotBlank()) continue
+                // (4) The write's own rules.
+                val decision = decide(runs, movingEnd, other, newJointId)
+                if (!decision.allowed) continue
+                return SnapJoinOffer(
+                    decision = decision,
+                    movingEnd = movingEnd,
+                    targetEnd = other,
+                    at = at,
+                    effect = effectOfAttaching(runs, decision, pxPerFt),
+                )
+            }
+        }
+        return null
+    }
+
+    /**
+     * Which corner an attach must move so the two ends become one point, where
+     * to, and what it does to that run's footage. Null when nothing moves.
+     *
+     * WHICH END MOVES, and why it is not a coin toss:
+     *
+     *  - **The FREE end moves.** An end already at a shared post cannot be the
+     *    one that moves: it would leave the OTHER members of that post standing
+     *    where they are, re-opening the post it was already at to close a
+     *    different one. So a third side reaching an existing corner walks to
+     *    the corner, never the other way round.
+     *  - **Both free: the one he picked up first.** The screen's own words are
+     *    "Tap the end of a side to attach it", then "Now tap the end it joins"
+     *    -- the first is the thing being attached and the second is where it is
+     *    going, which is also what "attach A to B" means in English. The
+     *    first-tapped end is the one already drawn highlighted under his finger
+     *    (the pick marker), so the corner that moves is the corner he can see.
+     *
+     * Null when the two ends are already on one point -- which is every join
+     * made from a snap -- so a join that moves nothing says nothing about
+     * movement.
+     *
+     * Refusing a gap wider than [CLOSE_GAP_MAX_FT] is NOT this function's job:
+     * it reports the move honestly at any distance and the caller refuses
+     * ([JoinRefusal.TOO_FAR_APART]), so the distance that is allowed lives in
+     * exactly one place and the figures shown are the real ones.
+     */
+    fun gapCloserFor(
+        runs: List<JoinCandidateRun>,
+        decision: JoinDecision,
+        pxPerFt: Float,
+    ): JoinGapCloser? {
+        if (!decision.allowed || decision.ends.size != 2) return null
+        val first = decision.ends[0]
+        val second = decision.ends[1]
+        val firstAtPost = liveJointOf(runs, first).isNotBlank()
+        val secondAtPost = liveJointOf(runs, second).isNotBlank()
+        // Both already at posts is AT_ANOTHER_POINT and never reaches here.
+        val moving = if (firstAtPost && !secondAtPost) second else first
+        val anchor = if (moving == first) second else first
+
+        val movingRun = runOf(runs, moving) ?: return null
+        val from = movingRun.pointAt(moving.atEnd) ?: return null
+        val to = pointOf(runs, anchor) ?: return null
+        if (from.x == to.x && from.y == to.y) return null
+        if (pxPerFt <= 0f) return null
+
+        val dx = (to.x - from.x).toDouble()
+        val dy = (to.y - from.y).toDouble()
+        val movedFt = (sqrt(dx * dx + dy * dy) / pxPerFt).toFloat()
+
+        val before = movingRun.points
+        val after = before.toMutableList()
+        val index = if (moving.atEnd) after.lastIndex else 0
+        if (index !in after.indices) return null
+        after[index] = to
+        return JoinGapCloser(
+            end = moving,
+            from = from,
+            to = to,
+            distanceFeet = movedFt,
+            runFeetBefore = FenceGeometryEngine.analyze(before, pxPerFt, movingRun.closedLoop).totalLinearFeet,
+            runFeetAfter = FenceGeometryEngine.analyze(after, pxPerFt, movingRun.closedLoop).totalLinearFeet,
+        )
+    }
 
     /**
      * The post this end is at, or blank.

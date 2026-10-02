@@ -359,9 +359,14 @@ test("the response gained exactly one top-level key, paymentMethods", async () =
   // approvalBlocked added 2 Oct 2026 with the price-collapse guard
   // (tests/a69-after-approval.test.mjs): null here, a code when approving
   // would be refused.
+  // markers added 2 Oct 2026: HOUSE site markers only, x/y in drawing pixels,
+  // so the 3D page can pin the aerial photo to the house instead of to the
+  // fence's middle (tests/a79-house-anchors-quote-image.test.mjs). No label and
+  // no other marker kind is sent -- those are the contractor's own site notes.
   const expected = ["address", "approvalBlocked", "approvedAt", "approvedBy", "approvedSignatureUrl", "balanceDue",
     "company", "customerName",
-    "deposit", "depositDue", "depositPayable", "phoneGateRequired", "paymentsReady", "pxPerFoot", "reapprovalRequiredAt",
+    "deposit", "depositDue", "depositPayable", "markers", "phoneGateRequired", "paymentsReady", "pxPerFoot",
+    "reapprovalRequiredAt",
     "reapprovalRunLabel", "runs", "signatureCaptureReady", "total"];
   assert.deepEqual([...before].sort(), [...expected].sort(), "an unrelated field appeared or vanished");
   const after = Object.keys((await view(world({ settings: { payment_methods: full } }))).body);

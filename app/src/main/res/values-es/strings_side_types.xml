@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="sides_types_title">Cerca en cada lado</string>
+    <string name="sides_types_summary">%1$d lados · %2$s</string>
+    <string name="sides_types_expand">Mostrar todos los lados</string>
+    <string name="sides_types_collapse">Ocultar la lista</string>
+    <string name="sides_spec_height_ft">%1$s pies de alto</string>
+    <string name="sides_spec_missing_post_spacing">La separación de postes no está definida en este lado, así que no se cotizan postes ni concreto.</string>
+    <string name="sides_spec_missing_panel_width">El ancho del panel no está definido en este lado, así que no se cotizan paneles ni postes de línea.</string>
+    <string name="sides_spec_missing_panel_height">La altura de la cerca no está definida en este lado.</string>
+    <string name="sides_spec_missing_picket">El ancho de la tabla no está definido en este lado, así que no se cotiza la cantidad de tablas.</string>
+    <string name="sides_spec_missing_rails">La cantidad de rieles no está definida en este lado, así que no se cotizan rieles.</string>
+    <string name="sides_spec_missing_fabric_height">La altura de la malla no está definida en este lado, así que no se cotiza malla.</string>
+    <string name="sides_types_nothing_priced">Su lista de precios aún no tiene nada para este tipo, así que se borraron los materiales de este lado. Agregue sus precios en el catálogo y luego pulse Sugerir cantidades.</string>
+</resources>

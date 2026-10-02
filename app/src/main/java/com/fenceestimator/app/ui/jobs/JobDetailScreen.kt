@@ -922,8 +922,18 @@ fun JobDetailScreen(
 
     if (showAddRunDialog) {
         val templates by runsViewModel.templates.collectAsState()
+        // "Use the default" -- and the default is the fence already on this
+        // job, not a constant. This dialog opened on a hardcoded
+        // FenceType.VINYL, so on his one genuinely mixed job (live, read-only,
+        // 2 Oct 2026: 13 jobs with sides, 12 single-type and 1 mixed) every
+        // extra side started as vinyl and had to be corrected. Teardown sides
+        // are excluded by RunTypeChange.defaultTypeFor, which matters most
+        // here: on a "pull the wood out, put vinyl in" job the old fence's
+        // type is the one answer that is guaranteed wrong.
+        val existingRuns by runsViewModel.runs.collectAsState()
         AddRunDialog(
             templates = templates,
+            initialType = com.fenceestimator.app.ui.runs.RunTypeChange.defaultTypeFor(existingRuns),
             onConfirm = { label, type, template, isTeardown ->
                 runsViewModel.addRun(label, type, profile, template, isTeardown) { id -> onOpenRun(id) }
                 showAddRunDialog = false
@@ -1123,12 +1133,18 @@ private fun FenceRunRow(run: FenceRun, onClick: () -> Unit, showDuplicate: Boole
 @Composable
 private fun AddRunDialog(
     templates: List<com.fenceestimator.app.data.BuildTemplate>,
+    /**
+     * What the type dropdown opens on: the fence already on this job, worked
+     * out by [com.fenceestimator.app.ui.runs.RunTypeChange.defaultTypeFor].
+     * Was a hardcoded [FenceType.VINYL].
+     */
+    initialType: FenceType,
     onConfirm: (String, FenceType, com.fenceestimator.app.data.BuildTemplate?, Boolean) -> Unit,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
     var label by remember { mutableStateOf("") }
-    var type by remember { mutableStateOf(FenceType.VINYL) }
+    var type by remember { mutableStateOf(initialType) }
     var expanded by remember { mutableStateOf(false) }
     var selectedTemplate by remember { mutableStateOf<com.fenceestimator.app.data.BuildTemplate?>(null) }
     var templateExpanded by remember { mutableStateOf(false) }

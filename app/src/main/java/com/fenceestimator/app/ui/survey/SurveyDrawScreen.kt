@@ -73,6 +73,8 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
@@ -545,6 +547,11 @@ fun SurveyDrawScreen(
     val joinRefusedElsewhere = stringResource(R.string.attach_refused_at_another_point)
     val joinRefusedGone = stringResource(R.string.attach_refused_not_found)
     val joinRefusedNoStorage = stringResource(R.string.attach_refused_no_storage)
+    // The one refusal that carries a number: how far apart the two ends are.
+    // Read from the view model inside the collector for that emit, which is
+    // where it was written (SurveyViewModel.joinTooFarFeet) -- joinRefused is a
+    // bare enum by design and seven of the eight messages need no payload.
+    val joinTooFarTemplate = stringResource(R.string.attach_refused_too_far, "%1\$s")
     LaunchedEffect(Unit) {
         viewModel.joinRefused.collect { reason ->
             snackbarHostState.showSnackbar(
@@ -557,9 +564,46 @@ fun SurveyDrawScreen(
                     JoinRefusal.AT_ANOTHER_POINT -> joinRefusedElsewhere
                     JoinRefusal.NOT_FOUND -> joinRefusedGone
                     JoinRefusal.NO_STORAGE -> joinRefusedNoStorage
-                }
+                    JoinRefusal.TOO_FAR_APART -> joinTooFarTemplate.format(
+                        FeetInches.formatCompact(viewModel.joinTooFarFeet.value)
+                    )
+                },
+                duration = SnackbarDuration.Long
             )
         }
+    }
+
+    // "THESE TWO SIDES MEET HERE. MAKE IT ONE POST?"
+    //
+    // A standing offer beside the drawing, never a dialog in front of the next
+    // tap. He is in a yard, one-handed, and the next thing he does is almost
+    // always another tap -- a question there costs a dismissal every time he
+    // traces beside a neighbour's fence, and a question dismissed by reflex is
+    // one that eventually gets answered by reflex.
+    //
+    // ONLY THE ACTION IS A YES. A snackbar that times out, is swiped away, or is
+    // pushed off by the next one attaches nothing: SnackbarResult.Dismissed
+    // falls through to dismissSnapJoinOffer. And the yes itself is re-derived
+    // from the database before it writes (SurveyViewModel.acceptSnapJoinOffer),
+    // so a tap that arrives late lands on today's drawing or on nothing.
+    val snapJoinOffer by viewModel.snapJoinOffer.collectAsState()
+    val snapJoinLine = stringResource(R.string.snap_join_offer_line)
+    val snapJoinAction = stringResource(R.string.snap_join_offer_action)
+    LaunchedEffect(snapJoinOffer) {
+        if (snapJoinOffer == null) return@LaunchedEffect
+        val result = snackbarHostState.showSnackbar(
+            message = snapJoinLine,
+            actionLabel = snapJoinAction,
+            withDismissAction = true,
+            duration = SnackbarDuration.Long
+        )
+        if (result == SnackbarResult.ActionPerformed) viewModel.acceptSnapJoinOffer()
+        else viewModel.dismissSnapJoinOffer()
+    }
+    // A standing offer belongs to Draw and Adjust. Anywhere else it would be a
+    // question about a gesture he has stopped making.
+    LaunchedEffect(mode) {
+        if (mode != SurveyMode.DRAW && mode != SurveyMode.ADJUST) viewModel.dismissSnapJoinOffer()
     }
     // Leaving the tool puts down anything half-attached: a lifted end that
     // survived a trip through Draw would attach itself to whatever was tapped
@@ -1207,6 +1251,12 @@ fun SurveyDrawScreen(
                                                             val snap = viewModel.snapForMove(idx, finalPoint, snapOn)
                                                             lastSnap = snap.takeIf { it.snapped }
                                                             viewModel.movePoint(idx, snap.point)
+                                                            // Dragging an end onto another side's
+                                                            // corner is the same event as drawing
+                                                            // onto it, and it is how he closes a
+                                                            // gap on purpose after a join was
+                                                            // refused for being too far apart.
+                                                            viewModel.offerJoinFromSnap(idx, snap.kind)
                                                         }
                                                         draggingGate != null ->
                                                             viewModel.moveGate(draggingGate!!, finalPoint.x, finalPoint.y)
@@ -1276,6 +1326,14 @@ fun SurveyDrawScreen(
                                                 val snap = viewModel.snapForDraw(imgPoint, snapOn)
                                                 lastSnap = snap.takeIf { it.snapped }
                                                 viewModel.addDrawPoint(snap.point)
+                                                // The snap has already put this point exactly on
+                                                // another side's corner if it was aiming at one.
+                                                // Ask whether the two sides MEET -- the half
+                                                // nothing used to ask, so two ends sat on one
+                                                // another and the takeoff still bought two end
+                                                // posts. It is a question and nothing else:
+                                                // carrying on tapping is not a yes.
+                                                viewModel.offerJoinAfterDraw(snap.kind)
                                             }
                                             SurveyMode.CALIBRATE -> viewModel.tapCalibrationPoint(imgPoint) { p1, p2 ->
                                                 calibrationDialogPoints = p1 to p2
@@ -2448,18 +2506,42 @@ private fun JoinOfferDialog(
                                 joinRunName(runs, effect.ownerRunId)
                             )
                         )
-                        // Open by more than half a foot: the attachment stands
-                        // either way -- it is his decision and not the pixels'
-                        // -- but a post he thinks is in one place and the crew
-                        // will set in another is worth a sentence.
-                        if (effect.gapFeet > 0.5f) {
-                            Text(
-                                stringResource(
-                                    R.string.attach_gap,
-                                    FeetInches.formatCompact(effect.gapFeet)
-                                ),
-                                color = warning
-                            )
+                        // Attaching now CLOSES the gap, so the old wording --
+                        // "attaching them moves neither one; line them up with
+                        // Adjust" -- became untrue the day that landed.
+                        // .attach_gap, which said exactly that, is retired here:
+                        // this names the side that MOVES, how far, and what that
+                        // does to its footage, because footage is labour. A gap
+                        // too wide to close never reaches this dialog at all:
+                        // tapJoinEnd refuses it as TOO_FAR_APART.
+                        val closer = offer.gapCloser
+                        if (!offer.detach) {
+                            if (closer == null) {
+                                Text(stringResource(R.string.attach_already_together))
+                            } else {
+                                Text(
+                                    stringResource(
+                                        R.string.attach_moves,
+                                        joinRunName(runs, closer.end.runId),
+                                        FeetInches.formatCompact(closer.distanceFeet)
+                                    ),
+                                    color = warning
+                                )
+                                Text(
+                                    stringResource(
+                                        R.string.attach_moves_footage,
+                                        joinRunName(runs, closer.end.runId),
+                                        FeetInches.formatCompact(closer.runFeetBefore),
+                                        FeetInches.formatCompact(closer.runFeetAfter)
+                                    ),
+                                    color = warning
+                                )
+                            }
+                        } else {
+                            // Detaching is the opposite of attaching about the
+                            // POST, not about the drawing. Said before it
+                            // happens rather than discovered afterwards.
+                            Text(stringResource(R.string.attach_detach_keeps_drawing))
                         }
                     }
                 }

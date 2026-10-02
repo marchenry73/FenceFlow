@@ -73,9 +73,19 @@ const MID = 150;                    // fits a z20 photo, not a z21 one
 const ACREAGE = Math.hypot(150, 150); // a 300 x 300ft parcel -> 212ft
 
 test("positive control: the page really defines the chain, and the caller lets it choose", () => {
-  for (const needle of ["attachSatellite", "sceneSatelliteZoom(lat,lon,fenceR)", "sceneSatelliteVerdict(loaded,grid,fenceR)"]) {
+  // anchorR, not fenceR, since the photo stopped being centred on the fence:
+  // it is pinned to the HOUSE when the drawing says where that is, so the
+  // radius the imagery must cover is measured from that anchor and not from
+  // the fence's own middle (tests/a79-house-anchors-quote-image.test.mjs).
+  // With no house marker anchorR is exactly the old fenceR, so every number
+  // this file pins is unchanged -- only the variable's name moved.
+  for (const needle of ["attachSatellite", "sceneSatelliteZoom(lat,lon,anchorR)", "sceneSatelliteVerdict(loaded,grid,anchorR)"]) {
     assert.ok(src.includes(needle), `expected ${PAGE} to contain ${needle}`);
   }
+  // And the anchor really does collapse to the fence centroid when there is
+  // no house -- otherwise the equivalence claimed just above is only a story.
+  assert.ok(src.includes("const anchor=houseAnchor||{x:cx,z:cz}"),
+    "the no-house fallback is no longer the fence centroid; this file's numbers may be stale");
   // The geocode callback must NOT pass a zoom, or the chooser never runs.
   assert.match(src, /attachSatellite\(g\.lat,g\.lon\)/, "the geocode call site passes a zoom; the fence-size rule is bypassed");
   // And the hardcoded number this whole change exists to remove is gone.

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="sides_types_title">Clôture sur chaque côté</string>
+    <string name="sides_types_summary">%1$d côtés · %2$s</string>
+    <string name="sides_types_expand">Afficher tous les côtés</string>
+    <string name="sides_types_collapse">Masquer la liste</string>
+    <string name="sides_spec_height_ft">%1$s pi de haut</string>
+    <string name="sides_spec_missing_post_spacing">L\'espacement des poteaux n\'est pas défini sur ce côté : aucun poteau ni béton n\'est chiffré.</string>
+    <string name="sides_spec_missing_panel_width">La largeur du panneau n\'est pas définie sur ce côté : aucun panneau ni poteau de ligne n\'est chiffré.</string>
+    <string name="sides_spec_missing_panel_height">La hauteur de la clôture n\'est pas définie sur ce côté.</string>
+    <string name="sides_spec_missing_picket">La largeur des lames n\'est pas définie sur ce côté : le nombre de lames n\'est pas chiffré.</string>
+    <string name="sides_spec_missing_rails">Le nombre de lisses n\'est pas défini sur ce côté : aucune lisse n\'est chiffrée.</string>
+    <string name="sides_spec_missing_fabric_height">La hauteur du grillage n\'est pas définie sur ce côté : aucun grillage n\'est chiffré.</string>
+    <string name="sides_types_nothing_priced">Votre liste de prix ne couvre pas encore ce type : les matériaux de ce côté ont été effacés. Ajoutez ses prix au catalogue, puis appuyez sur Suggérer les quantités.</string>
+</resources>

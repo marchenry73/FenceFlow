@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Conectar los lados mientras dibuja, y la línea que se mueve al conectarlos.
+  Archivo aparte a propósito: strings.xml lo editan varias tareas a la vez.
+  Escrito en lo que le cuesta a él, no en lo que hace el código.
+-->
+<resources>
+
+    <string name="snap_join_offer">Estos dos lados se juntan aquí. ¿Hacerlo un solo poste?</string>
+    <string name="snap_join_offer_saving">Un poste en vez de dos: un poste, su tapa y su hormigón salen del pedido.</string>
+    <string name="snap_join_offer_action">Un poste</string>
+    <string name="snap_join_offer_line">Estos dos lados se juntan aquí. ¿Hacerlo un solo poste? Un poste, su tapa y su hormigón salen del pedido.</string>
+
+    <string name="attach_moves">%1$s se mueve %2$s para juntarse, así los dos extremos pasan a ser un solo punto en el plano.</string>
+    <string name="attach_moves_footage">%1$s mide %2$s ahora y %3$s después, así que su mano de obra lo sigue.</string>
+    <string name="attach_already_together">Estos dos extremos ya están en un solo punto, así que nada se mueve en el plano.</string>
+
+    <string name="attach_refused_too_far">Esos dos extremos están a %1$s uno del otro. Unirlos arrastraría un lado esa distancia y cambiaría su longitud, así que no se hace desde aquí: arrastra primero el extremo hasta la otra esquina — se engancha a ella — y la app te ofrecerá hacerlo un solo poste.</string>
+
+    <string name="attach_detach_keeps_drawing">La línea se queda donde está. Cada lado recupera su propio poste; mueve tú la esquina si también debe separarse en el plano.</string>
+
+</resources>

@@ -15,16 +15,11 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExposedDropdownMenuBox
-import androidx.compose.material3.ExposedDropdownMenuDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -49,7 +44,6 @@ import com.fenceestimator.app.ui.components.DraftNumberField
 import com.fenceestimator.app.ui.components.DraftTextField
 import com.fenceestimator.app.ui.components.GenericViewModelFactory
 import com.fenceestimator.app.ui.components.currentApp
-import com.fenceestimator.app.ui.components.label
 // A65: the number guards and the sentence for each refusal live with the
 // drawing screen's view model rather than being copied here, so the gate
 // width dialog and these spec fields cannot drift about what counts as a
@@ -173,13 +167,20 @@ fun RunEditScreen(
                         stableKey = currentRun.id, initialValue = currentRun.label,
                         label = stringResource(R.string.est2_run_label_hint), enabled = editable, modifier = Modifier.fillMaxWidth()
                     ) { viewModel.update { r -> r.copy(label = it) } }
+                    // Through [RunEditViewModel.setFenceType], not through the
+                    // generic `update` this screen's other fields use, and the
+                    // difference is money. `update` writes the row; it does not
+                    // re-price. The only re-pricing watcher in the app lives on
+                    // the DRAWING screen, so a side switched from Vinyl to Wood
+                    // here kept its vinyl panels, vinyl posts and vinyl caps
+                    // priced on it -- every surface said Wood and the money said
+                    // vinyl -- until somebody happened to press Suggest
+                    // Quantities. The spacing follow that used to be written
+                    // inline here now lives in [RunTypeChange.apply] alongside
+                    // the height carry, so the drawing screen's own picker
+                    // ([SideTypesCard]) cannot apply a different set of rules.
                     FenceTypeDropdown(currentRun.fenceType, editable) { newType ->
-                        viewModel.update { r ->
-                            r.copy(
-                                fenceType = newType,
-                                postSpacingFt = FenceRunListViewModel.defaultSpacingFor(newType, r.panelWidthFt, r.postSpacingFt)
-                            )
-                        }
+                        viewModel.setFenceType(newType)
                     }
                     DraftTextField(
                         stableKey = currentRun.id, initialValue = currentRun.colorOrFinish,
@@ -341,28 +342,12 @@ private fun SectionCard(title: String, content: @Composable () -> Unit) {
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
-@Composable
-private fun FenceTypeDropdown(current: FenceType, editable: Boolean, onSelect: (FenceType) -> Unit) {
-    var expanded by remember { mutableStateOf(false) }
-    ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { if (editable) expanded = it }) {
-        OutlinedTextField(
-            value = current.label(), onValueChange = {}, readOnly = true,
-            enabled = editable,
-            label = { Text(stringResource(R.string.est2_fence_type)) },
-            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-            modifier = Modifier.fillMaxWidth().menuAnchor()
-        )
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            FenceType.values().filter { it != FenceType.UNIVERSAL }.forEach { type ->
-                DropdownMenuItem(
-                    text = { Text(type.label()) },
-                    onClick = { onSelect(type); expanded = false }
-                )
-            }
-        }
-    }
-}
+// FenceTypeDropdown was private here. The drawing screen needs the same
+// control, so it moved to FenceTypePicker.kt in this package -- ONE picker for
+// one fact. Two of them is how this project ended up with the company name in
+// two places; the sharper version of the same risk is that one copy stops
+// applying RunTypeChange.apply and a side's height silently stops following
+// its type on one screen only.
 
 /**
  * A spec number that a fence cannot have at zero, negative or non-finite:
