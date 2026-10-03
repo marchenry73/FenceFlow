@@ -26138,8 +26138,17 @@ let mailSyncBusy = false, mailSyncedAt = 0, mailPollTimer = null, mailBadgeTimer
 let mailCompose = null;
 const MAIL_PAGE = 50;
 // While the tab is open and visible. mail-sync's own lock refuses a second
-// sync within 60 s anyway ("busy"), so asking more often buys nothing.
-const MAIL_POLL_MS = 90000;
+// sync within 60 s ("busy"), so 60 s is the floor and asking more often than
+// that buys nothing but refusals. Lowered from 90 s to sit ON that floor
+// rather than half a minute above it (3 Oct 2026, he asked for the fastest
+// it can go).
+//
+// Faster than this is not a number to change, it is a different mechanism:
+// IMAP IDLE, where the server pushes instead of being asked. An edge function
+// cannot hold the long-lived connection that needs, so it is out of reach
+// here. Replies to mail FenceFlow itself sent do NOT wait for any of this --
+// they arrive by Resend webhook (resend-inbound) the moment they land.
+const MAIL_POLL_MS = 60000;
 const MAIL_SYNC_GAP_MS = 60000;
 // No body columns: the body comes from mail-message, which also fetches it
 // from the mailbox the first time. No attachments column either: the

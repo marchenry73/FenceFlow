@@ -652,6 +652,24 @@ ok("5c", "UNIVERSAL is still filtered out of the offered list (it prices nothing
 ok("5d", "the card uses that picker rather than a third",
   /FenceTypeDropdown\(/.test(read(CARD)) && !/ExposedDropdownMenuBox/.test(read(CARD)));
 
+// 5d ONLY EVER READ THE CARD'S OWN TEXT, which is how the card sat finished and
+// mounted on no screen at all for days while this file passed. A component that
+// is not placed is not a feature. These check it is REACHED, not merely written.
+{
+  const DRAW = "app/src/main/java/com/fenceestimator/app/ui/survey/SurveyDrawScreen.kt";
+  const draw = read(DRAW);
+  ok("5d-mounted", "SideTypesCard is actually placed on the drawing screen, not merely written",
+    /\bSideTypesCard\(/.test(draw));
+  ok("5d-imported", "and it is imported there, so the call resolves",
+    /import com\.fenceestimator\.app\.ui\.runs\.SideTypesCard/.test(draw));
+  ok("5d-editable", "it is handed the drawing screen's own editable flag, so it cannot disagree with the tools beside it about who may write",
+    /SideTypesCard\(jobId = jobId, editable = editable\)/.test(draw));
+  ok("5d-canary", "CANARY: a file that merely NAMES the card in a comment does not satisfy 5d-mounted, proving the check tests a call and not a mention",
+    !/\bSideTypesCard\(/.test("// the SideTypesCard is written but mounted nowhere"));
+  ok("5d-control", "POSITIVE CONTROL: the same search finds a component the drawing screen is known to place",
+    /\bRunSelector\(/.test(draw));
+}
+
 // Each surface, read live off the run. A copy is what would go stale.
 ok("5e", "crew plan spec row reads run.fenceType",
   /SpecRow\(stringResource\(R\.string\.crew_plan_spec_type\), run\.fenceType\.label\(\)\)/.test(read(CREWPLAN)));

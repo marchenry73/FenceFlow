@@ -53,7 +53,15 @@ name: Mail sync scheduler
 
 on:
   schedule:
-    - cron: '*/10 * * * *' # sync, every 10 minutes, UTC
+    # Every 5 minutes: the shortest interval GitHub Actions accepts. Asking for
+    # less is not refused, it is silently rounded, so this IS the floor here.
+    # Treat it as a backstop rather than the cadence that matters: whoever has
+    # the mail tab open is syncing every 60 s from the office page, and replies
+    # to FenceFlow's own mail arrive by webhook without waiting for either.
+    # GitHub also delays scheduled runs under load, sometimes well past the
+    # interval, so this is a floor on how OFTEN it is asked, never a promise
+    # about when. (3 Oct 2026, lowered from 10 minutes.)
+    - cron: '*/5 * * * *' # sync, every 5 minutes, UTC
     - cron: '5 6 * * *' # reach, daily at 06:05 UTC
   workflow_dispatch:
     inputs:

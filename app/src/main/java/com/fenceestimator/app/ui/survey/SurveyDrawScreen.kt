@@ -76,6 +76,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.TextButton
+import com.fenceestimator.app.ui.runs.SideTypesCard
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
@@ -775,6 +776,29 @@ fun SurveyDrawScreen(
                         )
                     }
                 }
+
+                // WHAT KIND OF FENCE EACH SIDE IS, on the drawing screen.
+                //
+                // This card has existed, finished, since the fence-type wave:
+                // it drives the same picker RunEditScreen uses, and every row
+                // goes through SideTypesViewModel.setType so the spacing
+                // follow, the height carry and the RE-PRICE all happen. It was
+                // simply never mounted anywhere. The only way to change a
+                // side's type was to leave the drawing, open the job screen's
+                // run list and pick the side there -- which is why he asked
+                // three separate times for it on the grid.
+                //
+                // Here rather than as a tap on the line itself: a run is drawn
+                // faded and is not hit-testable, and making every line tappable
+                // fights the Draw and Adjust tools for the same gesture. A list
+                // beside the picker names every side and its type at once,
+                // which is also the view that answers "which one is the 4 ft
+                // again" without tapping anything.
+                //
+                // Collapsed unless the job is already mixed, and inside the
+                // non-full-screen block, so it costs no height while drawing.
+                SideTypesCard(jobId = jobId, editable = editable)
+
                 // The teardown CHARGE, beside where the old fence is drawn.
                 //
                 // Marking a run as the old fence coming out bills nothing by

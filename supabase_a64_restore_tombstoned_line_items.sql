@@ -1,4 +1,23 @@
 -- ============================================================================
+-- OBSOLETE. DO NOT RUN THIS. Superseded 3 Oct 2026.
+--
+-- Pressing Suggest Quantities on the phone is the repair, not this script.
+-- Build 575 added LineItemResurrections.kt, which revives tombstoned lines at
+-- CURRENT prices and is anchor-aware. It has already healed two of the six jobs
+-- this script was written for, by itself, with no SQL at all.
+--
+-- Why this file is now the wrong tool:
+--   * it restores at the OLD prices (John would come back 15,992.42 instead of
+--     16,169.62), so a re-price is needed afterwards anyway;
+--   * its expectations are stale -- it asserts 64 and 77 named rows and that
+--     all six jobs have zero live lines, and two of them no longer do;
+--   * two of the six jobs have since been soft-deleted;
+--   * it leaves no audit trail and carries a hard-coded company id.
+--
+-- Kept, not deleted, because its header is the only written record of which six
+-- jobs the 1 Oct 21:26 burst hit.
+-- ============================================================================
+-- ============================================================================
 -- DO NOT APPLY UNTIL HE SAYS SO.
 -- DO NOT APPLY UNTIL HE SAYS SO.
 -- DO NOT APPLY UNTIL HE SAYS SO.
