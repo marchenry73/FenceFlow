@@ -2561,6 +2561,11 @@
     <p class="sub" style="margin:4px 0 0" data-t="mailAttachLimit">Up to 5 files, 10 MB in total.</p>
     <div class="mc-files" id="mc_fileList"></div>
     <div id="mc_job" style="display:none;margin-top:10px"></div>
+    <div class="mc-tpl" id="mc_tplRow" style="display:none;margin-top:10px">
+      <label class="sub" for="mc_tpl" data-t="mailTplLabel">Use a template</label>
+      <select id="mc_tpl"></select>
+      <p class="sub" id="mc_tplNote" style="margin:4px 0 0"></p>
+    </div>
   </div>
   <div class="sheet-foot">
     <button class="btn btn-sm btn-ghost" id="mc_discard" type="button" data-t="mailDiscardBtn">Discard</button>
@@ -3044,6 +3049,7 @@ import {
   MAIL_LIMITS, MAIL_ERROR_KEYS, mailSandboxAttr, buildSrcdoc, sanitizeMailHtml, textToHtml, htmlToPlain,
   quoteForReply, forwardBlock, replySubject, replyRecipients, parseAddressList, addressLabel, listLabel,
   safeFilename, formatBytes, mailErrorParts, threadRowHtml, cleanLine, mailTimeLabel, senderWarning,
+  fillTemplate, firstNameOf,
 } from './js/lib/mail-render.mjs';
 // The quote-send email's words, in all three languages, shared with the
 // server's copy in supabase/functions/_shared/email-templates.ts and held to
@@ -3126,6 +3132,7 @@ const TL = {
     // Settings panel knows a stored last_error adds nothing to them.
     tabMail:'Email', mailUnreadTitle:'%s unread',
     mailAllMailboxes:'All mailboxes', mailFolderInbox:'Inbox', mailFolderSent:'Sent', mailFenceflowFolder:'FenceFlow mail',
+    mailTplLabel:'Use a template', mailTplNone:'No template', mailTplFilled:'Template filled in.', mailTplMissing:'Still to fill in: %s',
     mailFolderDrafts:'Drafts', mailNoDrafts:'No drafts. Anything you start writing is kept here.', mailDraftNoRecipient:'(no recipient yet)',
     mailDraftSaved:'Draft saved at %s.', mailDraftKept:'Saved to Drafts.', mailDraftGone:'That draft is no longer there.', mailDraftNoFiles:'Attachments are not kept with a draft. Add them again before sending.',
     mailFolderFiled:'Filed', mailFolderStarred:'Starred', mailFolderSnoozed:'Snoozed', mailFolderArchived:'Archived', mailFolderTrash:'Trash',
@@ -4856,6 +4863,7 @@ const TL = {
     tabSettings:'Ajustes', tabBilling:'Facturación',
     tabMail:'Correo', mailUnreadTitle:'%s sin leer',
     mailAllMailboxes:'Todos los buzones', mailFolderInbox:'Recibidos', mailFolderSent:'Enviados', mailFenceflowFolder:'Correo de FenceFlow',
+    mailTplLabel:'Usar una plantilla', mailTplNone:'Sin plantilla', mailTplFilled:'Plantilla completada.', mailTplMissing:'Falta completar: %s',
     mailFolderDrafts:'Borradores', mailNoDrafts:'Sin borradores. Lo que empiece a escribir se guarda aquí.', mailDraftNoRecipient:'(aún sin destinatario)',
     mailDraftSaved:'Borrador guardado a las %s.', mailDraftKept:'Guardado en Borradores.', mailDraftGone:'Ese borrador ya no está.', mailDraftNoFiles:'Los adjuntos no se guardan con el borrador. Agréguelos de nuevo antes de enviar.',
     mailFolderFiled:'Archivado', mailFolderStarred:'Destacados', mailFolderSnoozed:'Pospuestos', mailFolderArchived:'Archivados', mailFolderTrash:'Papelera',
@@ -6556,6 +6564,7 @@ const TL = {
     tabSettings:'Paramètres', tabBilling:'Facturation',
     tabMail:'E-mails', mailUnreadTitle:'%s non lus',
     mailAllMailboxes:'Toutes les boîtes', mailFolderInbox:'Réception', mailFolderSent:'Envoyés', mailFenceflowFolder:'E-mail FenceFlow',
+    mailTplLabel:'Utiliser un modèle', mailTplNone:'Aucun modèle', mailTplFilled:'Modèle complété.', mailTplMissing:'Reste à compléter : %s',
     mailFolderDrafts:'Brouillons', mailNoDrafts:'Aucun brouillon. Ce que vous commencez à écrire est conservé ici.', mailDraftNoRecipient:'(pas encore de destinataire)',
     mailDraftSaved:'Brouillon enregistré à %s.', mailDraftKept:'Enregistré dans Brouillons.', mailDraftGone:'Ce brouillon nexiste plus.', mailDraftNoFiles:'Les pièces jointes ne sont pas conservées avec un brouillon. Ajoutez-les de nouveau avant denvoyer.',
     mailFolderFiled:'Classé', mailFolderStarred:'Suivis', mailFolderSnoozed:'Reportés', mailFolderArchived:'Archivés', mailFolderTrash:'Corbeille',
@@ -26915,6 +26924,7 @@ async function openCompose(opts){
     draftSaving: false, draftSavedAt: 0,
   };
   $('mc_title').textContent = tr(o.forwardOf ? 'mailForwardTitle' : o.replyToMessageId ? 'mailReplyTitle' : 'mailComposeTitle');
+  loadMailTemplates();
   $('mc_to').value = o.to || '';
   $('mc_cc').value = o.cc || '';
   $('mc_bcc').value = o.bcc || '';
@@ -27818,6 +27828,74 @@ $('mailReaderBody').addEventListener('click', async e => {
 $('mc_close').addEventListener('click', closeCompose);
 $('mc_discard').addEventListener('click', discardCompose);
 $('mc_send').addEventListener('click', sendCompose);
+$('mc_tpl').addEventListener('change', applyMailTemplate);
+
+/* ---------- templates ----------
+
+   mailTemplates is loaded once per compose rather than cached for the session:
+   he edits one in Settings and expects the next email to use the edited one. */
+let mailTemplates = [];
+
+async function loadMailTemplates(){
+  const { data, error } = await db.from('mail_templates')
+    .select('id, name, subject, body').order('name');
+  mailTemplates = (!error && Array.isArray(data)) ? data : [];
+  const sel = $('mc_tpl');
+  // No templates, no control. An empty picker is a button that does nothing,
+  // which is exactly what this project refuses to ship.
+  $('mc_tplRow').style.display = mailTemplates.length ? '' : 'none';
+  if (!mailTemplates.length) return;
+  sel.innerHTML = `<option value="">${esc(tr('mailTplNone'))}</option>`
+    + mailTemplates.map(t => `<option value="${esc(t.id)}">${esc(cleanLine(t.name))}</option>`).join('');
+  sel.value = '';
+  $('mc_tplNote').textContent = '';
+}
+
+/* What a template may know about. Only fields this page actually holds -- a
+   placeholder with nothing behind it is reported to him, never blanked. */
+async function mailTemplateFacts(){
+  const c = mailCompose || {};
+  const job = c.jobSyncId ? jobBySync(c.jobSyncId) : null;
+  let companyName = '', companyPhone = '';
+  try { const f = await quoteSendCompanyFacts(); companyName = f.companyName; companyPhone = f.companyPhone; } catch (_e) {}
+  return {
+    customer_first_name: job ? firstNameOf(job.customer_name) : '',
+    customer_name: job ? cleanLine(job.customer_name) : '',
+    company_name: companyName,
+    company_phone: companyPhone,
+    job_address: job ? cleanLine(job.address) : '',
+    job_date: job && job.scheduled_date ? new Date(job.scheduled_date).toLocaleDateString(LANG) : '',
+    quote_total: job && job.contract_total != null ? money(Number(job.contract_total)) : '',
+  };
+}
+
+async function applyMailTemplate(){
+  const id = $('mc_tpl').value;
+  const note = $('mc_tplNote');
+  if (!id) { note.textContent = ''; return; }
+  const t = mailTemplates.find(x => x.id === id);
+  if (!t) return;
+  const facts = await mailTemplateFacts();
+  const subj = fillTemplate(t.subject || '', facts);
+  const body = fillTemplate(t.body || '', facts);
+
+  // Replaces the subject only when he has not written one, but ALWAYS puts the
+  // body in -- at the top, above whatever is already there, rather than over
+  // it. Overwriting what he typed because he looked at a template is the kind
+  // of thing that stops someone using templates at all.
+  if (!$('mc_subject').value.trim()) $('mc_subject').value = subj.text;
+  const existing = $('mc_body').value;
+  $('mc_body').value = existing.trim() ? body.text + '\n\n' + existing : body.text;
+
+  const missing = [...new Set([...subj.missing, ...body.missing])];
+  // Named, not silently left: the placeholders are still visible in the text,
+  // and this says which ones so he does not have to hunt for them.
+  note.textContent = missing.length
+    ? tr('mailTplMissing', missing.map(m => '{{' + m + '}}').join(', '))
+    : tr('mailTplFilled');
+  note.className = missing.length ? 'sub bad' : 'sub';
+  composeDraftTouched();
+}
 for (const f of ['mc_to', 'mc_cc', 'mc_bcc', 'mc_subject', 'mc_body']) {
   $(f).addEventListener('input', composeDraftTouched);
 }

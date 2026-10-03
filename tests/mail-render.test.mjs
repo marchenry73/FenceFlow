@@ -21,7 +21,7 @@ import {
   cleanLine, textToHtml, htmlToPlain, normalizeSubject, replySubject, quoteForReply, forwardBlock,
   addressLabel, parseAddressList, replyRecipients, safeFilename, formatBytes, mailErrorParts,
   mailTimeLabel, threadRowHtml, jobChipsHtml, senderWarning,
-} from "../website/js/lib/mail-render.mjs";
+  fillTemplate, firstNameOf, TEMPLATE_VARS } from "../website/js/lib/mail-render.mjs";
 import { MAIL_ERROR_CODES, MESSAGES } from "../supabase/functions/_shared/mail/errors.ts";
 
 const PAGE = readFileSync("website/dashboard.html", "utf8");
@@ -675,4 +675,56 @@ test("a send keeps its client_send_id unless it certainly failed", () => {
   assert.match(send, /`\$\{profile\.company_id\}\/outgoing\/\$\{profile\.id\}\/\$\{c\.folder\}\/\$\{f\.name\}`/);
   // A download link is followed only into this project's storage.
   assert.match(sec, /u\.origin !== new URL\(SUPA_URL\)\.origin \|\| !u\.pathname\.startsWith\('\/storage\/v1\/'\)/);
+});
+
+test("fillTemplate leaves an unfilled placeholder standing and names it", () => {
+  const r = fillTemplate("Hi {{customer_first_name}}, total {{quote_total}}.", { customer_first_name: "Makayla" });
+  // THE POINT OF THE WHOLE FUNCTION: a hole is visible, not silent. "Hi ,"
+  // reaches the customer and the sender never sees that it happened.
+  assert.match(r.text, /\{\{quote_total\}\}/);
+  assert.match(r.text, /Hi Makayla,/);
+  assert.deepStrictEqual(r.missing, ["quote_total"]);
+});
+
+test("fillTemplate treats blank and whitespace as missing, not as a value", () => {
+  const r = fillTemplate("A{{company_name}}B{{company_phone}}C", { company_name: "", company_phone: "   " });
+  assert.strictEqual(r.text, "A{{company_name}}B{{company_phone}}C");
+  assert.deepStrictEqual(r.missing, ["company_name", "company_phone"]);
+});
+
+test("fillTemplate reports an unknown placeholder instead of eating it", () => {
+  const r = fillTemplate("{{not_a_real_variable}}", { customer_name: "X" });
+  assert.strictEqual(r.text, "{{not_a_real_variable}}");
+  assert.deepStrictEqual(r.missing, ["not_a_real_variable"]);
+});
+
+test("fillTemplate is case and space tolerant, and does not repeat a name", () => {
+  const r = fillTemplate("{{ Customer_Name }} {{customer_name}}", { customer_name: "Bob" });
+  assert.strictEqual(r.text, "Bob Bob");
+  assert.deepStrictEqual(r.missing, []);
+  const two = fillTemplate("{{quote_total}} {{quote_total}}", {});
+  assert.deepStrictEqual(two.missing, ["quote_total"], "named once, however many times it appears");
+});
+
+test("every offered variable is one fillTemplate can actually fill", () => {
+  // The guard against offering a placeholder nothing fills. Build a facts
+  // object from the advertised list and assert none is reported missing.
+  const facts = {};
+  for (const v of TEMPLATE_VARS) facts[v] = "x";
+  const r = fillTemplate(TEMPLATE_VARS.map(v => `{{${v}}}`).join(" "), facts);
+  assert.deepStrictEqual(r.missing, []);
+  assert.doesNotMatch(r.text, /\{\{/, "nothing was left unfilled");
+});
+
+test("firstNameOf takes the first word, and blank stays blank", () => {
+  assert.strictEqual(firstNameOf("  Makayla  Pawloski "), "Makayla");
+  assert.strictEqual(firstNameOf(""), "");
+  assert.strictEqual(firstNameOf(null), "");
+});
+
+test("CANARY: a filler that blanked unknowns would fail the visibility checks", () => {
+  const naive = (t, f) => String(t).replace(/\{\{\s*([a-z0-9_]+)\s*\}\}/gi, (_w, n) => f[n.toLowerCase()] ?? "");
+  const out = naive("Hi {{customer_first_name}}, total {{quote_total}}.", { customer_first_name: "Makayla" });
+  assert.strictEqual(out, "Hi Makayla, total .", "this is the behaviour fillTemplate exists to avoid");
+  assert.doesNotMatch(out, /\{\{quote_total\}\}/);
 });

@@ -690,3 +690,58 @@ export function threadRowHtml(t, ctx = {}) {
     jobChipsHtml(t && t.job_sync_ids, ctx.jobNames) +
     `</button></div>`;
 }
+
+/* ---------------------------------------------------------------------------
+   TEMPLATES
+
+   A template is subject + body with {{placeholders}}. Only placeholders backed
+   by data this app actually holds are offered; inventing one would produce an
+   email that says "Hi {{first_name}}," to a customer, which is worse than
+   having no templates at all.
+--------------------------------------------------------------------------- */
+
+/** The placeholders a template may use, and where each one comes from. The
+    single list the picker, the filler and the help text all read, so a
+    placeholder cannot be offered that nothing fills. */
+export const TEMPLATE_VARS = [
+  "customer_first_name",
+  "customer_name",
+  "company_name",
+  "company_phone",
+  "job_address",
+  "job_date",
+  "quote_total",
+];
+
+/**
+ * Fills {{placeholders}} from `facts`.
+ *
+ * Returns { text, missing } rather than just text. A placeholder with nothing
+ * behind it is LEFT STANDING in the output and named in `missing`, never
+ * quietly replaced with an empty string: "Hi ," reads as a mistake the
+ * customer can see, and the person sending it cannot tell it happened. Left
+ * visible, it is obvious before Send.
+ *
+ * An unknown placeholder -- one not in TEMPLATE_VARS -- is also left alone and
+ * reported, so a typo in a template shows up as a typo rather than as a hole.
+ */
+export function fillTemplate(text, facts) {
+  const f = facts || {};
+  const missing = [];
+  const out = String(text == null ? "" : text).replace(/\{\{\s*([a-z0-9_]+)\s*\}\}/gi, (whole, rawName) => {
+    const name = String(rawName).toLowerCase();
+    const value = Object.prototype.hasOwnProperty.call(f, name) ? f[name] : null;
+    const str = value == null ? "" : String(value).trim();
+    if (str === "") { if (!missing.includes(name)) missing.push(name); return whole; }
+    return str;
+  });
+  return { text: out, missing };
+}
+
+/** First word of a name, for {{customer_first_name}}. Blank stays blank so the
+    filler reports it missing rather than inserting a stray space. */
+export function firstNameOf(full) {
+  const s = cleanLine(full);
+  if (!s) return "";
+  return s.split(/\s+/)[0] || "";
+}
