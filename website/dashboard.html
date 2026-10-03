@@ -729,6 +729,9 @@
   .mail-threads{border:1px solid var(--line);border-radius:10px;background:var(--surface);max-height:70vh;overflow:auto}
   .mail-row{display:block;width:100%;text-align:left;background:none;border:none;border-bottom:1px solid var(--line);
             padding:9px 11px;cursor:pointer;color:var(--text);font-family:inherit;font-size:13px}
+  .tpl-row{display:flex;align-items:center;gap:4px;border-bottom:1px solid var(--line)}
+  .tpl-row:last-child{border-bottom:none}
+  .tpl-row [data-tpl-edit]{flex:1;text-align:left;justify-content:flex-start}
   .mail-row:last-child{border-bottom:none}
   /* The row holds the open-button and the actions side by side. Relative so the
      actions can sit over the row's right edge without reserving width that the
@@ -2133,6 +2136,24 @@
         <h3 class="ms-h3" data-t="setMailFenceflowHead">FenceFlow mail</h3>
         <p class="sub" style="margin:0 0 6px" data-t="setMailFenceflowBody">Send from FenceFlow under your business name, without connecting a mailbox.</p>
         <div id="ms_fenceflow"></div>
+
+        <h3 class="ms-h3" style="margin-top:18px" data-t="setTplHead">Email templates</h3>
+        <p class="sub" data-t="setTplBody">The emails you send over and over. Pick one while writing and FenceFlow fills in what it knows about the job.</p>
+        <div class="msg" id="mtp_msg"></div>
+        <div id="mtp_list"></div>
+        <div class="row2" style="margin-top:8px">
+          <div><label for="mtp_name" data-t="setTplName">Name</label>
+            <input id="mtp_name" maxlength="80" autocomplete="off"></div>
+          <div><label for="mtp_subject" data-t="setTplSubject">Subject</label>
+            <input id="mtp_subject" maxlength="300" autocomplete="off"></div>
+        </div>
+        <label for="mtp_body" data-t="setTplBodyLabel">Message</label>
+        <textarea id="mtp_body" rows="6" maxlength="20000"></textarea>
+        <p class="sub" id="mtp_vars" style="margin:4px 0 0"></p>
+        <div style="margin-top:8px">
+          <button class="btn btn-sm" id="mtp_save" type="button" data-t="setTplSave">Save template</button>
+          <button class="btn btn-sm btn-ghost" id="mtp_clear" type="button" style="display:none" data-t="setTplNew">New template</button>
+        </div>
       </div>
 
       <div class="panel">
@@ -3049,7 +3070,7 @@ import {
   MAIL_LIMITS, MAIL_ERROR_KEYS, mailSandboxAttr, buildSrcdoc, sanitizeMailHtml, textToHtml, htmlToPlain,
   quoteForReply, forwardBlock, replySubject, replyRecipients, parseAddressList, addressLabel, listLabel,
   safeFilename, formatBytes, mailErrorParts, threadRowHtml, cleanLine, mailTimeLabel, senderWarning,
-  fillTemplate, firstNameOf,
+  fillTemplate, firstNameOf, TEMPLATE_VARS,
 } from './js/lib/mail-render.mjs';
 // The quote-send email's words, in all three languages, shared with the
 // server's copy in supabase/functions/_shared/email-templates.ts and held to
@@ -3132,6 +3153,7 @@ const TL = {
     // Settings panel knows a stored last_error adds nothing to them.
     tabMail:'Email', mailUnreadTitle:'%s unread',
     mailAllMailboxes:'All mailboxes', mailFolderInbox:'Inbox', mailFolderSent:'Sent', mailFenceflowFolder:'FenceFlow mail',
+    setTplHead:'Email templates', setTplBody:'The emails you send over and over. Pick one while writing and FenceFlow fills in what it knows about the job.', setTplName:'Name', setTplSubject:'Subject', setTplBodyLabel:'Message', setTplSave:'Save template', setTplNew:'New template', setTplNone:'No templates yet.', setTplSaved:'Template saved.', setTplNeedName:'Give the template a name so you can find it later.', setTplDelete:'Delete', setTplDeleteQ:'Delete this template?', setTplDeleteBody:'Emails already sent with it are not affected.', setTplGone:'That template is no longer there.', setTplVars:'You can use: %s',
     mailTplLabel:'Use a template', mailTplNone:'No template', mailTplFilled:'Template filled in.', mailTplMissing:'Still to fill in: %s',
     mailFolderDrafts:'Drafts', mailNoDrafts:'No drafts. Anything you start writing is kept here.', mailDraftNoRecipient:'(no recipient yet)',
     mailDraftSaved:'Draft saved at %s.', mailDraftKept:'Saved to Drafts.', mailDraftGone:'That draft is no longer there.', mailDraftNoFiles:'Attachments are not kept with a draft. Add them again before sending.',
@@ -4863,6 +4885,7 @@ const TL = {
     tabSettings:'Ajustes', tabBilling:'Facturación',
     tabMail:'Correo', mailUnreadTitle:'%s sin leer',
     mailAllMailboxes:'Todos los buzones', mailFolderInbox:'Recibidos', mailFolderSent:'Enviados', mailFenceflowFolder:'Correo de FenceFlow',
+    setTplHead:'Plantillas de correo', setTplBody:'Los correos que envía una y otra vez. Elija uno al escribir y FenceFlow completa lo que sabe del trabajo.', setTplName:'Nombre', setTplSubject:'Asunto', setTplBodyLabel:'Mensaje', setTplSave:'Guardar plantilla', setTplNew:'Plantilla nueva', setTplNone:'Todavía no hay plantillas.', setTplSaved:'Plantilla guardada.', setTplNeedName:'Póngale un nombre para poder encontrarla después.', setTplDelete:'Eliminar', setTplDeleteQ:'¿Eliminar esta plantilla?', setTplDeleteBody:'Los correos ya enviados con ella no cambian.', setTplGone:'Esa plantilla ya no está.', setTplVars:'Puede usar: %s',
     mailTplLabel:'Usar una plantilla', mailTplNone:'Sin plantilla', mailTplFilled:'Plantilla completada.', mailTplMissing:'Falta completar: %s',
     mailFolderDrafts:'Borradores', mailNoDrafts:'Sin borradores. Lo que empiece a escribir se guarda aquí.', mailDraftNoRecipient:'(aún sin destinatario)',
     mailDraftSaved:'Borrador guardado a las %s.', mailDraftKept:'Guardado en Borradores.', mailDraftGone:'Ese borrador ya no está.', mailDraftNoFiles:'Los adjuntos no se guardan con el borrador. Agréguelos de nuevo antes de enviar.',
@@ -6564,6 +6587,7 @@ const TL = {
     tabSettings:'Paramètres', tabBilling:'Facturation',
     tabMail:'E-mails', mailUnreadTitle:'%s non lus',
     mailAllMailboxes:'Toutes les boîtes', mailFolderInbox:'Réception', mailFolderSent:'Envoyés', mailFenceflowFolder:'E-mail FenceFlow',
+    setTplHead:'Modèles de courrier', setTplBody:'Les e-mails que vous envoyez sans cesse. Choisissez-en un en écrivant et FenceFlow remplit ce qu il sait du chantier.', setTplName:'Nom', setTplSubject:'Objet', setTplBodyLabel:'Message', setTplSave:'Enregistrer le modèle', setTplNew:'Nouveau modèle', setTplNone:'Aucun modèle pour le moment.', setTplSaved:'Modèle enregistré.', setTplNeedName:'Donnez-lui un nom pour le retrouver ensuite.', setTplDelete:'Supprimer', setTplDeleteQ:'Supprimer ce modèle ?', setTplDeleteBody:'Les e-mails déjà envoyés avec ne changent pas.', setTplGone:'Ce modèle a disparu.', setTplVars:'Vous pouvez utiliser : %s',
     mailTplLabel:'Utiliser un modèle', mailTplNone:'Aucun modèle', mailTplFilled:'Modèle complété.', mailTplMissing:'Reste à compléter : %s',
     mailFolderDrafts:'Brouillons', mailNoDrafts:'Aucun brouillon. Ce que vous commencez à écrire est conservé ici.', mailDraftNoRecipient:'(pas encore de destinataire)',
     mailDraftSaved:'Brouillon enregistré à %s.', mailDraftKept:'Enregistré dans Brouillons.', mailDraftGone:'Ce brouillon nexiste plus.', mailDraftNoFiles:'Les pièces jointes ne sont pas conservées avec un brouillon. Ajoutez-les de nouveau avant denvoyer.',
@@ -27249,7 +27273,80 @@ async function loadMailSettings(){
   if (!canUseMail) return;
   await loadMailStatus(true);
   renderMailSettings();
+  loadTemplateSettings();
 }
+
+/* ---------- email templates, in Settings ----------
+
+   Deliberately plain: a name, a subject, a message, and the list. Rich text is
+   not here because the composer itself is plain text -- a template that could
+   hold bold would produce something the compose window cannot show, and the
+   difference would only appear in the customer's inbox. */
+let tplEditing = null;
+
+async function loadTemplateSettings(){
+  if (!canUseMail) return;
+  $('mtp_vars').textContent = tr('setTplVars', TEMPLATE_VARS.map(v => '{{' + v + '}}').join('  '));
+  const { data, error } = await db.from('mail_templates')
+    .select('id, name, subject, body').order('name');
+  const box = $('mtp_list');
+  if (error) { box.innerHTML = `<div class="ms-err">${esc(plainError(error.message))}</div>`; return; }
+  const rows = Array.isArray(data) ? data : [];
+  box.innerHTML = rows.length
+    ? rows.map(t => `<div class="tpl-row" data-tpl="${esc(t.id)}">` +
+        `<button type="button" class="btn btn-sm btn-ghost" data-tpl-edit="${esc(t.id)}">${esc(cleanLine(t.name))}</button>` +
+        `<button type="button" class="btn btn-sm btn-ghost" data-tpl-del="${esc(t.id)}" ` +
+          `title="${esc(tr('setTplDelete'))}" aria-label="${esc(tr('setTplDelete'))}">&times;</button></div>`).join('')
+    : `<p class="sub" style="margin:0 0 8px">${esc(tr('setTplNone'))}</p>`;
+}
+
+function tplFormFill(t){
+  tplEditing = t ? t.id : null;
+  $('mtp_name').value = t ? t.name : '';
+  $('mtp_subject').value = t ? t.subject || '' : '';
+  $('mtp_body').value = t ? t.body || '' : '';
+  $('mtp_clear').style.display = t ? '' : 'none';
+  msg('mtp_msg', '', '');
+}
+
+async function saveTemplate(){
+  const name = $('mtp_name').value.trim();
+  // A template with no name cannot be picked out of a list later, so it is
+  // refused here rather than saved as "(untitled)" three times over.
+  if (!name) { msg('mtp_msg', tr('setTplNeedName'), 'err'); return; }
+  const row = {
+    company_id: profile.company_id, created_by: profile.id,
+    name, subject: $('mtp_subject').value.trim(), body: $('mtp_body').value,
+    updated_at: new Date().toISOString(),
+  };
+  const res = tplEditing
+    ? await db.from('mail_templates').update(row).eq('id', tplEditing).select('id').maybeSingle()
+    : await db.from('mail_templates').insert(row).select('id').maybeSingle();
+  if (res.error) { msg('mtp_msg', plainError(res.error.message), 'err'); return; }
+  msg('mtp_msg', tr('setTplSaved'), 'ok');
+  tplFormFill(null);
+  loadTemplateSettings();
+}
+
+$('mtp_save').addEventListener('click', saveTemplate);
+$('mtp_clear').addEventListener('click', () => tplFormFill(null));
+$('mtp_list').addEventListener('click', async e => {
+  const del = e.target.closest('[data-tpl-del]');
+  if (del) {
+    const ok = await ask({ title: tr('setTplDeleteQ'), body: tr('setTplDeleteBody'), confirmLabel: tr('setTplDelete'), danger: true });
+    if (!ok) return;
+    const { error } = await db.from('mail_templates').delete().eq('id', del.dataset.tplDel);
+    if (error) { msg('mtp_msg', plainError(error.message), 'err'); return; }
+    if (tplEditing === del.dataset.tplDel) tplFormFill(null);
+    loadTemplateSettings();
+    return;
+  }
+  const edit = e.target.closest('[data-tpl-edit]');
+  if (!edit) return;
+  const { data, error } = await db.from('mail_templates').select('*').eq('id', edit.dataset.tplEdit).maybeSingle();
+  if (error || !data) { msg('mtp_msg', error ? plainError(error.message) : tr('setTplGone'), 'err'); return; }
+  tplFormFill(data);
+});
 
 function renderMailSettings(){
   const s = mailStatus;
