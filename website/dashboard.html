@@ -764,6 +764,25 @@
   .mr-note-b{white-space:pre-wrap}
   .mr-labels{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:6px 0 0}
   .mail-chip.lbl{background:var(--info-bg);color:var(--info-fg)}
+  /* The search sits between the logo and the account controls and takes the
+     slack, so it is the widest thing in the bar at any width without being
+     given a fixed size that would be wrong at most of them. */
+  .osearch-wrap{position:relative;flex:1 1 260px;max-width:520px;margin:0 12px}
+  .osearch-wrap input{width:100%}
+  .osearch-results{position:absolute;top:calc(100% + 4px);left:0;right:0;z-index:60;
+    background:var(--surface-2);border:1px solid var(--line);border-radius:10px;
+    box-shadow:0 10px 30px rgba(0,0,0,.28);max-height:min(60vh,420px);overflow:auto;padding:4px}
+  .osr-group{font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;
+    color:var(--muted);padding:8px 10px 4px}
+  .osr-item{display:block;width:100%;text-align:left;background:none;border:none;cursor:pointer;
+    color:var(--text);font:inherit;padding:7px 10px;border-radius:7px}
+  .osr-item:hover,.osr-item.on{background:var(--paper)}
+  .osr-t{font-size:13.5px}
+  .osr-s{font-size:12px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .osr-badges{display:inline-flex;gap:4px;margin-left:6px}
+  .osr-b{font-size:10px;padding:1px 6px;border-radius:20px;background:var(--info-bg);color:var(--info-fg)}
+  .osr-empty{padding:12px 10px;color:var(--muted);font-size:13px}
+  @media(max-width:760px){ .osearch-wrap{order:3;flex-basis:100%;margin:6px 0 0;max-width:none} }
   .mail-row:last-child{border-bottom:none}
   /* The row holds the open-button and the actions side by side. Relative so the
      actions can sit over the row's right edge without reserving width that the
@@ -900,6 +919,12 @@
   <a class="logo" href="#" id="brandHome" data-t-title="brandHomeTitle"
      title="Back to your dashboard"
      >Fence<span>Flow</span> <span style="font-weight:400;font-size:13px;color:#8A93A3">Office</span></a>
+  <div class="osearch-wrap" id="osearchBox">
+    <input id="osearch" type="search" autocomplete="off" role="combobox" aria-expanded="false"
+           aria-controls="osearchResults" aria-autocomplete="list"
+           data-t-ph="searchPh" placeholder="Search customers, jobs, addresses, email">
+    <div class="osearch-results" id="osearchResults" role="listbox" hidden></div>
+  </div>
   <div style="display:flex;align-items:center;gap:10px">
     <span class="who" id="who"></span>
     <select id="langPicker" class="btn btn-sm btn-ghost" aria-label="Language" title="Language"
@@ -3235,7 +3260,8 @@ const TL = {
     // MESSAGES in supabase/functions/_shared/mail/errors.ts, which is how the
     // Settings panel knows a stored last_error adds nothing to them.
     tabMail:'Email', mailUnreadTitle:'%s unread',
-navSales:'Sales', navWork:'Work', navOps:'Operations', navTeam:'Team', navInsights:'Insights', navAdmin:'Account',
+searchPh:'Search customers, jobs, addresses, email', searchGroupCustomers:'Customers', searchGroupJobs:'Jobs', searchGroupMail:'Email', searchNone:'Nothing found for %s',
+    navSales:'Sales', navWork:'Work', navOps:'Operations', navTeam:'Team', navInsights:'Insights', navAdmin:'Account',
     mailAllMailboxes:'All mailboxes', mailFolderInbox:'Inbox', mailFolderSent:'Sent', mailFenceflowFolder:'FenceFlow mail',
     mailAssignLabel:'Who is answering', mailAssignNobody:'Nobody yet', mailSomeone:'Someone', mailNotesHead:'Internal notes', mailNotesNone:'No notes. Only your team sees these.', mailNotesAdd:'Add note', mailNotesPh:'A note for your team. The customer never sees this.',
     setLblHead:'Labels', setLblBody:'Your own filing. Put a label on a conversation from the email itself.', setLblPh:'New label', setLblAdd:'Add', setLblNone:'No labels yet.', setLblDelete:'Delete', setLblDeleteQ:'Delete this label?', setLblDeleteBody:'It comes off every conversation it is on. The emails themselves are not touched.', setLblDupe:'You already have a label with that name.', mailLabelAdd:'Add a label', mailLabelRemove:'Remove this label',
@@ -4970,7 +4996,8 @@ navSales:'Sales', navWork:'Work', navOps:'Operations', navTeam:'Team', navInsigh
     tabCatalog:'Catálogo', tabReports:'Informes', tabAutomation:'Automatización',
     tabSettings:'Ajustes', tabBilling:'Facturación',
     tabMail:'Correo', mailUnreadTitle:'%s sin leer',
-navSales:'Ventas', navWork:'Trabajo', navOps:'Operaciones', navTeam:'Equipo', navInsights:'Análisis', navAdmin:'Cuenta',
+searchPh:'Buscar clientes, trabajos, direcciones, correo', searchGroupCustomers:'Clientes', searchGroupJobs:'Trabajos', searchGroupMail:'Correo', searchNone:'No se encontró nada para %s',
+    navSales:'Ventas', navWork:'Trabajo', navOps:'Operaciones', navTeam:'Equipo', navInsights:'Análisis', navAdmin:'Cuenta',
     mailAllMailboxes:'Todos los buzones', mailFolderInbox:'Recibidos', mailFolderSent:'Enviados', mailFenceflowFolder:'Correo de FenceFlow',
     mailAssignLabel:'Quién responde', mailAssignNobody:'Nadie todavía', mailSomeone:'Alguien', mailNotesHead:'Notas internas', mailNotesNone:'Sin notas. Solo las ve su equipo.', mailNotesAdd:'Agregar nota', mailNotesPh:'Una nota para su equipo. El cliente nunca la ve.',
     setLblHead:'Etiquetas', setLblBody:'Su propia organización. Ponga una etiqueta a una conversación desde el correo.', setLblPh:'Nueva etiqueta', setLblAdd:'Agregar', setLblNone:'Todavía no hay etiquetas.', setLblDelete:'Eliminar', setLblDeleteQ:'¿Eliminar esta etiqueta?', setLblDeleteBody:'Se quita de todas las conversaciones donde esté. Los correos no se tocan.', setLblDupe:'Ya tiene una etiqueta con ese nombre.', mailLabelAdd:'Agregar etiqueta', mailLabelRemove:'Quitar esta etiqueta',
@@ -6675,7 +6702,8 @@ navSales:'Ventas', navWork:'Trabajo', navOps:'Operaciones', navTeam:'Equipo', na
     tabCatalog:'Catalogue', tabReports:'Rapports', tabAutomation:'Automatisation',
     tabSettings:'Paramètres', tabBilling:'Facturation',
     tabMail:'E-mails', mailUnreadTitle:'%s non lus',
-navSales:'Ventes', navWork:'Travaux', navOps:'Opérations', navTeam:'Équipe', navInsights:'Analyses', navAdmin:'Compte',
+searchPh:'Rechercher clients, chantiers, adresses, courrier', searchGroupCustomers:'Clients', searchGroupJobs:'Chantiers', searchGroupMail:'Courrier', searchNone:'Rien trouvé pour %s',
+    navSales:'Ventes', navWork:'Travaux', navOps:'Opérations', navTeam:'Équipe', navInsights:'Analyses', navAdmin:'Compte',
     mailAllMailboxes:'Toutes les boîtes', mailFolderInbox:'Réception', mailFolderSent:'Envoyés', mailFenceflowFolder:'E-mail FenceFlow',
     mailAssignLabel:'Qui répond', mailAssignNobody:'Personne pour le moment', mailSomeone:'Quelquun', mailNotesHead:'Notes internes', mailNotesNone:'Aucune note. Seule votre équipe les voit.', mailNotesAdd:'Ajouter une note', mailNotesPh:'Une note pour votre équipe. Le client ne la voit jamais.',
     setLblHead:'Étiquettes', setLblBody:'Votre propre classement. Posez une étiquette sur une conversation depuis le courrier.', setLblPh:'Nouvelle étiquette', setLblAdd:'Ajouter', setLblNone:'Aucune étiquette pour le moment.', setLblDelete:'Supprimer', setLblDeleteQ:'Supprimer cette étiquette ?', setLblDeleteBody:'Elle est retirée de toutes les conversations concernées. Les courriers ne changent pas.', setLblDupe:'Vous avez déjà une étiquette de ce nom.', mailLabelAdd:'Ajouter une étiquette', mailLabelRemove:'Retirer cette étiquette',
@@ -28089,6 +28117,115 @@ $('mailFolders').addEventListener('click', e => {
   renderMailFolders();
   loadMailThreads(true);
 });
+/* ---------- one search across the office ----------
+
+   Over search_office(), which is SECURITY INVOKER -- RLS decides whose records
+   come back, exactly as everywhere else, and the function takes no company id
+   because a function that takes one is a function that can be asked for
+   somebody else's.
+
+   WHAT IT HONESTLY COVERS: customers, jobs and email threads. Not leads,
+   estimates or invoices as separate results, because this database has no such
+   tables -- a lead is a job in an early status, an estimate is line items ON a
+   job, an invoice is a job with is_invoiced. Showing those as four results
+   would be one record dressed as four, every one of them opening the same
+   place. Each job carries badges for what it currently is instead. */
+let osearchTimer = null, osearchSeq = 0, osearchRows = [], osearchAt = -1;
+
+function osearchClose(){
+  $('osearchResults').hidden = true;
+  $('osearch').setAttribute('aria-expanded', 'false');
+  osearchAt = -1;
+}
+
+async function runOfficeSearch(){
+  const q = $('osearch').value.trim();
+  const box = $('osearchResults');
+  if (q.length < 2) { osearchRows = []; osearchClose(); return; }
+  const seq = ++osearchSeq;
+  const { data, error } = await db.rpc('search_office', { p_query: q, p_limit: 8 });
+  // A slower earlier request must not overwrite a newer one's results.
+  if (seq !== osearchSeq) return;
+  if (error) {
+    box.innerHTML = '<div class="osr-empty">' + esc(plainError(error.message)) + '</div>';
+    box.hidden = false; $('osearch').setAttribute('aria-expanded', 'true');
+    return;
+  }
+  osearchRows = Array.isArray(data) ? data : [];
+  osearchAt = -1;
+  if (!osearchRows.length) {
+    box.innerHTML = '<div class="osr-empty">' + esc(tr('searchNone', q)) + '</div>';
+    box.hidden = false; $('osearch').setAttribute('aria-expanded', 'true');
+    return;
+  }
+  const heads = { customer: tr('searchGroupCustomers'), job: tr('searchGroupJobs'), mail: tr('searchGroupMail') };
+  let html = '', lastKind = '', i = -1;
+  for (const r of osearchRows) {
+    i++;
+    if (r.kind !== lastKind) { html += '<div class="osr-group">' + esc(heads[r.kind] || r.kind) + '</div>'; lastKind = r.kind; }
+    const badges = (Array.isArray(r.badges) ? r.badges : []).filter(Boolean)
+      .map(b => '<span class="osr-b">' + esc(String(b).toLowerCase()) + '</span>').join('');
+    html += '<button type="button" class="osr-item" role="option" data-osr="' + i + '">' +
+      '<span class="osr-t">' + esc(cleanLine(r.title)) +
+      (badges ? '<span class="osr-badges">' + badges + '</span>' : '') + '</span>' +
+      (r.subtitle ? '<span class="osr-s">' + esc(cleanLine(r.subtitle)) + '</span>' : '') +
+      '</button>';
+  }
+  box.innerHTML = html;
+  box.hidden = false;
+  $('osearch').setAttribute('aria-expanded', 'true');
+}
+
+/* Opening a result goes through the page's OWN doors -- switchTab and
+   openJob/openMailThread -- rather than a second navigation path that could
+   drift from them. */
+function openSearchResult(i){
+  const r = osearchRows[i];
+  if (!r) return;
+  $('osearch').value = '';
+  osearchClose();
+  if (r.kind === 'job' || r.kind === 'customer') {
+    // A customer row opens their most recent job: there is no standalone
+    // customer screen in this office yet, and sending him to a tab that does
+    // not exist is worse than sending him to the work.
+    const job = r.kind === 'job'
+      ? jobs.find(j => j.id === r.id)
+      : jobs.filter(j => j.customer_id === r.id)
+            .sort((a, b) => String(b.updated_at || '').localeCompare(String(a.updated_at || '')))[0];
+    if (job) { switchTab('jobs'); showJob(job.id); return; }
+    switchTab('jobs');
+    return;
+  }
+  if (r.kind === 'mail') { switchTab('mail'); openMailThread(r.id); }
+}
+
+$('osearch').addEventListener('input', () => {
+  clearTimeout(osearchTimer);
+  osearchTimer = setTimeout(runOfficeSearch, 220);
+});
+$('osearch').addEventListener('keydown', e => {
+  if (e.key === 'Escape') { $('osearch').value = ''; osearchClose(); return; }
+  if (!osearchRows.length || $('osearchResults').hidden) return;
+  if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+    e.preventDefault();
+    osearchAt = e.key === 'ArrowDown'
+      ? Math.min(osearchAt + 1, osearchRows.length - 1)
+      : Math.max(osearchAt - 1, 0);
+    document.querySelectorAll('.osr-item').forEach((el, n) => el.classList.toggle('on', n === osearchAt));
+    const el = document.querySelector('.osr-item.on');
+    if (el) el.scrollIntoView({ block: 'nearest' });
+    return;
+  }
+  if (e.key === 'Enter' && osearchAt >= 0) { e.preventDefault(); openSearchResult(osearchAt); }
+});
+$('osearchResults').addEventListener('click', e => {
+  const b = e.target.closest('[data-osr]');
+  if (b) openSearchResult(Number(b.dataset.osr));
+});
+document.addEventListener('click', e => {
+  if (!e.target.closest('#osearchBox')) osearchClose();
+});
+
 $('mailThreads').addEventListener('click', e => {
   // An action FIRST: it sits inside the row, so closest('[data-thread]') would
   // find the row too and open the thread underneath the click.
