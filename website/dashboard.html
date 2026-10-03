@@ -115,6 +115,13 @@
      and "Confirm the email we just sent you" were being shown to nobody. */
   .msg.info{background:var(--info-bg);color:var(--info-fg);display:block}
   .msg.working{background:var(--info-bg);color:var(--info-fg);display:block}
+  /* Below the sidebar breakpoint the groups vanish as boxes -- display:contents
+     drops the wrapper out of layout entirely, so the tabs are direct flex
+     children of .tabs again and the narrow strip behaves exactly as it did
+     before grouping. The headings are hidden there because a heading inside a
+     horizontally scrolling strip is noise you have to scroll past. */
+  .nav-group{display:contents}
+  .nav-head{display:none}
   .tabs{display:flex;gap:2px;border-bottom:2px solid var(--line);margin-bottom:18px;overflow-x:auto}
   .tab{background:none;border:none;padding:11px 15px;font-size:13.5px;font-weight:600;color:var(--muted);
        cursor:pointer;border-bottom:3px solid transparent;white-space:nowrap;font-family:inherit;
@@ -149,6 +156,9 @@
       gap:0 28px;
       align-items:start;
     }
+    .nav-group{display:block;margin-bottom:10px}
+    .nav-head{display:block;font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;
+              color:var(--muted);padding:0 12px 4px;margin-top:2px}
     .tabs{
       display:block;
       border-bottom:none;
@@ -1021,23 +1031,65 @@
   <div class="wrap">
     <div id="loadWarnings"></div>
     <div class="tabs">
-      <button class="tab on" data-tab="dash" data-t="tabDash">Dashboard</button>
-      <button class="tab" data-tab="jobs" data-t="tabJobs">Jobs</button>
-      <!-- Company email. Hidden until can_use_company_mail() answers exactly
-           true (initMail); crew never sees it. The count sits OUTSIDE the
-           data-t span, because applyStaticText replaces that span's text. -->
-      <button class="tab" data-tab="mail" style="display:none"><span data-t="tabMail">Email</span><span class="pill mail-badge" id="mailUnread" style="display:none"></span></button>
-      <button class="tab" data-tab="cal" data-t="tabCal">Calendar</button>
-      <button class="tab" data-tab="pipe" data-t="tabPipe">Pipeline</button>
-      <button class="tab" data-tab="prod" data-t="tabProd">Production</button>
-      <button class="tab" data-tab="materials" data-t="tabMaterials">Materials</button>
-      <button class="tab" data-tab="crew" data-t="tabCrew">Crew</button>
-      <button class="tab" data-tab="time" data-t="tabTime">Time</button>
-      <button class="tab" data-tab="catalog" data-t="tabCatalog">Catalog</button>
-      <button class="tab" data-tab="reports" data-t="tabReports">Reports</button>
-      <button class="tab" data-tab="automation" data-t="tabAutomation">Automation</button>
-      <button class="tab" data-tab="settings" data-t="tabSettings">Settings</button>
-      <button class="tab" data-tab="billing" data-t="tabBilling">Billing</button>
+      <!-- GROUPED AROUND THE JOB, not alphabetically and not by when each page
+           was built. The order is the order the work happens in: a lead becomes
+           a quote (Sales), the quote becomes a job that gets scheduled and built
+           (Work), the build needs materials and prices (Operations), people do
+           it (Team), and afterwards you look at what happened (Insights).
+
+           The groups are display:contents below 1024px, so the narrow layout
+           still gets one flat scrolling strip of tabs exactly as before and no
+           headings appear in it. The headings only exist in the sidebar, where
+           there is a column to hang them on.
+
+           data-tab values are UNCHANGED. Every one of them is a key into
+           switchTab, the panel ids, applyPlanGates and the saved tab, so
+           renaming even one to match a new label would break all four. Calendar
+           is relabelled Schedule in the three translation tables and is still
+           data-tab="cal". -->
+      <div class="nav-group" data-group="home">
+        <button class="tab on" data-tab="dash" data-t="tabDash">Dashboard</button>
+      </div>
+
+      <div class="nav-group" data-group="sales">
+        <div class="nav-head" data-t="navSales">Sales</div>
+        <button class="tab" data-tab="pipe" data-t="tabPipe">Pipeline</button>
+        <!-- Company email. Hidden until can_use_company_mail() answers exactly
+             true (initMail); crew never sees it. The count sits OUTSIDE the
+             data-t span, because applyStaticText replaces that span's text. -->
+        <button class="tab" data-tab="mail" style="display:none"><span data-t="tabMail">Email</span><span class="pill mail-badge" id="mailUnread" style="display:none"></span></button>
+      </div>
+
+      <div class="nav-group" data-group="work">
+        <div class="nav-head" data-t="navWork">Work</div>
+        <button class="tab" data-tab="jobs" data-t="tabJobs">Jobs</button>
+        <button class="tab" data-tab="cal" data-t="tabCal">Schedule</button>
+        <button class="tab" data-tab="prod" data-t="tabProd">Production</button>
+      </div>
+
+      <div class="nav-group" data-group="ops">
+        <div class="nav-head" data-t="navOps">Operations</div>
+        <button class="tab" data-tab="materials" data-t="tabMaterials">Materials</button>
+        <button class="tab" data-tab="catalog" data-t="tabCatalog">Catalog</button>
+      </div>
+
+      <div class="nav-group" data-group="team">
+        <div class="nav-head" data-t="navTeam">Team</div>
+        <button class="tab" data-tab="crew" data-t="tabCrew">Crew</button>
+        <button class="tab" data-tab="time" data-t="tabTime">Time</button>
+      </div>
+
+      <div class="nav-group" data-group="insights">
+        <div class="nav-head" data-t="navInsights">Insights</div>
+        <button class="tab" data-tab="reports" data-t="tabReports">Reports</button>
+        <button class="tab" data-tab="automation" data-t="tabAutomation">Automation</button>
+      </div>
+
+      <div class="nav-group" data-group="admin">
+        <div class="nav-head" data-t="navAdmin">Account</div>
+        <button class="tab" data-tab="settings" data-t="tabSettings">Settings</button>
+        <button class="tab" data-tab="billing" data-t="tabBilling">Billing</button>
+      </div>
     </div>
 
     <div id="tab-dash">
@@ -1918,7 +1970,7 @@
       </div>
 
       <div class="panel">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px" id="repOwedHead">
           <h2 style="margin:0" data-t="repMoneyOwedHead">Money owed</h2>
           <button class="btn btn-sm btn-grey" id="exportOwed" data-t="repExportCsvBtn">Export CSV</button>
         </div>
@@ -3174,7 +3226,7 @@ if (inRecovery) showRecoveryPanel(); // declared below; hoisted, and it reads no
    translation pass never produces an empty label on a money screen). */
 const TL = {
   en: {
-    tabDash:'Dashboard', tabJobs:'Jobs', tabCal:'Calendar', tabPipe:'Pipeline',
+    tabDash:'Dashboard', tabJobs:'Jobs', tabCal:'Schedule', tabPipe:'Pipeline',
     tabProd:'Production', tabMaterials:'Materials', tabCrew:'Crew', tabTime:'Time',
     tabCatalog:'Catalog', tabReports:'Reports', tabAutomation:'Automation',
     tabSettings:'Settings', tabBilling:'Billing',
@@ -3183,6 +3235,7 @@ const TL = {
     // MESSAGES in supabase/functions/_shared/mail/errors.ts, which is how the
     // Settings panel knows a stored last_error adds nothing to them.
     tabMail:'Email', mailUnreadTitle:'%s unread',
+navSales:'Sales', navWork:'Work', navOps:'Operations', navTeam:'Team', navInsights:'Insights', navAdmin:'Account',
     mailAllMailboxes:'All mailboxes', mailFolderInbox:'Inbox', mailFolderSent:'Sent', mailFenceflowFolder:'FenceFlow mail',
     mailAssignLabel:'Who is answering', mailAssignNobody:'Nobody yet', mailSomeone:'Someone', mailNotesHead:'Internal notes', mailNotesNone:'No notes. Only your team sees these.', mailNotesAdd:'Add note', mailNotesPh:'A note for your team. The customer never sees this.',
     setLblHead:'Labels', setLblBody:'Your own filing. Put a label on a conversation from the email itself.', setLblPh:'New label', setLblAdd:'Add', setLblNone:'No labels yet.', setLblDelete:'Delete', setLblDeleteQ:'Delete this label?', setLblDeleteBody:'It comes off every conversation it is on. The emails themselves are not touched.', setLblDupe:'You already have a label with that name.', mailLabelAdd:'Add a label', mailLabelRemove:'Remove this label',
@@ -4912,11 +4965,12 @@ const TL = {
     rdWhy811Until:'Valid until %s',
   },
   es: {
-    tabDash:'Panel', tabJobs:'Trabajos', tabCal:'Calendario', tabPipe:'Embudo',
+    tabDash:'Panel', tabJobs:'Trabajos', tabCal:'Agenda', tabPipe:'Embudo',
     tabProd:'Producción', tabMaterials:'Materiales', tabCrew:'Cuadrilla', tabTime:'Horas',
     tabCatalog:'Catálogo', tabReports:'Informes', tabAutomation:'Automatización',
     tabSettings:'Ajustes', tabBilling:'Facturación',
     tabMail:'Correo', mailUnreadTitle:'%s sin leer',
+navSales:'Ventas', navWork:'Trabajo', navOps:'Operaciones', navTeam:'Equipo', navInsights:'Análisis', navAdmin:'Cuenta',
     mailAllMailboxes:'Todos los buzones', mailFolderInbox:'Recibidos', mailFolderSent:'Enviados', mailFenceflowFolder:'Correo de FenceFlow',
     mailAssignLabel:'Quién responde', mailAssignNobody:'Nadie todavía', mailSomeone:'Alguien', mailNotesHead:'Notas internas', mailNotesNone:'Sin notas. Solo las ve su equipo.', mailNotesAdd:'Agregar nota', mailNotesPh:'Una nota para su equipo. El cliente nunca la ve.',
     setLblHead:'Etiquetas', setLblBody:'Su propia organización. Ponga una etiqueta a una conversación desde el correo.', setLblPh:'Nueva etiqueta', setLblAdd:'Agregar', setLblNone:'Todavía no hay etiquetas.', setLblDelete:'Eliminar', setLblDeleteQ:'¿Eliminar esta etiqueta?', setLblDeleteBody:'Se quita de todas las conversaciones donde esté. Los correos no se tocan.', setLblDupe:'Ya tiene una etiqueta con ese nombre.', mailLabelAdd:'Agregar etiqueta', mailLabelRemove:'Quitar esta etiqueta',
@@ -6616,11 +6670,12 @@ const TL = {
     rdWhy811Until:'Vigente hasta el %s',
   },
   fr: {
-    tabDash:'Tableau de bord', tabJobs:'Chantiers', tabCal:'Calendrier', tabPipe:'Pipeline',
+    tabDash:'Tableau de bord', tabJobs:'Chantiers', tabCal:'Planning', tabPipe:'Pipeline',
     tabProd:'Production', tabMaterials:'Matériaux', tabCrew:'Équipe', tabTime:'Heures',
     tabCatalog:'Catalogue', tabReports:'Rapports', tabAutomation:'Automatisation',
     tabSettings:'Paramètres', tabBilling:'Facturation',
     tabMail:'E-mails', mailUnreadTitle:'%s non lus',
+navSales:'Ventes', navWork:'Travaux', navOps:'Opérations', navTeam:'Équipe', navInsights:'Analyses', navAdmin:'Compte',
     mailAllMailboxes:'Toutes les boîtes', mailFolderInbox:'Réception', mailFolderSent:'Envoyés', mailFenceflowFolder:'E-mail FenceFlow',
     mailAssignLabel:'Qui répond', mailAssignNobody:'Personne pour le moment', mailSomeone:'Quelquun', mailNotesHead:'Notes internes', mailNotesNone:'Aucune note. Seule votre équipe les voit.', mailNotesAdd:'Ajouter une note', mailNotesPh:'Une note pour votre équipe. Le client ne la voit jamais.',
     setLblHead:'Étiquettes', setLblBody:'Votre propre classement. Posez une étiquette sur une conversation depuis le courrier.', setLblPh:'Nouvelle étiquette', setLblAdd:'Ajouter', setLblNone:'Aucune étiquette pour le moment.', setLblDelete:'Supprimer', setLblDeleteQ:'Supprimer cette étiquette ?', setLblDeleteBody:'Elle est retirée de toutes les conversations concernées. Les courriers ne changent pas.', setLblDupe:'Vous avez déjà une étiquette de ce nom.', mailLabelAdd:'Ajouter une étiquette', mailLabelRemove:'Retirer cette étiquette',
@@ -11910,7 +11965,12 @@ function renderDash(){
     tile('cal', soon.length, esc(tr('dashTileNext7'))) +
     tile('pipe', won, esc(tr('dashTileWon')), monthDelta(won, wonPrev)) +
     tile('reports', money(collected), esc(tr('dashTileCollected')), monthDelta(collected, collectedPrev), 'collected') +
-    tile('jobs', money(owedTotal), esc(tr('dashTileOwed')));
+    // Reports, not Jobs. It DID open something -- the whole Jobs tab -- which is
+    // this spec's complaint in a single example: the number led somewhere, but
+    // not to the records responsible for it. The Money owed table IS those
+    // records, already built, already exporting to CSV, and nothing on the
+    // dashboard pointed at it.
+    tile('reports', money(owedTotal), esc(tr('dashTileOwed')), null, 'owed');
   document.querySelectorAll('.stat.click').forEach(s=>
     s.addEventListener('click',()=>{
       switchTab(s.dataset.go);
@@ -11924,6 +11984,15 @@ function renderDash(){
       // opens the same breakdown, so the number you tapped is the number you
       // get. Nothing here computes money: it moves the window the existing
       // renderReports() already honours.
+      if (s.dataset.focus === 'owed') {
+        // No date window to move, unlike the collected tile below. Money owed
+        // is a standing balance rather than a period, which is exactly why it
+        // has its own table instead of living inside the report range -- so
+        // setting a range here would narrow a figure that is not windowed and
+        // make the number he landed on smaller than the one he tapped.
+        const head = $('repOwedHead');
+        if (head) head.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }
       if (s.dataset.focus === 'collected') {
         const to = new Date(); to.setHours(23,59,59,999);
         const from = new Date(to.getFullYear(), to.getMonth(), 1); from.setHours(0,0,0,0);
@@ -26193,6 +26262,19 @@ function hasAdvancedReports(){
   return !['solo','crew'].includes(planName);
 }
 
+/* A GROUP WITH NOTHING LEFT IN IT MUST NOT KEEP ITS HEADING.
+   Two things hide tabs independently: the plan (Solo loses seven of them) and
+   can_use_company_mail (crew never see Email). Either can empty a group
+   outright -- a Solo plan with no Email leaves Sales with nothing under it --
+   and a heading over empty space reads as something that failed to load.
+   Called after BOTH gates, because either one can be the last to run. */
+function syncNavGroups(){
+  document.querySelectorAll('.nav-group').forEach(g => {
+    const anyVisible = [...g.querySelectorAll('.tab')].some(t => t.style.display !== 'none');
+    g.style.display = anyVisible ? '' : 'none';
+  });
+}
+
 function applyPlanGates(){
   const solo = planName === 'solo';
   ['pipe','prod','materials','crew','time','reports','automation'].forEach(t=>{
@@ -26204,6 +26286,7 @@ function applyPlanGates(){
     .forEach(el => el.style.display = hasAdvancedReports() ? '' : 'none');
   const on = document.querySelector('.tab.on');
   if (solo && on && on.style.display === 'none') switchTab('dash');
+  syncNavGroups();
 }
 
 /* ===================== Company email =======================================
@@ -26318,6 +26401,7 @@ async function initMail(){
   }
   const tabBtn = document.querySelector('.tab[data-tab="mail"]');
   if (tabBtn) tabBtn.style.display = canUseMail ? '' : 'none';
+  syncNavGroups();
   $('mailSettingsPanel').style.display = canUseMail ? '' : 'none';
   clearInterval(mailBadgeTimer);
   if (!canUseMail) {
