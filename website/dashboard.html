@@ -732,6 +732,8 @@
   .tpl-row{display:flex;align-items:center;gap:4px;border-bottom:1px solid var(--line)}
   .tpl-row:last-child{border-bottom:none}
   .tpl-row [data-tpl-edit]{flex:1;text-align:left;justify-content:flex-start}
+  .mr-labels{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:6px 0 0}
+  .mail-chip.lbl{background:var(--info-bg);color:var(--info-fg)}
   .mail-row:last-child{border-bottom:none}
   /* The row holds the open-button and the actions side by side. Relative so the
      actions can sit over the row's right edge without reserving width that the
@@ -2137,6 +2139,15 @@
         <p class="sub" style="margin:0 0 6px" data-t="setMailFenceflowBody">Send from FenceFlow under your business name, without connecting a mailbox.</p>
         <div id="ms_fenceflow"></div>
 
+        <h3 class="ms-h3" style="margin-top:18px" data-t="setLblHead">Labels</h3>
+        <p class="sub" data-t="setLblBody">Your own filing. Put a label on a conversation from the email itself.</p>
+        <div class="msg" id="mlb_msg"></div>
+        <div id="mlb_list"></div>
+        <div class="mc-row" style="margin-top:8px">
+          <input id="mlb_name" maxlength="40" autocomplete="off" data-t-ph="setLblPh" placeholder="New label">
+          <button class="btn btn-sm" id="mlb_add" type="button" data-t="setLblAdd">Add</button>
+        </div>
+
         <h3 class="ms-h3" style="margin-top:18px" data-t="setTplHead">Email templates</h3>
         <p class="sub" data-t="setTplBody">The emails you send over and over. Pick one while writing and FenceFlow fills in what it knows about the job.</p>
         <div class="msg" id="mtp_msg"></div>
@@ -3153,6 +3164,7 @@ const TL = {
     // Settings panel knows a stored last_error adds nothing to them.
     tabMail:'Email', mailUnreadTitle:'%s unread',
     mailAllMailboxes:'All mailboxes', mailFolderInbox:'Inbox', mailFolderSent:'Sent', mailFenceflowFolder:'FenceFlow mail',
+    setLblHead:'Labels', setLblBody:'Your own filing. Put a label on a conversation from the email itself.', setLblPh:'New label', setLblAdd:'Add', setLblNone:'No labels yet.', setLblDelete:'Delete', setLblDeleteQ:'Delete this label?', setLblDeleteBody:'It comes off every conversation it is on. The emails themselves are not touched.', setLblDupe:'You already have a label with that name.', mailLabelAdd:'Add a label', mailLabelRemove:'Remove this label',
     setTplHead:'Email templates', setTplBody:'The emails you send over and over. Pick one while writing and FenceFlow fills in what it knows about the job.', setTplName:'Name', setTplSubject:'Subject', setTplBodyLabel:'Message', setTplSave:'Save template', setTplNew:'New template', setTplNone:'No templates yet.', setTplSaved:'Template saved.', setTplNeedName:'Give the template a name so you can find it later.', setTplDelete:'Delete', setTplDeleteQ:'Delete this template?', setTplDeleteBody:'Emails already sent with it are not affected.', setTplGone:'That template is no longer there.', setTplVars:'You can use: %s',
     mailTplLabel:'Use a template', mailTplNone:'No template', mailTplFilled:'Template filled in.', mailTplMissing:'Still to fill in: %s',
     mailFolderDrafts:'Drafts', mailNoDrafts:'No drafts. Anything you start writing is kept here.', mailDraftNoRecipient:'(no recipient yet)',
@@ -4885,6 +4897,7 @@ const TL = {
     tabSettings:'Ajustes', tabBilling:'Facturación',
     tabMail:'Correo', mailUnreadTitle:'%s sin leer',
     mailAllMailboxes:'Todos los buzones', mailFolderInbox:'Recibidos', mailFolderSent:'Enviados', mailFenceflowFolder:'Correo de FenceFlow',
+    setLblHead:'Etiquetas', setLblBody:'Su propia organización. Ponga una etiqueta a una conversación desde el correo.', setLblPh:'Nueva etiqueta', setLblAdd:'Agregar', setLblNone:'Todavía no hay etiquetas.', setLblDelete:'Eliminar', setLblDeleteQ:'¿Eliminar esta etiqueta?', setLblDeleteBody:'Se quita de todas las conversaciones donde esté. Los correos no se tocan.', setLblDupe:'Ya tiene una etiqueta con ese nombre.', mailLabelAdd:'Agregar etiqueta', mailLabelRemove:'Quitar esta etiqueta',
     setTplHead:'Plantillas de correo', setTplBody:'Los correos que envía una y otra vez. Elija uno al escribir y FenceFlow completa lo que sabe del trabajo.', setTplName:'Nombre', setTplSubject:'Asunto', setTplBodyLabel:'Mensaje', setTplSave:'Guardar plantilla', setTplNew:'Plantilla nueva', setTplNone:'Todavía no hay plantillas.', setTplSaved:'Plantilla guardada.', setTplNeedName:'Póngale un nombre para poder encontrarla después.', setTplDelete:'Eliminar', setTplDeleteQ:'¿Eliminar esta plantilla?', setTplDeleteBody:'Los correos ya enviados con ella no cambian.', setTplGone:'Esa plantilla ya no está.', setTplVars:'Puede usar: %s',
     mailTplLabel:'Usar una plantilla', mailTplNone:'Sin plantilla', mailTplFilled:'Plantilla completada.', mailTplMissing:'Falta completar: %s',
     mailFolderDrafts:'Borradores', mailNoDrafts:'Sin borradores. Lo que empiece a escribir se guarda aquí.', mailDraftNoRecipient:'(aún sin destinatario)',
@@ -6587,6 +6600,7 @@ const TL = {
     tabSettings:'Paramètres', tabBilling:'Facturation',
     tabMail:'E-mails', mailUnreadTitle:'%s non lus',
     mailAllMailboxes:'Toutes les boîtes', mailFolderInbox:'Réception', mailFolderSent:'Envoyés', mailFenceflowFolder:'E-mail FenceFlow',
+    setLblHead:'Étiquettes', setLblBody:'Votre propre classement. Posez une étiquette sur une conversation depuis le courrier.', setLblPh:'Nouvelle étiquette', setLblAdd:'Ajouter', setLblNone:'Aucune étiquette pour le moment.', setLblDelete:'Supprimer', setLblDeleteQ:'Supprimer cette étiquette ?', setLblDeleteBody:'Elle est retirée de toutes les conversations concernées. Les courriers ne changent pas.', setLblDupe:'Vous avez déjà une étiquette de ce nom.', mailLabelAdd:'Ajouter une étiquette', mailLabelRemove:'Retirer cette étiquette',
     setTplHead:'Modèles de courrier', setTplBody:'Les e-mails que vous envoyez sans cesse. Choisissez-en un en écrivant et FenceFlow remplit ce qu il sait du chantier.', setTplName:'Nom', setTplSubject:'Objet', setTplBodyLabel:'Message', setTplSave:'Enregistrer le modèle', setTplNew:'Nouveau modèle', setTplNone:'Aucun modèle pour le moment.', setTplSaved:'Modèle enregistré.', setTplNeedName:'Donnez-lui un nom pour le retrouver ensuite.', setTplDelete:'Supprimer', setTplDeleteQ:'Supprimer ce modèle ?', setTplDeleteBody:'Les e-mails déjà envoyés avec ne changent pas.', setTplGone:'Ce modèle a disparu.', setTplVars:'Vous pouvez utiliser : %s',
     mailTplLabel:'Utiliser un modèle', mailTplNone:'Aucun modèle', mailTplFilled:'Modèle complété.', mailTplMissing:'Reste à compléter : %s',
     mailFolderDrafts:'Brouillons', mailNoDrafts:'Aucun brouillon. Ce que vous commencez à écrire est conservé ici.', mailDraftNoRecipient:'(pas encore de destinataire)',
@@ -26366,6 +26380,7 @@ async function openMailTab(){
   await refreshMailCounts();
   renderMailFolders();
   await loadMailThreads(true);
+  if (!mailLabels.length) loadMailLabels();
   if (!mailPollTimer) mailPollTimer = setInterval(mailPollTick, MAIL_POLL_MS);
   if (Date.now() - mailSyncedAt >= MAIL_SYNC_GAP_MS) syncMail(false);
 }
@@ -26593,6 +26608,10 @@ async function openMailThread(id){
     return;
   }
   mailThread = { id, msgs: (msgs.data || []).slice().reverse(), links: (links.data || []).map(l => l.job_sync_id), linking: false };
+  // Cleared before the fetch, never left showing the PREVIOUS thread own labels
+  // while this one loads -- a wrong label on screen is worse than none.
+  mailThreadLabels = [];
+  loadThreadLabels(id);
   mailExpanded.clear();
   const live = mailThread.msgs.filter(m => !m.server_gone_at);
   const latest = live[live.length - 1] || mailThread.msgs[mailThread.msgs.length - 1];
@@ -26620,7 +26639,21 @@ function renderMailReader(){
       + `<button type="button" class="btn btn-sm" data-act="linksave">${esc(tr('mailLinkSaveBtn'))}</button>`
       + `<button type="button" class="btn btn-sm btn-grey" data-act="linkcancel">${esc(tr('mailCancelBtn'))}</button></div>`;
   }
+  const lblChips = mailLabels.filter(l => mailThreadLabels.includes(l.id)).map(l =>
+    `<span class="mail-chip lbl">${esc(cleanLine(l.name))}` +
+    `<button type="button" class="chip-x" data-act="lbloff" data-lbl="${esc(l.id)}" ` +
+    `title="${esc(tr('mailLabelRemove'))}" aria-label="${esc(tr('mailLabelRemove'))}">&times;</button></span>`).join('');
+  // The picker only lists labels NOT already on this thread, and disappears
+  // when there are none left to add -- a menu whose every option is already
+  // applied is a menu that does nothing.
+  const spare = mailLabels.filter(l => !mailThreadLabels.includes(l.id));
+  const lblPick = spare.length
+    ? `<select data-role="lblpick" aria-label="${esc(tr('mailLabelAdd'))}">` +
+      `<option value="">${esc(tr('mailLabelAdd'))}</option>` +
+      spare.map(l => `<option value="${esc(l.id)}">${esc(cleanLine(l.name))}</option>`).join('') + '</select>'
+    : '';
   box.innerHTML = `<div class="mr-head"><h3 class="mr-subject">${esc(subject)}</h3>`
+    + (lblChips || lblPick ? `<div class="mr-labels">${lblChips}${lblPick}</div>` : '')
     + `<div class="mr-jobs">${chips}${t.linking ? '' : `<button type="button" class="btn btn-sm btn-grey" data-act="linkjob">${esc(tr('mailLinkJobBtn'))}</button>`}</div>`
     + `${linkBox}</div>`
     + t.msgs.map(m => mailExpanded.has(m.id) ? `<div class="mm open" data-msg="${esc(m.id)}"></div>` : mailCollapsedHtml(m)).join('');
@@ -27274,6 +27307,77 @@ async function loadMailSettings(){
   await loadMailStatus(true);
   renderMailSettings();
   loadTemplateSettings();
+  loadMailLabels();
+}
+
+/* ---------- labels ----------
+
+   mailLabels is the company's whole list, which is small by nature: it is a
+   filing system somebody maintains by hand, not a data set. Loaded with the
+   mail settings and whenever the reader needs to offer them. */
+let mailLabels = [];
+
+async function loadMailLabels(){
+  const { data, error } = await db.from('mail_labels').select('id, name').order('name');
+  mailLabels = (!error && Array.isArray(data)) ? data : [];
+  const box = $('mlb_list');
+  if (!box) return;
+  if (error) { box.innerHTML = `<div class="ms-err">${esc(plainError(error.message))}</div>`; return; }
+  box.innerHTML = mailLabels.length
+    ? mailLabels.map(l => `<span class="mail-chip">${esc(cleanLine(l.name))}` +
+        `<button type="button" class="chip-x" data-lbl-del="${esc(l.id)}" ` +
+        `title="${esc(tr('setLblDelete'))}" aria-label="${esc(tr('setLblDelete'))}">&times;</button></span>`).join('')
+    : `<p class="sub" style="margin:0 0 8px">${esc(tr('setLblNone'))}</p>`;
+}
+
+async function addMailLabel(){
+  const name = $('mlb_name').value.trim();
+  if (!name) return;
+  const { error } = await db.from('mail_labels')
+    .insert({ company_id: profile.company_id, created_by: profile.id, name });
+  if (error) {
+    // The unique index is case-insensitive, so "Permits" and "permits" collide
+    // on purpose -- two drawers with the same name is how filing stops working.
+    msg('mlb_msg', /duplicate|unique/i.test(error.message) ? tr('setLblDupe') : plainError(error.message), 'err');
+    return;
+  }
+  $('mlb_name').value = '';
+  msg('mlb_msg', '', '');
+  loadMailLabels();
+}
+
+if ($('mlb_add')) {
+  $('mlb_add').addEventListener('click', addMailLabel);
+  $('mlb_name').addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); addMailLabel(); } });
+  $('mlb_list').addEventListener('click', async e => {
+    const del = e.target.closest('[data-lbl-del]');
+    if (!del) return;
+    // Deleting the label takes it off every conversation it was on, which the
+    // foreign key does by cascade. Said out loud, because "delete this label"
+    // reads as smaller than it is.
+    const ok = await ask({ title: tr('setLblDeleteQ'), body: tr('setLblDeleteBody'), confirmLabel: tr('setLblDelete'), danger: true });
+    if (!ok) return;
+    const { error } = await db.from('mail_labels').delete().eq('id', del.dataset.lblDel);
+    if (error) { msg('mlb_msg', plainError(error.message), 'err'); return; }
+    loadMailLabels();
+    if (mailThread) loadThreadLabels(mailThread.id);
+  });
+}
+
+/* Which labels are on the open conversation. */
+async function loadThreadLabels(threadId){
+  const { data, error } = await db.from('mail_thread_labels').select('label_id').eq('thread_id', threadId);
+  mailThreadLabels = (!error && Array.isArray(data)) ? data.map(r => r.label_id) : [];
+  if (mailThread && mailThread.id === threadId) renderMailReader();
+}
+
+async function toggleThreadLabel(threadId, labelId, on){
+  const q = on
+    ? db.from('mail_thread_labels').insert({ thread_id: threadId, label_id: labelId, company_id: profile.company_id, applied_by: profile.id })
+    : db.from('mail_thread_labels').delete().eq('thread_id', threadId).eq('label_id', labelId);
+  const { error } = await q;
+  if (error) { mailSyncNote(plainError(error.message), true); }
+  await loadThreadLabels(threadId);
 }
 
 /* ---------- email templates, in Settings ----------
@@ -27892,10 +27996,16 @@ $('mailConnectGo').addEventListener('click', () => {
   switchTab('settings');
   setTimeout(() => $('mailSettingsPanel').scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
 });
+$('mailReaderBody').addEventListener('change', e => {
+  const sel = e.target.closest('[data-role="lblpick"]');
+  if (!sel || !sel.value || !mailThread) return;
+  toggleThreadLabel(mailThread.id, sel.value, true);
+});
 $('mailReaderBody').addEventListener('click', async e => {
   const b = e.target.closest('[data-act]');
   if (!b || !mailThread) return;
   const act = b.dataset.act;
+  if (act === 'lbloff') { toggleThreadLabel(mailThread.id, b.dataset.lbl, false); return; }
   const m = b.dataset.msg ? mailThread.msgs.find(x => x.id === b.dataset.msg) : null;
   if (act === 'expand' && m) { mailExpanded.add(m.id); renderMailReader(); }
   else if ((act === 'images' || act === 'plain' || act === 'html') && m) {
@@ -27932,6 +28042,7 @@ $('mc_tpl').addEventListener('change', applyMailTemplate);
    mailTemplates is loaded once per compose rather than cached for the session:
    he edits one in Settings and expects the next email to use the edited one. */
 let mailTemplates = [];
+let mailThreadLabels = [];
 
 async function loadMailTemplates(){
   const { data, error } = await db.from('mail_templates')
