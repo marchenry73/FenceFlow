@@ -1912,7 +1912,7 @@
           <div class="mail-sync" id="mailSyncNote" role="status"></div>
           <div class="mail-threads" id="mailThreads"></div>
           <button class="btn btn-sm btn-grey" id="mailMore" type="button" style="display:none;margin-top:8px" data-t="mailMoreBtn">Show older</button>
-          <p class="sub" style="margin-top:10px" data-t="mailWindowNote">FenceFlow shows mail from the 30 days before a mailbox was connected onward. Older mail stays in your mailbox. New mail is checked about every 10 to 15 minutes, and whenever this tab is open.</p>
+          <p class="sub" style="margin-top:10px" data-t="mailWindowNote">FenceFlow shows mail from the 30 days before a mailbox was connected onward. Older mail stays in your mailbox. New mail is checked every minute while this tab is open, and every 5 minutes otherwise. Replies to mail you sent from FenceFlow arrive the moment they land.</p>
         </div>
         <div class="mail-reader panel" id="mailReader">
           <button class="btn btn-sm btn-grey mail-back" id="mailBack" type="button" data-t="mailBackBtn">Back</button>
@@ -3107,7 +3107,7 @@ const TL = {
     mailNoAccountOther:'No company mailbox is connected yet. The owner can connect one in Settings.',
     mailNoAccountFenceflow:'Until then you can still send email as %s through FenceFlow.',
     mailConnectBtn:'Connect a mailbox',
-    mailWindowNote:'FenceFlow shows mail from the 30 days before a mailbox was connected onward. Older mail stays in your mailbox. New mail is checked about every 10 to 15 minutes, and whenever this tab is open.',
+    mailWindowNote:'FenceFlow shows mail from the 30 days before a mailbox was connected onward. Older mail stays in your mailbox. New mail is checked every minute while this tab is open, and every 5 minutes otherwise. Replies to mail you sent from FenceFlow arrive the moment they land.',
     mailSelectThread:'Select an email to read it.', mailNoSubject:'(no subject)', mailToPrefix:'To:',
     mailUnreadLbl:'Unread', mailAttachmentLbl:'Has attachments', mailOpening:'Opening…', mailFrameTitle:'Email message',
     mailImagesBlocked:'Pictures from the internet are hidden, so the sender cannot tell when you opened this.',
@@ -4833,7 +4833,7 @@ const TL = {
     mailNoAccountOther:'Todavía no hay ningún buzón de la empresa conectado. El propietario puede conectarlo en Ajustes.',
     mailNoAccountFenceflow:'Mientras tanto puede enviar correo como %s a través de FenceFlow.',
     mailConnectBtn:'Conectar un buzón',
-    mailWindowNote:'FenceFlow muestra el correo desde 30 días antes de conectar cada buzón. El correo más antiguo sigue en su buzón. El correo nuevo se revisa cada 10 a 15 minutos, y siempre que esta pestaña está abierta.',
+    mailWindowNote:'FenceFlow muestra el correo desde 30 días antes de conectar cada buzón. El correo más antiguo sigue en su buzón. El correo nuevo se revisa cada minuto mientras esta pestaña está abierta, y cada 5 minutos el resto del tiempo. Las respuestas al correo que envió desde FenceFlow llegan al instante.',
     mailSelectThread:'Elija un correo para leerlo.', mailNoSubject:'(sin asunto)', mailToPrefix:'Para:',
     mailUnreadLbl:'Sin leer', mailAttachmentLbl:'Tiene adjuntos', mailOpening:'Abriendo…', mailFrameTitle:'Mensaje de correo',
     mailImagesBlocked:'Las imágenes de internet están ocultas, para que el remitente no sepa cuándo abrió este mensaje.',
@@ -6529,7 +6529,7 @@ const TL = {
     mailNoAccountOther:'Aucune boîte mail de l’entreprise n’est encore connectée. Le propriétaire peut en connecter une dans Paramètres.',
     mailNoAccountFenceflow:'En attendant, vous pouvez envoyer des e-mails au nom de %s via FenceFlow.',
     mailConnectBtn:'Connecter une boîte mail',
-    mailWindowNote:'FenceFlow affiche le courrier à partir des 30 jours précédant la connexion de chaque boîte. Le courrier plus ancien reste dans votre boîte. Le nouveau courrier est relevé toutes les 10 à 15 minutes environ, et chaque fois que cet onglet est ouvert.',
+    mailWindowNote:'FenceFlow affiche le courrier à partir des 30 jours précédant la connexion de chaque boîte. Le courrier plus ancien reste dans votre boîte. Le nouveau courrier est relevé chaque minute lorsque cet onglet est ouvert, et toutes les 5 minutes sinon. Les réponses au courrier envoyé depuis FenceFlow arrivent immédiatement.',
     mailSelectThread:'Choisissez un e-mail pour le lire.', mailNoSubject:'(sans objet)', mailToPrefix:'À :',
     mailUnreadLbl:'Non lu', mailAttachmentLbl:'Pièces jointes', mailOpening:'Ouverture…', mailFrameTitle:'Message e-mail',
     mailImagesBlocked:'Les images venant d’internet sont masquées, pour que l’expéditeur ne sache pas quand vous avez ouvert ce message.',
