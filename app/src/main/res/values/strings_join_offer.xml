@@ -31,11 +31,20 @@
     <string name="snap_join_offer_line">These two sides meet here. Make it one post? A post, its cap and its concrete come off the order.</string>
 
     <!-- ATTACHING FROM THE ATTACH TOOL, where the two ends may not be together
-         yet. The side that moves is named, and so is what it does to the
-         footage, because footage is labour. %1$s is the side, %2$s the distance. -->
-    <string name="attach_moves">%1$s moves %2$s to meet it, so the two ends become one point on the plan.</string>
-    <!-- %1$s is the side, %2$s its footage now, %3$s its footage after. -->
-    <string name="attach_moves_footage">%1$s measures %2$s now and %3$s after, so its labour follows.</string>
+         yet. The whole side SLIDES across keeping its length, so its far end
+         moves as well and the footage does not change. Both facts are said out
+         loud: the far end moving is the surprising half, and the length holding
+         is the reassuring half, because footage is labour.
+         %1$s is the side, %2$s the distance. -->
+    <string name="attach_moves">%1$s slides %2$s across to meet it, keeping its length. Its far end moves too.</string>
+    <!-- %1$s is the side, %2$s its footage, which is the same before and after. -->
+    <string name="attach_moves_keeps_length">%1$s still measures %2$s, so its labour does not change.</string>
+    <!-- FINISHING A SIDE. Double tapping ends it; this asks what the next tap
+         should do, because both answers are ordinary. %1$s is its length. -->
+    <string name="side_finished_title">Side finished — %1$s</string>
+    <string name="side_finished_continue">Continue this side</string>
+    <string name="side_finished_new">Start a new side</string>
+
     <!-- Nothing to move: the drawing already shows them meeting. -->
     <string name="attach_already_together">These two ends are already on one point, so nothing on the plan moves.</string>
 

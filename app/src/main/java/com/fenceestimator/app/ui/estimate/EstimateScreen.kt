@@ -81,6 +81,13 @@ fun EstimateScreen(jobId: Long, onBack: () -> Unit, onOpenSupplierPrices: (Long)
         factory = GenericViewModelFactory { EstimateViewModel(app.repository, jobId, app.session) }
     )
     val job by viewModel.job.collectAsState()
+    // The deposit fills itself in once the job has a price. Keyed on the job's
+    // own id and whether a total exists, so it is asked once per priced job
+    // rather than on every recomposition; depositToSeed refuses the rest.
+    val seedTotals by viewModel.totals.collectAsState()
+    LaunchedEffect(job?.id, seedTotals.grandTotal > 0.0) {
+        if (job != null && seedTotals.grandTotal > 0.0) viewModel.seedDepositIfUnset()
+    }
     val runs by viewModel.runs.collectAsState()
     val lineItems by viewModel.lineItems.collectAsState()
     val profile by app.settingsStore.profile.collectAsState(initial = BusinessProfile())

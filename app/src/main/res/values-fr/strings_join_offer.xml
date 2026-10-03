@@ -11,8 +11,11 @@
     <string name="snap_join_offer_action">Un seul poteau</string>
     <string name="snap_join_offer_line">Ces deux côtés se rejoignent ici. En faire un seul poteau ? Un poteau, son capuchon et son béton sortent de la commande.</string>
 
-    <string name="attach_moves">%1$s se déplace de %2$s pour les rejoindre : les deux extrémités ne font plus qu’un seul point sur le plan.</string>
-    <string name="attach_moves_footage">%1$s mesure %2$s aujourd’hui et %3$s ensuite, donc sa main-d’œuvre suit.</string>
+    <string name="attach_moves">%1$s se décale de %2$s pour les rejoindre, en conservant sa longueur. Son autre extrémité bouge aussi.</string>
+    <string name="attach_moves_keeps_length">%1$s mesure toujours %2$s, donc sa main-d’œuvre ne change pas.</string>
+    <string name="side_finished_title">Côté terminé — %1$s</string>
+    <string name="side_finished_continue">Continuer ce côté</string>
+    <string name="side_finished_new">Commencer un nouveau côté</string>
     <string name="attach_already_together">Ces deux extrémités sont déjà sur un seul point : rien ne bouge sur le plan.</string>
 
     <string name="attach_refused_too_far">Ces deux extrémités sont à %1$s l’une de l’autre. Les relier tirerait un côté sur cette distance et changerait sa longueur : cela ne se fait pas d’ici. Faites d’abord glisser l’extrémité jusqu’à l’autre coin — elle s’y accroche — et l’application proposera d’en faire un seul poteau.</string>

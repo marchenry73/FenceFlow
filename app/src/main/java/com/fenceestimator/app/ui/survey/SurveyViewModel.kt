@@ -1437,6 +1437,91 @@ class SurveyViewModel(
     // faster.
     // -----------------------------------------------------------------------
 
+    /**
+     * The side he has just finished with a double tap, and its footage.
+     *
+     * Null when no question is on the table. Non-null puts the continue /
+     * start-a-new-one choice in front of him.
+     */
+    private val _sideFinished = MutableStateFlow<SideFinished?>(null)
+    val sideFinished: StateFlow<SideFinished?> = _sideFinished
+
+    /** A finished side: which run, and how long it came out. */
+    data class SideFinished(val runId: Long, val feet: Float)
+
+    /**
+     * Ends the side he is drawing, after a second tap in the same spot.
+     *
+     * NOTHING ended a side before this. Every tap in DRAW appended to the
+     * selected run, so a tap meant to start a new fence silently extended the
+     * old one, and the only way to begin another was the "+" menu, which the
+     * full-screen drawing hides.
+     *
+     * The first tap of the pair has ALREADY added its point -- taps are applied
+     * the moment they land, because waiting out a double-tap timeout before
+     * drawing anything makes every single point feel broken. So the second tap
+     * takes that duplicate back off before asking anything. If it is not a
+     * duplicate (he moved between taps, or the snap put the second somewhere
+     * else) nothing is removed and the side simply ends where it is.
+     *
+     * A side of fewer than two points is not a side, so no question is asked:
+     * there is nothing to continue and nothing to separate from.
+     */
+    fun finishSideByDoubleTap() {
+        val run = selectedRun() ?: return
+        val points = FenceCodec.decodePoints(run.pointsEncoded)
+        if (points.size < 2) return
+        val last = points.last()
+        val prior = points[points.size - 2]
+        val duplicate = last.x == prior.x && last.y == prior.y
+        if (duplicate) {
+            editRun(run.id) { fresh ->
+                val pts = FenceCodec.decodePoints(fresh.pointsEncoded).toMutableList()
+                if (pts.size >= 2) {
+                    val a = pts[pts.size - 1]
+                    val b = pts[pts.size - 2]
+                    if (a.x == b.x && a.y == b.y) {
+                        pts.removeAt(pts.size - 1)
+                        writePoints(fresh, pts)
+                    }
+                }
+            }
+        }
+        val kept = FenceCodec.decodePoints(
+            runs.value.firstOrNull { it.id == run.id }?.pointsEncoded ?: run.pointsEncoded
+        )
+        if (kept.size < 2) return
+        _sideFinished.value = SideFinished(run.id, footageOfPoints(kept))
+    }
+
+    /** He is carrying on with the same side. */
+    fun dismissSideFinished() { _sideFinished.value = null }
+
+    /**
+     * He wants the next thing he draws to be its OWN side, not a continuation.
+     *
+     * Goes through [addRun] so the new side inherits the job's type, spacing
+     * and heights exactly as one added from the job screen does, and becomes
+     * the selected run, so his next tap starts it.
+     */
+    fun startNewSideAfterFinish(defaults: BusinessProfile?) {
+        _sideFinished.value = null
+        addRun(defaults, isTeardown = false)
+    }
+
+    /** Straight-line length through a run's points, in feet, at the edit scale. */
+    private fun footageOfPoints(points: List<FencePoint>): Float {
+        val scale = editScale()
+        if (scale <= 0f || points.size < 2) return 0f
+        var total = 0f
+        for (i in 1 until points.size) {
+            val dx = points[i].x - points[i - 1].x
+            val dy = points[i].y - points[i - 1].y
+            total += kotlin.math.hypot(dx.toDouble(), dy.toDouble()).toFloat()
+        }
+        return total / scale
+    }
+
     private val _snapJoinOffer = MutableStateFlow<RunJoinGesture.SnapJoinOffer?>(null)
 
     /**
@@ -1636,7 +1721,7 @@ class SurveyViewModel(
             // ONE Undo step, it re-prices like any other drawing edit, and the
             // office hears about the footage the same way it hears about a
             // dragged corner.
-            offer.gapCloser?.let { moveJoinedEnd(it) }
+            offer.gapCloser?.let { slideRunToMeet(it) }
             // Every run of the job, not just the rows written. A detach writes
             // ONE end blank and a T-join writes only the two ends tapped, so
             // the run that was the post's OWNER can keep a corner post in its
@@ -1663,6 +1748,43 @@ class SurveyViewModel(
      * the joint is already stored and honoured, so the drawing keeps its gap
      * and that is the state the app was in before today.
      */
+    /**
+     * Slides the WHOLE side across so its end lands on the corner it is
+     * attaching to, keeping its length and its heading.
+     *
+     * [moveJoinedEnd] below stretches the one corner instead, which is what
+     * this used to do and is almost never what he means. A side is a measured
+     * thing: 74 ft of fence with its far end where he put it. Dragging one
+     * corner 2 ft to close a gap makes it 76 ft, and labour is billed by the
+     * foot, so the quote moved because two corners were tidied up. Sliding
+     * moves the far end too and the footage does not change at all -- which is
+     * why nothing here reports a footage difference.
+     *
+     * Every point is checked before any is written: a slide that would push a
+     * corner off the drawable area is refused whole rather than applied
+     * partly, because half a slid side is a shape nobody drew.
+     *
+     * Through [editRun] and [writePoints] like any other drawing edit, so it is
+     * ONE Undo step and the office hears about it the same way.
+     */
+    private fun slideRunToMeet(closer: RunJoinGesture.JoinGapCloser) {
+        val target = runs.value.firstOrNull { it.syncId == closer.end.runId } ?: return
+        editRun(target.id) { run ->
+            val points = FenceCodec.decodePoints(run.pointsEncoded)
+            val index = if (closer.end.atEnd) points.lastIndex else 0
+            if (index !in points.indices) return@editRun
+            val at = points[index]
+            // The end has to still be where the offer measured from, or this is
+            // a side being shoved somewhere nobody asked for.
+            if (at.x != closer.from.x || at.y != closer.from.y) return@editRun
+            val dx = closer.to.x - closer.from.x
+            val dy = closer.to.y - closer.from.y
+            val slid = points.map { FencePoint(it.x + dx, it.y + dy) }
+            if (slid.any { !isWritablePoint(it.x, it.y) }) return@editRun
+            writePoints(run, slid.toMutableList())
+        }
+    }
+
     private fun moveJoinedEnd(closer: RunJoinGesture.JoinGapCloser) {
         val target = runs.value.firstOrNull { it.syncId == closer.end.runId } ?: return
         editRun(target.id) { run ->

@@ -148,6 +148,48 @@ class EstimateViewModel(
      * items changed -- which is exactly why the materials total sat at $0 and
      * "sometimes went back to 0" depending on what else happened to redraw.
      */
+    /**
+     * Fills in the deposit on a job that has none, once the job has a price.
+     *
+     * Nothing in this app ever computed a deposit. It was only ever a number
+     * somebody typed, so a freshly drawn and priced job showed no deposit at
+     * all until he went to the job page and set one by hand. March asked for it
+     * to fill itself in (2 Oct 2026), having been told the trade-off below.
+     *
+     * [com.fenceestimator.app.estimate.JobMoney.depositToSeed] is the rule and it carries its own two refusals:
+     * a deposit already on the job is NEVER touched, and nothing is written
+     * once [com.fenceestimator.app.estimate.JobMoney.customerIsInIt] -- accepted without a pending re-approval,
+     * or any money taken. Those guards are the whole reason this is safe to
+     * write rather than merely offer: the auto-fill that was removed had
+     * neither, and moved one customer's deposit from $9,910 to $5,730 ten
+     * seconds after he signed.
+     *
+     * THE TRADE-OFF HE ACCEPTED: zero means both "never set" and "I want no
+     * deposit", because the field is non-null and typing blank writes 0. So a
+     * deposit he deliberately clears is seeded again the next time this screen
+     * opens on a priced job. Telling the two apart needs a "decided" column
+     * threaded through Room, CloudJob, the money scrub and backup, which is a
+     * different and larger change.
+     *
+     * Re-reads from Room rather than trusting [job]'s snapshot: the figure it
+     * writes is money, and the row can have moved since this flow last emitted.
+     */
+    fun seedDepositIfUnset() {
+        if (session.state.value.isGuestDemo) return
+        if (!TakeoffRefresher.mayReprice(session.state.value)) return
+        val currentTotals = totals.value
+        val orders = changeOrders.value
+        viewModelScope.launch {
+            val fresh = repository.getJob(jobId) ?: return@launch
+            val seed = com.fenceestimator.app.estimate.JobMoney.depositToSeed(
+                fresh,
+                com.fenceestimator.app.estimate.JobMoney.materialsToBuy(currentTotals, orders),
+                com.fenceestimator.app.estimate.JobMoney.billableTotal(fresh, currentTotals.grandTotal, orders)
+            ) ?: return@launch
+            repository.updateJob(fresh.copy(depositAmount = seed))
+        }
+    }
+
     val changeOrders: StateFlow<List<ChangeOrder>> = repository.observeChangeOrders(jobId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -555,7 +597,7 @@ class EstimateViewModel(
                     linearFeet = totalLinearFeet(),
                     document_ = document,
                     // Without the orders, a job with change-order money fell
-                    // back to the LIVE total (JobMoney.documentTotal): the
+                    // back to the LIVE total (com.fenceestimator.app.estimate.JobMoney.documentTotal): the
                     // invoice, its Balance Due and the {TOTAL} in the contract
                     // terms printed the drifting recompute on exactly the
                     // accepted jobs with extra work, against the job screen,
@@ -599,7 +641,7 @@ class EstimateViewModel(
      * acceptedTotal is frozen here too, in the same write: this is the moment
      * the customer agreed to the price, and from here on it is the figure the
      * phone bills against and the only contract_total it pushes (see
-     * JobMoney.anchoredTotal). Before it existed the phone went on pushing its
+     * com.fenceestimator.app.estimate.JobMoney.anchoredTotal). Before it existed the phone went on pushing its
      * live recompute after the signature -- job 4598 was signed at $9,710 and
      * its quote page later showed $13,410. The server stamps the same figure
      * from signed_contract_total when this reaches it; frozen locally as well

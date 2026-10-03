@@ -428,10 +428,23 @@ console.log("\n2. ATTACHED MEANS ONE POINT: THE LINE MOVES, AND NOT ACROSS THE Y
   const confirm = bodyOf(vm, "fun confirmJoinOffer(");
   ok("2d", "TEETH: confirmJoinOffer writes the JOINT FIRST and only then moves the corner, so a failed write cannot leave a line that moved for nothing",
     confirm !== null &&
-      confirm.indexOf("writeJointIds(writes)") < confirm.indexOf("moveJoinedEnd"));
+      confirm.indexOf("writeJointIds(writes)") < confirm.indexOf("slideRunToMeet"));
   ok("2e", "TEETH: and it returns on a failed write before reaching the move at all",
     confirm !== null && /JoinRefusal\.NO_STORAGE\)\s*\n\s*return@launch/.test(confirm));
 
+  // The attach path now SLIDES THE WHOLE SIDE (March, 2 Oct 2026): a side is a
+  // measured thing, and stretching one corner to close a 2 ft gap made a 74 ft
+  // side 76 ft and moved the labour with it. moveJoinedEnd still exists for any
+  // caller that genuinely wants one corner; the attach dialog no longer is one.
+  const slide = bodyOf(vm, "private fun slideRunToMeet(");
+  ok("2f-slide", "slideRunToMeet translates EVERY point by the same delta, so the side keeps its length and its heading",
+    slide !== null && /points\.map \{[^}]*it\.x \+ dx[^}]*it\.y \+ dy/.test(slide));
+  ok("2f-slide-ii", "TEETH: it re-checks the end is still where the offer measured from before sliding anything",
+    slide !== null && /closer\.from\.x/.test(slide) && /closer\.from\.y/.test(slide));
+  ok("2f-slide-iii", "TEETH: it refuses the WHOLE slide if any point would land off the drawable area, rather than writing a part-slid side",
+    slide !== null && /slid\.any \{ !isWritablePoint/.test(slide));
+  ok("2f-slide-iv", "CANARY: a slide that moved only the end point would not match 2f-slide, proving that check can fail",
+    !/points\.map \{[^}]*it\.x \+ dx[^}]*it\.y \+ dy/.test("points[index] = closer.to"));
   const moveEnd = bodyOf(vm, "private fun moveJoinedEnd(");
   ok("2f", "moveJoinedEnd goes through editRun/writePoints -- the ordinary drawing door -- so the move is ONE Undo step and re-prices like any drag",
     moveEnd !== null && /editRun\(/.test(moveEnd) && /writePoints\(/.test(moveEnd));
@@ -525,7 +538,7 @@ console.log("\n5. WHAT IT SAYS, IN HIS TERMS, IN THREE LANGUAGES");
   eq("5b", "Spanish carries exactly the same keys", names(es), want);
   eq("5c", "French carries exactly the same keys", names(fr), want);
   ok("5d", "the keys cover the offer, the move, the footage, the refusal and what detach does NOT do",
-    ["snap_join_offer", "snap_join_offer_action", "attach_moves", "attach_moves_footage",
+    ["snap_join_offer", "snap_join_offer_action", "attach_moves", "attach_moves_keeps_length",
       "attach_refused_too_far", "attach_detach_keeps_drawing", "attach_already_together"]
       .every((k) => want.includes(k)));
   ok("5e", "TEETH: it is said in what it costs him -- post, cap and concrete -- and never in the code's words",
@@ -538,11 +551,11 @@ console.log("\n5. WHAT IT SAYS, IN HIS TERMS, IN THREE LANGUAGES");
     return m ? [...m[1].matchAll(/%(\d)\$/g)].map((x) => x[1]).sort() : null;
   };
   ok("5g", "every formatted string takes the same numbered arguments in all three locales",
-    ["attach_moves", "attach_moves_footage", "attach_refused_too_far"].every((k) =>
+    ["attach_moves", "attach_moves_keeps_length", "attach_refused_too_far"].every((k) =>
       JSON.stringify(argsOf(base, k)) === JSON.stringify(argsOf(es, k)) &&
       JSON.stringify(argsOf(base, k)) === JSON.stringify(argsOf(fr, k))));
   ok("5g-canary", "canary: the argument scanner really finds arguments, so 5g is comparing something",
-    JSON.stringify(argsOf(base, "attach_moves_footage")) === JSON.stringify(["1", "2", "3"]));
+    JSON.stringify(argsOf(base, "attach_moves_keeps_length")) === JSON.stringify(["1", "2"]));
 }
 
 // =============================================================================

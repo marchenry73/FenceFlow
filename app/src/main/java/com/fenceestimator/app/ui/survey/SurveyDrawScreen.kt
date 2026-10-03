@@ -75,6 +75,7 @@ import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarResult
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
 import androidx.compose.material3.SingleChoiceSegmentedButtonRow
@@ -201,6 +202,9 @@ fun SurveyDrawScreen(
         viewModel.editorRole = session.role.label
     }
 
+    var lastTapAtMs by remember { mutableStateOf(0L) }
+    var lastTapOffset by remember { mutableStateOf<Offset?>(null) }
+    val sideFinished by viewModel.sideFinished.collectAsState()
     val job by viewModel.job.collectAsState()
     // Whether the survey photo is the background right now. A display choice,
     // remembered on this phone, that never touches the photo or the job -- see
@@ -1336,6 +1340,28 @@ fun SurveyDrawScreen(
                                         val imgPoint = transform.toImage(tapOffset)
                                         when (mode) {
                                             SurveyMode.DRAW -> {
+                                                // A SECOND TAP IN THE SAME SPOT ENDS THE SIDE.
+                                                // Detected here rather than through
+                                                // detectTapGestures' onDoubleTap, because
+                                                // registering that makes EVERY single tap wait out
+                                                // the double-tap timeout before the point appears,
+                                                // and a drawing tool that lags on every point is
+                                                // worse than no double tap at all. So the point is
+                                                // placed immediately and the second tap takes it
+                                                // back off (see finishSideByDoubleTap).
+                                                val now = System.currentTimeMillis()
+                                                val nearLast = lastTapOffset?.let {
+                                                    (tapOffset - it).getDistance() <= DOUBLE_TAP_SLOP_PX
+                                                } ?: false
+                                                val quick = now - lastTapAtMs <= DOUBLE_TAP_WINDOW_MS
+                                                if (quick && nearLast) {
+                                                    lastTapAtMs = 0L
+                                                    lastTapOffset = null
+                                                    viewModel.finishSideByDoubleTap()
+                                                    return@detectTapGestures
+                                                }
+                                                lastTapAtMs = now
+                                                lastTapOffset = tapOffset
                                                 val snap = viewModel.snapForDraw(
                                                     imgPoint,
                                                     snapOn,
@@ -1554,7 +1580,7 @@ fun SurveyDrawScreen(
                             // different -- teardown vs. build still has to
                             // read correctly at a glance even dimmed.
                             val otherColor = (if (other.run.isTeardown) PlanColors.teardownLine else PlanColors.fenceLine)
-                                .copy(alpha = OTHER_RUN_ALPHA)
+                                .copy(alpha = otherRunAlpha(viewZoom))
                             GateGeometry.fencePieces(other.points, other.run.closedLoop, otherSpans[i].map { it.second })
                                 .forEach { (from, to) ->
                                     drawLine(otherColor, transform.toCanvas(from), transform.toCanvas(to), strokeWidth = 4f)
@@ -1565,7 +1591,7 @@ fun SurveyDrawScreen(
                         // run, teardown or not, the same as the selected run's
                         // gates.
                         if (showGatesLayer) otherSpans.forEach { spans ->
-                            spans.forEach { (gate, span) -> drawGate(gate, span, OTHER_RUN_ALPHA) }
+                            spans.forEach { (gate, span) -> drawGate(gate, span, otherRunAlpha(viewZoom)) }
                         }
 
                         val geometry = FenceGeometryEngine.analyze(points, pxPerFt ?: 1f, activeRun.closedLoop)
@@ -2190,6 +2216,36 @@ fun SurveyDrawScreen(
         )
     }
 
+    // DOUBLE TAPPED TO FINISH A SIDE: carry on, or start a separate one.
+    //
+    // Both answers are ordinary, so neither is the default and neither is
+    // hidden behind the other. Dismissing is the same as "continue", because
+    // that is what the drawing already shows: the side is still selected and
+    // the next tap extends it, exactly as before this dialog existed.
+    sideFinished?.let { finished ->
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissSideFinished() },
+            title = {
+                Text(
+                    stringResource(
+                        R.string.side_finished_title,
+                        FeetInches.formatCompact(finished.feet)
+                    )
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = { viewModel.startNewSideAfterFinish(runDefaults) }) {
+                    Text(stringResource(R.string.side_finished_new))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { viewModel.dismissSideFinished() }) {
+                    Text(stringResource(R.string.side_finished_continue))
+                }
+            }
+        )
+    }
+
     // Asked, not assumed -- and asked with what it costs spelled out, because
     // this is the one control on the drawing screen that cannot be walked back
     // with Undo.
@@ -2546,10 +2602,9 @@ private fun JoinOfferDialog(
                                 )
                                 Text(
                                     stringResource(
-                                        R.string.attach_moves_footage,
+                                        R.string.attach_moves_keeps_length,
                                         joinRunName(runs, closer.end.runId),
-                                        FeetInches.formatCompact(closer.runFeetBefore),
-                                        FeetInches.formatCompact(closer.runFeetAfter)
+                                        FeetInches.formatCompact(closer.runFeetBefore)
                                     ),
                                     color = warning
                                 )
@@ -3568,6 +3623,29 @@ private fun GateMountingChoice(selected: GateMounting, onSelect: (GateMounting) 
 /** Alpha applied to another run's line and gates so the one being worked on stands out; 0x66 of 0xFF. */
 private const val OTHER_RUN_ALPHA = 0.4f
 
+/** Zoom at which the other sides have reached full strength. */
+private const val OTHER_RUN_SOLID_ZOOM = 3f
+
+/**
+ * How strongly the sides he is NOT working on are drawn.
+ *
+ * Faded is right when the whole yard is in view: it is what keeps the side
+ * under his finger legible on a crowded plan. It is wrong the moment he zooms
+ * in, which he only does to line one side up against another -- and at 0.4
+ * alpha the thing he is aiming at is the faintest thing on screen ("on the
+ * zoom, I am not able to see the line of the other fence for more accuracy").
+ *
+ * So the fade lifts with the zoom and is gone by [OTHER_RUN_SOLID_ZOOM]. The
+ * selected run stays distinguishable by its own weight and its vertices, not
+ * by everything else being washed out.
+ */
+private fun otherRunAlpha(zoom: Float): Float {
+    if (zoom <= 1f) return OTHER_RUN_ALPHA
+    if (zoom >= OTHER_RUN_SOLID_ZOOM) return 1f
+    val t = (zoom - 1f) / (OTHER_RUN_SOLID_ZOOM - 1f)
+    return OTHER_RUN_ALPHA + (1f - OTHER_RUN_ALPHA) * t
+}
+
 /**
  * A run that is on the plan but not the one being edited, with its points and
  * gates already decoded -- the fence layer draws both for every such run, and
@@ -3580,6 +3658,12 @@ private data class OtherRunDrawing(
 )
 
 /** Screen-space tap tolerance for grabbing a vertex in Adjust mode, independent of zoom level. */
+/** How long after a tap a second one still counts as a double tap. */
+private const val DOUBLE_TAP_WINDOW_MS = 320L
+
+/** How far apart two taps may be and still be the same spot, in screen pixels. */
+private const val DOUBLE_TAP_SLOP_PX = 44f
+
 private const val VERTEX_HIT_RADIUS_PX = 40f
 
 /**
