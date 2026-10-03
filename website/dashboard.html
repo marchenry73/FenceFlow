@@ -783,6 +783,14 @@
   .osr-b{font-size:10px;padding:1px 6px;border-radius:20px;background:var(--info-bg);color:var(--info-fg)}
   .osr-empty{padding:12px 10px;color:var(--muted);font-size:13px}
   @media(max-width:760px){ .osearch-wrap{order:3;flex-basis:100%;margin:6px 0 0;max-width:none} }
+  .hmenu{position:relative}
+  .hmenu-pop{position:absolute;top:calc(100% + 6px);right:0;z-index:60;min-width:190px;
+    background:var(--surface-2);border:1px solid var(--line);border-radius:10px;
+    box-shadow:0 10px 30px rgba(0,0,0,.28);padding:4px}
+  .hmenu-item{display:block;width:100%;text-align:left;background:none;border:none;cursor:pointer;
+    color:var(--text);font:inherit;font-size:13.5px;padding:8px 10px;border-radius:7px}
+  .hmenu-item:hover{background:var(--paper)}
+  .hmenu-item:focus-visible{outline:2px solid var(--orange);outline-offset:-2px}
   .mail-row:last-child{border-bottom:none}
   /* The row holds the open-button and the actions side by side. Relative so the
      actions can sit over the row's right edge without reserving width that the
@@ -926,6 +934,21 @@
     <div class="osearch-results" id="osearchResults" role="listbox" hidden></div>
   </div>
   <div style="display:flex;align-items:center;gap:10px">
+    <!-- THREE ITEMS, because three things can actually be created from this
+         office: a job, a crew member, and an email. The spec lists eight; the
+         other five have no control behind them anywhere in this page, and a
+         menu entry that opens nothing is worse than a shorter menu. Each one
+         defers to the EXISTING button rather than reimplementing it, so there
+         is one way to make a job and not two that can drift. -->
+    <div class="hmenu" id="newBox">
+      <button class="btn btn-sm" id="newBtn" type="button" aria-haspopup="menu"
+              aria-expanded="false" aria-controls="newMenu" data-t="newBtn">+ New</button>
+      <div class="hmenu-pop" id="newMenu" role="menu" hidden>
+        <button type="button" class="hmenu-item" role="menuitem" data-new="job" data-t="newJobItem">Job</button>
+        <button type="button" class="hmenu-item" role="menuitem" data-new="mail" data-t="newMailItem">Email</button>
+        <button type="button" class="hmenu-item" role="menuitem" data-new="crew" data-t="newCrewItem">Crew member</button>
+      </div>
+    </div>
     <span class="who" id="who"></span>
     <select id="langPicker" class="btn btn-sm btn-ghost" aria-label="Language" title="Language"
             style="padding-right:6px">
@@ -3260,7 +3283,8 @@ const TL = {
     // MESSAGES in supabase/functions/_shared/mail/errors.ts, which is how the
     // Settings panel knows a stored last_error adds nothing to them.
     tabMail:'Email', mailUnreadTitle:'%s unread',
-searchPh:'Search customers, jobs, addresses, email', searchGroupCustomers:'Customers', searchGroupJobs:'Jobs', searchGroupMail:'Email', searchNone:'Nothing found for %s',
+newBtn:'+ New', newJobItem:'Job', newMailItem:'Email', newCrewItem:'Crew member',
+    searchPh:'Search customers, jobs, addresses, email', searchGroupCustomers:'Customers', searchGroupJobs:'Jobs', searchGroupMail:'Email', searchNone:'Nothing found for %s',
     navSales:'Sales', navWork:'Work', navOps:'Operations', navTeam:'Team', navInsights:'Insights', navAdmin:'Account',
     mailAllMailboxes:'All mailboxes', mailFolderInbox:'Inbox', mailFolderSent:'Sent', mailFenceflowFolder:'FenceFlow mail',
     mailAssignLabel:'Who is answering', mailAssignNobody:'Nobody yet', mailSomeone:'Someone', mailNotesHead:'Internal notes', mailNotesNone:'No notes. Only your team sees these.', mailNotesAdd:'Add note', mailNotesPh:'A note for your team. The customer never sees this.',
@@ -4996,7 +5020,8 @@ searchPh:'Search customers, jobs, addresses, email', searchGroupCustomers:'Custo
     tabCatalog:'Catálogo', tabReports:'Informes', tabAutomation:'Automatización',
     tabSettings:'Ajustes', tabBilling:'Facturación',
     tabMail:'Correo', mailUnreadTitle:'%s sin leer',
-searchPh:'Buscar clientes, trabajos, direcciones, correo', searchGroupCustomers:'Clientes', searchGroupJobs:'Trabajos', searchGroupMail:'Correo', searchNone:'No se encontró nada para %s',
+newBtn:'+ Nuevo', newJobItem:'Trabajo', newMailItem:'Correo', newCrewItem:'Miembro del equipo',
+    searchPh:'Buscar clientes, trabajos, direcciones, correo', searchGroupCustomers:'Clientes', searchGroupJobs:'Trabajos', searchGroupMail:'Correo', searchNone:'No se encontró nada para %s',
     navSales:'Ventas', navWork:'Trabajo', navOps:'Operaciones', navTeam:'Equipo', navInsights:'Análisis', navAdmin:'Cuenta',
     mailAllMailboxes:'Todos los buzones', mailFolderInbox:'Recibidos', mailFolderSent:'Enviados', mailFenceflowFolder:'Correo de FenceFlow',
     mailAssignLabel:'Quién responde', mailAssignNobody:'Nadie todavía', mailSomeone:'Alguien', mailNotesHead:'Notas internas', mailNotesNone:'Sin notas. Solo las ve su equipo.', mailNotesAdd:'Agregar nota', mailNotesPh:'Una nota para su equipo. El cliente nunca la ve.',
@@ -6702,7 +6727,8 @@ searchPh:'Buscar clientes, trabajos, direcciones, correo', searchGroupCustomers:
     tabCatalog:'Catalogue', tabReports:'Rapports', tabAutomation:'Automatisation',
     tabSettings:'Paramètres', tabBilling:'Facturation',
     tabMail:'E-mails', mailUnreadTitle:'%s non lus',
-searchPh:'Rechercher clients, chantiers, adresses, courrier', searchGroupCustomers:'Clients', searchGroupJobs:'Chantiers', searchGroupMail:'Courrier', searchNone:'Rien trouvé pour %s',
+newBtn:'+ Nouveau', newJobItem:'Chantier', newMailItem:'Courrier', newCrewItem:'Membre de léquipe',
+    searchPh:'Rechercher clients, chantiers, adresses, courrier', searchGroupCustomers:'Clients', searchGroupJobs:'Chantiers', searchGroupMail:'Courrier', searchNone:'Rien trouvé pour %s',
     navSales:'Ventes', navWork:'Travaux', navOps:'Opérations', navTeam:'Équipe', navInsights:'Analyses', navAdmin:'Compte',
     mailAllMailboxes:'Toutes les boîtes', mailFolderInbox:'Réception', mailFolderSent:'Envoyés', mailFenceflowFolder:'E-mail FenceFlow',
     mailAssignLabel:'Qui répond', mailAssignNobody:'Personne pour le moment', mailSomeone:'Quelquun', mailNotesHead:'Notes internes', mailNotesNone:'Aucune note. Seule votre équipe les voit.', mailNotesAdd:'Ajouter une note', mailNotesPh:'Une note pour votre équipe. Le client ne la voit jamais.',
@@ -26315,6 +26341,7 @@ function applyPlanGates(){
   const on = document.querySelector('.tab.on');
   if (solo && on && on.style.display === 'none') switchTab('dash');
   syncNavGroups();
+  syncNewMenu();
 }
 
 /* ===================== Company email =======================================
@@ -26430,6 +26457,7 @@ async function initMail(){
   const tabBtn = document.querySelector('.tab[data-tab="mail"]');
   if (tabBtn) tabBtn.style.display = canUseMail ? '' : 'none';
   syncNavGroups();
+  syncNewMenu();
   $('mailSettingsPanel').style.display = canUseMail ? '' : 'none';
   clearInterval(mailBadgeTimer);
   if (!canUseMail) {
@@ -28198,6 +28226,59 @@ function openSearchResult(i){
   }
   if (r.kind === 'mail') { switchTab('mail'); openMailThread(r.id); }
 }
+
+/* ---------- + New ----------
+
+   Every item DEFERS to the control that already exists, rather than carrying
+   its own copy of "make a job". Two ways to create one thing is two things to
+   keep in step, and the one in the menu is the one nobody tests.
+
+   An item whose tab is hidden -- by the plan, or by can_use_company_mail -- is
+   hidden here too. A menu that offers Crew to somebody whose plan has no Crew
+   tab is a dead entry dressed as a feature. */
+function syncNewMenu(){
+  const canSee = tab => {
+    const b = document.querySelector('.tab[data-tab="' + tab + '"]');
+    return !!b && b.style.display !== 'none';
+  };
+  const show = { job: canSee('jobs'), mail: canSee('mail'), crew: canSee('crew') };
+  let any = false;
+  document.querySelectorAll('[data-new]').forEach(el => {
+    const on = !!show[el.dataset.new];
+    el.style.display = on ? '' : 'none';
+    if (on) any = true;
+  });
+  // Nothing to create, no button. Not disabled -- absent.
+  $('newBox').style.display = any ? '' : 'none';
+}
+
+function closeHeaderMenus(){
+  ['newMenu'].forEach(id => {
+    const m = $(id); if (!m) return;
+    m.hidden = true;
+    const btn = m.previousElementSibling;
+    if (btn && btn.setAttribute) btn.setAttribute('aria-expanded', 'false');
+  });
+}
+
+$('newBtn').addEventListener('click', e => {
+  e.stopPropagation();
+  const m = $('newMenu');
+  const open = m.hidden;
+  closeHeaderMenus();
+  m.hidden = !open;
+  $('newBtn').setAttribute('aria-expanded', open ? 'true' : 'false');
+});
+$('newMenu').addEventListener('click', e => {
+  const b = e.target.closest('[data-new]');
+  if (!b) return;
+  closeHeaderMenus();
+  if (b.dataset.new === 'job')  { switchTab('jobs'); $('newJob').click(); }
+  if (b.dataset.new === 'crew') { switchTab('crew'); $('newEmp').click(); }
+  if (b.dataset.new === 'mail') { switchTab('mail'); openCompose({}); }
+});
+document.addEventListener('click', closeHeaderMenus);
+document.addEventListener('keydown', e => { if (e.key === 'Escape') closeHeaderMenus(); });
 
 $('osearch').addEventListener('input', () => {
   clearTimeout(osearchTimer);
