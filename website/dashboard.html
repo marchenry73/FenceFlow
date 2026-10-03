@@ -713,12 +713,21 @@
   .mail-grid{display:grid;grid-template-columns:minmax(260px,360px) minmax(0,1fr);gap:14px;align-items:start}
   .mail-left{min-width:0}
   .mail-folders{display:flex;flex-direction:column;gap:6px;margin-bottom:10px}
-  .mf-group{display:flex;flex-wrap:wrap;gap:4px;align-items:center}
+  /* A VERTICAL LIST, not wrapped pills. Pills were fine for the two folders a
+     mailbox has; the Filed group added five more and the whole sidebar became a
+     wall of lozenges with no scanning order. Every mail client puts folders in a
+     column because the eye reads a column of short labels far faster than a
+     wrapped row of them. */
+  .mf-group{display:flex;flex-direction:column;align-items:stretch;gap:1px}
   .mf-head{flex:1 0 100%;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.4px;color:var(--muted);
            overflow:hidden;text-overflow:ellipsis;white-space:nowrap;display:flex;gap:6px;align-items:center}
-  .mf-item{background:var(--surface);border:1px solid var(--line);border-radius:20px;padding:4px 11px;font-size:13px;
-           cursor:pointer;color:var(--text);font-family:inherit;display:inline-flex;gap:6px;align-items:center}
-  .mf-item:hover{border-color:var(--orange)}
+  .mf-item{background:none;border:1px solid transparent;border-radius:6px;padding:5px 9px;font-size:13px;
+           cursor:pointer;color:var(--text);font-family:inherit;display:flex;gap:6px;align-items:center;
+           text-align:left;width:100%}
+  /* The count sits hard right, so the numbers line up down the column instead of
+     trailing each label at a different x. */
+  .mf-item .mf-n{margin-left:auto}
+  .mf-item:hover{background:var(--paper)}
   .mf-item.on{background:var(--brand-ink);border-color:var(--brand-ink);color:#fff}
   .mf-n{font-weight:700;font-size:12px}
   .mf-warn{padding:0 6px;font-size:11px}
@@ -732,6 +741,17 @@
   .tpl-row{display:flex;align-items:center;gap:4px;border-bottom:1px solid var(--line)}
   .tpl-row:last-child{border-bottom:none}
   .tpl-row [data-tpl-edit]{flex:1;text-align:left;justify-content:flex-start}
+  .mr-assign{display:flex;align-items:center;gap:8px;margin:6px 0 0}
+  .mr-assign select{max-width:260px}
+  /* Notes are the office talking to itself. Tinted and labelled so they can
+     never be mistaken, at a glance, for something the customer wrote or will
+     read. */
+  .mr-notes{margin-top:14px;padding:10px;border:1px dashed var(--line);border-radius:6px;background:var(--surface)}
+  .mr-notes-h{font-weight:700;font-size:12px;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+  .mr-note{padding:6px 0;border-bottom:1px solid var(--line)}
+  .mr-note:last-of-type{border-bottom:none}
+  .mr-note-m{font-size:12px;color:var(--muted)}
+  .mr-note-b{white-space:pre-wrap}
   .mr-labels{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:6px 0 0}
   .mail-chip.lbl{background:var(--info-bg);color:var(--info-fg)}
   .mail-row:last-child{border-bottom:none}
@@ -3164,6 +3184,7 @@ const TL = {
     // Settings panel knows a stored last_error adds nothing to them.
     tabMail:'Email', mailUnreadTitle:'%s unread',
     mailAllMailboxes:'All mailboxes', mailFolderInbox:'Inbox', mailFolderSent:'Sent', mailFenceflowFolder:'FenceFlow mail',
+    mailAssignLabel:'Who is answering', mailAssignNobody:'Nobody yet', mailSomeone:'Someone', mailNotesHead:'Internal notes', mailNotesNone:'No notes. Only your team sees these.', mailNotesAdd:'Add note', mailNotesPh:'A note for your team. The customer never sees this.',
     setLblHead:'Labels', setLblBody:'Your own filing. Put a label on a conversation from the email itself.', setLblPh:'New label', setLblAdd:'Add', setLblNone:'No labels yet.', setLblDelete:'Delete', setLblDeleteQ:'Delete this label?', setLblDeleteBody:'It comes off every conversation it is on. The emails themselves are not touched.', setLblDupe:'You already have a label with that name.', mailLabelAdd:'Add a label', mailLabelRemove:'Remove this label',
     setTplHead:'Email templates', setTplBody:'The emails you send over and over. Pick one while writing and FenceFlow fills in what it knows about the job.', setTplName:'Name', setTplSubject:'Subject', setTplBodyLabel:'Message', setTplSave:'Save template', setTplNew:'New template', setTplNone:'No templates yet.', setTplSaved:'Template saved.', setTplNeedName:'Give the template a name so you can find it later.', setTplDelete:'Delete', setTplDeleteQ:'Delete this template?', setTplDeleteBody:'Emails already sent with it are not affected.', setTplGone:'That template is no longer there.', setTplVars:'You can use: %s',
     mailTplLabel:'Use a template', mailTplNone:'No template', mailTplFilled:'Template filled in.', mailTplMissing:'Still to fill in: %s',
@@ -4897,6 +4918,7 @@ const TL = {
     tabSettings:'Ajustes', tabBilling:'Facturación',
     tabMail:'Correo', mailUnreadTitle:'%s sin leer',
     mailAllMailboxes:'Todos los buzones', mailFolderInbox:'Recibidos', mailFolderSent:'Enviados', mailFenceflowFolder:'Correo de FenceFlow',
+    mailAssignLabel:'Quién responde', mailAssignNobody:'Nadie todavía', mailSomeone:'Alguien', mailNotesHead:'Notas internas', mailNotesNone:'Sin notas. Solo las ve su equipo.', mailNotesAdd:'Agregar nota', mailNotesPh:'Una nota para su equipo. El cliente nunca la ve.',
     setLblHead:'Etiquetas', setLblBody:'Su propia organización. Ponga una etiqueta a una conversación desde el correo.', setLblPh:'Nueva etiqueta', setLblAdd:'Agregar', setLblNone:'Todavía no hay etiquetas.', setLblDelete:'Eliminar', setLblDeleteQ:'¿Eliminar esta etiqueta?', setLblDeleteBody:'Se quita de todas las conversaciones donde esté. Los correos no se tocan.', setLblDupe:'Ya tiene una etiqueta con ese nombre.', mailLabelAdd:'Agregar etiqueta', mailLabelRemove:'Quitar esta etiqueta',
     setTplHead:'Plantillas de correo', setTplBody:'Los correos que envía una y otra vez. Elija uno al escribir y FenceFlow completa lo que sabe del trabajo.', setTplName:'Nombre', setTplSubject:'Asunto', setTplBodyLabel:'Mensaje', setTplSave:'Guardar plantilla', setTplNew:'Plantilla nueva', setTplNone:'Todavía no hay plantillas.', setTplSaved:'Plantilla guardada.', setTplNeedName:'Póngale un nombre para poder encontrarla después.', setTplDelete:'Eliminar', setTplDeleteQ:'¿Eliminar esta plantilla?', setTplDeleteBody:'Los correos ya enviados con ella no cambian.', setTplGone:'Esa plantilla ya no está.', setTplVars:'Puede usar: %s',
     mailTplLabel:'Usar una plantilla', mailTplNone:'Sin plantilla', mailTplFilled:'Plantilla completada.', mailTplMissing:'Falta completar: %s',
@@ -6600,6 +6622,7 @@ const TL = {
     tabSettings:'Paramètres', tabBilling:'Facturation',
     tabMail:'E-mails', mailUnreadTitle:'%s non lus',
     mailAllMailboxes:'Toutes les boîtes', mailFolderInbox:'Réception', mailFolderSent:'Envoyés', mailFenceflowFolder:'E-mail FenceFlow',
+    mailAssignLabel:'Qui répond', mailAssignNobody:'Personne pour le moment', mailSomeone:'Quelquun', mailNotesHead:'Notes internes', mailNotesNone:'Aucune note. Seule votre équipe les voit.', mailNotesAdd:'Ajouter une note', mailNotesPh:'Une note pour votre équipe. Le client ne la voit jamais.',
     setLblHead:'Étiquettes', setLblBody:'Votre propre classement. Posez une étiquette sur une conversation depuis le courrier.', setLblPh:'Nouvelle étiquette', setLblAdd:'Ajouter', setLblNone:'Aucune étiquette pour le moment.', setLblDelete:'Supprimer', setLblDeleteQ:'Supprimer cette étiquette ?', setLblDeleteBody:'Elle est retirée de toutes les conversations concernées. Les courriers ne changent pas.', setLblDupe:'Vous avez déjà une étiquette de ce nom.', mailLabelAdd:'Ajouter une étiquette', mailLabelRemove:'Retirer cette étiquette',
     setTplHead:'Modèles de courrier', setTplBody:'Les e-mails que vous envoyez sans cesse. Choisissez-en un en écrivant et FenceFlow remplit ce qu il sait du chantier.', setTplName:'Nom', setTplSubject:'Objet', setTplBodyLabel:'Message', setTplSave:'Enregistrer le modèle', setTplNew:'Nouveau modèle', setTplNone:'Aucun modèle pour le moment.', setTplSaved:'Modèle enregistré.', setTplNeedName:'Donnez-lui un nom pour le retrouver ensuite.', setTplDelete:'Supprimer', setTplDeleteQ:'Supprimer ce modèle ?', setTplDeleteBody:'Les e-mails déjà envoyés avec ne changent pas.', setTplGone:'Ce modèle a disparu.', setTplVars:'Vous pouvez utiliser : %s',
     mailTplLabel:'Utiliser un modèle', mailTplNone:'Aucun modèle', mailTplFilled:'Modèle complété.', mailTplMissing:'Reste à compléter : %s',
@@ -26611,7 +26634,10 @@ async function openMailThread(id){
   // Cleared before the fetch, never left showing the PREVIOUS thread own labels
   // while this one loads -- a wrong label on screen is worse than none.
   mailThreadLabels = [];
+  mailThreadNotes = [];
+  mailThreadMeta = null;
   loadThreadLabels(id);
+  loadThreadExtras(id);
   mailExpanded.clear();
   const live = mailThread.msgs.filter(m => !m.server_gone_at);
   const latest = live[live.length - 1] || mailThread.msgs[mailThread.msgs.length - 1];
@@ -26652,7 +26678,27 @@ function renderMailReader(){
       `<option value="">${esc(tr('mailLabelAdd'))}</option>` +
       spare.map(l => `<option value="${esc(l.id)}">${esc(cleanLine(l.name))}</option>`).join('') + '</select>'
     : '';
+  const assignee = mailThreadMeta && mailThreadMeta.assigned_to;
+  const assignRow = `<div class="mr-assign"><label class="sub" for="masg_pick">${esc(tr('mailAssignLabel'))}</label>` +
+    `<select id="masg_pick" data-role="assign"><option value="">${esc(tr('mailAssignNobody'))}</option>` +
+    (companyMembers || []).map(m =>
+      `<option value="${esc(m.id)}"${assignee === m.id ? ' selected' : ''}>${esc(cleanLine(m.full_name) || tr('mailSomeone'))}</option>`).join('') +
+    '</select></div>';
+  // Notes are visually distinct from messages on purpose: they share a thread
+  // with the customer's own words and must never be mistaken for them.
+  const notesHtml = `<div class="mr-notes" id="mnt_box">` +
+    `<div class="mr-notes-h">${esc(tr('mailNotesHead'))}</div>` +
+    (mailThreadNotes.length
+      ? mailThreadNotes.map(n => `<div class="mr-note"><div class="mr-note-m">${esc(memberName(n.author_id))} · ` +
+          `${esc(mailTimeLabel(n.created_at, new Date(), LANG))}</div>` +
+          `<div class="mr-note-b">${esc(cleanLine(n.body))}</div></div>`).join('')
+      : `<p class="sub" style="margin:0">${esc(tr('mailNotesNone'))}</p>`) +
+    `<div class="mc-row" style="margin-top:6px">` +
+    `<textarea id="mnt_text" rows="2" maxlength="4000" aria-label="${esc(tr('mailNotesAdd'))}" ` +
+    `placeholder="${esc(tr('mailNotesPh'))}"></textarea>` +
+    `<button type="button" class="btn btn-sm" data-act="noteadd">${esc(tr('mailNotesAdd'))}</button></div></div>`;
   box.innerHTML = `<div class="mr-head"><h3 class="mr-subject">${esc(subject)}</h3>`
+    + assignRow
     + (lblChips || lblPick ? `<div class="mr-labels">${lblChips}${lblPick}</div>` : '')
     + `<div class="mr-jobs">${chips}${t.linking ? '' : `<button type="button" class="btn btn-sm btn-grey" data-act="linkjob">${esc(tr('mailLinkJobBtn'))}</button>`}</div>`
     + `${linkBox}</div>`
@@ -27308,6 +27354,55 @@ async function loadMailSettings(){
   renderMailSettings();
   loadTemplateSettings();
   loadMailLabels();
+}
+
+/* ---------- assignment and internal notes ----------
+
+   CREW NEVER REACH ANY OF THIS. Not by a check here -- by can_use_company_mail,
+   which excludes CREW outright and gates every mail table. This code simply
+   never runs for them, because the tab does not exist.
+
+   An internal note is NOT a message. It is written to mail_thread_notes, it is
+   rendered in the reader's own markup, and there is no path from it to the
+   compose window. That separation is the feature: "reply to the customer" and
+   "say something to the office" must not be two buttons that look alike. */
+
+async function loadThreadExtras(threadId){
+  const [notes, meta] = await Promise.all([
+    db.from('mail_thread_notes').select('id, body, author_id, created_at')
+      .eq('thread_id', threadId).order('created_at', { ascending: true }),
+    db.from('mail_threads').select('assigned_to').eq('id', threadId).maybeSingle(),
+  ]);
+  mailThreadNotes = (!notes.error && Array.isArray(notes.data)) ? notes.data : [];
+  mailThreadMeta = meta.error ? null : (meta.data || null);
+  if (mailThread && mailThread.id === threadId) renderMailReader();
+}
+
+async function addThreadNote(){
+  const t = mailThread;
+  const el = $('mnt_text');
+  if (!t || !el) return;
+  const body = el.value.trim();
+  if (!body) return;
+  const { error } = await db.from('mail_thread_notes')
+    .insert({ thread_id: t.id, company_id: profile.company_id, body, author_id: profile.id });
+  if (error) { mailSyncNote(plainError(error.message), true); return; }
+  el.value = '';
+  loadThreadExtras(t.id);
+}
+
+async function setThreadAssignee(to){
+  const t = mailThread;
+  if (!t) return;
+  const { error } = await db.rpc('mail_set_assignee', { p_thread: t.id, p_to: to || null });
+  if (error) { mailSyncNote(plainError(error.message), true); return; }
+  loadThreadExtras(t.id);
+}
+
+/** A member's name, or a plain fallback -- never a bare uuid on screen. */
+function memberName(id){
+  const m = (companyMembers || []).find(x => x && x.id === id);
+  return m ? cleanLine(m.full_name) || tr('mailSomeone') : tr('mailSomeone');
 }
 
 /* ---------- labels ----------
@@ -27997,6 +28092,8 @@ $('mailConnectGo').addEventListener('click', () => {
   setTimeout(() => $('mailSettingsPanel').scrollIntoView({ behavior: 'smooth', block: 'start' }), 60);
 });
 $('mailReaderBody').addEventListener('change', e => {
+  const asg = e.target.closest('[data-role="assign"]');
+  if (asg) { setThreadAssignee(asg.value); return; }
   const sel = e.target.closest('[data-role="lblpick"]');
   if (!sel || !sel.value || !mailThread) return;
   toggleThreadLabel(mailThread.id, sel.value, true);
@@ -28006,6 +28103,7 @@ $('mailReaderBody').addEventListener('click', async e => {
   if (!b || !mailThread) return;
   const act = b.dataset.act;
   if (act === 'lbloff') { toggleThreadLabel(mailThread.id, b.dataset.lbl, false); return; }
+  if (act === 'noteadd') { addThreadNote(); return; }
   const m = b.dataset.msg ? mailThread.msgs.find(x => x.id === b.dataset.msg) : null;
   if (act === 'expand' && m) { mailExpanded.add(m.id); renderMailReader(); }
   else if ((act === 'images' || act === 'plain' || act === 'html') && m) {
@@ -28043,6 +28141,8 @@ $('mc_tpl').addEventListener('change', applyMailTemplate);
    he edits one in Settings and expects the next email to use the edited one. */
 let mailTemplates = [];
 let mailThreadLabels = [];
+let mailThreadNotes = [];
+let mailThreadMeta = null;   // assigned_to for the open thread
 
 async function loadMailTemplates(){
   const { data, error } = await db.from('mail_templates')
