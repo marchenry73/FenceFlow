@@ -2563,6 +2563,7 @@
     <div id="mc_job" style="display:none;margin-top:10px"></div>
   </div>
   <div class="sheet-foot">
+    <button class="btn btn-sm btn-ghost" id="mc_discard" type="button" data-t="mailDiscardBtn">Discard</button>
     <button class="btn" id="mc_send" type="button" data-t="mailSendBtn">Send</button>
   </div>
 </div></div>
@@ -3125,6 +3126,8 @@ const TL = {
     // Settings panel knows a stored last_error adds nothing to them.
     tabMail:'Email', mailUnreadTitle:'%s unread',
     mailAllMailboxes:'All mailboxes', mailFolderInbox:'Inbox', mailFolderSent:'Sent', mailFenceflowFolder:'FenceFlow mail',
+    mailFolderDrafts:'Drafts', mailNoDrafts:'No drafts. Anything you start writing is kept here.', mailDraftNoRecipient:'(no recipient yet)',
+    mailDraftSaved:'Draft saved at %s.', mailDraftKept:'Saved to Drafts.', mailDraftGone:'That draft is no longer there.', mailDraftNoFiles:'Attachments are not kept with a draft. Add them again before sending.',
     mailFolderFiled:'Filed', mailFolderStarred:'Starred', mailFolderSnoozed:'Snoozed', mailFolderArchived:'Archived', mailFolderTrash:'Trash',
     mailActStar:'Star', mailActUnstar:'Remove star', mailActArchive:'Archive', mailActSnooze:'Snooze until tomorrow 8am', mailActTrash:'Move to trash', mailActRestore:'Put back in the inbox',
     mailSearchPh:'Search by name, email address or subject', mailRefreshBtn:'Check for new mail',
@@ -3172,7 +3175,7 @@ const TL = {
     mailSendBtn:'Send', mailSending:'Sending…', mailUploading:'Attaching %s…', mailUploadFailed:'Could not attach %s: %s',
     mailSentOk:'Sent.', mailSendFailed:'Not sent.',
     mailMaybeSent:'FenceFlow could not confirm this was sent. Check your Sent folder before sending it again.',
-    mailDiscardQ:'Discard this email?', mailDiscardBody:'What you wrote will be lost. FenceFlow does not keep drafts.',
+    mailDiscardQ:'Discard this email?', mailDiscardBody:'What you wrote will be deleted. Close instead and it is kept in Drafts.',
     mailDiscardBtn:'Discard',
     mailFenceflowFrom:'%s via FenceFlow', mailRepliesGoTo:'Replies go to %s', mailRepliesHere:'Replies come back into this inbox.',
     mailNeedsCompanyEmail:'Add your business email in Settings first. Replies need somewhere to go.',
@@ -4853,6 +4856,8 @@ const TL = {
     tabSettings:'Ajustes', tabBilling:'Facturación',
     tabMail:'Correo', mailUnreadTitle:'%s sin leer',
     mailAllMailboxes:'Todos los buzones', mailFolderInbox:'Recibidos', mailFolderSent:'Enviados', mailFenceflowFolder:'Correo de FenceFlow',
+    mailFolderDrafts:'Borradores', mailNoDrafts:'Sin borradores. Lo que empiece a escribir se guarda aquí.', mailDraftNoRecipient:'(aún sin destinatario)',
+    mailDraftSaved:'Borrador guardado a las %s.', mailDraftKept:'Guardado en Borradores.', mailDraftGone:'Ese borrador ya no está.', mailDraftNoFiles:'Los adjuntos no se guardan con el borrador. Agréguelos de nuevo antes de enviar.',
     mailFolderFiled:'Archivado', mailFolderStarred:'Destacados', mailFolderSnoozed:'Pospuestos', mailFolderArchived:'Archivados', mailFolderTrash:'Papelera',
     mailActStar:'Destacar', mailActUnstar:'Quitar destacado', mailActArchive:'Archivar', mailActSnooze:'Posponer hasta mañana a las 8', mailActTrash:'Mover a la papelera', mailActRestore:'Devolver a recibidos',
     mailSearchPh:'Buscar por nombre, dirección de correo o asunto', mailRefreshBtn:'Buscar correo nuevo',
@@ -4900,7 +4905,7 @@ const TL = {
     mailSendBtn:'Enviar', mailSending:'Enviando…', mailUploading:'Adjuntando %s…', mailUploadFailed:'No se pudo adjuntar %s: %s',
     mailSentOk:'Enviado.', mailSendFailed:'No enviado.',
     mailMaybeSent:'FenceFlow no pudo confirmar que se envió. Revise su carpeta de enviados antes de enviarlo otra vez.',
-    mailDiscardQ:'¿Descartar este correo?', mailDiscardBody:'Se perderá lo que escribió. FenceFlow no guarda borradores.',
+    mailDiscardQ:'¿Descartar este correo?', mailDiscardBody:'Se borrará lo que escribió. Cierre en su lugar y se guarda en Borradores.',
     mailDiscardBtn:'Descartar',
     mailFenceflowFrom:'%s a través de FenceFlow', mailRepliesGoTo:'Las respuestas llegan a %s', mailRepliesHere:'Las respuestas vuelven a esta bandeja.',
     mailNeedsCompanyEmail:'Primero agregue el correo de su negocio en Ajustes. Las respuestas necesitan un lugar adonde llegar.',
@@ -6551,6 +6556,8 @@ const TL = {
     tabSettings:'Paramètres', tabBilling:'Facturation',
     tabMail:'E-mails', mailUnreadTitle:'%s non lus',
     mailAllMailboxes:'Toutes les boîtes', mailFolderInbox:'Réception', mailFolderSent:'Envoyés', mailFenceflowFolder:'E-mail FenceFlow',
+    mailFolderDrafts:'Brouillons', mailNoDrafts:'Aucun brouillon. Ce que vous commencez à écrire est conservé ici.', mailDraftNoRecipient:'(pas encore de destinataire)',
+    mailDraftSaved:'Brouillon enregistré à %s.', mailDraftKept:'Enregistré dans Brouillons.', mailDraftGone:'Ce brouillon nexiste plus.', mailDraftNoFiles:'Les pièces jointes ne sont pas conservées avec un brouillon. Ajoutez-les de nouveau avant denvoyer.',
     mailFolderFiled:'Classé', mailFolderStarred:'Suivis', mailFolderSnoozed:'Reportés', mailFolderArchived:'Archivés', mailFolderTrash:'Corbeille',
     mailActStar:'Suivre', mailActUnstar:'Ne plus suivre', mailActArchive:'Archiver', mailActSnooze:'Reporter à demain 8h', mailActTrash:'Mettre à la corbeille', mailActRestore:'Remettre dans la réception',
     mailSearchPh:'Chercher par nom, adresse e-mail ou objet', mailRefreshBtn:'Relever le courrier',
@@ -6598,7 +6605,7 @@ const TL = {
     mailSendBtn:'Envoyer', mailSending:'Envoi…', mailUploading:'Ajout de %s…', mailUploadFailed:'Impossible de joindre %s : %s',
     mailSentOk:'Envoyé.', mailSendFailed:'Non envoyé.',
     mailMaybeSent:'FenceFlow n’a pas pu confirmer l’envoi. Vérifiez votre dossier Envoyés avant de le renvoyer.',
-    mailDiscardQ:'Abandonner cet e-mail ?', mailDiscardBody:'Ce que vous avez écrit sera perdu. FenceFlow ne garde pas de brouillons.',
+    mailDiscardQ:'Abandonner cet e-mail ?', mailDiscardBody:'Ce que vous avez écrit sera supprimé. Fermez plutôt et il est conservé dans Brouillons.',
     mailDiscardBtn:'Abandonner',
     mailFenceflowFrom:'%s via FenceFlow', mailRepliesGoTo:'Les réponses arrivent à %s', mailRepliesHere:'Les réponses reviennent dans cette boîte.',
     mailNeedsCompanyEmail:'Ajoutez d’abord l’e-mail de votre entreprise dans Paramètres. Les réponses doivent pouvoir arriver quelque part.',
@@ -26435,7 +26442,8 @@ function renderMailFolders(){
   const all = item('inbox', '', tr('mailFolderInbox'), mailUnreadTotal) + item('sent', '', tr('mailFolderSent'), 0);
   // The filing views. Not per mailbox: he files a conversation, and which
   // mailbox it arrived in is not how he will look for it again.
-  const filed = item('starred', '', tr('mailFolderStarred'), 0)
+  const filed = item('drafts', '', tr('mailFolderDrafts'), 0)
+    + item('starred', '', tr('mailFolderStarred'), 0)
     + item('snoozed', '', tr('mailFolderSnoozed'), 0)
     + item('archived', '', tr('mailFolderArchived'), 0)
     + item('trash', '', tr('mailFolderTrash'), 0);
@@ -26468,6 +26476,7 @@ async function loadMailThreads(reset, keep){
   const last = mailView.threads[mailView.threads.length - 1];
   if (!reset && last) { p.p_before = last.last_message_at; p.p_before_id = last.id; }
   if (reset && !keep) $('mailThreads').innerHTML = `<div class="empty" style="padding:12px">${esc(tr('loadingSection'))}</div>`;
+  if (mailView.folder === 'drafts') { await loadMailDrafts(); return; }
   // mail_list_threads2, not mail_list_threads: the old one has no idea a thread
   // can be archived, so it cannot hide one. The old one is still there and still
   // works, which is the point -- if this misbehaves, the fix is one word.
@@ -26482,6 +26491,38 @@ async function loadMailThreads(reset, keep){
   mailView.threads = reset ? rows : mailView.threads.concat(rows);
   mailView.more = rows.length === MAIL_PAGE;
   renderMailThreads();
+}
+
+/* His own unfinished mail. RLS already limits this to the author, so there is
+   no author filter here: a filter the server also applies is a second rule that
+   can drift from the first. */
+async function loadMailDrafts(){
+  const { data, error } = await db.from('mail_drafts')
+    .select('id, subject, to_text, body, updated_at, kind')
+    .order('updated_at', { ascending: false }).limit(MAIL_PAGE);
+  const box = $('mailThreads');
+  $('mailMore').style.display = 'none';
+  if (error) { box.innerHTML = `<div class="empty" style="padding:12px">${esc(plainError(error.message))}</div>`; return; }
+  const rows = Array.isArray(data) ? data : [];
+  mailView.threads = [];
+  if (!rows.length) { box.innerHTML = `<div class="empty" style="padding:12px">${esc(tr('mailNoDrafts'))}</div>`; return; }
+  const now = new Date();
+  box.innerHTML = rows.map(d => {
+    const who = cleanLine(d.to_text) || tr('mailDraftNoRecipient');
+    const subj = cleanLine(d.subject) || tr('mailNoSubject');
+    const snip = cleanLine(d.body).slice(0, 140);
+    return `<div class="mail-row" data-draft="${esc(String(d.id))}">` +
+      `<span class="mr-acts"><button type="button" class="mr-act" data-draft-del="${esc(String(d.id))}" ` +
+        `title="${esc(tr('mailDiscardBtn'))}" aria-label="${esc(tr('mailDiscardBtn'))}">` +
+        '<svg class="ico" viewBox="0 0 16 16" aria-hidden="true" focusable="false">' +
+        '<path d="M2.5 4.5h11M6 4.5V3h4v1.5M4 4.5l.7 9h6.6l.7-9M6.5 7v4M9.5 7v4"/></svg></button></span>' +
+      `<button type="button" class="mr-open" data-draft="${esc(String(d.id))}">` +
+        `<span class="mr-top"><span class="mr-who">${esc(who)}</span>` +
+        `<span class="mr-time">${esc(mailTimeLabel(d.updated_at, now, LANG))}</span></span>` +
+        `<span class="mr-subj">${esc(subj)}</span>` +
+        `<span class="mr-snip">${esc(snip)}</span>` +
+      `</button></div>`;
+  }).join('');
 }
 
 function renderMailThreads(){
@@ -26866,6 +26907,12 @@ async function openCompose(opts){
     // failed, refused or unconfirmed send cannot mark a quote as sent.
     quoteSendFor: o.quoteSendFor || null,
     busy: false, done: false, unconfirmed: false, initial: '',
+    // The draft row this compose owns, once there is one. Null until he has
+    // actually written something: opening and closing the window should not
+    // leave an empty draft behind, which is the thing that makes a drafts
+    // folder useless.
+    draftId: o.draftId || null,
+    draftSaving: false, draftSavedAt: 0,
   };
   $('mc_title').textContent = tr(o.forwardOf ? 'mailForwardTitle' : o.replyToMessageId ? 'mailReplyTitle' : 'mailComposeTitle');
   $('mc_to').value = o.to || '';
@@ -26895,6 +26942,92 @@ function composeSnapshot(){
 function composeDirty(){
   const c = mailCompose;
   return !!c && (c.files.length > 0 || composeSnapshot() !== c.initial);
+}
+
+/* ---------- drafts ----------
+
+   Autosaved to the server, which is what he chose over browser-only: a
+   half-written reply has to survive a closed laptop and be there on the other
+   machine.
+
+   ATTACHMENTS DO NOT TRAVEL WITH A DRAFT. The files he picked live in the
+   browser's own File objects until the send uploads them; there is nothing to
+   write down that would still be a file tomorrow. So the draft says so rather
+   than silently losing them, which is why mailDraftNoFiles exists. */
+let mailDraftTimer = null;
+
+function composeDraftTouched(){
+  const c = mailCompose;
+  if (!c || c.done || c.busy) return;
+  clearTimeout(mailDraftTimer);
+  // Two seconds after he stops typing, not on every keystroke: a write per
+  // character is a write per character.
+  mailDraftTimer = setTimeout(saveComposeDraft, 2000);
+}
+
+async function saveComposeDraft(){
+  const c = mailCompose;
+  if (!c || c.done || c.busy || c.draftSaving) return;
+  // Nothing written means nothing to keep. An empty draft row per opened
+  // window is how a drafts folder fills with noise nobody wants.
+  if (!composeDirty()) return;
+  const row = {
+    company_id: profile.company_id,
+    author_id: profile.id,
+    account_id: $('mc_from').value || null,
+    thread_id: (mailThread && mailThread.id) || null,
+    kind: c.forwardOf ? 'forward' : c.replyTo ? 'reply' : 'new',
+    to_text: $('mc_to').value.slice(0, 2000),
+    cc_text: $('mc_cc').value.slice(0, 2000),
+    bcc_text: $('mc_bcc').value.slice(0, 2000),
+    subject: $('mc_subject').value.slice(0, 300),
+    body: $('mc_body').value.slice(0, 100000),
+    job_sync_id: c.jobSyncId || null,
+    updated_at: new Date().toISOString(),
+  };
+  c.draftSaving = true;
+  try {
+    let res;
+    if (c.draftId) res = await db.from('mail_drafts').update(row).eq('id', c.draftId).select('id').maybeSingle();
+    else           res = await db.from('mail_drafts').insert(row).select('id').maybeSingle();
+    // A draft that failed to save must not claim it saved. The note says what
+    // happened and the next edit tries again.
+    if (res.error) { msg('mc_msg', plainError(res.error.message), 'err'); return; }
+    if (res.data && res.data.id) c.draftId = res.data.id;
+    c.draftSavedAt = Date.now();
+    const when = new Date().toLocaleTimeString(LANG, { hour: 'numeric', minute: '2-digit' });
+    // Said every time there are files, not once: he picked them AFTER the first
+    // save as often as before it, and a warning he saw ten minutes ago is not a
+    // warning. The files are real and will send; they just are not in the draft.
+    msg('mc_msg', c.files.length
+      ? tr('mailDraftSaved', when) + ' ' + tr('mailDraftNoFiles')
+      : tr('mailDraftSaved', when), 'ok');
+  } finally {
+    c.draftSaving = false;
+  }
+}
+
+/* Removes the draft row, after a send or a deliberate discard. Quiet on
+   failure: the message went, or he asked for it to be thrown away, and a red
+   banner about bookkeeping helps nobody at that point. */
+async function dropComposeDraft(){
+  const c = mailCompose;
+  if (!c || !c.draftId) return;
+  const id = c.draftId;
+  c.draftId = null;
+  await db.from('mail_drafts').delete().eq('id', id);
+}
+
+/* One draft back into the compose window. */
+async function openMailDraft(id){
+  const { data, error } = await db.from('mail_drafts').select('*').eq('id', id).maybeSingle();
+  if (error || !data) { mailSyncNote(error ? plainError(error.message) : tr('mailDraftGone'), true); return; }
+  await openCompose({
+    to: data.to_text, cc: data.cc_text, bcc: data.bcc_text,
+    subject: data.subject, body: data.body,
+    jobSyncId: data.job_sync_id, fromAccountId: data.account_id,
+    draftId: data.id,
+  });
 }
 
 function renderComposeFrom(prefer){
@@ -27059,6 +27192,7 @@ function composeSent(c, body){
   // on state === 'sent' and nowhere else -- 'failed', 'sending' (may have
   // gone, not confirmed) and a refusal before anything was recorded all
   // return earlier in sendCompose() without coming through here.
+  dropComposeDraft();
   if (c.quoteSendFor) markQuoteSentAfterEmail(c.quoteSendFor, c.sentTo);
   if (mailTabOpen()) {
     msg('mailMsg', tr('mailSentOk'), 'ok');
@@ -27068,15 +27202,35 @@ function composeSent(c, body){
   }
 }
 
+/* Closing KEEPS the message now. The question is no longer "lose this?" but
+   "keep it or throw it away?", so it offers both and neither is destructive by
+   accident: the X saves, and only Discard deletes. */
 async function closeCompose(){
   const c = mailCompose;
   if (c && c.busy) return;
+  clearTimeout(mailDraftTimer);
   if (c && !c.done && composeDirty()) {
-    const ok = await ask({ title: tr('mailDiscardQ'), body: tr('mailDiscardBody'), confirmLabel: tr('mailDiscardBtn'), danger: true });
-    if (!ok) return;
+    await saveComposeDraft();
+    if (c.draftId) mailSyncNote(tr('mailDraftKept'), false);
   }
   $('mailOverlay').classList.remove('on');
   mailCompose = null;
+  if (mailView.folder === 'drafts') loadMailThreads(true);
+}
+
+/* The explicit throw-it-away, which is what the old close used to do silently. */
+async function discardCompose(){
+  const c = mailCompose;
+  if (!c || c.busy) return;
+  if (composeDirty() || c.draftId) {
+    const ok = await ask({ title: tr('mailDiscardQ'), body: tr('mailDiscardBody'), confirmLabel: tr('mailDiscardBtn'), danger: true });
+    if (!ok) return;
+  }
+  clearTimeout(mailDraftTimer);
+  await dropComposeDraft();
+  $('mailOverlay').classList.remove('on');
+  mailCompose = null;
+  if (mailView.folder === 'drafts') loadMailThreads(true);
 }
 
 /* ---------- Settings -> Company email ---------- */
@@ -27548,6 +27702,15 @@ $('mailFolders').addEventListener('click', e => {
 $('mailThreads').addEventListener('click', e => {
   // An action FIRST: it sits inside the row, so closest('[data-thread]') would
   // find the row too and open the thread underneath the click.
+  const del = e.target.closest('[data-draft-del]');
+  if (del) {
+    e.stopPropagation();
+    ask({ title: tr('mailDiscardQ'), body: tr('mailDiscardBody'), confirmLabel: tr('mailDiscardBtn'), danger: true })
+      .then(ok => { if (ok) db.from('mail_drafts').delete().eq('id', del.dataset.draftDel).then(() => loadMailThreads(true)); });
+    return;
+  }
+  const draft = e.target.closest('[data-draft]');
+  if (draft) { openMailDraft(draft.dataset.draft); return; }
   const act = e.target.closest('[data-mail-act]');
   if (act) { e.stopPropagation(); mailRowAction(act.dataset.mailAct, act.dataset.thread, act); return; }
   const b = e.target.closest('[data-thread]');
@@ -27653,7 +27816,11 @@ $('mailReaderBody').addEventListener('click', async e => {
   }
 });
 $('mc_close').addEventListener('click', closeCompose);
+$('mc_discard').addEventListener('click', discardCompose);
 $('mc_send').addEventListener('click', sendCompose);
+for (const f of ['mc_to', 'mc_cc', 'mc_bcc', 'mc_subject', 'mc_body']) {
+  $(f).addEventListener('input', composeDraftTouched);
+}
 $('mc_from').addEventListener('change', updateComposeReplies);
 $('mc_ccToggle').addEventListener('click', () => {
   $('mc_ccRow').style.display = $('mc_ccRow').style.display === 'none' ? '' : 'none';
