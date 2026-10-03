@@ -1305,6 +1305,16 @@ object RunJoinGesture {
      * A snap-made offer never reaches this: the snap has already put the two
      * ends on one point, so its gap is 0.0 ft by construction.
      */
+    /**
+     * No longer a refusal, kept as the distance above which an attach is worth
+     * calling out as a big move rather than a nudge.
+     *
+     * Attaching used to refuse a gap wider than this because closing it
+     * stretched one corner and moved the side's footage with it. It now slides
+     * the whole side, which costs the same at any distance, so the limit was
+     * removed from the gesture (SurveyViewModel.tapJoinEnd) on 2 Oct 2026 at
+     * March's direct request. Tests a57 and a80 still pin the number itself.
+     */
     const val CLOSE_GAP_MAX_FT = 2.0f
 
     /**

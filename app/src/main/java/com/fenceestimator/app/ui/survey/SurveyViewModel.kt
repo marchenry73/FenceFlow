@@ -1375,18 +1375,24 @@ class SurveyViewModel(
         // and not what two taps asked for. He has a way to do it on purpose --
         // drag the end over, where the snap lands it exactly on the corner and
         // the offer comes to him there.
+        // NO DISTANCE LIMIT. There was one, of CLOSE_GAP_MAX_FT, and the reason
+        // written here for it was that moving the end "changes the side's
+        // footage, its labour and possibly a panel, which is a redraw and not
+        // what two taps asked for". That reason died when attaching started
+        // SLIDING THE WHOLE SIDE instead of stretching one corner: the side
+        // keeps its length and its labour however far it travels, so a 40 ft
+        // attach costs exactly what a 4 inch one costs.
+        //
+        // What the limit was really protecting against -- a joint recorded
+        // between two ends that are nowhere near each other -- cannot happen
+        // through this path any more either, because the ends are brought
+        // together before the joint is written rather than the joint being
+        // honoured across a gap.
+        //
+        // The distance is still named in the dialog before he agrees to it, and
+        // it is one Undo if it was not what he meant. March asked for this
+        // directly (2 Oct 2026) after the limit refused a corner he wanted.
         val gapCloser = RunJoinGesture.gapCloserFor(candidates, decision, editScale())
-        if (gapCloser != null && gapCloser.distanceFeet > RunJoinGesture.CLOSE_GAP_MAX_FT) {
-            // Set BEFORE the emit, and read by the screen inside the collector
-            // for that emit. [joinRefused] carries a bare enum and several
-            // tests pin that shape, so the one refusal that needs a number
-            // parks it here rather than widening the event for everybody. Safe
-            // because a refusal comes from one tap: there is no second tap in
-            // flight to overwrite it between the set and the collector.
-            _joinTooFarFeet.value = gapCloser.distanceFeet
-            _joinRefused.tryEmit(JoinRefusal.TOO_FAR_APART)
-            return
-        }
         _joinOffer.value = JoinOffer(
             detach = false,
             decision = decision,

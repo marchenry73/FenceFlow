@@ -419,11 +419,28 @@ console.log("\n2. ATTACHED MEANS ONE POINT: THE LINE MOVES, AND NOT ACROSS THE Y
   eq("2b-model", "  and the model under test uses that same number", CLOSE_GAP_MAX_FT, 2.0);
 
   const tap = bodyOf(vm, "fun tapJoinEnd(");
-  ok("2c", "TEETH: tapJoinEnd raises TOO_FAR_APART when the gap is wider than the limit, and does so BEFORE putting an offer on the table",
+  // THE DISTANCE LIMIT IS GONE, deliberately, at March's direct request on
+  // 2 Oct 2026: "I want it to move regardless of the distance... and if I want
+  // to keep attaching other ones I should be able to regardless of the
+  // distance." This check used to require the refusal; requiring it now would
+  // be a test forbidding the behaviour that was asked for.
+  //
+  // The guard was justified in the source by the move "changing the side's
+  // footage, its labour and possibly a panel". That stopped being true in the
+  // same session, when attaching began sliding the WHOLE side instead of
+  // stretching one corner: the footage is identical at any distance. So the
+  // reason went before the rule did.
+  ok("2c", "tapJoinEnd no longer refuses on distance -- an attach is offered however far apart the two ends are",
     tap !== null &&
-      /gapCloser\.distanceFeet\s*>\s*RunJoinGesture\.CLOSE_GAP_MAX_FT/.test(tap) &&
-      /_joinRefused\.tryEmit\(JoinRefusal\.TOO_FAR_APART\)/.test(tap) &&
-      tap.indexOf("TOO_FAR_APART") < tap.lastIndexOf("_joinOffer.value = JoinOffer("));
+      !/gapCloser\.distanceFeet\s*>\s*RunJoinGesture\.CLOSE_GAP_MAX_FT/.test(tap) &&
+      !/_joinRefused\.tryEmit\(JoinRefusal\.TOO_FAR_APART\)/.test(tap));
+  ok("2c-ii", "TEETH: it still works out the gap closer, so the dialog can name the distance before he agrees to it",
+    tap !== null && /gapCloserFor\(/.test(tap));
+  ok("2c-iii", "and it still reaches the offer, so removing the refusal did not remove the question",
+    tap !== null && /_joinOffer\.value = JoinOffer\(/.test(tap));
+  ok("2c-canary", "CANARY: the old refusing version fails 2c, proving 2c can fail",
+    /gapCloser\.distanceFeet\s*>\s*RunJoinGesture\.CLOSE_GAP_MAX_FT/.test(
+      "if (gapCloser != null && gapCloser.distanceFeet > RunJoinGesture.CLOSE_GAP_MAX_FT) {"));
 
   const confirm = bodyOf(vm, "fun confirmJoinOffer(");
   ok("2d", "TEETH: confirmJoinOffer writes the JOINT FIRST and only then moves the corner, so a failed write cannot leave a line that moved for nothing",
