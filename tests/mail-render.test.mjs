@@ -306,9 +306,12 @@ test("threadRowHtml escapes every stranger-written string", () => {
     jobNames: new Map([["job-1", "<svg onload=alert(3)>Smith"]]),
     words: { noSubject: "(no subject)", toPrefix: "To:", unread: "Unread", attachment: "Has attachments" },
   });
-  // Our own paperclip is an <svg class="ico">; nothing the sender wrote may be a tag.
-  const withoutIcon = html.replace(/<svg class="ico"[\s\S]*?<\/svg>/, "");
-  assert.ok(withoutIcon.length < html.length, "the paperclip icon was there to remove");
+  // Our own icons are <svg class="ico">; nothing the sender wrote may be a tag.
+  // Global: the row carries the paperclip AND one per row action now, and a
+  // single replace left four of them behind and failed on our own markup.
+  const withoutIcon = html.replace(/<svg class="ico"[\s\S]*?<\/svg>/g, "");
+  assert.ok(withoutIcon.length < html.length, "the icons were there to remove");
+  assert.doesNotMatch(withoutIcon, /<svg/i, "every one of our icons was stripped, so what is left is the sender's");
   assert.doesNotMatch(withoutIcon, /<img|<script|<iframe|<svg|<b /i);
   assert.match(html, /&lt;img src=x onerror=alert\(1\)&gt;/);
   assert.match(html, /data-thread="&quot;&gt;&lt;script&gt;/);

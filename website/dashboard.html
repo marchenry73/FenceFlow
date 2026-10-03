@@ -730,6 +730,34 @@
   .mail-row{display:block;width:100%;text-align:left;background:none;border:none;border-bottom:1px solid var(--line);
             padding:9px 11px;cursor:pointer;color:var(--text);font-family:inherit;font-size:13px}
   .mail-row:last-child{border-bottom:none}
+  /* The row holds the open-button and the actions side by side. Relative so the
+     actions can sit over the row's right edge without reserving width that the
+     subject would otherwise have used. */
+  .mail-row{position:relative;padding:0}
+  .mr-open{display:block;width:100%;text-align:left;background:none;border:none;cursor:pointer;
+    padding:10px 12px;color:inherit;font:inherit}
+  .mr-acts{position:absolute;top:6px;right:8px;display:flex;gap:2px;z-index:1;
+    background:var(--surface);border-radius:6px;padding:2px;
+    /* Hidden until wanted, but NEVER display:none -- a screen reader and the
+       Tab key must still reach them. Opacity plus pointer-events keeps them in
+       the tree while keeping the row quiet at rest. */
+    opacity:0;pointer-events:none;transition:opacity .12s}
+  .mail-row:hover .mr-acts,.mail-row:focus-within .mr-acts{opacity:1;pointer-events:auto}
+  /* A star that is ON stays visible at rest: it is state, not an action. */
+  .mail-row.starred .mr-acts{opacity:1;pointer-events:auto}
+  .mail-row.starred .mr-act[data-mail-act="star"]{color:var(--orange)}
+  .mr-act{background:none;border:none;cursor:pointer;color:var(--muted);padding:4px;border-radius:4px;
+    display:inline-flex;align-items:center}
+  .mr-act:hover{background:var(--paper);color:var(--text)}
+  .mr-act:focus-visible{outline:2px solid var(--orange);outline-offset:-2px}
+  .mr-act .ico{width:15px;height:15px;fill:none;stroke:currentColor;stroke-width:1.4;
+    stroke-linecap:round;stroke-linejoin:round}
+  .mail-row.starred .mr-act[data-mail-act="star"] .ico{fill:currentColor}
+  @media (max-width:900px){
+    /* No hover on a touch screen, so the actions are simply always there. */
+    .mr-acts{opacity:1;pointer-events:auto;position:static;justify-content:flex-end;
+      padding:0 8px 8px;background:none}
+  }
   .mail-row:hover{background:var(--paper)}
   .mail-row.on{background:var(--info-bg)}
   .mail-row:focus-visible{outline:2px solid var(--orange);outline-offset:-2px}
@@ -3097,6 +3125,8 @@ const TL = {
     // Settings panel knows a stored last_error adds nothing to them.
     tabMail:'Email', mailUnreadTitle:'%s unread',
     mailAllMailboxes:'All mailboxes', mailFolderInbox:'Inbox', mailFolderSent:'Sent', mailFenceflowFolder:'FenceFlow mail',
+    mailFolderFiled:'Filed', mailFolderStarred:'Starred', mailFolderSnoozed:'Snoozed', mailFolderArchived:'Archived', mailFolderTrash:'Trash',
+    mailActStar:'Star', mailActUnstar:'Remove star', mailActArchive:'Archive', mailActSnooze:'Snooze until tomorrow 8am', mailActTrash:'Move to trash', mailActRestore:'Put back in the inbox',
     mailSearchPh:'Search by name, email address or subject', mailRefreshBtn:'Check for new mail',
     mailSyncing:'Checking for new mail…', mailLastChecked:'Checked for new mail at %s.',
     mailSyncUnfinished:'Some mail is still coming in; the next check finishes it.',
@@ -4823,6 +4853,8 @@ const TL = {
     tabSettings:'Ajustes', tabBilling:'Facturación',
     tabMail:'Correo', mailUnreadTitle:'%s sin leer',
     mailAllMailboxes:'Todos los buzones', mailFolderInbox:'Recibidos', mailFolderSent:'Enviados', mailFenceflowFolder:'Correo de FenceFlow',
+    mailFolderFiled:'Archivado', mailFolderStarred:'Destacados', mailFolderSnoozed:'Pospuestos', mailFolderArchived:'Archivados', mailFolderTrash:'Papelera',
+    mailActStar:'Destacar', mailActUnstar:'Quitar destacado', mailActArchive:'Archivar', mailActSnooze:'Posponer hasta mañana a las 8', mailActTrash:'Mover a la papelera', mailActRestore:'Devolver a recibidos',
     mailSearchPh:'Buscar por nombre, dirección de correo o asunto', mailRefreshBtn:'Buscar correo nuevo',
     mailSyncing:'Buscando correo nuevo…', mailLastChecked:'Correo revisado a las %s.',
     mailSyncUnfinished:'Todavía está llegando correo; la próxima revisión lo termina.',
@@ -6519,6 +6551,8 @@ const TL = {
     tabSettings:'Paramètres', tabBilling:'Facturation',
     tabMail:'E-mails', mailUnreadTitle:'%s non lus',
     mailAllMailboxes:'Toutes les boîtes', mailFolderInbox:'Réception', mailFolderSent:'Envoyés', mailFenceflowFolder:'E-mail FenceFlow',
+    mailFolderFiled:'Classé', mailFolderStarred:'Suivis', mailFolderSnoozed:'Reportés', mailFolderArchived:'Archivés', mailFolderTrash:'Corbeille',
+    mailActStar:'Suivre', mailActUnstar:'Ne plus suivre', mailActArchive:'Archiver', mailActSnooze:'Reporter à demain 8h', mailActTrash:'Mettre à la corbeille', mailActRestore:'Remettre dans la réception',
     mailSearchPh:'Chercher par nom, adresse e-mail ou objet', mailRefreshBtn:'Relever le courrier',
     mailSyncing:'Relève du courrier…', mailLastChecked:'Courrier relevé à %s.',
     mailSyncUnfinished:'Du courrier arrive encore ; la prochaine relève le termine.',
@@ -26399,6 +26433,12 @@ function renderMailFolders(){
   };
   const group = (head, warn, items) => `<div class="mf-group"><div class="mf-head">${esc(head)}${warn}</div>${items}</div>`;
   const all = item('inbox', '', tr('mailFolderInbox'), mailUnreadTotal) + item('sent', '', tr('mailFolderSent'), 0);
+  // The filing views. Not per mailbox: he files a conversation, and which
+  // mailbox it arrived in is not how he will look for it again.
+  const filed = item('starred', '', tr('mailFolderStarred'), 0)
+    + item('snoozed', '', tr('mailFolderSnoozed'), 0)
+    + item('archived', '', tr('mailFolderArchived'), 0)
+    + item('trash', '', tr('mailFolderTrash'), 0);
   let html;
   if (accts.length + (ffId ? 1 : 0) <= 1) {
     const a = accts[0];
@@ -26415,6 +26455,7 @@ function renderMailFolders(){
         + item('sent', ffId, tr('mailFolderSent'), 0));
     }
   }
+  html += group(tr('mailFolderFiled'), '', filed);
   $('mailFolders').innerHTML = html;
 }
 
@@ -26427,7 +26468,10 @@ async function loadMailThreads(reset, keep){
   const last = mailView.threads[mailView.threads.length - 1];
   if (!reset && last) { p.p_before = last.last_message_at; p.p_before_id = last.id; }
   if (reset && !keep) $('mailThreads').innerHTML = `<div class="empty" style="padding:12px">${esc(tr('loadingSection'))}</div>`;
-  const { data, error } = await db.rpc('mail_list_threads', p);
+  // mail_list_threads2, not mail_list_threads: the old one has no idea a thread
+  // can be archived, so it cannot hide one. The old one is still there and still
+  // works, which is the point -- if this misbehaves, the fix is one word.
+  const { data, error } = await db.rpc('mail_list_threads2', p);
   if (seq !== mailView.seq) return;
   if (error) {
     $('mailThreads').innerHTML = `<div class="empty" style="padding:12px">${esc(plainError(error.message))}</div>`;
@@ -26447,7 +26491,10 @@ function renderMailThreads(){
   } else {
     const ctx = {
       folder: mailView.folder, selectedId: mailView.selected, jobNames: mailJobNames(), now: new Date(), lang: LANG,
-      words: { noSubject: tr('mailNoSubject'), toPrefix: tr('mailToPrefix'), unread: tr('mailUnreadLbl'), attachment: tr('mailAttachmentLbl') },
+      words: { noSubject: tr('mailNoSubject'), toPrefix: tr('mailToPrefix'), unread: tr('mailUnreadLbl'), attachment: tr('mailAttachmentLbl'),
+        // Icon-only buttons, so these ARE the accessible names, not decoration.
+        star: tr('mailActStar'), unstar: tr('mailActUnstar'), archive: tr('mailActArchive'),
+        snooze: tr('mailActSnooze'), trash: tr('mailActTrash'), restore: tr('mailActRestore') },
     };
     box.innerHTML = mailView.threads.map(t => threadRowHtml(t, ctx)).join('');
   }
@@ -27499,9 +27546,67 @@ $('mailFolders').addEventListener('click', e => {
   loadMailThreads(true);
 });
 $('mailThreads').addEventListener('click', e => {
+  // An action FIRST: it sits inside the row, so closest('[data-thread]') would
+  // find the row too and open the thread underneath the click.
+  const act = e.target.closest('[data-mail-act]');
+  if (act) { e.stopPropagation(); mailRowAction(act.dataset.mailAct, act.dataset.thread, act); return; }
   const b = e.target.closest('[data-thread]');
   if (b) openMailThread(b.dataset.thread);
 });
+
+/* Star, archive, snooze, trash, restore -- each one a single RPC that checks
+   the caller itself and reads company_id from the thread.
+
+   OPTIMISTIC, then corrected. The row updates the moment he taps, because a
+   star that waits on a round trip feels broken; if the write then fails the
+   list is reloaded, which puts back whatever is actually true. Nothing here
+   reports success on its own say-so. */
+async function mailRowAction(act, id, btn){
+  if (!id || !act) return;
+  const t = mailView.threads.find(x => x.id === id);
+  const row = btn && btn.closest('.mail-row');
+  let call;
+  if (act === 'star') {
+    const next = !(t && t.is_starred);
+    if (t) t.is_starred = next;
+    if (row) row.classList.toggle('starred', next);
+    btn.setAttribute('aria-pressed', next ? 'true' : 'false');
+    call = db.rpc('mail_set_starred', { p_thread: id, p_starred: next });
+  } else if (act === 'archive') {
+    call = db.rpc('mail_set_filed', { p_thread: id, p_archived: true, p_trashed: false });
+  } else if (act === 'trash') {
+    call = db.rpc('mail_set_filed', { p_thread: id, p_archived: false, p_trashed: true });
+  } else if (act === 'restore') {
+    call = db.rpc('mail_set_filed', { p_thread: id, p_archived: false, p_trashed: false });
+  } else if (act === 'snooze') {
+    const until = mailSnoozeUntil();
+    if (!until) return;
+    call = db.rpc('mail_set_snooze', { p_thread: id, p_until: until });
+  } else return;
+
+  // Anything that MOVES the thread out of this view takes the row with it, so
+  // the list does not keep showing something that is no longer here.
+  if (act !== 'star' && row) row.style.display = 'none';
+
+  const { error } = await call;
+  if (error) {
+    mailSyncNote(plainError(error.message), true);
+    loadMailThreads(true);   // whatever the row now shows, the server disagrees
+    return;
+  }
+  if (act !== 'star') { loadMailThreads(true); refreshMailCounts(); }
+}
+
+/* Tomorrow morning, 8am local. One option rather than a menu, deliberately:
+   the menu is worth building when he has used this enough to say which times
+   he wants, and a half-built menu of guesses is worse than one sensible
+   default he can see working. */
+function mailSnoozeUntil(){
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  d.setHours(8, 0, 0, 0);
+  return d.toISOString();
+}
 $('mailSearch').addEventListener('input', () => {
   clearTimeout(mailSearchTimer);
   mailSearchTimer = setTimeout(() => {

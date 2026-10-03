@@ -604,6 +604,33 @@ export function mailTimeLabel(iso, now, lang = "en") {
   }
 }
 
+const STAR_SVG = '<svg class="ico" viewBox="0 0 16 16" aria-hidden="true" focusable="false">' +
+  '<path d="M8 1.6l1.9 3.9 4.3.6-3.1 3 .7 4.3L8 11.4l-3.8 2 .7-4.3-3.1-3 4.3-.6z"/></svg>';
+
+const ARCHIVE_SVG = '<svg class="ico" viewBox="0 0 16 16" aria-hidden="true" focusable="false">' +
+  '<path d="M1.5 3.5h13v3h-13zM2.5 6.5h11v7h-11zM6 9h4"/></svg>';
+
+const SNOOZE_SVG = '<svg class="ico" viewBox="0 0 16 16" aria-hidden="true" focusable="false">' +
+  '<path d="M8 2.5a5.5 5.5 0 100 11 5.5 5.5 0 000-11zM8 5v3.2l2.2 1.3"/></svg>';
+
+const TRASH_SVG = '<svg class="ico" viewBox="0 0 16 16" aria-hidden="true" focusable="false">' +
+  '<path d="M2.5 4.5h11M6 4.5V3h4v1.5M4 4.5l.7 9h6.6l.7-9M6.5 7v4M9.5 7v4"/></svg>';
+
+const RESTORE_SVG = '<svg class="ico" viewBox="0 0 16 16" aria-hidden="true" focusable="false">' +
+  '<path d="M3 8a5 5 0 105-5 5 5 0 00-3.5 1.5L3 6M3 3v3h3"/></svg>';
+
+/** One action on a row. A real button with a real label: these are icon-only
+    on screen, so the accessible name is the only name a screen reader gets,
+    and title is what a mouse gets. aria-pressed only where the action is a
+    TOGGLE -- saying a one-way action is "not pressed" is noise. */
+function actionBtn(act, label, cls, svg, id, pressed) {
+  const text = escapeHtml(label || act);
+  return `<button type="button" class="mr-act${cls ? " " + cls : ""}" data-mail-act="${act}" ` +
+    `data-thread="${escapeHtml(id)}" title="${text}" aria-label="${text}"` +
+    (pressed === undefined ? "" : ` aria-pressed="${pressed ? "true" : "false"}"`) +
+    `>${svg}</button>`;
+}
+
 const CLIP_SVG = '<svg class="ico" viewBox="0 0 16 16" aria-hidden="true" focusable="false">' +
   '<path d="M10.5 4.5l-5 5a1.5 1.5 0 002 2l5.5-5.5a3 3 0 00-4.2-4.2L3.2 7.4a4.5 4.5 0 006.4 6.4L13 10.4"/></svg>';
 
@@ -640,7 +667,18 @@ export function threadRowHtml(t, ctx = {}) {
   const subject = cleanLine(t && t.subject) || w.noSubject || "(no subject)";
   const count = Number(t && t.message_count) || 0;
   const id = String((t && t.id) || "");
-  return `<button type="button" class="mail-row${unread ? " unread" : ""}${ctx.selectedId === id ? " on" : ""}" data-thread="${escapeHtml(id)}">` +
+  const filed = ctx.folder === "archived" || ctx.folder === "trash";
+  const acts =
+    `<span class="mr-acts">` +
+      actionBtn("star", t && t.is_starred ? w.unstar : w.star, t && t.is_starred ? "on" : "", STAR_SVG, id, !!(t && t.is_starred)) +
+      (filed
+        ? actionBtn("restore", w.restore, "", RESTORE_SVG, id)
+        : actionBtn("archive", w.archive, "", ARCHIVE_SVG, id) + actionBtn("snooze", w.snooze, "", SNOOZE_SVG, id)) +
+      actionBtn("trash", w.trash, "", TRASH_SVG, id) +
+    `</span>`;
+  return `<div class="mail-row${unread ? " unread" : ""}${ctx.selectedId === id ? " on" : ""}${t && t.is_starred ? " starred" : ""}" data-thread="${escapeHtml(id)}">` +
+    acts +
+    `<button type="button" class="mr-open" data-thread="${escapeHtml(id)}">` +
     `<span class="mr-top">` +
     (unread ? `<span class="mr-dot" title="${escapeHtml(w.unread || "Unread")}"></span>` : "") +
     `<span class="mr-who">${escapeHtml(who)}</span>` +
@@ -650,5 +688,5 @@ export function threadRowHtml(t, ctx = {}) {
     `<span class="mr-subj">${t && t.has_attachments ? `<span class="mr-clip" title="${escapeHtml(w.attachment || "Attachment")}">${CLIP_SVG}</span>` : ""}${escapeHtml(subject)}</span>` +
     `<span class="mr-snip">${escapeHtml(cleanLine(t && t.snippet))}</span>` +
     jobChipsHtml(t && t.job_sync_ids, ctx.jobNames) +
-    `</button>`;
+    `</button></div>`;
 }
