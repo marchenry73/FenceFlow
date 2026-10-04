@@ -826,6 +826,8 @@
      and is marked aria-hidden, while the row itself is a real button. */
   .brief-go{color:var(--muted);opacity:0;flex:none}
   .brief-row:hover .brief-go,.brief-row:focus-visible .brief-go{opacity:1}
+  .chip-sep{display:inline-block;width:1px;height:18px;background:var(--line);margin:0 6px;vertical-align:middle}
+  .chip-n{opacity:.7;font-size:11px}
   .mail-row:last-child{border-bottom:none}
   /* The row holds the open-button and the actions side by side. Relative so the
      actions can sit over the row's right edge without reserving width that the
@@ -3349,7 +3351,8 @@ const TL = {
     // MESSAGES in supabase/functions/_shared/mail/errors.ts, which is how the
     // Settings panel knows a stored last_error adds nothing to them.
     tabMail:'Email', mailUnreadTitle:'%s unread',
-dashGroupToday:'Today', dashGroupSales:'Sales', dashGroupMoney:'Money',
+jobViewAll:'All', jobViewToday:'Today', jobViewWeek:'This week', jobViewUnscheduled:'Unscheduled', jobViewBlocked:'Blocked',
+    dashGroupToday:'Today', dashGroupSales:'Sales', dashGroupMoney:'Money',
     menuLanguage:'Language', menuAppearance:'Appearance',
     newBtn:'+ New', newJobItem:'Job', newMailItem:'Email', newCrewItem:'Crew member',
     searchPh:'Search customers, jobs, addresses, email', searchGroupCustomers:'Customers', searchGroupJobs:'Jobs', searchGroupMail:'Email', searchNone:'Nothing found for %s',
@@ -5088,7 +5091,8 @@ dashGroupToday:'Today', dashGroupSales:'Sales', dashGroupMoney:'Money',
     tabCatalog:'Catálogo', tabReports:'Informes', tabAutomation:'Automatización',
     tabSettings:'Ajustes', tabBilling:'Facturación',
     tabMail:'Correo', mailUnreadTitle:'%s sin leer',
-dashGroupToday:'Hoy', dashGroupSales:'Ventas', dashGroupMoney:'Dinero',
+jobViewAll:'Todos', jobViewToday:'Hoy', jobViewWeek:'Esta semana', jobViewUnscheduled:'Sin programar', jobViewBlocked:'Bloqueados',
+    dashGroupToday:'Hoy', dashGroupSales:'Ventas', dashGroupMoney:'Dinero',
     menuLanguage:'Idioma', menuAppearance:'Apariencia',
     newBtn:'+ Nuevo', newJobItem:'Trabajo', newMailItem:'Correo', newCrewItem:'Miembro del equipo',
     searchPh:'Buscar clientes, trabajos, direcciones, correo', searchGroupCustomers:'Clientes', searchGroupJobs:'Trabajos', searchGroupMail:'Correo', searchNone:'No se encontró nada para %s',
@@ -6797,7 +6801,8 @@ dashGroupToday:'Hoy', dashGroupSales:'Ventas', dashGroupMoney:'Dinero',
     tabCatalog:'Catalogue', tabReports:'Rapports', tabAutomation:'Automatisation',
     tabSettings:'Paramètres', tabBilling:'Facturation',
     tabMail:'E-mails', mailUnreadTitle:'%s non lus',
-dashGroupToday:'Aujourdhui', dashGroupSales:'Ventes', dashGroupMoney:'Argent',
+jobViewAll:'Tous', jobViewToday:'Aujourdhui', jobViewWeek:'Cette semaine', jobViewUnscheduled:'Non planifiés', jobViewBlocked:'Bloqués',
+    dashGroupToday:'Aujourdhui', dashGroupSales:'Ventes', dashGroupMoney:'Argent',
     menuLanguage:'Langue', menuAppearance:'Apparence',
     newBtn:'+ Nouveau', newJobItem:'Chantier', newMailItem:'Courrier', newCrewItem:'Membre de léquipe',
     searchPh:'Rechercher clients, chantiers, adresses, courrier', searchGroupCustomers:'Clients', searchGroupJobs:'Chantiers', searchGroupMail:'Courrier', searchNone:'Rien trouvé pour %s',
@@ -13215,7 +13220,7 @@ async function renderChase(){
    nothing. Unscheduled jobs sort last whichever direction is chosen: they
    have no date, so putting them at either end by pretending they do is a
    lie about the data. */
-const jobView = { q:'', status:'ALL', sort:'scheduled', dir:'asc' };
+const jobView = { q:'', status:'ALL', view:'ALL', sort:'scheduled', dir:'asc' };
 
 /* The order the pipeline moves in, so sorting by status walks a job's life
    rather than the alphabet. */
@@ -13226,10 +13231,39 @@ const JOB_STATUS_KEYS = { DRAFT:'jobStatusDraft', SENT:'jobStatusSent', ACCEPTED
   COMPLETED:'jobStatusCompleted', DECLINED:'jobStatusDeclined' };
 function jobStatusLabel(st){ return JOB_STATUS_KEYS[st] ? tr(JOB_STATUS_KEYS[st]) : st; }
 
+/* The four views, each decided by data the job already carries.
+   Status answers "where is this in the sales process". These answer "what am I
+   doing this week", which is a different question and the one he opens this
+   table to ask. They stack with status rather than replacing it: Blocked AND
+   Accepted is a reasonable thing to want to see.
+
+   BLOCKED is blocked_at, the column the app already sets -- not a guess
+   assembled from several conditions here. A second definition of blocked would
+   disagree with the phone's the first time one of them changed. */
+function jobMatchesView(j){
+  if (jobView.view === 'ALL') return true;
+  if (jobView.view === 'BLOCKED') return !!j.blocked_at;
+  if (jobView.view === 'UNSCHEDULED') return !j.scheduled_date;
+  if (!j.scheduled_date) return false;
+  const start = new Date(); start.setHours(0,0,0,0);
+  const when = d(j.scheduled_date);
+  if (jobView.view === 'TODAY') {
+    return when >= start && when < new Date(start.getTime() + 864e5);
+  }
+  if (jobView.view === 'WEEK') {
+    // From the start of today, not from now: a job at 9am today is still this
+    // week's work at 2pm, and dropping off the list the moment it starts is
+    // how a schedule view loses the thing you are standing in front of.
+    return when >= start && when < new Date(start.getTime() + 7 * 864e5);
+  }
+  return true;
+}
+
 function jobsMatching(){
   const q = jobView.q.trim().toLowerCase();
   return jobs.filter(j=>{
     if (jobView.status !== 'ALL' && j.status !== jobView.status) return false;
+    if (!jobMatchesView(j)) return false;
     if (!q) return true;
     return ((j.customer_name||'') + ' ' + (j.address||'')).toLowerCase().includes(q);
   });
@@ -13297,7 +13331,30 @@ function renderJobStatusChips(){
   const chip = (st,label,n)=>
     '<button class="chip'+(jobView.status===st?' on':'')+'" data-st="'+st+'">'+
     esc(label)+' <span style="opacity:.65">'+n+'</span></button>';
+  // The view chips lead, because "what am I doing today" is the question
+  // somebody opens this table with; status is the follow-up. A view with
+  // nothing in it is left out rather than shown as a zero -- an empty chip is
+  // a filter you can only use to see nothing.
+  const vcount = f => jobs.filter(f).length;
+  const startOfDay = () => { const x = new Date(); x.setHours(0,0,0,0); return x; };
+  const viewCounts = {
+    TODAY: vcount(j => { if (!j.scheduled_date) return false; const s = startOfDay();
+      const w = d(j.scheduled_date); return w >= s && w < new Date(s.getTime() + 864e5); }),
+    WEEK: vcount(j => { if (!j.scheduled_date) return false; const s = startOfDay();
+      const w = d(j.scheduled_date); return w >= s && w < new Date(s.getTime() + 7 * 864e5); }),
+    UNSCHEDULED: vcount(j => !j.scheduled_date),
+    BLOCKED: vcount(j => !!j.blocked_at),
+  };
+  const vchip = (v, label, n) =>
+    '<button class="chip' + (jobView.view === v ? ' on' : '') + '" data-view="' + v + '">' +
+    esc(label) + (n != null ? ' <span class="chip-n">' + n + '</span>' : '') + '</button>';
+  const viewChips = vchip('ALL', tr('jobViewAll'), null)
+    + (viewCounts.TODAY ? vchip('TODAY', tr('jobViewToday'), viewCounts.TODAY) : '')
+    + (viewCounts.WEEK ? vchip('WEEK', tr('jobViewWeek'), viewCounts.WEEK) : '')
+    + (viewCounts.UNSCHEDULED ? vchip('UNSCHEDULED', tr('jobViewUnscheduled'), viewCounts.UNSCHEDULED) : '')
+    + (viewCounts.BLOCKED ? vchip('BLOCKED', tr('jobViewBlocked'), viewCounts.BLOCKED) : '');
   $('jobStatusChips').innerHTML =
+    viewChips + '<span class="chip-sep" aria-hidden="true"></span>' +
     chip('ALL',tr('jobStatusAll'),jobs.length) + present.map(st=>chip(st,jobStatusLabel(st),counts[st])).join('');
 }
 
@@ -13315,7 +13372,7 @@ function renderJobs(){
   const matching = jobsMatching();
   const shown = jobsSorted(matching);
   jobShown = shown;
-  const filtering = jobView.q.trim() !== '' || jobView.status !== 'ALL';
+  const filtering = jobView.q.trim() !== '' || jobView.status !== 'ALL' || jobView.view !== 'ALL';
 
   // Three different nothings, said differently. "No jobs yet" in front of a
   // company with forty jobs and a typo in the search box is how somebody
@@ -13375,11 +13432,13 @@ function syncSelAll(shown){
    that stop existing. */
 $('jobSearch').addEventListener('input', e=>{ jobView.q = e.target.value; renderJobs(); });
 $('jobStatusChips').addEventListener('click', e=>{
+  const v = e.target.closest('[data-view]');
+  if (v) { jobView.view = v.dataset.view; renderJobs(); return; }
   const b = e.target.closest('.chip'); if(!b) return;
   jobView.status = b.dataset.st; renderJobs();
 });
 $('jobsClear').addEventListener('click', ()=>{
-  jobView.q=''; jobView.status='ALL'; $('jobSearch').value=''; renderJobs();
+  jobView.q=''; jobView.status='ALL'; jobView.view='ALL'; $('jobSearch').value=''; renderJobs();
 });
 function toggleJobSort(key){
   if (jobView.sort === key) jobView.dir = (jobView.dir === 'asc' ? 'desc' : 'asc');
