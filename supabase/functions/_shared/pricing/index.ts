@@ -168,7 +168,7 @@ export {
  * wood, chain link, aluminum, ornamental iron, split rail and composite. An
  * existing company's catalog is its own and is never rewritten.
  *
- * Bumped 2026.10.7 -> 2026.10.8 (1 Oct 2026) because TWO SIDES THE OWNER HAS
+ * Bumped 2026.10.7 -> 2026.10.9 (1 Oct 2026) because TWO SIDES THE OWNER HAS
  * JOINED NOW SHARE ONE POST. `fence_runs.start_joint` / `end_joint` reach the
  * engine (index.ts FenceRunRow + runFromRow, load.ts fenceRunRowToInput), and
  * `adjustJoins` (joins.ts, the port of the phone's RunJoinArithmetic) is
@@ -200,7 +200,7 @@ export {
  * or one holding both ends of a single run, is ignored. Each of those prices
  * exactly as an unjoined job does -- two free ends, two end posts.
  */
-export const PRICING_ENGINE_VERSION = "2026.10.8";
+export const PRICING_ENGINE_VERSION = "2026.10.9";
 
 // ---------------------------------------------------------------------------
 // Contract shapes (docs/PRICING_CONTRACT.md). Column names, never invented.

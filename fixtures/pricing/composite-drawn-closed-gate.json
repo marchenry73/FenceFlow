@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "engine": {
-    "version": "2026.10.8",
-    "generated_at": "2026-10-02T14:02:40.744264200Z"
+    "version": "2026.10.9",
+    "generated_at": "2026-10-04T20:19:29.136500700Z"
   },
   "case": "composite-drawn-closed-gate",
   "note": "Composite, drawn closed, one 4 ft line gate (frame kit).",
   "input": {
-    "engine_version": "2026.10.8",
+    "engine_version": "2026.10.9",
     "pixels_per_foot": 20.0,
     "job": {
       "calibration_pixels_per_foot": 20.0,
@@ -260,7 +260,7 @@
     "existing_items": []
   },
   "expected": {
-    "engine_version": "2026.10.8",
+    "engine_version": "2026.10.9",
     "linear_feet": 280.0,
     "teardown_linear_feet": 0.0,
     "billable_linear_feet": 280.0,
@@ -392,7 +392,13 @@
           },
           {
             "role": "GATE_POST",
-            "quantity": 2.0,
+            "quantity": 1.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "END_POST",
+            "quantity": 1.0,
             "prefer_covers_ft": null,
             "covers_linear_ft": null
           },
@@ -617,7 +623,7 @@
         "fence_run_sync_id": "00000019-0000-4000-8000-000000000001",
         "sort_order": 9,
         "description": "4x4 Composite Post w/ Aluminum Insert, 8'",
-        "quantity": 2.0,
+        "quantity": 1.0,
         "unit": "EA",
         "unit_price": 28.0,
         "supplier_unit_price": null,
@@ -627,9 +633,23 @@
         "category": null
       },
       {
-        "sync_id": "b13e263b-bcbe-3cb7-86c2-25d79510eefd",
+        "sync_id": "a3063a6f-153c-3757-a915-f1a6c09b0f63",
         "fence_run_sync_id": "00000019-0000-4000-8000-000000000001",
         "sort_order": 10,
+        "description": "4x4 Composite Post w/ Aluminum Insert, 8'",
+        "quantity": 1.0,
+        "unit": "EA",
+        "unit_price": 28.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "END_POST",
+        "auto_generated": true,
+        "category": null
+      },
+      {
+        "sync_id": "b13e263b-bcbe-3cb7-86c2-25d79510eefd",
+        "fence_run_sync_id": "00000019-0000-4000-8000-000000000001",
+        "sort_order": 11,
         "description": "Concrete Mix 60lb Bag",
         "quantity": 37.0,
         "unit": "EA",
@@ -655,6 +675,7 @@
       "bf2b12ae-43f8-31da-a655-00389bdf69e1",
       "037f2a05-4129-3907-acb5-6292eb503257",
       "7f456795-077f-3e73-9d91-42094f504d36",
+      "a3063a6f-153c-3757-a915-f1a6c09b0f63",
       "b13e263b-bcbe-3cb7-86c2-25d79510eefd"
     ],
     "totals": {

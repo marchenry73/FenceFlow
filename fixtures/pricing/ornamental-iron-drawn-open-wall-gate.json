@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "engine": {
-    "version": "2026.10.8",
-    "generated_at": "2026-10-02T14:02:40.744264200Z"
+    "version": "2026.10.9",
+    "generated_at": "2026-10-04T20:19:29.136500700Z"
   },
   "case": "ornamental-iron-drawn-open-wall-gate",
   "note": "Ornamental iron with a wall-hung 5 ft gate: BLANK_POST has no catalog row (unmatched), hole plugs are universal.",
   "input": {
-    "engine_version": "2026.10.8",
+    "engine_version": "2026.10.9",
     "pixels_per_foot": 20.0,
     "job": {
       "calibration_pixels_per_foot": 20.0,
@@ -275,7 +275,7 @@
     "existing_items": []
   },
   "expected": {
-    "engine_version": "2026.10.8",
+    "engine_version": "2026.10.9",
     "linear_feet": 120.0,
     "teardown_linear_feet": 0.0,
     "billable_linear_feet": 120.0,

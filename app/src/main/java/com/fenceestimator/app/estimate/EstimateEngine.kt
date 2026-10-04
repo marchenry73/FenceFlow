@@ -326,7 +326,7 @@ object EstimateEngine {
      * on wood, chain link, aluminum, ornamental iron, split rail and composite.
      * An existing company's catalog is its own and is never rewritten.
      *
-     * Bumped 2026.10.7 -> 2026.10.8 (1 Oct 2026) because TWO SIDES THE OWNER
+     * Bumped 2026.10.7 -> 2026.10.9 (1 Oct 2026) because TWO SIDES THE OWNER
      * HAS JOINED NOW SHARE ONE POST. [RunJoinArithmetic.adjust] is called once
      * over every run of the job and each run's own [RunPostAdjustment] handed
      * to [suggestQuantities], which applies it at the END of
@@ -352,7 +352,7 @@ object EstimateEngine {
      * Anchored (signed/sent) totals do not move regardless, as above.
      *
      */
-    const val PRICING_ENGINE_VERSION = "2026.10.8"
+    const val PRICING_ENGINE_VERSION = "2026.10.9"
 
     /**
      * Money, to the cent: the ONE place a total is rounded.
@@ -1038,19 +1038,37 @@ object EstimateEngine {
                 entries += QtyEntry(MaterialRole.CONCRETE_BAG, GATE_LATCH_BAGS)
             }
             GateMounting.LINE -> {
-                // Two gate posts: the hinge side wears the stiffener and becomes
-                // the post the gate hangs from, the other is where it latches.
-                // Both stand at the opening, so both are GATE_POST.
-                entries += QtyEntry(MaterialRole.GATE_POST, 2.0)
+                // THE GATE HANGS FROM ONE POST, NOT TWO.
+                //
+                // His rule, said twice and confirmed on 4 Oct 2026: the gate
+                // and its econo stiffener belong to ONE post -- the hinge side,
+                // which carries the whole weight. What the OTHER post is
+                // depends on what the fence does there: an end post where the
+                // fence connects to it, a blank where nothing does.
+                //
+                // This read GATE_POST 2, on the reasoning that both posts stand
+                // at the opening so neither is the end of anything. That is a
+                // fair description of the geometry and the wrong description of
+                // what he buys: a gate post and an end post are different
+                // catalog rows at different prices, so billing two of one kind
+                // bills the wrong row once per gate on every job.
+                //
+                // The COUNT does not change -- two posts still go in the ground
+                // -- so computePostCounts' gatePosts, POST_CAP and the concrete
+                // are all untouched. Only the row each post is billed from.
+                entries += QtyEntry(MaterialRole.GATE_POST, 1.0)
+                entries += QtyEntry(MaterialRole.END_POST, 1.0)
                 entries += QtyEntry(MaterialRole.CONCRETE_BAG, GATE_HINGE_BAGS + GATE_LATCH_BAGS)
             }
             GateMounting.LINE_TO_WALL -> {
-                // The gate's own two gate posts, plus the one where the rest of
-                // the run terminates at the wall -- that one is a real END_POST.
-                // computePostCounts' gatePosts counts all three, so POST_CAP
-                // matches what actually stands in the ground for this mounting.
-                entries += QtyEntry(MaterialRole.GATE_POST, 2.0)
-                entries += QtyEntry(MaterialRole.END_POST, 1.0)
+                // The gate's hinge post and its latch post, plus the one where
+                // the rest of the run terminates at the wall. Three posts, as
+                // before -- computePostCounts' gatePosts counts all three, so
+                // POST_CAP still matches what stands in the ground -- but the
+                // latch side is now an END_POST for the same reason it is on a
+                // LINE gate: the fence connects to it.
+                entries += QtyEntry(MaterialRole.GATE_POST, 1.0)
+                entries += QtyEntry(MaterialRole.END_POST, 2.0)
                 entries += QtyEntry(
                     MaterialRole.CONCRETE_BAG,
                     GATE_HINGE_BAGS + GATE_LATCH_BAGS + GATE_LATCH_BAGS

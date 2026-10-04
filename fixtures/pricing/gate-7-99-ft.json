@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "engine": {
-    "version": "2026.10.8",
-    "generated_at": "2026-10-02T14:02:40.744264200Z"
+    "version": "2026.10.9",
+    "generated_at": "2026-10-04T20:19:29.136500700Z"
   },
   "case": "gate-7-99-ft",
   "note": "7.99 ft is under the wide-gate threshold: one brace, one hinge set.",
   "input": {
-    "engine_version": "2026.10.8",
+    "engine_version": "2026.10.9",
     "pixels_per_foot": 20.0,
     "job": {
       "calibration_pixels_per_foot": 20.0,
@@ -380,7 +380,7 @@
     "existing_items": []
   },
   "expected": {
-    "engine_version": "2026.10.8",
+    "engine_version": "2026.10.9",
     "linear_feet": 100.0,
     "teardown_linear_feet": 0.0,
     "billable_linear_feet": 100.0,
@@ -482,7 +482,13 @@
           },
           {
             "role": "GATE_POST",
-            "quantity": 2.0,
+            "quantity": 1.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "END_POST",
+            "quantity": 1.0,
             "prefer_covers_ft": null,
             "covers_linear_ft": null
           },
@@ -615,7 +621,7 @@
         "fence_run_sync_id": "0000001e-0000-4000-8000-000000000001",
         "sort_order": 2,
         "description": "5\"x5\" Co-Ex End Post, White",
-        "quantity": 2.0,
+        "quantity": 3.0,
         "unit": "EA",
         "unit_price": 16.56,
         "supplier_unit_price": null,
@@ -741,7 +747,7 @@
         "fence_run_sync_id": "0000001e-0000-4000-8000-000000000001",
         "sort_order": 11,
         "description": "5\"x5\" Co-Ex Gate Post, White",
-        "quantity": 2.0,
+        "quantity": 1.0,
         "unit": "EA",
         "unit_price": 16.56,
         "supplier_unit_price": null,
@@ -784,9 +790,9 @@
       "12f48df6-c906-3858-b994-ac41b3e2edc8"
     ],
     "totals": {
-      "materials_subtotal": 1514.6699999999996,
-      "taxable_subtotal": 1514.6699999999996,
-      "tax": 106.02689999999998,
+      "materials_subtotal": 1514.6699999999998,
+      "taxable_subtotal": 1514.6699999999998,
+      "tax": 106.0269,
       "labor_cost": 736.0800018310547,
       "teardown_cost": 0.0,
       "trash_haul_fee": 0.0,

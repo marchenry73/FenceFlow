@@ -582,19 +582,33 @@ function gateAreaEntries(fenceType: FenceType, gate: GateMarker): QtyEntry[] {
       entries.push(qty("CONCRETE_BAG", GATE_LATCH_BAGS));
       break;
     case "LINE":
-      // Two gate posts: the hinge side wears the stiffener and becomes
-      // the post the gate hangs from, the other is where it latches.
-      // Both stand at the opening, so both are GATE_POST.
-      entries.push(qty("GATE_POST", 2.0));
+      // THE GATE HANGS FROM ONE POST, NOT TWO. His rule, confirmed 4 Oct 2026:
+      // the gate and its econo stiffener belong to the hinge post, which carries
+      // the weight. What the OTHER post is depends on what the fence does there
+      // -- an end post where the fence connects to it, a blank where nothing
+      // does.
+      //
+      // This read GATE_POST 2, on the reasoning that both posts stand at the
+      // opening so neither is the end of anything. True of the geometry, wrong
+      // about what he buys: a gate post and an end post are different catalog
+      // rows at different prices.
+      //
+      // The COUNT is unchanged -- two posts still go in the ground -- so
+      // computePostCounts' gatePosts, POST_CAP and the concrete all stay as
+      // they are. Only the row each post is billed from moves.
+      entries.push(qty("GATE_POST", 1.0));
+      entries.push(qty("END_POST", 1.0));
       entries.push(qty("CONCRETE_BAG", GATE_HINGE_BAGS + GATE_LATCH_BAGS));
       break;
     case "LINE_TO_WALL":
-      // The gate's own two gate posts, plus the one where the rest of
-      // the run terminates at the wall -- that one is a real END_POST.
-      // computePostCounts' gatePosts counts all three, so POST_CAP
-      // matches what actually stands in the ground for this mounting.
-      entries.push(qty("GATE_POST", 2.0));
-      entries.push(qty("END_POST", 1.0));
+      // The gate's hinge post and its latch post, plus the one where the rest
+      // of the run terminates at the wall. Three posts, as before --
+      // computePostCounts' gatePosts counts all three, so POST_CAP still
+      // matches what stands in the ground -- but the latch side is now an
+      // END_POST for the same reason it is on a LINE gate: the fence connects
+      // to it.
+      entries.push(qty("GATE_POST", 1.0));
+      entries.push(qty("END_POST", 2.0));
       entries.push(qty("CONCRETE_BAG", GATE_HINGE_BAGS + GATE_LATCH_BAGS + GATE_LATCH_BAGS));
       break;
   }

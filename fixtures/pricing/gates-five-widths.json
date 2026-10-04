@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "engine": {
-    "version": "2026.10.8",
-    "generated_at": "2026-10-02T14:02:40.744264200Z"
+    "version": "2026.10.9",
+    "generated_at": "2026-10-04T20:19:29.136500700Z"
   },
   "case": "gates-five-widths",
   "note": "Gates of 3.5, 4.0, 5.0, 10.0 and 12.0 ft on one run: five GATE_PANEL lines whose sync ids carry the width as Kotlin Float.toString renders it (3.5, 4.0, 10.0 ...).",
   "input": {
-    "engine_version": "2026.10.8",
+    "engine_version": "2026.10.9",
     "pixels_per_foot": 20.0,
     "job": {
       "calibration_pixels_per_foot": 20.0,
@@ -380,7 +380,7 @@
     "existing_items": []
   },
   "expected": {
-    "engine_version": "2026.10.8",
+    "engine_version": "2026.10.9",
     "linear_feet": 200.0,
     "teardown_linear_feet": 0.0,
     "billable_linear_feet": 200.0,
@@ -482,7 +482,13 @@
           },
           {
             "role": "GATE_POST",
-            "quantity": 2.0,
+            "quantity": 1.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "END_POST",
+            "quantity": 1.0,
             "prefer_covers_ft": null,
             "covers_linear_ft": null
           },
@@ -530,7 +536,13 @@
           },
           {
             "role": "GATE_POST",
-            "quantity": 2.0,
+            "quantity": 1.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "END_POST",
+            "quantity": 1.0,
             "prefer_covers_ft": null,
             "covers_linear_ft": null
           },
@@ -578,7 +590,13 @@
           },
           {
             "role": "GATE_POST",
-            "quantity": 2.0,
+            "quantity": 1.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "END_POST",
+            "quantity": 1.0,
             "prefer_covers_ft": null,
             "covers_linear_ft": null
           },
@@ -638,7 +656,13 @@
           },
           {
             "role": "GATE_POST",
-            "quantity": 2.0,
+            "quantity": 1.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "END_POST",
+            "quantity": 1.0,
             "prefer_covers_ft": null,
             "covers_linear_ft": null
           },
@@ -698,7 +722,13 @@
           },
           {
             "role": "GATE_POST",
-            "quantity": 2.0,
+            "quantity": 1.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "END_POST",
+            "quantity": 1.0,
             "prefer_covers_ft": null,
             "covers_linear_ft": null
           },
@@ -831,7 +861,7 @@
         "fence_run_sync_id": "00000020-0000-4000-8000-000000000001",
         "sort_order": 2,
         "description": "5\"x5\" Co-Ex End Post, White",
-        "quantity": 2.0,
+        "quantity": 7.0,
         "unit": "EA",
         "unit_price": 16.56,
         "supplier_unit_price": null,
@@ -957,7 +987,7 @@
         "fence_run_sync_id": "00000020-0000-4000-8000-000000000001",
         "sort_order": 11,
         "description": "5\"x5\" Co-Ex Gate Post, White",
-        "quantity": 10.0,
+        "quantity": 5.0,
         "unit": "EA",
         "unit_price": 16.56,
         "supplier_unit_price": null,
@@ -1060,9 +1090,9 @@
       "3ab17c2a-4b91-3599-b81f-5b94becd6b13"
     ],
     "totals": {
-      "materials_subtotal": 3684.3500000000004,
-      "taxable_subtotal": 3684.3500000000004,
-      "tax": 257.90450000000004,
+      "materials_subtotal": 3684.350000000001,
+      "taxable_subtotal": 3684.350000000001,
+      "tax": 257.9045000000001,
       "labor_cost": 1324.0,
       "teardown_cost": 0.0,
       "trash_haul_fee": 0.0,

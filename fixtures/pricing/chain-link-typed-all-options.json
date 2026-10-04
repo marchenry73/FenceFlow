@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "engine": {
-    "version": "2026.10.8",
-    "generated_at": "2026-10-02T14:02:40.744264200Z"
+    "version": "2026.10.9",
+    "generated_at": "2026-10-04T20:19:29.136500700Z"
   },
   "case": "chain-link-typed-all-options",
   "note": "Chain link 6 ft fabric with top rail, tension wire, barbed arms and slats; bands per terminal post = ceil(fabric height).",
   "input": {
-    "engine_version": "2026.10.8",
+    "engine_version": "2026.10.9",
     "pixels_per_foot": 20.0,
     "job": {
       "calibration_pixels_per_foot": 20.0,
@@ -380,7 +380,7 @@
     "existing_items": []
   },
   "expected": {
-    "engine_version": "2026.10.8",
+    "engine_version": "2026.10.9",
     "linear_feet": 150.0,
     "teardown_linear_feet": 0.0,
     "billable_linear_feet": 150.0,
@@ -506,7 +506,13 @@
           },
           {
             "role": "GATE_POST",
-            "quantity": 2.0,
+            "quantity": 1.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "END_POST",
+            "quantity": 1.0,
             "prefer_covers_ft": null,
             "covers_linear_ft": null
           },
@@ -647,7 +653,7 @@
         "fence_run_sync_id": "0000000f-0000-4000-8000-000000000001",
         "sort_order": 3,
         "description": "2\" Galvanized Terminal Post, 8'",
-        "quantity": 2.0,
+        "quantity": 3.0,
         "unit": "EA",
         "unit_price": 19.75,
         "supplier_unit_price": null,
@@ -829,7 +835,7 @@
         "fence_run_sync_id": "0000000f-0000-4000-8000-000000000001",
         "sort_order": 16,
         "description": "2\" Galvanized Terminal Post, 8'",
-        "quantity": 2.0,
+        "quantity": 1.0,
         "unit": "EA",
         "unit_price": 19.75,
         "supplier_unit_price": null,

@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "engine": {
-    "version": "2026.10.8",
-    "generated_at": "2026-10-02T14:02:40.744264200Z"
+    "version": "2026.10.9",
+    "generated_at": "2026-10-04T20:19:29.136500700Z"
   },
   "case": "multi-run-mixed-types",
   "note": "Three runs of three types on one job: items concatenated in run order, sort_order restarting per run, totals summed in (sort_order, sync_id) order across runs.",
   "input": {
-    "engine_version": "2026.10.8",
+    "engine_version": "2026.10.9",
     "pixels_per_foot": 20.0,
     "job": {
       "calibration_pixels_per_foot": 20.0,
@@ -858,7 +858,7 @@
     "existing_items": []
   },
   "expected": {
-    "engine_version": "2026.10.8",
+    "engine_version": "2026.10.9",
     "linear_feet": 265.0,
     "teardown_linear_feet": 0.0,
     "billable_linear_feet": 265.0,
@@ -960,7 +960,13 @@
           },
           {
             "role": "GATE_POST",
-            "quantity": 2.0,
+            "quantity": 1.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "END_POST",
+            "quantity": 1.0,
             "prefer_covers_ft": null,
             "covers_linear_ft": null
           },
@@ -1170,7 +1176,13 @@
           },
           {
             "role": "GATE_POST",
-            "quantity": 2.0,
+            "quantity": 1.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "END_POST",
+            "quantity": 1.0,
             "prefer_covers_ft": null,
             "covers_linear_ft": null
           },
@@ -1522,7 +1534,7 @@
         "fence_run_sync_id": "0000000c-0000-4000-8000-000000000001",
         "sort_order": 2,
         "description": "5\"x5\" Co-Ex End Post, White",
-        "quantity": 2.0,
+        "quantity": 3.0,
         "unit": "EA",
         "unit_price": 16.56,
         "supplier_unit_price": null,
@@ -1648,7 +1660,7 @@
         "fence_run_sync_id": "0000000c-0000-4000-8000-000000000001",
         "sort_order": 11,
         "description": "5\"x5\" Co-Ex Gate Post, White",
-        "quantity": 2.0,
+        "quantity": 1.0,
         "unit": "EA",
         "unit_price": 16.56,
         "supplier_unit_price": null,
@@ -1732,7 +1744,7 @@
         "fence_run_sync_id": "0000000c-0000-4000-8000-000000000002",
         "sort_order": 4,
         "description": "4x4x8' Pressure-Treated Post",
-        "quantity": 2.0,
+        "quantity": 3.0,
         "unit": "EA",
         "unit_price": 9.5,
         "supplier_unit_price": null,
@@ -1816,7 +1828,7 @@
         "fence_run_sync_id": "0000000c-0000-4000-8000-000000000002",
         "sort_order": 10,
         "description": "4x4x8' Pressure-Treated Post",
-        "quantity": 2.0,
+        "quantity": 1.0,
         "unit": "EA",
         "unit_price": 9.5,
         "supplier_unit_price": null,

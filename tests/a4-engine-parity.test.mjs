@@ -282,10 +282,18 @@ console.log("\n2. LINE_TO_WALL gate: post caps now match physical posts exactly 
   // Arithmetic: 2 fence ends + 3 gate-area END_POST = 5, before;
   //             2 fence ends + 1 gate-area END_POST = 3, now, with the two that
   //             moved reappearing as GATE_POST 2. 3 + 2 = 5: no post was lost.
+  // The split moved on 4 Oct 2026: the gate hangs from ONE post, and the latch
+  // side is an END_POST because the fence connects to it. So LINE_TO_WALL now
+  // adds GATE_POST 1 + END_POST 2 (its own latch, plus the one where the run
+  // terminates at the wall) where it used to add GATE_POST 2 + END_POST 1.
+  //
+  // FIVE POSTS EITHER WAY, which is the number this file actually guards: the
+  // cap check below compares physical posts against billed caps and is
+  // untouched by which row each post is billed from.
   ok("fixture precondition: this really is the LINE_TO_WALL path (the gate area adds " +
-     "GATE_POST 2 + END_POST 1, so END_POST reads 2 fence-end + 1 gate-end)",
-    endPostQty === 3 && gatePostQty === 2,
-    `END_POST entries sum to ${endPostQty} (expected 2 fence-end + 1 gate-end), GATE_POST=${gatePostQty} (expected 2)`);
+     "GATE_POST 1 + END_POST 2, so END_POST reads 2 fence-end + 2 gate-area)",
+    endPostQty === 4 && gatePostQty === 1,
+    `END_POST entries sum to ${endPostQty} (expected 2 fence-end + 2 gate-area), GATE_POST=${gatePostQty} (expected 1)`);
 
   ok(`FIXED: ${physicalPosts} physical posts stand on this job (${run.posts.line} line + ` +
      `${run.posts.corner} corner + ${endPostQty} end + ${gatePostQty} gate) and exactly ` +
@@ -349,10 +357,12 @@ console.log("\n2. LINE_TO_WALL gate: post caps now match physical posts exactly 
   // physicalPosts is UNCHANGED at 18, because this count now includes GATE_POST,
   // and so is the billed cap count -- which is the point of the canary: this
   // mounting never had a shortfall and still does not.
-  ok("CANARY: the same gate mounted LINE instead needs only 2 gate posts and no extra end " +
-     "post, and the billed cap count matches the physical post count exactly -- no shortfall, " +
-     "same as it never had one",
-    endPostQty === 2 && gatePostQty === 2 && physicalPosts === 18 &&
+  // Same two posts in the ground as before; one of them is now billed as the
+  // end post it is. endPostQty is 3 = 2 fence ends + the gate's latch.
+  ok("CANARY: the same gate mounted LINE puts TWO posts at the opening -- one gate post " +
+     "carrying the gate, one end post where the fence connects -- and the billed cap count " +
+     "still matches the physical post count exactly, no shortfall, same as it never had one",
+    endPostQty === 3 && gatePostQty === 1 && physicalPosts === 18 &&
     physicalPosts === capEntry.quantity && physicalPosts === run.posts.total,
     `endPostQty=${endPostQty} gatePostQty=${gatePostQty} physicalPosts=${physicalPosts} ` +
     `capQty=${capEntry.quantity} posts.total=${run.posts.total}`);
