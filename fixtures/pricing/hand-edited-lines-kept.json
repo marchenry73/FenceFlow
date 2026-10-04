@@ -2,7 +2,7 @@
   "schema": 1,
   "engine": {
     "version": "2026.10.9",
-    "generated_at": "2026-10-04T20:19:29.136500700Z"
+    "generated_at": "2026-10-04T22:14:51.865903500Z"
   },
   "case": "hand-edited-lines-kept",
   "note": "Lines edited by hand stand in for the built line of their role and keep their own quantity and price (LINE_POST at a typed $14, POST_CAP at the catalog's own price); an edited GATE_PANEL on a run that builds no gate is kept, never dropped; the generated CONCRETE_BAG row gives way to the rebuild.",

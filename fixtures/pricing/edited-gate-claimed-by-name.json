@@ -2,7 +2,7 @@
   "schema": 1,
   "engine": {
     "version": "2026.10.9",
-    "generated_at": "2026-10-04T20:19:29.136500700Z"
+    "generated_at": "2026-10-04T22:14:51.865903500Z"
   },
   "case": "edited-gate-claimed-by-name",
   "note": "A 4 ft gate panel priced by hand at $185, under the id it had as the only gate. A 6 ft gate added since makes GATE_PANEL repeat, so both built panels get width ids; the edited line claims the one with its product name (the 4 ft), and the 6 ft is written at its catalog $230, not the typed $185.",

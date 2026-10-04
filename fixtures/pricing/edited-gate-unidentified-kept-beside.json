@@ -2,7 +2,7 @@
   "schema": 1,
   "engine": {
     "version": "2026.10.9",
-    "generated_at": "2026-10-04T20:19:29.136500700Z"
+    "generated_at": "2026-10-04T22:14:51.865903500Z"
   },
   "case": "edited-gate-unidentified-kept-beside",
   "note": "An edited GATE_PANEL whose id the build does not produce and whose name matches neither built panel: nothing identifies it, so nothing is claimed. Both built panels are written and the edited line stays beside them -- an extra line beats a gate missing from the order.",

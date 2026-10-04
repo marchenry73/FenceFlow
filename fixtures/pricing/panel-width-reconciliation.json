@@ -2,7 +2,7 @@
   "schema": 1,
   "engine": {
     "version": "2026.10.9",
-    "generated_at": "2026-10-04T20:19:29.136500700Z"
+    "generated_at": "2026-10-04T22:14:51.865903500Z"
   },
   "case": "panel-width-reconciliation",
   "note": "Spec'd at 6 ft, only an 8 ft panel in that colour: 17 becomes ceil(100 / 8) = 13, from the true footage.",

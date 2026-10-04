@@ -2,7 +2,7 @@
   "schema": 1,
   "engine": {
     "version": "2026.10.9",
-    "generated_at": "2026-10-04T20:19:29.136500700Z"
+    "generated_at": "2026-10-04T22:14:51.865903500Z"
   },
   "case": "zero-placeholder-vs-priced",
   "note": "A $0 row at the exact width loses to a priced row at the same width; a $0 post loses to a priced post; a role whose only row is $0 (BLANK_POST) is chosen and reported as zero-priced.",

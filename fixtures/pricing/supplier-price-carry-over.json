@@ -2,7 +2,7 @@
   "schema": 1,
   "engine": {
     "version": "2026.10.9",
-    "generated_at": "2026-10-04T20:19:29.136500700Z"
+    "generated_at": "2026-10-04T22:14:51.865903500Z"
   },
   "case": "supplier-price-carry-over",
   "note": "The quote on a generated LINE_POST carries by role onto the rebuilt line and the totals use it; the edited PANEL and END_POST stand in for their built lines and keep their own quote and typed price.",

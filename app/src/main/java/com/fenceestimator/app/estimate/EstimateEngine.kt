@@ -448,7 +448,12 @@ object EstimateEngine {
         val nonGatePosts = (postCounts.totalPosts - postCounts.gatePosts).coerceAtLeast(0)
         entries += QtyEntry(MaterialRole.CONCRETE_BAG, nonGatePosts * run.concreteBagsPerPost.toDouble())
 
-        gates.forEach { gate -> entries += gateEntries(run.fenceType, gate) }
+        // hasFenceLine: is there any fence for a latch post to connect TO? A
+        // gate-only run (a standalone gate sale, no line drawn) has none, and
+        // its second post is a blank rather than the end of a fence that is not
+        // there.
+        val hasFenceLine = geometry.totalLinearFeet > 0f
+        gates.forEach { gate -> entries += gateEntries(run.fenceType, gate, hasFenceLine) }
 
         val withWaste = applyWaste(entries, wastePercent)
         val kept = wholeBags(withWaste).filter { it.role !in run.suppressedRoles }
@@ -926,7 +931,7 @@ object EstimateEngine {
      * trim. Only the non-vinyl types, which never had a brace line to begin
      * with, see anything change.
      */
-    private fun gateEntries(fenceType: FenceType, gate: GateMarker): List<QtyEntry> {
+    private fun gateEntries(fenceType: FenceType, gate: GateMarker, hasFenceLine: Boolean): List<QtyEntry> {
         val panelRole = if (fenceType in FRAME_KIT_GATE_TYPES) MaterialRole.GATE_FRAME_KIT else MaterialRole.GATE_PANEL
         val entries = mutableListOf(QtyEntry(panelRole, 1.0, preferCoversFt = gate.widthFt))
         entries += QtyEntry(MaterialRole.HINGE_SET, 1.0)
@@ -944,7 +949,7 @@ object EstimateEngine {
         if (fenceType == FenceType.VINYL) {
             entries += QtyEntry(MaterialRole.TRIM, 4.0)
         }
-        entries += gateAreaEntries(fenceType, gate)
+        entries += gateAreaEntries(fenceType, gate, hasFenceLine)
         return entries
     }
 
@@ -1014,7 +1019,12 @@ object EstimateEngine {
      * Gate posts are counted separately by [computePostCounts]; these are the
      * posts the gate area needs on top of that.
      */
-    private fun gateAreaEntries(fenceType: FenceType, gate: GateMarker): List<QtyEntry> {
+    private fun gateAreaEntries(fenceType: FenceType, gate: GateMarker, hasFenceLine: Boolean): List<QtyEntry> {
+        // The post opposite the hinge. His rule in full: an END POST where the
+        // fence connects to it, a BLANK where nothing does. The first half was
+        // implemented and the second half was not, so a standalone gate billed
+        // the end of a fence that does not exist.
+        val latchPost = if (hasFenceLine) MaterialRole.END_POST else MaterialRole.BLANK_POST
         val entries = mutableListOf<QtyEntry>()
         if (fenceType in STIFFENED_GATE_TYPES) entries += QtyEntry(MaterialRole.STIFFENER, 1.0)
         when (gate.mounting) {
@@ -1057,7 +1067,7 @@ object EstimateEngine {
                 // -- so computePostCounts' gatePosts, POST_CAP and the concrete
                 // are all untouched. Only the row each post is billed from.
                 entries += QtyEntry(MaterialRole.GATE_POST, 1.0)
-                entries += QtyEntry(MaterialRole.END_POST, 1.0)
+                entries += QtyEntry(latchPost, 1.0)
                 entries += QtyEntry(MaterialRole.CONCRETE_BAG, GATE_HINGE_BAGS + GATE_LATCH_BAGS)
             }
             GateMounting.LINE_TO_WALL -> {

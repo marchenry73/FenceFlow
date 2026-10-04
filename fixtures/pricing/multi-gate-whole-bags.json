@@ -2,7 +2,7 @@
   "schema": 1,
   "engine": {
     "version": "2026.10.9",
-    "generated_at": "2026-10-04T20:19:29.136500700Z"
+    "generated_at": "2026-10-04T22:14:51.865903500Z"
   },
   "case": "multi-gate-whole-bags",
   "note": "1.25 bags per post and three mountings: 16.25 + 2.5 + 1.0 + 3.5 = 23.25 bags, rounded up once to 24.",

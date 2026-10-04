@@ -2,7 +2,7 @@
   "schema": 1,
   "engine": {
     "version": "2026.10.9",
-    "generated_at": "2026-10-04T20:19:29.136500700Z"
+    "generated_at": "2026-10-04T22:14:51.865903500Z"
   },
   "case": "gate-line-to-wall-mount",
   "note": "Line to wall: three end posts and 3.5 bags; gatePosts now counts 3 for this mounting (not the flat 2 every other mounting still takes), so POST_CAP bills all three -- the old undercount is fixed, not reproduced.",

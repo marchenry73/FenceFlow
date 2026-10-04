@@ -2,7 +2,7 @@
   "schema": 1,
   "engine": {
     "version": "2026.10.9",
-    "generated_at": "2026-10-04T20:19:29.136500700Z"
+    "generated_at": "2026-10-04T22:14:51.865903500Z"
   },
   "case": "minimum-labour-charge-off-keeps-a-credit",
   "note": "The labour floor at 0 is OFF, and off has to mean untouched: a negative labour flat fee is how money is knocked off a quote, and a bare max(x, 0) would swallow it and put the quote UP.",

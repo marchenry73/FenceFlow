@@ -2,7 +2,7 @@
   "schema": 1,
   "engine": {
     "version": "2026.10.9",
-    "generated_at": "2026-10-04T20:19:29.136500700Z"
+    "generated_at": "2026-10-04T22:14:51.865903500Z"
   },
   "case": "price-tie-by-sync-id",
   "note": "Two identical panels, the lower sync id listed second: sync id decides, list position does not.",

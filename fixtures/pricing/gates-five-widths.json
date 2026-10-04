@@ -2,7 +2,7 @@
   "schema": 1,
   "engine": {
     "version": "2026.10.9",
-    "generated_at": "2026-10-04T20:19:29.136500700Z"
+    "generated_at": "2026-10-04T22:14:51.865903500Z"
   },
   "case": "gates-five-widths",
   "note": "Gates of 3.5, 4.0, 5.0, 10.0 and 12.0 ft on one run: five GATE_PANEL lines whose sync ids carry the width as Kotlin Float.toString renders it (3.5, 4.0, 10.0 ...).",

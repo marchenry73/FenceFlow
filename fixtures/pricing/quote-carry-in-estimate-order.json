@@ -2,7 +2,7 @@
   "schema": 1,
   "engine": {
     "version": "2026.10.9",
-    "generated_at": "2026-10-04T20:19:29.136500700Z"
+    "generated_at": "2026-10-04T22:14:51.865903500Z"
   },
   "case": "quote-carry-in-estimate-order",
   "note": "Two gate panel quotes on one run, handed over out of order. The carry reads the run's lines the way the phone's DAO does (sort_order, then sync_id), so the $250 quote on the later line is the one both widths carry, whatever order the rows arrive in -- and a database read has no order of its own.",

@@ -215,7 +215,11 @@ export function suggestQuantities(
   const nonGatePosts = coerceAtLeast(postCounts.totalPosts - postCounts.gatePosts, 0);
   entries.push(qty("CONCRETE_BAG", nonGatePosts * run.concreteBagsPerPost));
 
-  for (const gate of gates) entries = entries.concat(gateEntries(run.fenceType, gate));
+  // hasFenceLine: is there any fence for a latch post to connect TO? A
+  // gate-only run (a standalone gate sale, no line drawn) has none, and its
+  // second post is a blank rather than the end of a fence that is not there.
+  const hasFenceLine = geometry.totalLinearFeet > 0;
+  for (const gate of gates) entries = entries.concat(gateEntries(run.fenceType, gate, hasFenceLine));
 
   const withWaste = applyWaste(entries, wastePercent);
   const kept = wholeBags(withWaste).filter((e) => !run.suppressedRoles.has(e.role));
@@ -471,7 +475,7 @@ function chainLinkEntries(run: FenceRun, netFt: number, posts: PostCounts): QtyE
  * non-vinyl types, which never had a brace line to begin with, see anything
  * change.
  */
-function gateEntries(fenceType: FenceType, gate: GateMarker): QtyEntry[] {
+function gateEntries(fenceType: FenceType, gate: GateMarker, hasFenceLine: boolean): QtyEntry[] {
   const panelRole: MaterialRole = FRAME_KIT_GATE_TYPES.has(fenceType) ? "GATE_FRAME_KIT" : "GATE_PANEL";
   const entries: QtyEntry[] = [qty(panelRole, 1.0, gate.widthFt)];
   entries.push(qty("HINGE_SET", 1.0));
@@ -489,7 +493,7 @@ function gateEntries(fenceType: FenceType, gate: GateMarker): QtyEntry[] {
   if (fenceType === "VINYL") {
     entries.push(qty("TRIM", 4.0));
   }
-  return entries.concat(gateAreaEntries(fenceType, gate));
+  return entries.concat(gateAreaEntries(fenceType, gate, hasFenceLine));
 }
 
 /**
@@ -558,8 +562,11 @@ function gateEntries(fenceType: FenceType, gate: GateMarker): QtyEntry[] {
  * Gate posts are counted separately by computePostCounts; these are the
  * posts the gate area needs on top of that.
  */
-function gateAreaEntries(fenceType: FenceType, gate: GateMarker): QtyEntry[] {
+function gateAreaEntries(fenceType: FenceType, gate: GateMarker, hasFenceLine: boolean): QtyEntry[] {
   const entries: QtyEntry[] = [];
+  // The post opposite the hinge. His rule in full: an END POST where the fence
+  // connects to it, a BLANK where nothing does.
+  const latchPost: MaterialRole = hasFenceLine ? "END_POST" : "BLANK_POST";
   if (STIFFENED_GATE_TYPES.has(fenceType)) entries.push(qty("STIFFENER", 1.0));
   switch (gate.mounting) {
     case "WALL":
@@ -597,7 +604,7 @@ function gateAreaEntries(fenceType: FenceType, gate: GateMarker): QtyEntry[] {
       // computePostCounts' gatePosts, POST_CAP and the concrete all stay as
       // they are. Only the row each post is billed from moves.
       entries.push(qty("GATE_POST", 1.0));
-      entries.push(qty("END_POST", 1.0));
+      entries.push(qty(latchPost, 1.0));
       entries.push(qty("CONCRETE_BAG", GATE_HINGE_BAGS + GATE_LATCH_BAGS));
       break;
     case "LINE_TO_WALL":

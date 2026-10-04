@@ -2,7 +2,7 @@
   "schema": 1,
   "engine": {
     "version": "2026.10.9",
-    "generated_at": "2026-10-04T20:19:29.136500700Z"
+    "generated_at": "2026-10-04T22:14:51.865903500Z"
   },
   "case": "minimum-labour-charge",
   "note": "A 4 ft job with a $200 LABOUR floor: labour is lifted from $32 to $200, materials are charged on top and never count toward reaching it, and the markup earns on the floored labour.",

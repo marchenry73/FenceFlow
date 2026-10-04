@@ -289,14 +289,20 @@ class ZeroPriceGuardTest {
         // identical shape) and the TypeScript port run live on it:
         // posts {line 14, corner 0, end 2, gate 3, total 19},
         // roles {END_POST 3, GATE_POST 2, POST_CAP 19}.
+        // The split moved on 4 Oct: one post carries the gate, and a post the
+        // fence connects to is an END_POST. So LINE_TO_WALL is GATE_POST 1 +
+        // END_POST 2 (the gate's latch, and the wall end) on top of the run's
+        // own two ends. THREE POSTS AT THE GATE AREA EITHER WAY, which is what
+        // this precondition exists to hold: the cap check below counts posts,
+        // not roles, and it is unchanged.
         assertEquals(
             "fixture precondition: the gate area still adds a THIRD post, now " +
-                "split GATE_POST 2 + END_POST 1 (so 2 fence ends + 1 wall end)",
-            3.0, endPostQty(run), 0.001
+                "split GATE_POST 1 + END_POST 2 (so 2 fence ends + gate latch + wall end)",
+            4.0, endPostQty(run), 0.001
         )
         assertEquals(
-            "the gate's own two posts, billed against the GATE_POST rows now",
-            2.0, gatePostQty(run), 0.001
+            "one gate post, because the gate hangs from one post",
+            1.0, gatePostQty(run), 0.001
         )
         assertEquals("gatePosts now counts all three the gate area builds", 3, workings.gatePosts)
 

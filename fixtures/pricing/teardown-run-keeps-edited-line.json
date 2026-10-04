@@ -2,7 +2,7 @@
   "schema": 1,
   "engine": {
     "version": "2026.10.9",
-    "generated_at": "2026-10-04T20:19:29.136500700Z"
+    "generated_at": "2026-10-04T22:14:51.865903500Z"
   },
   "case": "teardown-run-keeps-edited-line",
   "note": "A teardown run builds nothing: its generated WOOD_PICKET row goes, and the CONCRETE_BAG somebody typed onto it stays and counts. The teardown charge prices as in teardown-drawn-run.",

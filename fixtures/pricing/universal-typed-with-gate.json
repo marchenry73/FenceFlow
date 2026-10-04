@@ -2,7 +2,7 @@
   "schema": 1,
   "engine": {
     "version": "2026.10.9",
-    "generated_at": "2026-10-04T20:19:29.136500700Z"
+    "generated_at": "2026-10-04T22:14:51.865903500Z"
   },
   "case": "universal-typed-with-gate",
   "note": "A UNIVERSAL run takes off nothing type-specific: concrete for its posts, the gate's hardware, and only UNIVERSAL catalog rows can match, so most roles are unmatched.",

@@ -2,7 +2,7 @@
   "schema": 1,
   "engine": {
     "version": "2026.10.9",
-    "generated_at": "2026-10-04T20:19:29.136500700Z"
+    "generated_at": "2026-10-04T22:14:51.865903500Z"
   },
   "case": "edited-quantity-stands-in-by-sync-id",
   "note": "The owner typed 18 panels where the drawing says 17. The edited line carries the built line's own sync id, so it IS that line: kept at 18 and nothing written beside it. The untouched LINE_POST is rebuilt as it was, and the quote on the generated END_POST carries.",

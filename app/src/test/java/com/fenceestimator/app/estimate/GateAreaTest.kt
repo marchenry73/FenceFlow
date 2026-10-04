@@ -88,7 +88,13 @@ class GateAreaTest {
         // fixtures/pricing/gate-only-run.json (engine 2026.10.8, the same
         // shape) and the TypeScript port run live on it:
         // posts {line 0, corner 0, end 0, gate 2, total 2}, POST_CAP 2.
-        assertEquals("the gate still stands two posts", 2.0, qty(run, MaterialRole.GATE_POST), 0.001)
+        // STILL TWO POSTS, now of two kinds. The hinge post carries the gate;
+        // the latch post is a BLANK because there is no fence line for it to be
+        // the end of -- which is the second half of his rule, and the half this
+        // test caught missing: "an end post if it is connected to the fence, or
+        // a blank if disconnected."
+        assertEquals("the hinge post carries the gate", 1.0, qty(run, MaterialRole.GATE_POST), 0.001)
+        assertEquals("no fence line, so the latch post is a blank", 1.0, qty(run, MaterialRole.BLANK_POST), 0.001)
         assertEquals("no fence line, so no end of one", 0.0, qty(run, MaterialRole.END_POST), 0.001)
         // Teeth kept: a standalone gate sale is not refused for want of fence.
         // Two posts in the ground, a cap on each, its stiffener and its concrete.

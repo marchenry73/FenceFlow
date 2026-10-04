@@ -103,8 +103,13 @@ class EstimateEngineTest {
         // port (supabase/functions/_shared/pricing, engine 2026.10.8, the half
         // of the parity pair that CAN be executed here) on this exact input:
         // {LINE_POST 2, END_POST 2, GATE_POST 2, POST_CAP 6}.
-        assertEquals(2.0, qtyOf(s, MaterialRole.END_POST), 0.001)
-        assertEquals(2.0, qtyOf(s, MaterialRole.GATE_POST), 0.001)
+        // The gate's latch post is an END_POST now (4 Oct: one post carries the
+        // gate, the other is decided by whether the fence connects to it), so
+        // this is the run's own two ends PLUS the gate's one. Six posts either
+        // way -- 2 line + 3 end + 1 gate -- and the cap count below is what
+        // holds that total honest.
+        assertEquals(3.0, qtyOf(s, MaterialRole.END_POST), 0.001)
+        assertEquals(1.0, qtyOf(s, MaterialRole.GATE_POST), 0.001)
         // The teeth this test is named for, untouched: the old formula
         // subtracted the gate posts out of the line-post pool and drove this
         // to zero on any run short enough.
