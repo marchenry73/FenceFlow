@@ -195,7 +195,15 @@
   @media (min-width:1024px) and (max-width:1400px){
     .wrap{max-width:1340px}
   }
+  /* The dashboard's own stats are grouped; every OTHER .stats on the page (the
+     Reports tab has its own) keeps the plain auto-fit grid, which is why the
+     grouping styles hang off .stat-group rather than redefining .stats. */
   .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin-bottom:18px}
+  #tab-dash .stats{display:block;margin-bottom:18px}
+  .stat-group + .stat-group{margin-top:14px}
+  .stat-group-h{font-size:10.5px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;
+    color:var(--muted);margin-bottom:6px}
+  .stats-row{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
   .stat{background:var(--surface);border:1px solid var(--line);border-radius:12px;padding:15px}
   .stat.click{cursor:pointer}.stat.click:hover{border-color:var(--orange)}
   .stat .n{font:700 27px/1.15 "Barlow Condensed","Arial Narrow",sans-serif;
@@ -3336,7 +3344,8 @@ const TL = {
     // MESSAGES in supabase/functions/_shared/mail/errors.ts, which is how the
     // Settings panel knows a stored last_error adds nothing to them.
     tabMail:'Email', mailUnreadTitle:'%s unread',
-menuLanguage:'Language', menuAppearance:'Appearance',
+dashGroupToday:'Today', dashGroupSales:'Sales', dashGroupMoney:'Money',
+    menuLanguage:'Language', menuAppearance:'Appearance',
     newBtn:'+ New', newJobItem:'Job', newMailItem:'Email', newCrewItem:'Crew member',
     searchPh:'Search customers, jobs, addresses, email', searchGroupCustomers:'Customers', searchGroupJobs:'Jobs', searchGroupMail:'Email', searchNone:'Nothing found for %s',
     navSales:'Sales', navWork:'Work', navOps:'Operations', navTeam:'Team', navInsights:'Insights', navAdmin:'Account',
@@ -5074,7 +5083,8 @@ menuLanguage:'Language', menuAppearance:'Appearance',
     tabCatalog:'Catálogo', tabReports:'Informes', tabAutomation:'Automatización',
     tabSettings:'Ajustes', tabBilling:'Facturación',
     tabMail:'Correo', mailUnreadTitle:'%s sin leer',
-menuLanguage:'Idioma', menuAppearance:'Apariencia',
+dashGroupToday:'Hoy', dashGroupSales:'Ventas', dashGroupMoney:'Dinero',
+    menuLanguage:'Idioma', menuAppearance:'Apariencia',
     newBtn:'+ Nuevo', newJobItem:'Trabajo', newMailItem:'Correo', newCrewItem:'Miembro del equipo',
     searchPh:'Buscar clientes, trabajos, direcciones, correo', searchGroupCustomers:'Clientes', searchGroupJobs:'Trabajos', searchGroupMail:'Correo', searchNone:'No se encontró nada para %s',
     navSales:'Ventas', navWork:'Trabajo', navOps:'Operaciones', navTeam:'Equipo', navInsights:'Análisis', navAdmin:'Cuenta',
@@ -6782,7 +6792,8 @@ menuLanguage:'Idioma', menuAppearance:'Apariencia',
     tabCatalog:'Catalogue', tabReports:'Rapports', tabAutomation:'Automatisation',
     tabSettings:'Paramètres', tabBilling:'Facturation',
     tabMail:'E-mails', mailUnreadTitle:'%s non lus',
-menuLanguage:'Langue', menuAppearance:'Apparence',
+dashGroupToday:'Aujourdhui', dashGroupSales:'Ventes', dashGroupMoney:'Argent',
+    menuLanguage:'Langue', menuAppearance:'Apparence',
     newBtn:'+ Nouveau', newJobItem:'Chantier', newMailItem:'Courrier', newCrewItem:'Membre de léquipe',
     searchPh:'Rechercher clients, chantiers, adresses, courrier', searchGroupCustomers:'Clients', searchGroupJobs:'Chantiers', searchGroupMail:'Courrier', searchNone:'Rien trouvé pour %s',
     navSales:'Ventes', navWork:'Travaux', navOps:'Opérations', navTeam:'Équipe', navInsights:'Analyses', navAdmin:'Compte',
@@ -12069,18 +12080,34 @@ function renderDash(){
     && d(j.scheduled_date) >= startOfToday && d(j.scheduled_date) < endOfToday);
   const onTheClock = times.filter(t => t.started_at && !t.ended_at);
 
+  // THREE QUESTIONS, NOT SIX NUMBERS. Six tiles in one row all shout equally
+  // and the eye has to read every label to find the one it came for. Grouped,
+  // the question is answered by where you look: what is happening now, what we
+  // sold, what we are owed.
+  //
+  // The groups are uneven -- three, one, two -- and stay uneven. Inventing a
+  // seventh number to balance Sales would be a metric that exists for the
+  // layout rather than for him, which is the thing this spec calls inventing
+  // data. One number under Sales is an honest answer to a question with one
+  // number behind it.
+  const statGroup = (label, body) =>
+    `<div class="stat-group"><div class="stat-group-h">${esc(label)}</div>` +
+    `<div class="stats-row">${body}</div></div>`;
   $('stats').innerHTML=
-    tile('cal', todaysJobs.length, esc(tr(todaysJobs.length === 1 ? 'dashTileJobToday' : 'dashTileJobsToday'))) +
-    tile('time', onTheClock.length, esc(tr('dashTileOnClock'))) +
-    tile('cal', soon.length, esc(tr('dashTileNext7'))) +
-    tile('pipe', won, esc(tr('dashTileWon')), monthDelta(won, wonPrev)) +
-    tile('reports', money(collected), esc(tr('dashTileCollected')), monthDelta(collected, collectedPrev), 'collected') +
+    statGroup(tr('dashGroupToday'),
+      tile('cal', todaysJobs.length, esc(tr(todaysJobs.length === 1 ? 'dashTileJobToday' : 'dashTileJobsToday'))) +
+      tile('time', onTheClock.length, esc(tr('dashTileOnClock'))) +
+      tile('cal', soon.length, esc(tr('dashTileNext7')))) +
+    statGroup(tr('dashGroupSales'),
+      tile('pipe', won, esc(tr('dashTileWon')), monthDelta(won, wonPrev))) +
+    statGroup(tr('dashGroupMoney'),
+      tile('reports', money(collected), esc(tr('dashTileCollected')), monthDelta(collected, collectedPrev), 'collected') +
     // Reports, not Jobs. It DID open something -- the whole Jobs tab -- which is
     // this spec's complaint in a single example: the number led somewhere, but
     // not to the records responsible for it. The Money owed table IS those
     // records, already built, already exporting to CSV, and nothing on the
     // dashboard pointed at it.
-    tile('reports', money(owedTotal), esc(tr('dashTileOwed')), null, 'owed');
+    tile('reports', money(owedTotal), esc(tr('dashTileOwed')), null, 'owed'));
   document.querySelectorAll('.stat.click').forEach(s=>
     s.addEventListener('click',()=>{
       switchTab(s.dataset.go);
