@@ -791,6 +791,12 @@
     color:var(--text);font:inherit;font-size:13.5px;padding:8px 10px;border-radius:7px}
   .hmenu-item:hover{background:var(--paper)}
   .hmenu-item:focus-visible{outline:2px solid var(--orange);outline-offset:-2px}
+  .hmenu-row{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:6px 10px}
+  .hmenu-row label{font-size:13px;color:var(--muted);margin:0}
+  .hmenu-row select{font-size:13px;padding:3px 6px}
+  .hmenu-sep{height:1px;background:var(--line);margin:4px 6px}
+  #acctBtn .who{max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  a.hmenu-item{text-decoration:none}
   .mail-row:last-child{border-bottom:none}
   /* The row holds the open-button and the actions side by side. Relative so the
      actions can sit over the row's right edge without reserving width that the
@@ -949,28 +955,54 @@
         <button type="button" class="hmenu-item" role="menuitem" data-new="crew" data-t="newCrewItem">Crew member</button>
       </div>
     </div>
-    <span class="who" id="who"></span>
-    <select id="langPicker" class="btn btn-sm btn-ghost" aria-label="Language" title="Language"
-            style="padding-right:6px">
-      <option value="en">EN</option>
-      <option value="es">ES</option>
-      <option value="fr">FR</option>
-    </select>
-    <!-- The dark styling was written and then reachable only by changing the
-         browser. Somebody whose laptop is set to dark had no way to say "not
-         in here" -- and the first thing that went wrong with it was black
-         text on a near-black field, measured at 1.07 contrast where 4.5 is
-         readable. A person who cannot choose cannot get out of that. -->
-    <select id="themePicker" class="btn btn-sm btn-ghost" data-t-title="themeTitle"
-            aria-label="Appearance" title="Appearance" style="padding-right:6px">
-      <option value="system" data-t="themeSystem">System</option>
-      <option value="light" data-t="themeLight">Light</option>
-      <option value="dark" data-t="themeDark">Dark</option>
-    </select>
-    <!-- The public site, reachable but not where the logo lands. -->
-    <a class="btn btn-sm btn-ghost" href="index.html" id="publicSite" data-t="publicSite">Home page</a>
+    <!-- Refresh stays OUT of the menu on purpose. It is hidden until something
+         has actually gone wrong and the page needs reloading to recover, and a
+         recovery control you have to find behind a menu is a recovery control
+         that does not work when it is needed. -->
     <button class="btn btn-sm btn-ghost" id="refresh" data-t="refresh" style="display:none">Refresh</button>
-    <button class="btn btn-sm btn-ghost" id="signOut" data-t="signOut" style="display:none">Sign out</button>
+
+    <!-- EVERYTHING ELSE IS SET ONCE AND THEN LEFT ALONE: your language, your
+         light or dark, the way out to the public site, signing out. Five
+         controls competing with Search and + New for the same bar, every one
+         of them something you touch about twice a year. The button is who you
+         are signed in as, which is also the thing the old bare label was
+         trying to tell you. -->
+    <div class="hmenu" id="acctBox">
+      <button class="btn btn-sm btn-ghost" id="acctBtn" type="button" aria-haspopup="menu"
+              aria-expanded="false" aria-controls="acctMenu">
+        <span class="who" id="who"></span>
+      </button>
+      <div class="hmenu-pop" id="acctMenu" role="menu" hidden style="min-width:230px">
+        <div class="hmenu-row">
+          <label for="langPicker" data-t="menuLanguage">Language</label>
+          <select id="langPicker" aria-label="Language">
+            <option value="en">EN</option>
+            <option value="es">ES</option>
+            <option value="fr">FR</option>
+          </select>
+        </div>
+        <!-- The dark styling was written and then reachable only by changing the
+             browser. Somebody whose laptop is set to dark had no way to say "not
+             in here" -- and the first thing that went wrong with it was black
+             text on a near-black field, measured at 1.07 contrast where 4.5 is
+             readable. A person who cannot choose cannot get out of that. -->
+        <div class="hmenu-row">
+          <label for="themePicker" data-t="menuAppearance">Appearance</label>
+          <select id="themePicker" data-t-title="themeTitle" aria-label="Appearance">
+            <option value="system" data-t="themeSystem">System</option>
+            <option value="light" data-t="themeLight">Light</option>
+            <option value="dark" data-t="themeDark">Dark</option>
+          </select>
+        </div>
+        <div class="hmenu-sep"></div>
+        <button type="button" class="hmenu-item" role="menuitem" data-acct="settings" data-t="tabSettings">Settings</button>
+        <button type="button" class="hmenu-item" role="menuitem" data-acct="billing" data-t="tabBilling">Billing</button>
+        <div class="hmenu-sep"></div>
+        <!-- The public site, reachable but not where the logo lands. -->
+        <a class="hmenu-item" href="index.html" id="publicSite" role="menuitem" data-t="publicSite">Home page</a>
+        <button class="hmenu-item" id="signOut" role="menuitem" data-t="signOut" style="display:none">Sign out</button>
+      </div>
+    </div>
   </div>
 </header>
 
@@ -3283,7 +3315,8 @@ const TL = {
     // MESSAGES in supabase/functions/_shared/mail/errors.ts, which is how the
     // Settings panel knows a stored last_error adds nothing to them.
     tabMail:'Email', mailUnreadTitle:'%s unread',
-newBtn:'+ New', newJobItem:'Job', newMailItem:'Email', newCrewItem:'Crew member',
+menuLanguage:'Language', menuAppearance:'Appearance',
+    newBtn:'+ New', newJobItem:'Job', newMailItem:'Email', newCrewItem:'Crew member',
     searchPh:'Search customers, jobs, addresses, email', searchGroupCustomers:'Customers', searchGroupJobs:'Jobs', searchGroupMail:'Email', searchNone:'Nothing found for %s',
     navSales:'Sales', navWork:'Work', navOps:'Operations', navTeam:'Team', navInsights:'Insights', navAdmin:'Account',
     mailAllMailboxes:'All mailboxes', mailFolderInbox:'Inbox', mailFolderSent:'Sent', mailFenceflowFolder:'FenceFlow mail',
@@ -5020,7 +5053,8 @@ newBtn:'+ New', newJobItem:'Job', newMailItem:'Email', newCrewItem:'Crew member'
     tabCatalog:'Catálogo', tabReports:'Informes', tabAutomation:'Automatización',
     tabSettings:'Ajustes', tabBilling:'Facturación',
     tabMail:'Correo', mailUnreadTitle:'%s sin leer',
-newBtn:'+ Nuevo', newJobItem:'Trabajo', newMailItem:'Correo', newCrewItem:'Miembro del equipo',
+menuLanguage:'Idioma', menuAppearance:'Apariencia',
+    newBtn:'+ Nuevo', newJobItem:'Trabajo', newMailItem:'Correo', newCrewItem:'Miembro del equipo',
     searchPh:'Buscar clientes, trabajos, direcciones, correo', searchGroupCustomers:'Clientes', searchGroupJobs:'Trabajos', searchGroupMail:'Correo', searchNone:'No se encontró nada para %s',
     navSales:'Ventas', navWork:'Trabajo', navOps:'Operaciones', navTeam:'Equipo', navInsights:'Análisis', navAdmin:'Cuenta',
     mailAllMailboxes:'Todos los buzones', mailFolderInbox:'Recibidos', mailFolderSent:'Enviados', mailFenceflowFolder:'Correo de FenceFlow',
@@ -6727,7 +6761,8 @@ newBtn:'+ Nuevo', newJobItem:'Trabajo', newMailItem:'Correo', newCrewItem:'Miemb
     tabCatalog:'Catalogue', tabReports:'Rapports', tabAutomation:'Automatisation',
     tabSettings:'Paramètres', tabBilling:'Facturation',
     tabMail:'E-mails', mailUnreadTitle:'%s non lus',
-newBtn:'+ Nouveau', newJobItem:'Chantier', newMailItem:'Courrier', newCrewItem:'Membre de léquipe',
+menuLanguage:'Langue', menuAppearance:'Apparence',
+    newBtn:'+ Nouveau', newJobItem:'Chantier', newMailItem:'Courrier', newCrewItem:'Membre de léquipe',
     searchPh:'Rechercher clients, chantiers, adresses, courrier', searchGroupCustomers:'Clients', searchGroupJobs:'Chantiers', searchGroupMail:'Courrier', searchNone:'Rien trouvé pour %s',
     navSales:'Ventes', navWork:'Travaux', navOps:'Opérations', navTeam:'Équipe', navInsights:'Analyses', navAdmin:'Compte',
     mailAllMailboxes:'Toutes les boîtes', mailFolderInbox:'Réception', mailFolderSent:'Envoyés', mailFenceflowFolder:'E-mail FenceFlow',
@@ -28253,7 +28288,7 @@ function syncNewMenu(){
 }
 
 function closeHeaderMenus(){
-  ['newMenu'].forEach(id => {
+  ['newMenu', 'acctMenu'].forEach(id => {
     const m = $(id); if (!m) return;
     m.hidden = true;
     const btn = m.previousElementSibling;
@@ -28268,6 +28303,23 @@ $('newBtn').addEventListener('click', e => {
   closeHeaderMenus();
   m.hidden = !open;
   $('newBtn').setAttribute('aria-expanded', open ? 'true' : 'false');
+});
+$('acctBtn').addEventListener('click', e => {
+  e.stopPropagation();
+  const m = $('acctMenu');
+  const open = m.hidden;
+  closeHeaderMenus();
+  m.hidden = !open;
+  $('acctBtn').setAttribute('aria-expanded', open ? 'true' : 'false');
+});
+// The two pickers live inside the menu now, so a click on either must not reach
+// the document handler that closes it -- changing your language should not shut
+// the menu before the change lands.
+$('acctMenu').addEventListener('click', e => {
+  const b = e.target.closest('[data-acct]');
+  if (!b) { e.stopPropagation(); return; }
+  closeHeaderMenus();
+  switchTab(b.dataset.acct);
 });
 $('newMenu').addEventListener('click', e => {
   const b = e.target.closest('[data-new]');
