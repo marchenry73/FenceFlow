@@ -1234,12 +1234,17 @@
       </div>
       <div class="stats" id="stats"><span class="section-loading" data-t="loadingSection">Loading…</span></div>
       <div class="panel">
-        <h2 style="margin-bottom:2px" data-t="chaseHead">Chase list</h2>
+        <h2 style="margin-bottom:2px" data-t="chaseHead">Follow-up priority</h2>
         <p class="sub" style="margin-top:0" data-t="chaseBody">Every open lead, sent quote and unpaid approval, ranked by
           what it is worth times how long it has been waiting &mdash; so a big job that has gone quiet
           outranks a small one from this morning. Click the bar to see the math.</p>
-        <div class="stats" id="chaseStats" style="margin-bottom:14px"></div>
+        <!-- THE PEOPLE BEFORE THE TOTALS. The aggregates used to sit above the
+             list, so the first thing this panel said was how much is in play --
+             a number you can do nothing about -- and the names you could
+             actually ring were below it. The ranking was always the point;
+             the totals are the footnote, and they now read as one. -->
         <div id="chaseList" class="section-loading" data-t="loadingSection">Loading…</div>
+        <div class="stats" id="chaseStats" style="margin-top:14px"></div>
       </div>
       <div class="panel" id="attentionPanel"><h2 data-t="attentionHead">Needs attention</h2><div id="attention" class="section-loading" data-t="loadingSection">Loading…</div></div>
       <div class="panel"><h2 data-t="thisWeekHead">This week</h2>
@@ -3508,7 +3513,7 @@ dashGroupToday:'Today', dashGroupSales:'Sales', dashGroupMoney:'Money',
     setupBody:'A quote is built out of these numbers. Until they are yours, every estimate this company produces is built on blanks — and you will not find out until the job is done.',
     briefingHead:'Daily briefing',
     briefingBody:'What changed in the last 24 hours, and what needs you today — a summary of the alerts and totals below, not a new set of checks.',
-    chaseHead:'Chase list',
+    chaseHead:'Follow-up priority',
     chaseBody:'Every open lead, sent quote and unpaid approval, ranked by what it is worth times how long it has been waiting — so a big job that has gone quiet outranks a small one from this morning. Click the bar to see the math.',
     chaseActSendQuote:'Send the quote', chaseActContact:'Contact them', chaseActFollow:'Follow up', chaseActDeposit:'Collect deposit',
     chaseStatInPlay:'Value in play (%s)', chaseStatWon:'Won this week (%s)', chaseStatLost:'Lost, all time (%s)',
@@ -5247,7 +5252,7 @@ dashGroupToday:'Hoy', dashGroupSales:'Ventas', dashGroupMoney:'Dinero',
     setupBody:'Un presupuesto se arma con estos datos. Hasta que sean los suyos, cada presupuesto que haga esta empresa se construye sobre huecos en blanco — y no lo va a notar hasta que el trabajo esté terminado.',
     briefingHead:'Resumen del día',
     briefingBody:'Lo que cambió en las últimas 24 horas y lo que necesita su atención hoy — un resumen de las alertas y totales de abajo, no una lista nueva de revisiones.',
-    chaseHead:'Lista de seguimiento',
+    chaseHead:'Prioridad de seguimiento',
     chaseBody:'Cada lead abierto, presupuesto enviado y aprobación sin pagar, ordenados por su valor multiplicado por cuánto llevan esperando — así un trabajo grande que se quedó callado pasa por delante de uno chico de esta mañana. Toque la barra para ver el cálculo.',
     chaseActSendQuote:'Enviar el presupuesto', chaseActContact:'Contactarlos', chaseActFollow:'Dar seguimiento', chaseActDeposit:'Cobrar el depósito',
     chaseStatInPlay:'Valor en juego (%s)', chaseStatWon:'Ganado esta semana (%s)', chaseStatLost:'Perdido, en total (%s)',
@@ -6956,7 +6961,7 @@ dashGroupToday:'Aujourdhui', dashGroupSales:'Ventes', dashGroupMoney:'Argent',
     setupBody:'Un devis se construit à partir de ces chiffres. Tant qu’ils ne sont pas les vôtres, chaque devis produit par cette entreprise repose sur des cases vides — et vous ne le saurez qu’une fois le chantier terminé.',
     briefingHead:'Point du jour',
     briefingBody:'Ce qui a changé dans les dernières 24 heures, et ce qui demande votre attention aujourd’hui — un résumé des alertes et totaux ci-dessous, pas une nouvelle liste de vérifications.',
-    chaseHead:'Liste de relance',
+    chaseHead:'Priorité de relance',
     chaseBody:'Chaque piste ouverte, devis envoyé et approbation non payée, classés selon leur valeur multipliée par le temps d’attente — un gros chantier devenu silencieux passe ainsi devant un petit datant de ce matin. Cliquez sur la barre pour voir le calcul.',
     chaseActSendQuote:'Envoyer le devis', chaseActContact:'Les contacter', chaseActFollow:'Relancer', chaseActDeposit:'Encaisser l’acompte',
     chaseStatInPlay:'Valeur en jeu (%s)', chaseStatWon:'Gagné cette semaine (%s)', chaseStatLost:'Perdu, depuis le début (%s)',
