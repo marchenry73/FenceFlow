@@ -797,6 +797,27 @@
   .hmenu-sep{height:1px;background:var(--line);margin:4px 6px}
   #acctBtn .who{max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   a.hmenu-item{text-decoration:none}
+  .brief-rows{display:flex;flex-direction:column;gap:1px}
+  .brief-row{display:flex;align-items:center;gap:8px;width:100%;text-align:left;
+    background:none;border:none;cursor:pointer;color:var(--text);font:inherit;font-size:13.5px;
+    padding:7px 8px;border-radius:7px}
+  .brief-row:hover{background:var(--paper)}
+  .brief-row:focus-visible{outline:2px solid var(--orange);outline-offset:-2px}
+  /* SEVERITY IS NOT CARRIED BY COLOUR ALONE. The urgent rows are the only ones
+     with a filled mark; a calm row's dot is a hollow ring. Somebody who cannot
+     tell the two colours apart can still see which rows are filled in. */
+  .brief-dot{width:7px;height:7px;border-radius:50%;flex:none;
+    border:1.5px solid var(--muted);background:transparent}
+  .brief-row.urgent .brief-dot{background:var(--bad-fg,#b3261e);border-color:var(--bad-fg,#b3261e)}
+  .brief-row.urgent .brief-text{color:var(--bad-fg,#b3261e)}
+  .brief-text{flex:1;min-width:0}
+  .brief-n{font-size:11px;color:var(--muted);background:var(--surface);border:1px solid var(--line);
+    border-radius:20px;padding:0 7px;flex:none}
+  /* The chevron appears on hover and focus, so a calm list stays calm, but it
+     is never display:none -- it carries no information a screen reader needs
+     and is marked aria-hidden, while the row itself is a real button. */
+  .brief-go{color:var(--muted);opacity:0;flex:none}
+  .brief-row:hover .brief-go,.brief-row:focus-visible .brief-go{opacity:1}
   .mail-row:last-child{border-bottom:none}
   /* The row holds the open-button and the actions side by side. Relative so the
      actions can sit over the row's right edge without reserving width that the
@@ -12807,10 +12828,22 @@ function renderBriefing(){
 
   const sectionsHtml = nonEmpty.map(({ label, lines }) => {
     const header = tr('briefSectionCountFmt', label, String(lines.length));
-    const body = '<ul style="margin:0;padding-left:18px">' + lines.map(l => {
+    // A row rather than a bullet. Same text, same click, same destination --
+    // but a severity mark on the left, the number of jobs behind it where that
+    // is more than one, and a chevron saying out loud that it opens something.
+    // Every one of these was already clickable and nothing told him.
+    const body = '<div class="brief-rows">' + lines.map(l => {
       const idx = allLines.indexOf(l);
-      return `<li class="brief-open" data-brief-idx="${idx}" style="cursor:pointer${l.urgent ? ';color:var(--bad,#b3261e)' : ''}">${esc(l.text)}</li>`;
-    }).join('') + '</ul>';
+      const n = Array.isArray(l.jobs) ? l.jobs.length : 0;
+      // Only when it is more than one. "1 job" next to a line that names the
+      // customer is noise, and the count is only useful as a warning that the
+      // click opens a list instead of a record.
+      const count = n > 1 ? `<span class="brief-n">${n}</span>` : '';
+      return `<button type="button" class="brief-open brief-row${l.urgent ? ' urgent' : ''}" data-brief-idx="${idx}">` +
+        `<span class="brief-dot" aria-hidden="true"></span>` +
+        `<span class="brief-text">${esc(l.text)}</span>${count}` +
+        `<span class="brief-go" aria-hidden="true">&rsaquo;</span></button>`;
+    }).join('') + '</div>';
     return `<div>
         <div style="font-weight:700;font-size:13px;color:var(--muted);text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px">${esc(header)}</div>
         ${body}
