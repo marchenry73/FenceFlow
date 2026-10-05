@@ -13270,17 +13270,22 @@ async function renderChase(){
       // Same field the stale_quote alert reads; falls back to created_at
       // only for a legacy row that somehow reached SENT with no timestamp.
       waitFrom = j.quote_sent_at || j.created_at;
-      // quote_viewed_at separates two situations this list used to show
-      // identically: a quote that was read and went quiet (nudge them) and one
-      // that was never opened at all (they never saw it -- resend, or ring).
-      // Same field the quote_viewed_not_approved follow-up rule reads, so the
-      // screen and the emails cannot disagree about who has looked.
+      // A sent quote is one of three situations, and this list used to show
+      // all three identically as "Follow up":
+      //
+      //   no address at all -- there is nowhere to send anything. Ring them.
+      //                        This is the James case: approved, deposit
+      //                        outstanding, and the contract email recorded
+      //                        'no_address' because the job has no email.
+      //   opened, then quiet -- they read it and did not say yes. Nudge.
+      //   never opened       -- they never saw it. Resend, or ring.
+      //
+      // No address is tested first because whether they opened it is moot when
+      // there is nothing to send. quote_viewed_at is the same field the
+      // quote_viewed_not_approved follow-up rule reads, so the screen and the
+      // emails cannot disagree about who has looked.
       //
       // The score is untouched. Only the label knows the difference.
-      // No address beats both of the above: whether they opened it is moot if
-      // there is nowhere to send the next one. This is the James case --
-      // approved, deposit outstanding, and the contract email recorded
-      // 'no_address' because the job has no email on it.
       action = !hasEmail
         ? { kind:'follow', label: tr('chaseActNoEmail') }
         : { kind:'follow',
