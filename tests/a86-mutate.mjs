@@ -41,6 +41,12 @@ const MUTATIONS = [
   { id: "2e", which: "findings", what: "the clear function loses its grant to authenticated",
     from: "grant  execute on function public.clear_attention_finding(uuid) to authenticated;",
     to: "-- grant removed" },
+  // 3c now reads the page's OWN select list, so asking for a column the
+  // table does not have must fail it. The old version could not: it compared
+  // a hardcoded list against the SQL and ignored the page entirely.
+  { id: "3c", which: "page", what: "the page asks for a column the table does not have",
+    from: "select('id,job_sync_id,detector,severity,message,created_at')",
+    to: "select('id,job_sync_id,detector,severity,message,created_at,colour_of_the_sky')" },
   { id: "3d", which: "page", what: "it stops filtering out findings somebody already cleared",
     from: ".is('cleared_at', null)", to: "" },
   { id: "4a", which: "page", what: "an off switch shows an empty list instead of saying nothing is watching",

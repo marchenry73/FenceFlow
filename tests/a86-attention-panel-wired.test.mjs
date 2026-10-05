@@ -67,11 +67,39 @@ ok("3a", "attention_sweep_settings has a select policy scoped to the company",
   /create policy attention_sweep_settings_read[\s\S]{0,200}for select using \(company_id = public\.current_company_id\(\)\)/.test(sqlSettings));
 ok("3b", "attention_findings has one too",
   /create policy attention_findings_read[\s\S]{0,200}for select using \(company_id = public\.current_company_id\(\)\)/.test(sqlFindings));
-ok("3c", "the page selects only columns the table really has",
-  ["enabled", "quiet_hours_start", "quiet_hours_end", "timezone", "updated_at"]
-    .every(c => sqlSettings.includes(c)) &&
-  ["id", "job_sync_id", "detector", "severity", "message", "created_at", "cleared_at"]
-    .every(c => sqlFindings.includes(c)));
+// READ WHAT THE PAGE ACTUALLY ASKS FOR, not a list typed in here.
+//
+// This used to check that a hardcoded set of names appeared somewhere in the
+// SQL -- which is true however the page's select changes, so it could not
+// catch the failure it is named for. A column the table does not have is not
+// an error from PostgREST's point of view either way; it is a request that
+// fails, or a property that comes back undefined.
+{
+  const selectAfter = (table) => {
+    const i = page.indexOf(`from('${table}')`);
+    if (i < 0) return null;
+    const m = page.slice(i, i + 400).match(/\.select\('([^']+)'\)/);
+    return m ? m[1].split(',').map((c) => c.trim()).filter(Boolean) : null;
+  };
+  const settingsCols = selectAfter("attention_sweep_settings");
+  const findingsCols = selectAfter("attention_findings");
+  ok("3c-found", "the page's own select lists were located, or everything below is vacuous",
+    !!settingsCols && !!findingsCols && settingsCols.length > 2 && findingsCols.length > 3,
+    JSON.stringify({ settingsCols, findingsCols }));
+
+  // A column is "real" if the migration that builds the table declares it.
+  const declares = (sql, col) => new RegExp(`\\b${col}\\s+(uuid|text|boolean|smallint|timestamptz|numeric|integer)`).test(sql);
+  const badSettings = (settingsCols || []).filter((c) => !declares(sqlSettings, c));
+  const badFindings = (findingsCols || []).filter((c) => !declares(sqlFindings, c));
+  ok("3c", "every column the page selects is declared by the migration that builds its table",
+    badSettings.length === 0 && badFindings.length === 0,
+    `settings: ${JSON.stringify(badSettings)}  findings: ${JSON.stringify(badFindings)}`);
+
+  // CANARY: the detector must reject a column that is not there, or a clean
+  // result above says only that the regex matched nothing.
+  ok("3c-canary", "a column the table does not declare is detected",
+    !declares(sqlFindings, "colour_of_the_sky"));
+}
 ok("3d", "and it asks only for findings nobody has cleared",
   page.includes(".is('cleared_at', null)"));
 

@@ -37,6 +37,15 @@ const MUTATIONS = [
     from: 'id="tab-cal"', to: 'id="tab-calendar"' },
   { id: "4e", what: "empty nav groups stop being hidden",
     from: "function syncNavGroups", to: "function syncNavGroupsDisabled" },
+  // The three a review flagged as possibly passing on strings that occur
+  // elsewhere on a 29k-line page. Each mutation breaks only the thing the
+  // named check claims to watch.
+  { id: "2b", what: "a search result stops opening the job through the page's own door",
+    from: "showJob(job.id)", to: "location.hash = job.id" },
+  { id: "3c", what: "the + New menu stops hiding items whose tab is gone",
+    from: "function syncNewMenu(", to: "function syncNewMenuRetired(" },
+  { id: "5b", what: "the owed table loses the anchor the money tile scrolls to",
+    from: 'id="repOwedHead"', to: 'id="repOwedHeading"' },
   { id: "5a", what: "the money tile goes back to opening the whole Jobs tab",
     from: "tile('reports', money(owedTotal)", to: "tile('jobs', money(owedTotal)" },
   { id: "5e", what: "Blocked gets its own definition instead of reading blocked_at",
