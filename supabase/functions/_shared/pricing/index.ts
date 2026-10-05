@@ -47,7 +47,28 @@ export {
  * engines through that whole change, which is exactly the failure mode this
  * constant exists to make impossible -- see
  * tests/a18-gate-post-cap-parity-fix.test.mjs and
- * tests/a4-engine-parity.test.mjs FINDING 2. See the matching comment on
+ * tests/a4-engine-parity.test.mjs FINDING 2.
+ *
+ * ###########################################################################
+ * BUMPING THIS CONSTANT IS NOT THE LAST STEP. REDEPLOY price-job.
+ *
+ *     npx supabase functions deploy price-job --project-ref <ref>
+ *
+ * price-job is the only edge function that bundles this engine, and nothing
+ * redeploys it automatically -- not the app's publish gate, not the website
+ * workflow. The parity gate compares the two SOURCE engines and proves they
+ * agree on the fixtures; it cannot see what is actually running.
+ *
+ * That gap was open and live for two days on 5 Oct 2026. The phone shipped
+ * 2026.10.9 in app 1.602 on 4 October while the DEPLOYED price-job was still
+ * the 2 October build carrying 2026.10.8 -- so the office priced a gate with
+ * two GATE_POSTs and gave a shared corner post to the TALLER side, while the
+ * phone in the owner's hand did neither. Parity was green the whole time, and
+ * correctly so. tests/a94-deployed-engine-matches-source.test.mjs pins this
+ * note and the one-function assumption behind it.
+ * ###########################################################################
+ *
+ * See the matching comment on
  * EstimateEngine.PRICING_ENGINE_VERSION for what this bump means for a
  * `jobs.pricing_engine_version` row already carrying the old value -- in
  * short, nothing migrates: an anchored (signed/sent) total never moves

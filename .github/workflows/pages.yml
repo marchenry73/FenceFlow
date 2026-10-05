@@ -118,6 +118,13 @@ jobs:
       - name: Gate - the supplier price request still imports
         run: node tests/a88-supplier-rfq-imports.test.mjs
 
+      # The parity gate compares the two SOURCE engines. It cannot see what is
+      # DEPLOYED, and on 5 Oct the phone ran 2026.10.9 while price-job was
+      # still the build carrying 2026.10.8 -- two days of the office quoting a
+      # gate differently from the phone, with parity green throughout.
+      - name: Gate - both engines declare the same version, and only one function ships it
+        run: node tests/a94-deployed-engine-matches-source.test.mjs
+
       # Follow-ups were switched ON with every individual rule OFF, and the
       # due-list honours the rules -- so it sat empty under a ticked master
       # switch while three opened-and-unanswered quotes were on the books.
