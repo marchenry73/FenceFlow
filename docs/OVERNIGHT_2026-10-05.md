@@ -757,3 +757,23 @@ these; the server is in quiet hours and recording nothing; the request failed;
 or there genuinely is nothing. It started with one.
 
 51 commits. All 15 gates green, 14/14 mutations killed.
+
+### One thing the office genuinely cannot tell you
+
+The alerts panel says the server checks hourly. That is true of the
+**configuration** — there is an hourly GitHub Action — but nothing in the
+office can confirm a check has actually *run*.
+
+And there is a way for it to silently never run: the scheduler needs a secret
+set in GitHub, and when that secret is missing it writes a notice and **exits
+green**. No failed job, no email, nothing. So it is possible to switch the
+alerts on, see "On. The server checks these every hour", and have nothing ever
+happen.
+
+I have not papered over that with a guess. What it means for you: **if you
+switch the alerts on and nothing at all appears within a day or two, check
+GitHub → Actions → "Attention sweep"** before assuming your business is clear.
+
+Closing that properly would mean the sweep recording each run somewhere the
+office can read, which is a real piece of server work rather than a wording
+change — worth doing if you decide to rely on these alerts.
