@@ -167,17 +167,39 @@ test("THE ROLES: a gate asks for GATE_POST, and every post where a RUN terminate
   assert.equal(entryQty(wall, "BLANK_POST") + entryQty(wall, "END_POST") + entryQty(wall, "GATE_POST"), 4,
     "WALL: the NUMBER of posts asked for has moved, not just their roles -- change (D) was a re-labelling, not an addition");
 
-  // LINE: both posts stand at the opening. Neither is an end of the fence.
+  // LINE: one gate post and one latch post.
+  //
+  // MOVED 5 Oct 2026, and it is the same re-labelling as change (D) above, one
+  // mounting over. WAS: GATE_POST 2 + END_POST 2 -- both posts at the opening
+  // billed as gate posts. NOW: GATE_POST 1 + END_POST 3 -- the HINGE side is
+  // the gate post (it carries the gate), and the latch side is just a post the
+  // gate shuts against, which is the same thing the fence line ends on.
+  //
+  // The sum is unchanged at FOUR, measured not assumed, which is the invariant
+  // this block exists to protect: one of them changed which role -- and so
+  // which catalog row -- it bills, and nothing was added or lost.
+  //
+  // Where the latch post has no fence line to be the end OF, the engine asks
+  // for a BLANK_POST instead; that case is a free-standing gate and is covered
+  // by the gate-only-run parity fixture rather than here.
   const line = quote("LINE");
-  assert.equal(entryQty(line, "GATE_POST"), 2, "LINE: both gate posts should be GATE_POST");
+  assert.equal(entryQty(line, "GATE_POST"), 1, "LINE: the hinge side is the gate post");
   assert.equal(entryQty(line, "BLANK_POST"), 0, "LINE: nothing bolts to a wall here");
-  assert.equal(entryQty(line, "END_POST"), 2, "LINE: END_POST should be the run's two ends alone");
+  assert.equal(entryQty(line, "END_POST"), 3, "LINE: the run's two ends plus the post the gate latches to");
+  assert.equal(entryQty(line, "BLANK_POST") + entryQty(line, "END_POST") + entryQty(line, "GATE_POST"), 4,
+    "LINE: the NUMBER of posts asked for has moved, not just their roles -- this was a re-labelling, not an addition");
 
-  // LINE_TO_WALL: the gate's own two, plus the post where the rest of the run meets the wall.
-  // That third one is a real end post -- 2 + 1, not 3.
+  // LINE_TO_WALL: one gate post on the hinge side; the latch side meets the
+  // wall, and the rest of the run ends where it ends.
+  //
+  // MOVED with LINE, same re-labelling. WAS: GATE_POST 2 + END_POST 3. NOW:
+  // GATE_POST 1 + END_POST 4. Sum unchanged at FIVE, measured, so once again a
+  // post changed which catalog row it bills and none was added or lost.
   const ltw = quote("LINE_TO_WALL");
-  assert.equal(entryQty(ltw, "GATE_POST"), 2, "LINE_TO_WALL: the gate's own two posts");
-  assert.equal(entryQty(ltw, "END_POST"), 3, "LINE_TO_WALL: the run's two ends plus the one at the wall");
+  assert.equal(entryQty(ltw, "GATE_POST"), 1, "LINE_TO_WALL: the gate hangs on one gate post");
+  assert.equal(entryQty(ltw, "END_POST"), 4, "LINE_TO_WALL: the run's two ends, the one at the wall, and the latch post");
+  assert.equal(entryQty(ltw, "BLANK_POST") + entryQty(ltw, "END_POST") + entryQty(ltw, "GATE_POST"), 5,
+    "LINE_TO_WALL: the NUMBER of posts asked for has moved, not just their roles");
 
   // CONTROL: with no gate at all, nothing asks for a gate post and END_POST is the geometry's.
   const none = price(runRow(WHITE), CATALOG);
@@ -187,11 +209,17 @@ test("THE ROLES: a gate asks for GATE_POST, and every post where a RUN terminate
 
 test("THE ROLES reach the QUOTE, not just the takeoff: a priced line off his own GATE_POST row appears", () => {
   // WAS: a GATE_POST line in all three mountings, quantity 1 / 2 / 2.
+  // THEN 1 / 2 / 2 became 0 / 2 / 2 with change (D), and 5 Oct 2026 made the
+  // two LINE mountings 1 apiece: the HINGE side carries the gate, the LATCH
+  // side is just a post the gate shuts against. The totals in
+  // "THE ROLES" above are unchanged either way -- a post swapped roles, none
+  // was added or lost -- so what moved here is which row is billed, which is
+  // exactly what this test is for.
   // NOW: WALL has no GATE_POST line (change D -- it asks for none). His GATE_POST row is still
   //      reached on a wall gate, but under BLANK_POST, through the fallback of change (E). So
   //      the point of this test -- a hand-priced GATE_POST row is no longer unreachable
   //      inventory -- is asserted in all three, with WALL naming the role that now carries it.
-  for (const [m, role, n] of [["WALL", "BLANK_POST", 1], ["LINE", "GATE_POST", 2], ["LINE_TO_WALL", "GATE_POST", 2]]) {
+  for (const [m, role, n] of [["WALL", "BLANK_POST", 1], ["LINE", "GATE_POST", 1], ["LINE_TO_WALL", "GATE_POST", 1]]) {
     const gp = itemOf(quote(m), role);
     assert.ok(gp !== undefined, m + ": no " + role + " line on the quote");
     assert.equal(gp.quantity, n, m + ": wrong post count on the quote");
@@ -284,10 +312,13 @@ test("ADDITIVITY: with a GATE_POST row at the end post's price -- his catalog, a
       billedQty(asItWas, "GATE_POST") + billedQty(asItWas, "END_POST"), m + ": a post appeared or vanished");
   }
   // THE SPLIT IS THE CHANGE, stated rather than hidden: a LINE gate used to bill one END_POST
-  // line of 4 and now bills END_POST 2 + GATE_POST 2, both off a $16.56 row.
+  // line of 4; it then billed END_POST 2 + GATE_POST 2, and since 5 Oct 2026 it bills
+  // END_POST 3 + GATE_POST 1 -- the hinge post carries the gate, the latch post is one more
+  // post the fence ends on. Still four posts, still both off the same $16.56 row, so the
+  // grand total above is unmoved and only the labelling differs.
   const line = quote("LINE");
-  assert.equal(itemOf(line, "END_POST").quantity, 2);
-  assert.equal(itemOf(line, "GATE_POST").quantity, 2);
+  assert.equal(itemOf(line, "END_POST").quantity, 3);
+  assert.equal(itemOf(line, "GATE_POST").quantity, 1);
   assert.equal(itemOf(line, "END_POST").unit_price, itemOf(line, "GATE_POST").unit_price);
 });
 
@@ -338,7 +369,10 @@ test("HIS CATALOG: with all four of his GATE_POST rows and all three of his END_
 // ================================================================ 4. THE TEETH ==
 
 test("THE TEETH: price the GATE_POST row differently and the quote DOES move, by exactly the gate posts times the difference", () => {
-  for (const [m, n] of [["WALL", 1], ["LINE", 2], ["LINE_TO_WALL", 2]]) {
+  // n is how many posts bill off the GATE_POST row. WALL reaches it through
+  // the BLANK_POST fallback; the two LINE mountings each hang their gate on
+  // ONE gate post since 5 Oct 2026, the latch post having become an end post.
+  for (const [m, n] of [["WALL", 1], ["LINE", 1], ["LINE_TO_WALL", 1]]) {
     const base = quote(m);
     const dearer = quote(m, replacePrice(CATALOG, "GATE_POST", 26.56)); // +$10 a post
     const moved = money(dearer.totals.grand_total - base.totals.grand_total);
@@ -364,7 +398,10 @@ test("THE TEETH: price the GATE_POST row differently and the quote DOES move, by
 // that is asserted separately below (and in a58's "NO CHAINING").
 test("THE MISSING HALF: a catalog with NO GATE_POST row loses the gate posts of a LINE gate outright -- the GATE_POST fallback has NOT landed", () => {
   const bare = without(CATALOG, "GATE_POST");
-  for (const [m, lost] of [["LINE", 2], ["LINE_TO_WALL", 2]]) {
+  // ONE post apiece since 5 Oct 2026, not two: each LINE mounting now hangs
+  // its gate on a single GATE_POST, and the latch post bills off END_POST --
+  // which this catalog still has, so only the hinge post goes missing.
+  for (const [m, lost] of [["LINE", 1], ["LINE_TO_WALL", 1]]) {
     const out = quote(m, bare);
     assert.ok(unmatchedOf(out).includes("GATE_POST"),
       m + ": GATE_POST is no longer reported unmatched. If the role preference has LANDED in " +
@@ -379,7 +416,8 @@ test("THE MISSING HALF: a catalog with NO GATE_POST row loses the gate posts of 
       m + ": the estimate is SHORT and nothing on it looks wrong");
   }
   // THE SIZE OF IT, on his own prices: $16.56 a post, before markup, with 7% tax.
-  assert.equal(money(2 * 16.56 * 1.07), 35.44);
+  // One post now rather than two, so half what it was.
+  assert.equal(money(1 * 16.56 * 1.07), 17.72);
   // WALL, the case that left the loop: no gate post is ASKED for, so none is lost -- but the
   // blank post that borrows that row is, and it is reported under its own name.
   const wall = quote("WALL", bare);
