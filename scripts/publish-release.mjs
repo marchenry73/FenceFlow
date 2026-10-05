@@ -315,6 +315,51 @@ if (downloadUrl === null) {
   }
 }
 
+// IS THE OFFICE RUNNING THE ENGINE THIS RELEASE CARRIES?
+//
+// Parity proves the two SOURCE engines agree. It cannot see the deployment,
+// and on 3-5 Oct 2026 that gap shipped: the phone went out with 2026.10.9
+// while the DEPLOYED price-job was still a 2 October build on 2026.10.8. Two
+// days of the office quoting a gate with two gate posts and giving a shared
+// corner post to the taller side, while the phone in the owner's hand did
+// neither. Every gate green, every gate correct, none of them looking.
+//
+// Releasing the phone while the office is behind is precisely how that
+// happens, so it is checked HERE, early, where it costs seconds.
+//
+// A stale office REFUSES: the deploy is one command and the alternative is
+// shipping the divergence again. "Could not ask" WARNS but does not refuse --
+// that answer says nothing about the APK, and blocking a release on a network
+// blip teaches people to pass --skip flags. The warning is deliberately loud,
+// because an unanswered question about which engine the office is quoting
+// with is exactly the thing that goes unnoticed.
+{
+  const freshness = spawnSync(process.execPath,
+    [join(REPO_ROOT, "scripts", "check-deployed-engine.mjs")],
+    { cwd: REPO_ROOT, encoding: "utf8" });
+  const out = `${freshness.stdout ?? ""}${freshness.stderr ?? ""}`.trimEnd();
+  if (freshness.status === 1) {
+    console.error(out);
+    console.error("");
+    console.error("Refusing to publish: price-job is older than the engine this release");
+    console.error("carries, so the office would quote differently from the phone.");
+    console.error("Deploy it (the command is above), then publish.");
+    process.exit(1);
+  }
+  if (freshness.status !== 0) {
+    console.warn("");
+    console.warn("  ####################################################################");
+    console.warn("  # COULD NOT TELL WHETHER THE OFFICE IS ON THIS ENGINE.              #");
+    console.warn("  # This is not an all-clear. Check it by hand after publishing:      #");
+    console.warn("  #   node scripts/check-deployed-engine.mjs                          #");
+    console.warn("  ####################################################################");
+    for (const line of out.split("\n")) console.warn(`  ${line}`);
+    console.warn("");
+  } else {
+    console.log(out.split("\n").pop());
+  }
+}
+
 // The pricing parity gate, before anything else happens -- before the dry
 // run, before the version check, before a byte is uploaded. The phone and
 // the server each carry a copy of the pricing engine, and a release of one

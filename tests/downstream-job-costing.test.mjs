@@ -72,19 +72,66 @@ const ok = (name, cond, detail = "") => {
   console.log(`  FAIL  ${name}${detail ? " — " + detail : ""}`);
 };
 
+// THE CLI FAILS TO LOG IN ABOUT ONE RUN IN FOUR, AND THAT IS NOT THIS GATE
+// FAILING.
+//
+// `supabase db query` creates a temporary postgres role to run as. When that
+// handshake loses a race the whole command dies with:
+//
+//   failed to connect as temp role: ... password authentication failed for
+//   user "cli_login_postgres" (SQLSTATE 28P01)
+//
+// It cost two publish runs on 5 Oct 2026 -- about an hour -- each time
+// reported as "the job costing gate is red" when every check in it was fine.
+//
+// So: retry, but ONLY on that signature. Never on a SQL error, a permission
+// refusal, or a failed assertion -- those are the gate doing its job, and a
+// retry that swallowed one would make this whole file worthless. Everything
+// here reads or rolls back, so repeating a statement cannot write anything.
+//
+// If every attempt loses the handshake it still throws, and the caller still
+// reports the gate as red. "Could not run" is not "passed", and the publish
+// script is right to refuse on it -- this only stops a coin-flip being read
+// as a broken product.
+const CONNECT_FLAKE =
+  /failed to connect as temp role|cli_login_postgres|28P01|server error \(FATAL/i;
+
+const sleepSync = (ms) =>
+  Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms);
+
 function runSql(sql) {
   const dir = mkdtempSync(join(tmpdir(), "job-costing-"));
   const file = join(dir, "q.sql");
   writeFileSync(file, sql, "utf8");
-  const r = spawnSync("npx", ["--no-install", "supabase@2.115.0", "db", "query",
-    "--linked", "--project-ref", PROJECT, "-f", file, "--output", "json"],
-    { encoding: "utf8", shell: process.platform === "win32", timeout: 180_000 });
-  if (r.status !== 0) {
-    throw new Error(`supabase db query failed: ${r.stderr || r.stdout}`);
+
+  const ATTEMPTS = 3;
+  let last = "";
+  for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
+    const r = spawnSync("npx", ["--no-install", "supabase@2.115.0", "db", "query",
+      "--linked", "--project-ref", PROJECT, "-f", file, "--output", "json"],
+      { encoding: "utf8", shell: process.platform === "win32", timeout: 180_000 });
+    const out = `${r.stderr || ""}${r.stdout || ""}`;
+
+    // The exit code is checked SECOND, deliberately. This CLI has been seen to
+    // report the login failure while still exiting 0, so the text is the more
+    // reliable signal of the two.
+    if (CONNECT_FLAKE.test(out)) {
+      last = out;
+      if (attempt < ATTEMPTS) {
+        console.log(`  ..    the CLI could not open its temp role (attempt ${attempt} of ${ATTEMPTS}); retrying`);
+        sleepSync(2000 * attempt);
+        continue;
+      }
+      throw new Error(`supabase db query could not connect after ${ATTEMPTS} attempts: ${out}`);
+    }
+
+    if (r.status !== 0) throw new Error(`supabase db query failed: ${r.stderr || r.stdout}`);
+
+    let parsed;
+    try { parsed = JSON.parse(r.stdout); } catch { throw new Error(`could not parse CLI output: ${r.stdout}`); }
+    return Array.isArray(parsed) ? parsed : (parsed.rows || []);
   }
-  let parsed;
-  try { parsed = JSON.parse(r.stdout); } catch { throw new Error(`could not parse CLI output: ${r.stdout}`); }
-  return Array.isArray(parsed) ? parsed : (parsed.rows || []);
+  throw new Error(`supabase db query could not connect: ${last}`);
 }
 
 // Resolves the no-money account from its id prefix at run time. A prefix
