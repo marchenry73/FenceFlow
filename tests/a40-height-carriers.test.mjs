@@ -402,10 +402,21 @@ test("no other repo-root SQL file defines height_ft, so there is one owner of th
   // waves filling the column in -- neither of which is what it is for. It now looks for a
   // DEFINITION: an ALTER that adds or alters height_ft, a DROP of it, or a CREATE TABLE that
   // declares it.
+  // SCOPED TO material_items, 5 Oct 2026. The detector matched a height_ft
+  // definition on ANY table, so supabase_h1_house_box.sql -- which adds
+  // width_ft / height_ft / rotation_deg to SITE_MARKERS, so a house or pool is
+  // drawn to its real size instead of as a dot -- was reported as a second
+  // owner of the material_items column. Its own failure message says "on
+  // material_items", which the detector was never actually checking.
+  //
+  // Two different tables may both have a height_ft and neither owes the other
+  // anything; what this check is for is that ONE file defines the catalog
+  // column. Narrowing it to the table named in the claim is the fix, not
+  // deleting the assertion and not renaming a column on a different table.
   const definesHeightFt = (sql) => {
     const c = code(sql).replace(/panel_height_ft|fabric_height_ft/g, "");
-    return /alter\s+table[^;]*\b(?:add|alter|drop)\s+column[^;]*\bheight_ft\b/is.test(c) ||
-      /create\s+table[^;]*\(\s*[\s\S]*?\bheight_ft\s+\w/is.test(c);
+    return /alter\s+table[^;]*\bmaterial_items\b[^;]*\b(?:add|alter|drop)\s+column[^;]*\bheight_ft\b/is.test(c) ||
+      /create\s+table[^;]*\bmaterial_items\b[^;]*\(\s*[\s\S]*?\bheight_ft\s+\w/is.test(c);
   };
   const sqlFiles = readdirSync(ROOT).filter((f) => /^supabase.*\.sql$/.test(f));
   // POSITIVE CONTROL: the detector sees a40's own definition. Without this, a detector that
@@ -416,6 +427,12 @@ test("no other repo-root SQL file defines height_ft, so there is one owner of th
   // distinction this check now rests on.
   assert.ok(!definesHeightFt("update public.material_items m set height_ft = 6 where m.height_ft is null;"),
     "canary: the detector calls a plain UPDATE a definition, so it is back to counting mentions");
+  // CANARY: and it does NOT fire on a height_ft belonging to another table.
+  // This is the case that made the check red -- site_markers gaining a height
+  // so a house can be drawn to size -- and it must stay un-flagged, or the
+  // scoping above has been lost again.
+  assert.ok(!definesHeightFt("alter table public.site_markers add column if not exists height_ft real not null default 0;"),
+    "canary: a height_ft on another table is reported as a second owner of the material_items column");
   const others = sqlFiles.filter((f) => f !== "supabase_a40_material_height.sql")
     .filter((f) => definesHeightFt(readFileSync(join(ROOT, f), "utf8")));
   assert.deepEqual(others, [], "another migration DEFINES height_ft on material_items, so the column has two owners: " + others.join(", "));
@@ -423,7 +440,21 @@ test("no other repo-root SQL file defines height_ft, so there is one owner of th
   // meaning for the number is the next bug after a second owner. Named, so adding one is a
   // decision somebody makes on purpose rather than a surprise.
   const writers = sqlFiles.filter((f) => /\bheight_ft\b/.test(code(readFileSync(join(ROOT, f), "utf8")).replace(/panel_height_ft|fabric_height_ft/g, ""))).sort();
-  assert.deepEqual(writers, ["supabase_a40_material_height.sql", "supabase_a45_supplier_heights_and_exact_prices.sql", "supabase_a50_post_heights.sql"],
+  // TWO ADDED 5 Oct 2026, both on purpose, which is what this list is for.
+  //
+  //   a87  writes material_items.height_ft = 4 on ONE new row: the 4 ft vinyl
+  //        corner post, which the catalog has never had. Same meaning as
+  //        every other writer here -- the fence height the post is FOR, not
+  //        the post's own length (a 4 ft fence takes a 72 inch post, and the
+  //        number written is 4). That is the distinction this check guards,
+  //        and it holds.
+  //   h1   is site_markers.height_ft, a different table and a different
+  //        thing: how deep a house, pool or driveway is on the ground, so it
+  //        can be drawn to size instead of as a dot. It cannot give the
+  //        catalog column a second meaning because it never touches the
+  //        catalog. Listed only because this scan reads whole files rather
+  //        than statements; the DEFINES check above is now table-scoped.
+  assert.deepEqual(writers, ["supabase_a40_material_height.sql", "supabase_a45_supplier_heights_and_exact_prices.sql", "supabase_a50_post_heights.sql", "supabase_a87_vinyl_4ft_corner_post.sql", "supabase_h1_house_box.sql"],
     "a repo-root SQL file reads or writes height_ft that this test does not know about. If it is a " +
     "new wave filling the column in, add it here; if it gives the number a DIFFERENT meaning " +
     "(a post's own length rather than the fence height it is for), that is the bug. Found: " + writers.join(", "));
