@@ -70,5 +70,36 @@ for (const lang of langs) {
      `${same.length} of ${enKeys.length} identical to English`);
 }
 
+/* EVERY data-t KEY MUST EXIST -- a different failure from the ones above, and
+   invisible to them.
+ *
+ * applyStaticText() does `el.textContent = tr(k)` for every [data-t] element,
+ * and tr() returns '' for a key in no table. So a data-t naming a key nobody
+ * defined does not fall back to the English sitting in the HTML -- it ERASES
+ * it on boot. The element goes blank in all three languages.
+ *
+ * The checks above cannot see this, because they compare the tables to each
+ * other: a key missing from all three equally is perfectly consistent. It
+ * happened on 5 Oct 2026 -- the alerts panel shipped with data-t="attnBody"
+ * and no attnBody anywhere, so the paragraph explaining what the panel was
+ * had been blank on the live site since it went up.
+ */
+{
+  const dataT = [...src.matchAll(/\bdata-t="([A-Za-z0-9_]+)"/g)].map((m) => m[1]);
+  const uniq = [...new Set(dataT)].sort();
+  const undefinedKeys = uniq.filter((k) => !(k in TL.en));
+  ok(`every data-t key exists in the English table (${uniq.length} keys used in markup)`,
+     undefinedKeys.length === 0,
+     `blanked on boot: ${JSON.stringify(undefinedKeys)}`);
+
+  // CANARY: the detector must see a key that is genuinely absent, or a clean
+  // result above means only that the regex found nothing.
+  ok("CANARY: a data-t naming a key nobody defined is detected",
+     !("thisKeyDoesNotExistAnywhere" in TL.en) &&
+     ["thisKeyDoesNotExistAnywhere"].filter((k) => !(k in TL.en)).length === 1);
+  ok("CANARY: the markup really was scanned, not matched zero times", uniq.length > 50,
+     `only ${uniq.length} data-t attributes found`);
+}
+
 console.log(`\n${pass} passed, ${fail} failed`);
 if (fail) process.exit(1);
