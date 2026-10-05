@@ -4549,6 +4549,7 @@ jobViewAll:'All', jobViewToday:'Today', jobViewWeek:'This week', jobViewUnschedu
     fuLogHead:'Recent sends',
     fuLogBody:'Every follow-up email actually sent: what kind, which job, and when.',
     fuRuleWaiting:'%s waiting now', fuRuleWaitingNone:'none waiting',
+    fuCouldNotAsk:'Could not read your follow-up settings just now, so everything below is a guess from the defaults rather than what is actually switched on. Try Refresh before changing anything.',
     fuStateOff:'Follow-ups are off. Nothing below will send, and the list of what is due stays empty whether anyone is waiting or not.',
     fuStateOnButNoRules:'Switched on, but no rule below is ticked -- so nothing will ever send. Tick the ones you want.',
     fuPreviewEmptyOff:'Nothing is due because follow-ups are switched off. That is not the same as nobody needing one.',
@@ -6311,6 +6312,7 @@ jobViewAll:'Todos', jobViewToday:'Hoy', jobViewWeek:'Esta semana', jobViewUnsche
     fuLogHead:'Envíos recientes',
     fuLogBody:'Cada correo de seguimiento realmente enviado: qué tipo, qué trabajo y cuándo.',
     fuRuleWaiting:'%s esperando ahora', fuRuleWaitingNone:'ninguno esperando',
+    fuCouldNotAsk:'No se pudo leer tu configuración de seguimientos ahora mismo, así que todo lo de abajo es una suposición basada en los valores por defecto, no en lo que está activado. Prueba Actualizar antes de cambiar nada.',
     fuStateOff:'Los seguimientos están desactivados. Nada de lo de abajo se enviará, y la lista de pendientes queda vacía haya quien haya esperando.',
     fuStateOnButNoRules:'Activado, pero no hay ninguna regla marcada abajo, así que nunca se enviará nada. Marca las que quieras.',
     fuPreviewEmptyOff:'No hay nada pendiente porque los seguimientos están desactivados. Eso no es lo mismo que que nadie necesite uno.',
@@ -8041,6 +8043,7 @@ jobViewAll:'Tous', jobViewToday:'Aujourdhui', jobViewWeek:'Cette semaine', jobVi
     fuPreviewBody:'Lecture seule. Calculé à partir des mêmes règles que la fonction d\'envoi, y compris les heures de silence et le plafond quotidien, pour voir l\'effet avant d\'activer quoi que ce soit. Ceci n\'envoie jamais de courriel par lui-même.',
     fuPreviewEmptyMsg:'Rien ne serait envoyé pour le moment.',
     fuRuleWaiting:'%s en attente', fuRuleWaitingNone:'aucun en attente',
+    fuCouldNotAsk:'Impossible de lire vos réglages de relance pour le moment : tout ce qui suit est une supposition basée sur les valeurs par défaut, pas sur ce qui est réellement activé. Essayez Actualiser avant de changer quoi que ce soit.',
     fuStateOff:'Les relances sont désactivées. Rien ci-dessous ne partira, et la liste des relances dues reste vide même si quelqu'+"'"+'un attend.',
     fuStateOnButNoRules:'Activé, mais aucune règle ci-dessous n'+"'"+'est cochée, donc rien ne partira jamais. Cochez celles que vous voulez.',
     fuPreviewEmptyOff:'Rien n'+"'"+'est dû parce que les relances sont désactivées. Ce n'+"'"+'est pas la même chose que personne à relancer.',
@@ -9540,6 +9543,10 @@ function renderAutomation(){
 
 /* ---- the server-side sweep: the half that runs with this page closed ---- */
 
+// Whether the follow-up settings read ANSWERED. The fallback to defaults makes
+// a failure look exactly like a company with everything switched off.
+let followUpSettingsReadFailed = false;
+
 let attentionSettings = null;   // null means "no row", which the table defines as off
 let attentionFindings = [];
 // Whether the last findings read actually ANSWERED. An empty array can mean a
@@ -9760,10 +9767,16 @@ const FOLLOW_UP_KIND_DEFS = [
 
 async function loadFollowUpSettings(){
   followUpSettings = null;
+  followUpSettingsReadFailed = false;
   try {
     const { data, error } = await db.from('follow_up_settings').select('*').maybeSingle();
     if (!error) followUpSettings = data || { ...FOLLOW_UP_DEFAULT_SETTINGS };
-  } catch (e) { /* table not there yet -- reads as every kind off, same as a fresh row */ }
+    else followUpSettingsReadFailed = true;
+  } catch (e) { followUpSettingsReadFailed = true; }
+  // The fallback stays: a panel drawn from defaults beats a half-drawn one.
+  // But DEFAULT_SETTINGS has enabled:false, so without the flag above a failed
+  // read renders as the confident sentence "Follow-ups are off. Nothing below
+  // will send" about a company that may be sending right now.
   if (!followUpSettings) followUpSettings = { ...FOLLOW_UP_DEFAULT_SETTINGS };
 }
 
@@ -9801,10 +9814,13 @@ function renderFollowUps(){
   const stateNote = $('fuStateNote');
   if (stateNote) {
     const warn = s.enabled && !anyKindOn;
-    stateNote.textContent = !s.enabled ? tr('fuStateOff')
+    // Could-not-ask first: everything below it is being read off defaults, so
+    // saying "follow-ups are off" would be stating a guess as a fact.
+    stateNote.textContent = followUpSettingsReadFailed ? tr('fuCouldNotAsk')
+      : !s.enabled ? tr('fuStateOff')
       : warn ? tr('fuStateOnButNoRules') : '';
     stateNote.style.display = stateNote.textContent ? '' : 'none';
-    stateNote.className = warn ? 'sub bad' : 'sub';
+    stateNote.className = (warn || followUpSettingsReadFailed) ? 'sub bad' : 'sub';
   }
   const quietStartSel = $('fu_quiet_start'), quietEndSel = $('fu_quiet_end');
   [quietStartSel, quietEndSel].forEach(sel => {

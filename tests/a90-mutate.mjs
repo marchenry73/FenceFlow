@@ -42,6 +42,8 @@ const MUTANTS = [
    "${true ? `<button class=\"btn btn-sm btn-grey attn-clear\""],
   ["a91", "already-sent follow-ups start counting as waiting again",
    "if (alreadySent.has(j.sync_id + '|' + def.key)) continue;", ""],
+  ["a91", "a failed settings read goes back to confidently reporting OFF",
+   "followUpSettingsReadFailed ? tr('fuCouldNotAsk')", "false ? tr('fuCouldNotAsk')"],
   ["a89", "setLang stops redrawing the panels, so a language switch undoes the honest message",
    "for (const redraw of [renderFollowUps, renderAttention])",
    "for (const redraw of [])"],

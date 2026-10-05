@@ -37,7 +37,15 @@ ok("1c", "the renderer asks whether ANY rule is on, not just the master switch",
 ok("1d", "on-with-no-rules is called out specifically -- it is the state that lies",
   page.includes("fuStateOnButNoRules"));
 ok("1e", "and it is styled as a warning, not as ordinary help text",
-  page.includes("warn ? 'sub bad' : 'sub'"));
+  page.includes("(warn || followUpSettingsReadFailed) ? 'sub bad' : 'sub'"));
+// A failed settings read falls back to defaults, whose enabled is false -- so
+// without this the panel states "Follow-ups are off. Nothing below will send"
+// about a company that may be sending right now.
+ok("1f", "a failed settings read is its own message, ahead of off and no-rules",
+  page.includes("followUpSettingsReadFailed ? tr('fuCouldNotAsk')"));
+ok("1g", "and the loader actually records the failure, rather than only the renderer asking about it",
+  page.includes("else followUpSettingsReadFailed = true;") &&
+  page.includes("} catch (e) { followUpSettingsReadFailed = true; }"));
 
 console.log("\n2. THE EMPTY DUE-LIST EXPLAINS ITSELF");
 // THREE states, not two. The first version collapsed "the master switch is

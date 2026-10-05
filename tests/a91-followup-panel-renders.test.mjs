@@ -40,7 +40,7 @@ const WAITING_JOBS = [
     first_contact_at: "2026-09-01T00:00:00Z" },
 ];
 
-function render(settings, { duePreview = [], jobs = WAITING_JOBS, sentLog = [] } = {}) {
+function render(settings, { duePreview = [], jobs = WAITING_JOBS, sentLog = [], readFailed = false } = {}) {
   const els = {};
   const el = (id) => (els[id] = els[id] || {
     id, innerHTML: "", textContent: "", className: "", value: "", checked: false,
@@ -72,7 +72,10 @@ function render(settings, { duePreview = [], jobs = WAITING_JOBS, sentLog = [] }
     FOLLOW_UP_DEFAULT_SETTINGS: { enabled: false, quiet_hours_start: 21, quiet_hours_end: 8,
       timezone: "America/New_York", daily_cap: 25 },
   };
-  const prelude = `let followUpSettings = ${JSON.stringify(settings)};\n`;
+  const prelude = `let followUpSettings = ${JSON.stringify(settings)};\n` +
+    // Whether the settings read ANSWERED. The fallback to defaults makes a
+    // failure look exactly like a company with everything switched off.
+    `let followUpSettingsReadFailed = ${JSON.stringify(readFailed)};\n`;
   const P = load(["renderFollowUps"], scope, prelude);
   P.renderFollowUps();
   return els;
@@ -192,6 +195,17 @@ console.log("\n4. HOW MANY ARE WAITING BEHIND EACH CHECKBOX");
     { sentLog: [{ job_sync_id: "a", kind: "approved_no_deposit", sent_at: "2026-10-01T00:00:00Z" }] });
   ok("4i", "a send of a DIFFERENT rule does not suppress this one",
     (other.fuRulesRows.innerHTML.match(/fuRuleWaiting:1/g) || []).length === 2);
+}
+
+{
+  // Could not ask. The loader falls back to defaults, whose enabled is false,
+  // so without its own message this panel states "Follow-ups are off. Nothing
+  // below will send" about a company that may be sending right now.
+  const els = render({ ...BASE, ...allOff, enabled: false }, { readFailed: true });
+  ok("4j", "a failed settings read says so, instead of confidently reporting OFF",
+    els.fuStateNote.textContent === "fuCouldNotAsk", els.fuStateNote.textContent);
+  ok("4k", "and it is marked as a warning, because everything under it is a guess",
+    els.fuStateNote.className === "sub bad");
 }
 
 console.log("\n5. NO SETTINGS ROW AT ALL");
