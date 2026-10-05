@@ -18,12 +18,14 @@ Ordered by what it is worth to you, not by when I found it.
 
 **One security thing, not urgent but worth knowing**
 
-3. **`can_see_pay()` asks for the wrong permission.** It is named for SEE_PAY
-   and checks SEE_MONEY. A SALES account has SEE_MONEY and deliberately not
-   SEE_PAY, so it could write a made-up payroll figure. **Nobody can reach it
-   today** — the only SALES profile has no company, and the policy is
+3. **A SALES account could write a made-up payroll figure.** Nobody can reach
+   it today — the only SALES profile has no company, and the policy is
    company-scoped — but it becomes live the first time you create a real SALES
-   user. The fix is one word, written and dry-run, not applied.
+   user. **The fix already existed in your repo** and just needs running:
+   `supabase_r11_time_entry_rate_permission.sql`.
+   *(I first wrote my own fix for this and it was dangerous — see the
+   correction near the end. Do not run `supabase_a92_*`; it is now an empty
+   tombstone explaining why.)*
 
 **Needs a decision from you**
 
@@ -623,9 +625,9 @@ FAIL  a32-join-transition.test.mjs     (spec, and marked as needing your call)
 FAIL  a4-labour.test.mjs               (the can_see_pay report, above)
 ```
 
-Exactly the three that should be red, and nothing else. `a4-labour` goes green
-by applying `supabase_a92_can_see_pay_checks_see_pay.sql` — by fixing the
-function, never by editing the test.
+Exactly the three that should be red, and nothing else. `a4-labour` goes green by applying
+`supabase_r11_time_entry_rate_permission.sql` — by fixing the function, never
+by editing the test.
 
 You can check this yourself any time with:
 
@@ -672,3 +674,43 @@ mechanisms, and I had been blurring them.
 **Each rule now shows its own count in the office**, next to its checkbox, so
 you are not taking my word for any of this. The number is computed the same way
 the sender decides, including refusing jobs with no address.
+
+
+---
+
+## A correction I have to make about the payroll fix
+
+**Do not run `supabase_a92_can_see_pay_checks_see_pay.sql`.** I wrote it, I
+dry-ran it, I recommended it to you, and it would have caused real damage. It
+is now an empty file explaining itself.
+
+The reported problem was right: a SALES account could write a fabricated
+payroll rate. My fix was to narrow `can_see_pay()` to the SEE_PAY permission,
+because the name says pay.
+
+**The name lies.** `can_see_pay()` is the *job money* question, and the phone
+asks it once per sync as its **entire** money scope — pricing, tax, markup,
+deposits, payments, line-item costs, catalog prices, tiers.
+
+So applying it would have done this: on the next sync of any sales phone, the
+money scope comes back denied, the app resets that phone's cached job money to
+defaults — **while the pricing screen keeps displaying it**. Not an error
+message. A zero markup and a zero deposit that look like real figures, on a
+quote being handed to a customer.
+
+Your repo already knew this. `supabase_can_see_pay_restored.sql` exists purely
+to undo the identical change, made and reverted the same day, and it opens:
+*"Undoing a change I made three hours ago that would have taken every
+salesperson's phone dark."*
+
+I had dry-run my version — but the dry run only proved the function still
+compiled and that the one role I expected had changed. It never asked **what
+else calls it**. A plain search of the app would have found it in seconds.
+
+**The real fix was already written**, before I started:
+`supabase_r11_time_entry_rate_permission.sql`. It changes the one faulty
+caller instead of the shared function, and leaves the phone's money scope
+alone. It is written and not applied; applying it is what makes that test go
+green.
+
+A review pass caught this, not me.
