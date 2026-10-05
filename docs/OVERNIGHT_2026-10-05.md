@@ -17,9 +17,8 @@
 - **App 1.602 is live**, with the house/pool/driveway box drawn to scale and
   free-standing gates. Verified from the release row and the hosted file, not
   the build log.
-- **Before you send Makayla's quote: open it on the phone and press Suggest
-  Quantities.** Her quote currently has **no corner post on it at all** — both
-  were tombstoned on 1 October and never came back. See below.
+- **Makayla's quote has no corner post on it** — but you appear to have
+  removed them on purpose, so read that section before changing anything.
 
 Everything below is the detail.
 
@@ -259,36 +258,46 @@ boundary became a backspace character and it matched nothing, which made all
 reports nothing.)
 
 
-## Makayla's quote is missing its corner posts
+## Makayla's quote has no corner post — and that looks deliberate
 
-This is the one I would act on first, because it is a quote about to go to a
-real customer.
+I got this wrong the first time and corrected it, so here is the whole thing
+rather than the conclusion.
 
 Her job has three vinyl runs — two at 6 ft and one at 4 ft — and **no corner
-post line on the estimate at all**. Both corner posts were tombstoned on
-1 October (23:14 and 23:48), the same event that hit John's and James's jobs,
-and nothing has restored them since.
+post line on the estimate at all**. Two `5"x5" Co-Ex Corner Post, White` lines
+at $16.56 were removed on 1 October, at 23:14 and 23:48.
 
-| | |
-|---|---|
-| Live line items | 24, totalling $2,966.70 |
-| Tombstoned | 2 × `5"x5" Co-Ex Corner Post, White` @ $16.56 |
-| Missing from the quote | $33.12 before tax and markup |
+I first assumed those were casualties of the 1 October tombstoning, because the
+date matched. They were not. **Both carry a real user id**, which means a person
+deleted them. The tombstoning bug leaves an empty string there, and that is how
+the two are told apart — I matched on the date and should have checked the
+signature before saying anything.
 
-The money is small. Being wrong on a quote you are about to send is not, and
-the line items are the part a customer can read.
+So I am **not** telling you to press Suggest Quantities on her job. That would
+re-derive the takeoff from the drawing and put back the very lines somebody
+chose to remove.
 
-**The repair is on the phone, not in SQL:** open her job and press *Suggest
-Quantities*. That re-derives the takeoff from the drawing and puts the corner
-posts back. I have not done it from here — `price-job` on the server is not
-anchor-aware, so driving it remotely is how the collapsed totals got pushed in
-the first place.
+What I suspect happened, and you will know in a second whether it is right:
+you deleted them **because the corner post was wrong** — which is the thing you
+reported. Her 4 ft run is exactly the case with no correct row to bill, so the
+only corner post the engine could offer was the 8.5 ft one meant for a
+six-foot fence.
 
-Two notes while you are in there:
+If that is it, the order is:
 
-- She has a **4 ft run**, so the missing catalog row above applies to her too.
-  Add the 4 ft corner post first and the re-price will pick it up; leave it and
-  her 4 ft corner gets the 8.5 ft post for a six-foot fence.
-- John's and James's jobs are still tombstoned as well — 18 items / $9,475 and
-  13 items / $21,511. You said to leave those for another time, so I have. They
-  are listed here only so the number is written down somewhere.
+1. Add the 4 ft vinyl corner post to the catalog ($16.75, see above).
+2. Then re-price her job, and the right posts appear on their own.
+
+If instead you meant her quote to carry no corner posts at all, leave it —
+it is already what you decided, and nothing here needs doing.
+
+### While we are on it
+
+The 1 October tombstoning touched **46** line items with the bad signature, plus
+3 on 8 September. **It has not happened since** — every deletion on 2 and 3
+October carries a real user id, so they are ordinary edits. Four days is not
+proof the cause is gone, but it has not recurred.
+
+John's and James's jobs are still tombstoned (18 items / $9,475 and 13 /
+$21,511). You said to leave those, so I have. They are written down here only
+so the number exists somewhere.
