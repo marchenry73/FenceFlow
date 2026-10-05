@@ -276,6 +276,45 @@ function refuseUnlessLinkBuild() {
 // Only when this run would upload the APK. With --url nothing here is uploaded.
 if (downloadUrl === null) refuseUnlessLinkBuild();
 
+// The version the APK carries, and the version this run would announce.
+//
+// Read here rather than further down because the two have to AGREE and the
+// comparison costs a git call and an aapt2 call. On 4 October it sat behind the
+// gate block instead, and a mismatch that was certain from the first second
+// was going to be reported after two hours of parity and unit tests. Nothing
+// is uploaded by this check, so the rule that no byte ships before parity
+// passes is untouched.
+//
+// Building before committing stamps the APK with the OLD commit count, so the
+// release row says 112 while the file inside says 111. The app then installs
+// it, still reads itself as older than the announcement, and prompts to update
+// forever -- an update loop that reports success at every step.
+const code = versionCode();
+const name = `1.${code}`;
+
+if (downloadUrl === null) {
+  const stamped = stampedVersion();
+  if (stamped !== null && stamped !== code) {
+    console.error(`The APK says version ${stamped}, but this would publish ${code}.`);
+    console.error("");
+    console.error("That mismatch causes an endless update prompt. It happens when the");
+    console.error("APK was built before the last commit -- the version comes from the");
+    console.error("commit count, so committing after building leaves the APK behind.");
+    console.error("");
+    console.error("  ./gradlew assembleLink      # rebuild at the current commit");
+    console.error("  node scripts/publish-release.mjs \"...\"");
+    process.exit(1);
+  }
+  if (stamped === null) {
+    console.error("Could not read the version stamped inside the APK, so it cannot");
+    console.error("be checked against the " + code + " this would announce.");
+    console.error("");
+    console.error("Publishing unverified is how the update loop happens, so this stops");
+    console.error("here. Pass --skip-version-check to publish anyway.");
+    if (!args.includes("--skip-version-check")) process.exit(1);
+  }
+}
+
 // The pricing parity gate, before anything else happens -- before the dry
 // run, before the version check, before a byte is uploaded. The phone and
 // the server each carry a copy of the pricing engine, and a release of one
@@ -369,8 +408,6 @@ function versionCode() {
   return parseInt(out.trim(), 10);
 }
 
-const code = versionCode();
-const name = `1.${code}`;
 
 // `apk` is the link build and nothing else: see the top of this file. A debug APK
 // is signed with Android's shared key and is debuggable, so it is not fine in
@@ -560,35 +597,6 @@ const esc = (s) => String(s).replace(/'/g, "''");
 // An explicit --url wins. Otherwise the APK is uploaded and that URL is used,
 // so publishing is one command and the link can never point at a build that
 // is not the one just made.
-// The APK must be the version we are about to announce.
-//
-// Building before committing stamps the APK with the OLD commit count, so the
-// release row says 112 while the file inside says 111. The app then installs
-// it, still reads itself as older than the announcement, and prompts to update
-// forever -- an update loop that reports success at every step. Caught here
-// because by the time a phone shows it, everyone has it.
-if (downloadUrl === null) {
-  const stamped = stampedVersion();
-  if (stamped !== null && stamped !== code) {
-    console.error(`The APK says version ${stamped}, but this would publish ${code}.`);
-    console.error("");
-    console.error("That mismatch causes an endless update prompt. It happens when the");
-    console.error("APK was built before the last commit -- the version comes from the");
-    console.error("commit count, so committing after building leaves the APK behind.");
-    console.error("");
-    console.error("  ./gradlew assembleLink      # rebuild at the current commit");
-    console.error("  node scripts/publish-release.mjs \"...\"");
-    process.exit(1);
-  }
-  if (stamped === null) {
-    console.error("Could not read the version stamped inside the APK, so it cannot");
-    console.error("be checked against the " + code + " this would announce.");
-    console.error("");
-    console.error("Publishing unverified is how the update loop happens, so this stops");
-    console.error("here. Pass --skip-version-check to publish anyway.");
-    if (!args.includes("--skip-version-check")) process.exit(1);
-  }
-}
 
 // Checking the checks. Publishing is not something to test against the live
 // table -- a "test" publish is a real one, and every phone sees it.
