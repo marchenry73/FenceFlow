@@ -220,8 +220,70 @@ export {
  * read as '' (joins.ts readJointId), and a joint only one live run reaches,
  * or one holding both ends of a single run, is ignored. Each of those prices
  * exactly as an unjoined job does -- two free ends, two end posts.
+ *
+ * Bumped 2026.10.9 -> 2026.10.10 (5 Oct 2026) because A STANDALONE GATE
+ * STANDS ON TWO BLANK POSTS, whatever its mounting says. The owner's rule, in
+ * his words: "if a gate is a stand alone and nothing else, it should be 2
+ * blank post and the gate, and the hardwares."
+ *
+ * A gate with no fence line drawn used to get three different answers:
+ *
+ *   WALL          BLANK_POST 1 + END_POST 1, plus WALL_MOUNT_HOLES hole plugs
+ *   LINE          GATE_POST 1 + BLANK_POST 1
+ *   LINE_TO_WALL  GATE_POST 1 + END_POST 2   -- THREE posts, and three caps
+ *
+ * All three now build BLANK_POST 2 and nothing else structural
+ * (takeoff.ts gateAreaEntries / EstimateEngine.gateAreaEntries), and
+ * computePostCounts counts two posts for every mounting rather than three for
+ * LINE_TO_WALL. With no fence drawn no post can be the END of a line, neither
+ * post carries one, and there is no wall to bolt to -- the mounting describes
+ * how a gate meets a FENCE, and there is no fence for it to describe.
+ *
+ * The hole plugs go with it. They are the holes drilled through the stiffener
+ * into the post that a gate is BOLTED TO A WALL by; a gate standing on its own
+ * two posts is not bolted to anything, so a standalone WALL gate used to cost
+ * MORE than an identical standalone LINE gate for a wall that is not there.
+ *
+ * Concrete does not move: it is keyed on the hinge/latch split rather than on
+ * the post role, and a standalone gate still has a hinge side and a latch side.
+ *
+ * MEASURED, NOT ASSUMED: of 87 fixtures exactly one changes content
+ * (gate-only-run), and two new ones -- gate-only-run-wall-mount and
+ * gate-only-run-line-to-wall-mount -- cover the two mountings that had no
+ * fixture at all, which is precisely how the half-applied rule survived. All
+ * three price identically at $426.97. Anchored (signed/sent) totals do not
+ * move, as above.
+ *
+ * Bumped 2026.10.10 -> 2026.10.11 (5 Oct 2026) to CORRECT the rule above,
+ * which was applied too widely. 2026.10.10 never reached a phone or a server:
+ * its release failed on an unrelated gate and the mistake was caught before it
+ * shipped, so no job was ever priced under it.
+ *
+ * "A stand alone and nothing else" excludes a gate hung off a WALL, because a
+ * wall is something else and is still there when no fence is. 2026.10.10 gave
+ * every mounting two blank posts in the ground whenever no fence was drawn,
+ * which for a wall gate billed a second bag of CONCRETE for a post that is
+ * bolted up rather than set in the ground, and dropped the four HOLE_PLUGs
+ * that actually hold the gate on -- an overcharge and a missing part at once,
+ * the opposite of the bug it was fixing. See the GateMounting.WALL doc: "the
+ * hinge side bolts through a blank post ... and no concrete, since nothing is
+ * set in the ground."
+ *
+ * So the standalone branch now excludes WALL, and the WALL branch's hardcoded
+ * END_POST becomes `latchPost` instead -- END_POST while a fence exists to
+ * end, BLANK_POST when none does. A wall gate with no fence therefore still
+ * reaches the owner's two blank posts, by the correct route, and keeps its one
+ * bag and its four plugs.
+ *
+ * WORTH KNOWING HOW THIS GOT THROUGH: a fixture DID cover it
+ * (gate-only-run-wall-mount) and parity was green at 87 of 87 the whole time.
+ * Parity proves the two engines AGREE; both were wrong in the same way,
+ * because the same mistake was written into both. A fixture recorded from the
+ * engine can only pin what the engine already does. What caught it was
+ * ConcreteBagsTest -- a hand-written assertion about what the answer OUGHT to
+ * be. GateAreaTest now carries the wall case explicitly for the same reason.
  */
-export const PRICING_ENGINE_VERSION = "2026.10.10";
+export const PRICING_ENGINE_VERSION = "2026.10.11";
 
 // ---------------------------------------------------------------------------
 // Contract shapes (docs/PRICING_CONTRACT.md). Column names, never invented.

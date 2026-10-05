@@ -576,29 +576,34 @@ function gateAreaEntries(fenceType: FenceType, gate: GateMarker, hasFenceLine: b
   const latchPost: MaterialRole = hasFenceLine ? "END_POST" : "BLANK_POST";
   if (STIFFENED_GATE_TYPES.has(fenceType)) entries.push(qty("STIFFENER", 1.0));
 
-  // NO FENCE AT ALL: two blank posts, whatever the mounting says.
+  // A GATE STANDING ON ITS OWN: two blank posts, both in the ground.
   //
   // The twin of the block in EstimateEngine.gateAreaEntries -- both or
-  // neither, and the 85 parity fixtures are what hold them together.
+  // neither, and the parity fixtures are what hold them together.
   //
   // The owner's rule, 5 Oct 2026, in his words: "if a gate is a stand alone
   // and nothing else, it should be 2 blank post and the gate, and the
   // hardwares."
   //
-  // The mounting describes how a gate meets a FENCE. With no fence drawn there
-  // is nothing for it to describe: no post can be the END of a line that is not
-  // there, and neither post carries one. Before this, a standalone gate billed
-  // BLANK + END on WALL, GATE + BLANK on LINE, and GATE + END + END on
-  // LINE_TO_WALL -- three posts for a gate that stands on two.
-  if (!hasFenceLine) {
+  // "AND NOTHING ELSE" IS LOAD-BEARING, and this is the second attempt. The
+  // first applied the rule to every mounting whenever no fence was drawn, which
+  // broke the one case that was already right: a gate marked WALL is bolted to
+  // a wall, which IS something else. It keeps its branch below, where the hinge
+  // side is a blank post bolted through the stiffener (hence HOLE_PLUG) and set
+  // in nothing (hence latch concrete only). Treating it as standalone billed a
+  // second bag for a post not in the ground and dropped the four plugs holding
+  // the gate up -- an overcharge AND a missing part.
+  //
+  // With WALL excluded this is about a gate attached to nothing. LINE and
+  // LINE_TO_WALL both describe how a gate meets a FENCE, and with none drawn
+  // there is nothing to describe: no post is the END of a line that is not
+  // there and neither carries one, so both are posts in the ground with a gate
+  // between them, and both take their bag. Before this, LINE billed
+  // GATE + BLANK and LINE_TO_WALL billed GATE + END + END -- three posts for a
+  // gate that stands on two.
+  if (!hasFenceLine && gate.mounting !== "WALL") {
     entries.push(qty("BLANK_POST", 2.0));
     entries.push(qty("CONCRETE_BAG", GATE_HINGE_BAGS + GATE_LATCH_BAGS));
-    // No wall-mount hole plugs: those are the holes drilled through the
-    // stiffener into the post a gate is BOLTED TO A WALL by, and a gate
-    // standing on its own two posts is not bolted to anything. Keeping them
-    // made a standalone WALL gate cost more than the identical standalone LINE
-    // gate, for a wall that is not there. Twin of the same removal in
-    // EstimateEngine.
     return entries;
   }
 
@@ -616,7 +621,17 @@ function gateAreaEntries(fenceType: FenceType, gate: GateMarker, hasFenceLine: b
       // so the fence line runs up to the latch post and STOPS: that post IS the
       // end of the line. On a LINE gate the fence carries on past both posts,
       // so neither is an end.
-      entries.push(qty("END_POST", 1.0));
+      //
+      // END_POST only while a fence line EXISTS to end. `latchPost` is
+      // END_POST when it does and BLANK_POST when it does not, which is the
+      // owner's own wording applied to the wall case: "an end post if it is
+      // connected to the fence, or a blank if disconnected." So a wall gate
+      // with no fence drawn bills a blank on the hinge side and a blank on the
+      // latch side -- the two blank posts he asked for on 5 Oct 2026 -- while
+      // keeping the plugs it is bolted up with and the single bag for the one
+      // post actually in the ground. This was a hardcoded END_POST, so a wall
+      // gate with no fence billed the end of a line that was not there.
+      entries.push(qty(latchPost, 1.0));
       entries.push(qty("HOLE_PLUG", WALL_MOUNT_HOLES));
       // The hinge side is bolted to the wall and set in nothing. The
       // latch side is still a post in a hole and still takes its bag.

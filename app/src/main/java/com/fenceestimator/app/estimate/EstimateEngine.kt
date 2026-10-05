@@ -352,7 +352,7 @@ object EstimateEngine {
      * Anchored (signed/sent) totals do not move regardless, as above.
      *
      */
-    const val PRICING_ENGINE_VERSION = "2026.10.10"
+    const val PRICING_ENGINE_VERSION = "2026.10.11"
 
     /**
      * Money, to the cent: the ONE place a total is rounded.
@@ -1040,40 +1040,41 @@ object EstimateEngine {
         val entries = mutableListOf<QtyEntry>()
         if (fenceType in STIFFENED_GATE_TYPES) entries += QtyEntry(MaterialRole.STIFFENER, 1.0)
 
-        // NO FENCE AT ALL: two blank posts, whatever the mounting says.
+        // A GATE STANDING ON ITS OWN: two blank posts, both in the ground.
         //
         // The owner's rule, 5 Oct 2026, asked in these words: "if a gate is a
         // stand alone and nothing else, it should be 2 blank post and the gate,
         // and the hardwares."
         //
-        // The mounting describes how a gate meets a FENCE -- hung off a wall,
-        // standing in the line, or closing the run against a wall. With no
-        // fence drawn there is nothing for it to describe: no post can be the
-        // END of a line that is not there, and neither post is carrying one.
-        // Both are simply posts in the ground with a gate between them.
+        // "AND NOTHING ELSE" IS LOAD-BEARING, and this is the second attempt at
+        // it. The first applied the rule to every mounting whenever no fence was
+        // drawn, which broke the one case that was already right. A gate marked
+        // WALL is bolted to a wall -- that IS something else. It keeps its own
+        // branch below, where the hinge side is a blank post bolted through the
+        // stiffener (hence HOLE_PLUG) and set in nothing (hence latch concrete
+        // only, per the GateMounting.WALL doc). Treating it as standalone billed
+        // a second bag of concrete for a post that is not in the ground and
+        // dropped the four plugs that actually hold the gate up -- an overcharge
+        // AND a missing part, which is the opposite of the bug being fixed.
+        // ConcreteBagsTest caught it; the fixtures did not, because no fixture
+        // covered a wall gate with no fence.
         //
-        // This replaces three different answers to the same question. Before
-        // it, a standalone gate billed BLANK + END on WALL, GATE + BLANK on
-        // LINE, and GATE + END + END on LINE_TO_WALL -- three posts for a gate
-        // that stands on two.
+        // With WALL excluded, the rule is about a gate attached to nothing: LINE
+        // and LINE_TO_WALL both describe how a gate meets a FENCE, and with no
+        // fence drawn there is nothing for either to describe. No post can be
+        // the END of a line that is not there and neither carries one, so both
+        // are simply posts in the ground with a gate between them -- and both
+        // take their bag, which is why the concrete is the hinge+latch pair.
         //
+        // Before this, LINE billed GATE + BLANK and LINE_TO_WALL billed
+        // GATE + END + END -- three posts for a gate that stands on two.
         // The money barely moves on LINE, which was already two posts both
         // priced off the GATE_POST row (BLANK_POST has no catalog row anywhere
-        // and falls back to it). It moves on the other two: WALL stops billing
-        // one post off the END_POST row, and LINE_TO_WALL stops billing a post
-        // that does not exist.
-        //
-        // Concrete is deliberately left to the branches below: it is keyed on
-        // the hinge/latch split rather than on the post role, and a standalone
-        // gate still has a hinge side and a latch side.
-        if (!hasFenceLine) {
+        // and falls back to it). LINE_TO_WALL stops billing a post, a cap and a
+        // bag for something that does not exist.
+        if (!hasFenceLine && gate.mounting != GateMounting.WALL) {
             entries += QtyEntry(MaterialRole.BLANK_POST, 2.0)
             entries += QtyEntry(MaterialRole.CONCRETE_BAG, GATE_HINGE_BAGS + GATE_LATCH_BAGS)
-            // NO wall-mount hole plugs. Those are the holes drilled through
-            // the stiffener into the post a gate is BOLTED TO A WALL by, and a
-            // gate standing on its own two posts is not bolted to anything.
-            // Keeping them made a standalone WALL gate cost more than the
-            // identical standalone LINE gate, for a wall that is not there.
             return entries
         }
 
@@ -1091,7 +1092,19 @@ object EstimateEngine {
                 // is the wall, so the fence line runs up to the latch post and STOPS:
                 // that post IS the end of the line. On a LINE gate the fence carries on
                 // past both posts, so neither is an end.
-                entries += QtyEntry(MaterialRole.END_POST, 1.0)
+                //
+                // END_POST only while a fence line EXISTS to end. `latchPost`
+                // is END_POST when it does and BLANK_POST when it does not,
+                // which is the owner's own wording applied to the wall case:
+                // "an end post if it is connected to the fence, or a blank if
+                // disconnected." So a wall gate with no fence drawn bills a
+                // blank post on the hinge side and a blank on the latch side --
+                // the two blank posts he asked for on 5 Oct 2026 -- while
+                // keeping the plugs it is bolted up with and the single bag for
+                // the one post that is actually in the ground. This was a
+                // hardcoded END_POST, so a wall gate with no fence billed the
+                // end of a line that was not there.
+                entries += QtyEntry(latchPost, 1.0)
                 entries += QtyEntry(MaterialRole.HOLE_PLUG, WALL_MOUNT_HOLES)
                 // The hinge side is bolted to the wall and set in nothing. The
                 // latch side is still a post in a hole and still takes its bag.

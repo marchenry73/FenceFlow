@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "engine": {
-    "version": "2026.10.10",
-    "generated_at": "2026-10-05T16:21:43.335690Z"
+    "version": "2026.10.11",
+    "generated_at": "2026-10-05T19:39:58.500186800Z"
   },
   "case": "chain-link-drawn-no-top-rail",
   "note": "Chain link 4 ft without a top rail: no TOP_RAIL and no RAIL_END entries.",
   "input": {
-    "engine_version": "2026.10.10",
+    "engine_version": "2026.10.11",
     "pixels_per_foot": 20.0,
     "job": {
       "calibration_pixels_per_foot": 20.0,
@@ -380,7 +380,7 @@
     "existing_items": []
   },
   "expected": {
-    "engine_version": "2026.10.10",
+    "engine_version": "2026.10.11",
     "linear_feet": 150.0,
     "teardown_linear_feet": 0.0,
     "billable_linear_feet": 150.0,
