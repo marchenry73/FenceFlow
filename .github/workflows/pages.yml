@@ -105,6 +105,13 @@ jobs:
       - name: Gate - the supplier price request still imports
         run: node tests/a88-supplier-rfq-imports.test.mjs
 
+      # Follow-ups were switched ON with every individual rule OFF, and the
+      # due-list honours the rules -- so it sat empty under a ticked master
+      # switch while three opened-and-unanswered quotes were on the books.
+      # The screen has to tell "nothing to do" from "nothing is looking".
+      - name: Gate - the follow-up panel says which kind of nothing it is
+        run: node tests/a89-followup-state-is-honest.test.mjs
+
       - uses: actions/configure-pages@v5
 
       - uses: actions/upload-pages-artifact@v3

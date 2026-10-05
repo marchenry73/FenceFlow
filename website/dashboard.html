@@ -1380,6 +1380,7 @@
           <input type="checkbox" id="fu_enabled">
           <span data-t="fuMasterLabel">Turn on sales follow-up emails</span>
         </label>
+        <div class="sub" id="fuStateNote" style="display:none"></div>
         <div id="fuRulesRows"></div>
         <div class="row2" style="margin-top:10px">
           <div><label data-t="fuQuietStart">Quiet hours start (local)</label>
@@ -4540,6 +4541,9 @@ jobViewAll:'All', jobViewToday:'Today', jobViewWeek:'This week', jobViewUnschedu
     fuPreviewEmptyMsg:'Nothing would send right now.',
     fuLogHead:'Recent sends',
     fuLogBody:'Every follow-up email actually sent: what kind, which job, and when.',
+    fuStateOff:'Follow-ups are off. Nothing below will send, and the list of what is due stays empty whether anyone is waiting or not.',
+    fuStateOnButNoRules:'Switched on, but no rule below is ticked -- so nothing will ever send. Tick the ones you want.',
+    fuPreviewEmptyNoRules:'Nothing is due because no rule is switched on. This is not the same as nobody needing a follow-up.',
     fuLogEmptyMsg:'No follow-up email has been sent yet.',
     fuColJob:'Job', fuColKind:'Follow-up', fuColWhen:'When',
     autoFlagsNoneMsg:'No open flags.', autoClearBtn:'Clear',
@@ -6291,6 +6295,9 @@ jobViewAll:'Todos', jobViewToday:'Hoy', jobViewWeek:'Esta semana', jobViewUnsche
     fuPreviewEmptyMsg:'No se enviaría nada ahora mismo.',
     fuLogHead:'Envíos recientes',
     fuLogBody:'Cada correo de seguimiento realmente enviado: qué tipo, qué trabajo y cuándo.',
+    fuStateOff:'Los seguimientos están desactivados. Nada de lo de abajo se enviará, y la lista de pendientes queda vacía haya quien haya esperando.',
+    fuStateOnButNoRules:'Activado, pero no hay ninguna regla marcada abajo, así que nunca se enviará nada. Marca las que quieras.',
+    fuPreviewEmptyNoRules:'No hay nada pendiente porque no hay ninguna regla activada. Eso no es lo mismo que que nadie necesite seguimiento.',
     fuLogEmptyMsg:'Todavía no se ha enviado ningún correo de seguimiento.',
     fuColJob:'Trabajo', fuColKind:'Seguimiento', fuColWhen:'Cuándo',
     autoFlagsNoneMsg:'No hay marcas abiertas.', autoClearBtn:'Descartar',
@@ -8010,6 +8017,9 @@ jobViewAll:'Tous', jobViewToday:'Aujourdhui', jobViewWeek:'Cette semaine', jobVi
     fuPreviewHead:'Ce qui serait envoyé maintenant',
     fuPreviewBody:'Lecture seule. Calculé à partir des mêmes règles que la fonction d\'envoi, y compris les heures de silence et le plafond quotidien, pour voir l\'effet avant d\'activer quoi que ce soit. Ceci n\'envoie jamais de courriel par lui-même.',
     fuPreviewEmptyMsg:'Rien ne serait envoyé pour le moment.',
+    fuStateOff:'Les relances sont désactivées. Rien ci-dessous ne partira, et la liste des relances dues reste vide même si quelqu'+"'"+'un attend.',
+    fuStateOnButNoRules:'Activé, mais aucune règle ci-dessous n'+"'"+'est cochée, donc rien ne partira jamais. Cochez celles que vous voulez.',
+    fuPreviewEmptyNoRules:'Rien n'+"'"+'est dû parce qu'+"'"+'aucune règle n'+"'"+'est activée. Ce n'+"'"+'est pas la même chose que personne à relancer.',
     fuLogHead:'Envois récents',
     fuLogBody:'Chaque courriel de relance réellement envoyé : quel type, quel chantier, et quand.',
     fuLogEmptyMsg:'Aucun courriel de relance n\'a encore été envoyé.',
@@ -9703,6 +9713,23 @@ function renderFollowUps(){
 
   const enabledCb = $('fu_enabled');
   if (enabledCb) { enabledCb.checked = !!s.enabled; enabledCb.disabled = !editable; }
+
+  // SAY WHICH KIND OF NOTHING THIS IS.
+  //
+  // The master switch being on, with every rule below it off, sends exactly as
+  // many emails as the master switch being off -- but it reads completely
+  // differently, and the due-list below honours the rules, so it sits there
+  // empty and looks like nobody needs chasing. That is the state this company
+  // was actually in, with three opened-and-unanswered quotes on the books.
+  const anyKindOn = FOLLOW_UP_KIND_DEFS.some(def => !!s[def.enabledField]);
+  const stateNote = $('fuStateNote');
+  if (stateNote) {
+    const warn = s.enabled && !anyKindOn;
+    stateNote.textContent = !s.enabled ? tr('fuStateOff')
+      : warn ? tr('fuStateOnButNoRules') : '';
+    stateNote.style.display = stateNote.textContent ? '' : 'none';
+    stateNote.className = warn ? 'sub bad' : 'sub';
+  }
   const quietStartSel = $('fu_quiet_start'), quietEndSel = $('fu_quiet_end');
   [quietStartSel, quietEndSel].forEach(sel => {
     if (!sel) return;
@@ -9753,7 +9780,13 @@ function renderFollowUps(){
       return `<tr><td>${esc(j?.customer_name || j?.address || tr('jobGoneLabel'))}</td><td>${esc(fuKindLabel(p.kind))}</td></tr>`;
     }).join('');
   }
-  if (previewEmpty) previewEmpty.style.display = preview.length ? 'none' : 'block';
+  if (previewEmpty) {
+    previewEmpty.style.display = preview.length ? 'none' : 'block';
+    // An empty due-list means two completely different things depending on
+    // whether any rule is switched on, and the difference is the whole point.
+    previewEmpty.textContent = (!s.enabled || !anyKindOn)
+      ? tr('fuPreviewEmptyNoRules') : tr('fuPreviewEmptyMsg');
+  }
 
   const logEl = $('fuLogRows'), logEmpty = $('fuLogEmpty');
   if (logEl) {
