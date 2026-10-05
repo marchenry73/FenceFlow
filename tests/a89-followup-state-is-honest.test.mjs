@@ -77,12 +77,26 @@ for (const k of ["chaseActFollowOpened", "chaseActFollowUnopened", "chaseActNoEm
 ok("4e", "the score is still value times days waiting, untouched by any of this",
   page.includes("score: value * ageDays"));
 
-console.log("\n5. CANARIES");
-ok("5a", "CANARY: checking the master switch alone would not have caught this -- 1c reads the RULES",
+console.log("\n5. A LANGUAGE SWITCH MUST NOT UNDO THE HONEST MESSAGES");
+// setLang() calls applyStaticText(), which writes tr(k) into every [data-t]
+// element. #fuPreviewEmpty carries data-t="fuPreviewEmptyMsg", so picking
+// Spanish replaced the specific "no rule is switched on" wording with the
+// ambiguous static line it exists to replace -- and nothing re-rendered it
+// afterwards, so it stayed wrong until a reload.
+ok("5a", "setLang redraws the panels that write their own translated text",
+  /for \(const redraw of \[renderFollowUps, renderAttention\]\)/.test(page));
+ok("5b", "and each redraw is guarded, so a failing panel cannot leave somebody stuck in the wrong language",
+  /try \{ redraw\(\); \} catch/.test(page));
+ok("5c", "it happens AFTER applyStaticText, or the static text would just overwrite it again",
+  page.indexOf("applyStaticText();\n  // applyStaticText only rewrites") <
+    page.indexOf("for (const redraw of [renderFollowUps, renderAttention])"));
+
+console.log("\n6. CANARIES");
+ok("6a", "CANARY: checking the master switch alone would not have caught this -- 1c reads the RULES",
   !"const anyKindOn = !!s.enabled;".includes("FOLLOW_UP_KIND_DEFS.some"));
-ok("5b", "CANARY: 2a is anchored to the condition, so reverting the empty message to a constant fails it",
+ok("6b", "CANARY: 2a is anchored to the condition, so reverting the empty message to a constant fails it",
   !"previewEmpty.textContent = tr('fuPreviewEmptyMsg');".includes("!anyKindOn"));
-ok("5c", "CANARY: the real page defines FOLLOW_UP_KIND_DEFS, so 1c is not matching a name that does not exist",
+ok("6c", "CANARY: the real page defines FOLLOW_UP_KIND_DEFS, so 1c is not matching a name that does not exist",
   page.includes("FOLLOW_UP_KIND_DEFS") && count("FOLLOW_UP_KIND_DEFS") >= 3);
 
 console.log(`\n${failed === 0 ? "PASS" : "FAIL"}  ${passed} passed, ${failed} failed`);

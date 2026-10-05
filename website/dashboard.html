@@ -4523,6 +4523,7 @@ jobViewAll:'All', jobViewToday:'Today', jobViewWeek:'This week', jobViewUnschedu
     attnTurnedOff:'Off. Nothing will be checked until you turn it back on.',
     attnCannotFlip:'Only an owner or manager can change this.',
     attnOffMeansBlind:'While this is off there is nothing to show here, and nothing being watched. An empty list would not mean all clear.',
+    attnCouldNotAsk:'Could not load the alerts just now, so this list is empty because the question failed, not because there is nothing. Try Refresh.',
     attnHiddenFromYou:'These alerts are about money, and this account cannot see them. An empty list here does not mean there are none — ask an owner or manager.',
     attnQuietHours:'Quiet hours. Nothing is recorded until %s, so an empty list right now tells you nothing either way.',
     attnNoneOpen:'Nothing open. The server checks these every hour.',
@@ -6284,6 +6285,7 @@ jobViewAll:'Todos', jobViewToday:'Hoy', jobViewWeek:'Esta semana', jobViewUnsche
     attnTurnedOff:'Desactivado. No se revisará nada hasta que lo vuelvas a activar.',
     attnCannotFlip:'Solo un propietario o gerente puede cambiar esto.',
     attnOffMeansBlind:'Mientras esté desactivado no hay nada que mostrar aquí, y nada vigilado. Una lista vacía no significaría que todo está bien.',
+    attnCouldNotAsk:'No se pudieron cargar las alertas ahora mismo, así que esta lista está vacía porque falló la consulta, no porque no haya nada. Prueba Actualizar.',
     attnHiddenFromYou:'Estas alertas son sobre dinero y esta cuenta no puede verlas. Una lista vacía aquí no significa que no haya ninguna — pregunta a un propietario o gerente.',
     attnQuietHours:'Horas de silencio. No se registra nada hasta las %s, así que una lista vacía ahora no te dice nada.',
     attnNoneOpen:'Nada abierto. El servidor revisa esto cada hora.',
@@ -8016,6 +8018,7 @@ jobViewAll:'Tous', jobViewToday:'Aujourdhui', jobViewWeek:'Cette semaine', jobVi
     attnTurnedOff:'Désactivé. Rien ne sera vérifié tant que vous ne le réactivez pas.',
     attnCannotFlip:'Seul un propriétaire ou un gestionnaire peut changer ceci.',
     attnOffMeansBlind:'Tant que ceci est désactivé il n'+"'"+'y a rien à afficher ici, et rien sous surveillance. Une liste vide ne voudrait pas dire que tout va bien.',
+    attnCouldNotAsk:'Impossible de charger les alertes pour le moment : cette liste est vide parce que la demande a échoué, pas parce qu'+"'"+'il n'+"'"+'y a rien. Essayez Actualiser.',
     attnHiddenFromYou:'Ces alertes concernent l'+"'"+'argent et ce compte ne peut pas les voir. Une liste vide ici ne veut pas dire qu'+"'"+'il n'+"'"+'y en a aucune — demandez à un propriétaire ou un gestionnaire.',
     attnQuietHours:'Heures calmes. Rien n'+"'"+'est enregistré avant %s, donc une liste vide maintenant ne vous apprend rien.',
     attnNoneOpen:'Rien d'+"'"+'ouvert. Le serveur vérifie ceci toutes les heures.',
@@ -9539,6 +9542,10 @@ function renderAutomation(){
 
 let attentionSettings = null;   // null means "no row", which the table defines as off
 let attentionFindings = [];
+// Whether the last findings read actually ANSWERED. An empty array can mean a
+// company with nothing wrong or a read that failed, and those want opposite
+// reactions -- so the panel must be able to tell them apart.
+let attentionReadFailed = false;
 
 /** Reads the switch and the open findings. Both are plain RLS selects scoped to
     the company; neither is the security boundary, the server's own policy is. */
@@ -9550,13 +9557,15 @@ async function loadAttentionState(){
       .select('enabled,quiet_hours_start,quiet_hours_end,timezone,updated_at').maybeSingle();
     if (!s.error) attentionSettings = s.data || null;
   } catch (e) { /* no row and no table both read as off, which is the safe way round */ }
+  attentionReadFailed = false;
   try {
     const f = await db.from('attention_findings')
       .select('id,job_sync_id,detector,severity,message,created_at')
       .is('cleared_at', null)
       .order('created_at', { ascending: false }).limit(200);
     if (!f.error) attentionFindings = f.data || [];
-  } catch (e) { /* same */ }
+    else attentionReadFailed = true;
+  } catch (e) { attentionReadFailed = true; }
 }
 
 function renderAttention(){
@@ -9589,6 +9598,12 @@ function renderAttention(){
     return;
   }
   if (!attentionFindings.length) {
+    // COULD NOT ASK is not the same as NOTHING TO REPORT, and an empty array
+    // is what both look like from here.
+    if (attentionReadFailed) {
+      rows.innerHTML = `<p class="sub bad">${esc(tr('attnCouldNotAsk'))}</p>`;
+      return;
+    }
     // AN EMPTY LIST HERE MEANS ONE OF THREE THINGS, and only one of them is
     // good news. Saying "nothing open" for all three is the exact failure this
     // panel exists to prevent.
@@ -9627,8 +9642,8 @@ function renderAttention(){
       <span class="brief-dot"></span>
       <span><b>${esc(def ? tr(def.labelKey) : f.detector)}</b> &middot; ${esc(who)}<br>
         <span class="sub">${esc(f.message)} &middot; ${esc(d(f.created_at).toLocaleString())}</span></span>
-      <button class="btn btn-sm btn-grey attn-clear" type="button"
-        data-id="${esc(f.id)}">${esc(tr('attnClearBtn'))}</button>
+      ${canFlip ? `<button class="btn btn-sm btn-grey attn-clear" type="button"
+        data-id="${esc(f.id)}">${esc(tr('attnClearBtn'))}</button>` : ''}
     </div>`;
   }).join('');
   for (const b of rows.querySelectorAll('.attn-clear')) {

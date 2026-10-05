@@ -50,11 +50,14 @@ function makeScope({ canEditValue = true, canSeeMoneyValue = true } = {}) {
   };
 }
 
-function render({ settings, findings, canEditValue = true, canSeeMoneyValue = true }) {
+function render({ settings, findings, canEditValue = true, canSeeMoneyValue = true, readFailed = false }) {
   const { els, scope } = makeScope({ canEditValue, canSeeMoneyValue });
   const prelude =
     `let attentionSettings = ${JSON.stringify(settings)};\n` +
-    `let attentionFindings = ${JSON.stringify(findings)};\n`;
+    `let attentionFindings = ${JSON.stringify(findings)};\n` +
+    // Whether the findings read ANSWERED. An empty array looks identical
+    // whether the company is clear or the request failed.
+    `let attentionReadFailed = ${JSON.stringify(readFailed)};\n`;
   const P = load(["renderAttention"], scope, prelude);
   P.renderAttention();           // throws here = throws in his browser
   return els;
@@ -175,6 +178,30 @@ console.log("\n6. AN EMPTY LIST MEANS THREE DIFFERENT THINGS");
   els = render({ settings: quiet, findings: [], canSeeMoneyValue: false });
   ok("6e", "permission beats quiet hours -- the one that is true around the clock wins",
     els.attnRows.innerHTML.includes("attnHiddenFromYou"));
+
+  // (d) And the fourth: the read did not answer at all. loadAttentionState
+  //     swallows an error and leaves the array empty, which is identical to a
+  //     company with nothing wrong.
+  els = render({ settings: awake, findings: [], readFailed: true });
+  ok("6f", "a FAILED read says the question failed, rather than reporting all clear",
+    els.attnRows.innerHTML.includes("attnCouldNotAsk") &&
+    !els.attnRows.innerHTML.includes("attnNoneOpen"), els.attnRows.innerHTML.slice(0, 140));
+}
+
+console.log("\n7. THE CLEAR BUTTON IS ONLY OFFERED TO SOMEBODY WHO MAY USE IT");
+{
+  const findings = [{ id: "f1", job_sync_id: "job-1", detector: "no_deposit", severity: "warn",
+    message: "x", created_at: "2026-10-04T12:00:00Z" }];
+  // Findings are readable by anyone with SEE_MONEY, which includes SALES, but
+  // clearAttentionFinding() starts `if (!canEdit()) return;`. A live-looking
+  // button that silently does nothing is the thing this panel is against.
+  const canEdit = render({ settings: { enabled: true }, findings, canEditValue: true });
+  const cannot = render({ settings: { enabled: true }, findings, canEditValue: false });
+  ok("7a", "an owner or manager gets the Clear button", canEdit.attnRows.innerHTML.includes("attn-clear"));
+  ok("7b", "somebody the server would refuse is not offered it at all",
+    !cannot.attnRows.innerHTML.includes("attn-clear"));
+  ok("7c", "and still sees the finding itself -- they may read these, just not clear them",
+    cannot.attnRows.innerHTML.includes("alertNoDeposit"));
 }
 
 console.log("\n5. ESCAPING");

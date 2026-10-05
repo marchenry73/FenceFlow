@@ -27,8 +27,9 @@ const job = (over) => ({
   contract_total: 5000, ...over,
 });
 
-/** Runs the real renderChase over one job and returns what it wrote. */
+/** Runs the real renderChase over one job (or several) and returns what it wrote. */
 async function chaseHtmlFor(j) {
+  const list = Array.isArray(j) ? j : [j];
   const els = {};
   const el = (id) => (els[id] = els[id] || {
     id, innerHTML: "", style: {}, textContent: "",
@@ -40,8 +41,8 @@ async function chaseHtmlFor(j) {
     tr: (k) => k,                       // the key itself, so assertions name keys
     money: (n) => "$" + Number(n || 0).toFixed(2),
     d: (x) => new Date(x),
-    jobs: [j],
-    jobBySync: () => j,
+    jobs: list,
+    jobBySync: (sid) => list.find((x) => x.sync_id === sid) || list[0],
     stageOf: () => "Quote Sent",        // the stage whose label this test is about
     contractTotalOf: (x) => x.contract_total || 0,
     ensureItemsForJobs: async () => {},
@@ -99,8 +100,29 @@ const run = async () => {
   console.log("\n2. THE RANKING IS UNTOUCHED");
   {
     const h = await chaseHtmlFor(job({ email: "x@example.com", quote_viewed_at: "2026-09-22T00:00:00Z" }));
-    ok("2a", "the row still renders its worth, so the list is still ranked by value and time",
-      h.includes("$5000.00") || h.includes("5000"), h.slice(0, 200));
+    ok("2a", "the row still renders its worth", h.includes("$5000.00") || h.includes("5000"), h.slice(0, 200));
+  }
+  {
+    // THE ORDER ITSELF. The first version of this rendered ONE job and checked
+    // its value appeared, which says nothing about ranking -- reversing the
+    // sort would have passed it. The score is value x days waiting, so build
+    // three jobs whose order is unambiguous and read the names back in the
+    // order they were written.
+    const mk = (id, name, total, sentAt) => job({
+      id, sync_id: id, customer_name: name, contract_total: total,
+      quote_sent_at: sentAt, quote_viewed_at: sentAt, email: "x@example.com",
+    });
+    const h = await chaseHtmlFor([
+      mk("small", "SmallRecent", 1000, "2026-10-01T00:00:00Z"),   // low value, newest
+      mk("big", "BigOld", 20000, "2026-08-01T00:00:00Z"),         // high value, oldest -> first
+      mk("mid", "MidMiddle", 5000, "2026-09-01T00:00:00Z"),
+    ]);
+    const order = ["BigOld", "MidMiddle", "SmallRecent"].map((n) => h.indexOf(n));
+    ok("2c", "the list is ranked by value times time waiting, biggest and oldest first",
+      order.every((i) => i >= 0) && order[0] < order[1] && order[1] < order[2],
+      "positions " + JSON.stringify(order));
+    ok("2d", "CANARY: all three really were rendered, so the order above is not two of them",
+      order.filter((i) => i >= 0).length === 3);
     ok("2b", "and the old generic label is gone from the output entirely",
       !h.includes("chaseActFollow'") && !/chaseActFollow[^OU]/.test(h));
   }

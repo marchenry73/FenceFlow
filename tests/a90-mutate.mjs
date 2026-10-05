@@ -35,6 +35,17 @@ const MUTANTS = [
   ["a90", "quiet hours stop being distinguished, so an unrecorded night reads as all clear",
    "if (isQuietHour(new Date(), qs.quiet_hours_start, qs.quiet_hours_end, offset)) {",
    "if (false) {"],
+  ["a90", "a failed read goes back to reporting all clear",
+   "if (attentionReadFailed) {", "if (false) {"],
+  ["a90", "the Clear button is offered to everyone again, and silently does nothing for most",
+   "${canFlip ? `<button class=\"btn btn-sm btn-grey attn-clear\"",
+   "${true ? `<button class=\"btn btn-sm btn-grey attn-clear\""],
+  ["a89", "setLang stops redrawing the panels, so a language switch undoes the honest message",
+   "for (const redraw of [renderFollowUps, renderAttention])",
+   "for (const redraw of [])"],
+  // Proves the ranking assertion is real: reversing the sort must now fail.
+  ["a93", "the chase ranking is reversed",
+   ": b.score - a.score);", ": a.score - b.score);"],
   ["a93", "no-email stops beating opened, so a job with nowhere to send reads as a nudge",
    "action = !hasEmail", "action = false"],
   ["a93", "the opened/never-opened split collapses back to one label",
@@ -44,7 +55,8 @@ const MUTANTS = [
 
 const TEST = { a90: "tests/a90-attention-panel-renders.test.mjs",
                a91: "tests/a91-followup-panel-renders.test.mjs",
-               a93: "tests/a93-chase-labels.test.mjs" };
+               a93: "tests/a93-chase-labels.test.mjs",
+               a89: "tests/a89-followup-state-is-honest.test.mjs" };
 
 let survived = 0;
 for (const [suite, what, from, to] of MUTANTS) {
@@ -57,7 +69,12 @@ for (const [suite, what, from, to] of MUTANTS) {
   let red = false;
   try {
     execFileSync(process.execPath, [TEST[suite]],
-      { env: { ...process.env, A27_PAGE: p }, encoding: "utf8" });
+      // Every page-path override these suites honour. a90/a91/a93 read the
+      // page through a27's loader (A27_PAGE); a89 and a86 read it directly
+      // under their own names. Setting only A27_PAGE meant a89 happily read
+      // the REAL page and its mutation "survived" -- a harness that tests the
+      // wrong file reports the check as toothless when it is fine.
+      { env: { ...process.env, A27_PAGE: p, A89_PAGE: p, A86_PAGE: p, A84_PAGE: p }, encoding: "utf8" });
   } catch { red = true; }
   console.log(`  ${red ? "killed  " : "SURVIVED"}  [${suite}] ${what}`);
   if (!red) survived++;
