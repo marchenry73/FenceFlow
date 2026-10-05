@@ -611,3 +611,22 @@ fence ends on.
 workflow.** They are cheap, each catches a whole class of silent breakage, and
 it was twice tonight that a check which could have caught something simply was
 not being run.
+
+### Final state, re-run after the fixes
+
+```
+pass=188 fail=3 timeout=0 of 191
+FAIL  a32-join-posts.test.mjs          (spec, joining has not landed)
+FAIL  a32-join-transition.test.mjs     (spec, and marked as needing your call)
+FAIL  a4-labour.test.mjs               (the can_see_pay report, above)
+```
+
+Exactly the three that should be red, and nothing else. `a4-labour` goes green
+by applying `supabase_a92_can_see_pay_checks_see_pay.sql` — by fixing the
+function, never by editing the test.
+
+You can check this yourself any time with:
+
+```
+node scripts/run-website-tests.mjs
+```
