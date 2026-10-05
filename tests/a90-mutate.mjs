@@ -42,6 +42,15 @@ const MUTANTS = [
    "${true ? `<button class=\"btn btn-sm btn-grey attn-clear\""],
   ["a91", "already-sent follow-ups start counting as waiting again",
    "if (alreadySent.has(j.sync_id + '|' + def.key)) continue;", ""],
+  // The customer-facing one: the guard that stops {{customer_first_name}}
+  // reaching a real person. Three ways to neuter it, all must be caught.
+  ["a85", "the placeholder refusal is switched off outright",
+   "if (c.placeholderWarned !== names) {", "if (false) {"],
+  ["a85", "the refusal warns but falls through, so the mail goes anyway",
+   "return msg('mc_msg', tr('mailUnfilledPlaceholder', names), 'err');",
+   "msg('mc_msg', tr('mailUnfilledPlaceholder', names), 'err');"],
+  ["a85", "the guard stops looking at the subject",
+   "unfilledPlaceholders(subject, text)", "unfilledPlaceholders(text)"],
   ["a91", "a failed settings read goes back to confidently reporting OFF",
    "followUpSettingsReadFailed ? tr('fuCouldNotAsk')", "false ? tr('fuCouldNotAsk')"],
   ["a89", "setLang stops redrawing the panels, so a language switch undoes the honest message",
@@ -60,7 +69,8 @@ const MUTANTS = [
 const TEST = { a90: "tests/a90-attention-panel-renders.test.mjs",
                a91: "tests/a91-followup-panel-renders.test.mjs",
                a93: "tests/a93-chase-labels.test.mjs",
-               a89: "tests/a89-followup-state-is-honest.test.mjs" };
+               a89: "tests/a89-followup-state-is-honest.test.mjs",
+               a85: "tests/a85-unfilled-placeholder-guard.test.mjs" };
 
 let survived = 0;
 for (const [suite, what, from, to] of MUTANTS) {
@@ -78,7 +88,7 @@ for (const [suite, what, from, to] of MUTANTS) {
       // under their own names. Setting only A27_PAGE meant a89 happily read
       // the REAL page and its mutation "survived" -- a harness that tests the
       // wrong file reports the check as toothless when it is fine.
-      { env: { ...process.env, A27_PAGE: p, A89_PAGE: p, A86_PAGE: p, A84_PAGE: p }, encoding: "utf8" });
+      { env: { ...process.env, A27_PAGE: p, A89_PAGE: p, A86_PAGE: p, A84_PAGE: p, A85_PAGE: p }, encoding: "utf8" });
   } catch { red = true; }
   console.log(`  ${red ? "killed  " : "SURVIVED"}  [${suite}] ${what}`);
   if (!red) survived++;

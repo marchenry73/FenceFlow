@@ -18,7 +18,7 @@ import { dirname, join } from "node:path";
 import { unfilledPlaceholders, fillTemplate, firstNameOf } from "../website/js/lib/mail-render.mjs";
 
 const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
-const page = readFileSync(join(ROOT, "website/dashboard.html"), "utf8");
+const page = readFileSync(process.env.A85_PAGE || join(ROOT, "website/dashboard.html"), "utf8");
 
 let passed = 0, failed = 0;
 const ok = (id, what, cond, detail) => {
@@ -81,6 +81,28 @@ ok("4c", "the refusal happens BEFORE the send is marked busy, so a refused attem
   page.indexOf("unfilledPlaceholders(subject, text)") > 0);
 ok("4d", "a second click sends anyway, so a literal {{ in prose cannot lock him out of his own mail",
   page.includes("c.placeholderWarned"));
+
+// THE BRANCH ITSELF, not just its ingredients.
+//
+// The first version of this section checked that each piece was present --
+// the import, the call, the warned-set name -- and all four passed with the
+// refusal replaced by `if (false)`. The guard could be switched off entirely
+// and this file said it was fine. So pin the whole shape: the condition is
+// the warned-set comparison (not a constant), and the body RETURNS, because a
+// branch that only shows a message and falls through sends the mail anyway.
+{
+  const i = page.indexOf("const unfilled = unfilledPlaceholders(subject, text);");
+  const branch = i < 0 ? "" : page.slice(i, i + 460);
+  ok("4e", "the refusal is reached by comparing against the warned set, not by a constant",
+    /if \(c\.placeholderWarned !== names\) \{/.test(branch), branch.slice(0, 200));
+  ok("4f", "and it RETURNS -- a message without a return shows the warning and sends anyway",
+    /return msg\('mc_msg', tr\('mailUnfilledPlaceholder', names\), 'err'\);/.test(branch));
+  ok("4g", "the warned set is recorded BEFORE the return, or the second press warns again for ever",
+    branch.indexOf("c.placeholderWarned = names;") > 0 &&
+    branch.indexOf("c.placeholderWarned = names;") < branch.indexOf("return msg('mc_msg'"));
+  ok("4h", "the whole thing is still inside `if (unfilled.length)`, so a clean email is untouched",
+    /if \(unfilled\.length\) \{/.test(branch));
+}
 
 console.log("\n5. CANARIES");
 ok("5a", "CANARY: the matcher really is anchored to the braces -- a bare name is not a placeholder",
