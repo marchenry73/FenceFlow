@@ -11,6 +11,9 @@
 // A thrown exception here is a thrown exception in his browser.
 
 import { load } from "./a27-pricelist-lib.mjs";
+// The REAL quiet-hours logic, not a stub: whether an empty list is meaningful
+// overnight depends on it, so a stub that agreed with me would prove nothing.
+import { isQuietHour, approximateUtcOffsetHours } from "../website/js/lib/follow-ups.mjs";
 
 let passed = 0, failed = 0;
 const ok = (id, what, cond, detail) => {
@@ -19,7 +22,7 @@ const ok = (id, what, cond, detail) => {
 };
 
 /** The few page globals renderAttention reaches for. */
-function makeScope({ canEditValue = true } = {}) {
+function makeScope({ canEditValue = true, canSeeMoneyValue = true } = {}) {
   const els = {};
   const el = (id) => (els[id] = els[id] || {
     id, innerHTML: "", style: {}, className: "", textContent: "",
@@ -38,14 +41,17 @@ function makeScope({ canEditValue = true } = {}) {
       ALERT_DEFS: [{ key: "no_deposit", labelKey: "alertNoDeposit" }],
       jobBySync: (sid) => (sid === "job-1" ? { customer_name: "Makayla" } : null),
       d: (x) => new Date(x),
+      canSeeMoney: () => canSeeMoneyValue,
+      isQuietHour,
+      approximateUtcOffsetHours,
       setAttentionEnabled: () => {},
       clearAttentionFinding: () => {},
     },
   };
 }
 
-function render({ settings, findings, canEditValue = true }) {
-  const { els, scope } = makeScope({ canEditValue });
+function render({ settings, findings, canEditValue = true, canSeeMoneyValue = true }) {
+  const { els, scope } = makeScope({ canEditValue, canSeeMoneyValue });
   const prelude =
     `let attentionSettings = ${JSON.stringify(settings)};\n` +
     `let attentionFindings = ${JSON.stringify(findings)};\n`;
@@ -123,6 +129,52 @@ console.log("\n4. SOMEBODY WHO CANNOT CHANGE IT");
     ok("4c", "and it says who can change it, instead of going quietly dead",
       els.attnSwitch.innerHTML.includes("attnCannotFlip"));
   }
+}
+
+console.log("\n6. AN EMPTY LIST MEANS THREE DIFFERENT THINGS");
+{
+  // The panel exists to stop an empty list reading as good news, and it was
+  // doing exactly that in two cases it could detect and did not.
+
+  // (a) attention_findings carries a RESTRICTIVE select policy requiring
+  //     SEE_MONEY, which returns zero rows with no error. The Automation tab
+  //     is gated by plan, not by role, so a foreman can be standing here.
+  let els = render({ settings: { enabled: true }, findings: [], canSeeMoneyValue: false });
+  ok("6a", "somebody who may not READ the findings is told so, not told there are none",
+    els.attnRows.innerHTML.includes("attnHiddenFromYou"), els.attnRows.innerHTML.slice(0, 140));
+  ok("6b", "and NOT shown the all-clear wording",
+    !els.attnRows.innerHTML.includes("attnNoneOpen"));
+
+  // (b) attention-sweep checks isQuietHour and `continue`s BEFORE the insert,
+  //     so in the quiet window nothing is RECORDED -- the push is not merely
+  //     held back. Build a window that certainly contains now, in UTC so the
+  //     offset is zero and the test does not depend on where it runs.
+  // The window has to be built in the SAME local hour the panel will compute,
+  // which means going through approximateUtcOffsetHours rather than assuming.
+  // The first version of this used timezone "UTC" and an offset of 0 -- but
+  // that function does not recognise "UTC" and falls back to Eastern (-5), so
+  // the window missed the current hour by five and the test failed against
+  // perfectly good code.
+  const TZ = "America/New_York";
+  const localH = (new Date().getUTCHours() + approximateUtcOffsetHours(TZ) + 24) % 24;
+  const quiet = { enabled: true, timezone: TZ, quiet_hours_start: localH, quiet_hours_end: (localH + 2) % 24 };
+  els = render({ settings: quiet, findings: [] });
+  ok("6c", "inside quiet hours it says nothing is being recorded, rather than nothing is open",
+    els.attnRows.innerHTML.includes("attnQuietHours"), els.attnRows.innerHTML.slice(0, 140));
+
+  // (c) Outside the window, for somebody allowed to see them, empty finally
+  //     does mean empty.
+  const awake = { enabled: true, timezone: TZ, quiet_hours_start: (localH + 2) % 24, quiet_hours_end: (localH + 3) % 24 };
+  els = render({ settings: awake, findings: [] });
+  ok("6d", "outside quiet hours, and allowed to see them, empty really is all clear",
+    els.attnRows.innerHTML.includes("attnNoneOpen") &&
+    !els.attnRows.innerHTML.includes("attnQuietHours"), els.attnRows.innerHTML.slice(0, 140));
+
+  // The order matters: a foreman inside quiet hours must get the permission
+  // message, because that one is true of them all night and all day.
+  els = render({ settings: quiet, findings: [], canSeeMoneyValue: false });
+  ok("6e", "permission beats quiet hours -- the one that is true around the clock wins",
+    els.attnRows.innerHTML.includes("attnHiddenFromYou"));
 }
 
 console.log("\n5. ESCAPING");

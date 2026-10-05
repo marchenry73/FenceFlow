@@ -3279,6 +3279,7 @@ import {
 } from './js/lib/pay.mjs';
 import {
   FOLLOW_UP_KINDS, DEFAULT_SETTINGS as FOLLOW_UP_DEFAULT_SETTINGS, previewDueFollowUps, dueFollowUp,
+  isQuietHour, approximateUtcOffsetHours,
 } from './js/lib/follow-ups.mjs';
 import {
   MAIL_LIMITS, MAIL_ERROR_KEYS, mailSandboxAttr, buildSrcdoc, sanitizeMailHtml, textToHtml, htmlToPlain,
@@ -4522,6 +4523,8 @@ jobViewAll:'All', jobViewToday:'Today', jobViewWeek:'This week', jobViewUnschedu
     attnTurnedOff:'Off. Nothing will be checked until you turn it back on.',
     attnCannotFlip:'Only an owner or manager can change this.',
     attnOffMeansBlind:'While this is off there is nothing to show here, and nothing being watched. An empty list would not mean all clear.',
+    attnHiddenFromYou:'These alerts are about money, and this account cannot see them. An empty list here does not mean there are none — ask an owner or manager.',
+    attnQuietHours:'Quiet hours. Nothing is recorded until %s, so an empty list right now tells you nothing either way.',
     attnNoneOpen:'Nothing open. The server checks these every hour.',
     attnClearBtn:'Clear',
     autoRunsEmptyMsg:'No rule has fired yet.',
@@ -6281,6 +6284,8 @@ jobViewAll:'Todos', jobViewToday:'Hoy', jobViewWeek:'Esta semana', jobViewUnsche
     attnTurnedOff:'Desactivado. No se revisará nada hasta que lo vuelvas a activar.',
     attnCannotFlip:'Solo un propietario o gerente puede cambiar esto.',
     attnOffMeansBlind:'Mientras esté desactivado no hay nada que mostrar aquí, y nada vigilado. Una lista vacía no significaría que todo está bien.',
+    attnHiddenFromYou:'Estas alertas son sobre dinero y esta cuenta no puede verlas. Una lista vacía aquí no significa que no haya ninguna — pregunta a un propietario o gerente.',
+    attnQuietHours:'Horas de silencio. No se registra nada hasta las %s, así que una lista vacía ahora no te dice nada.',
     attnNoneOpen:'Nada abierto. El servidor revisa esto cada hora.',
     attnClearBtn:'Listo',
     autoRunsEmptyMsg:'Ninguna regla se ha activado todavía.',
@@ -8011,6 +8016,8 @@ jobViewAll:'Tous', jobViewToday:'Aujourdhui', jobViewWeek:'Cette semaine', jobVi
     attnTurnedOff:'Désactivé. Rien ne sera vérifié tant que vous ne le réactivez pas.',
     attnCannotFlip:'Seul un propriétaire ou un gestionnaire peut changer ceci.',
     attnOffMeansBlind:'Tant que ceci est désactivé il n'+"'"+'y a rien à afficher ici, et rien sous surveillance. Une liste vide ne voudrait pas dire que tout va bien.',
+    attnHiddenFromYou:'Ces alertes concernent l'+"'"+'argent et ce compte ne peut pas les voir. Une liste vide ici ne veut pas dire qu'+"'"+'il n'+"'"+'y en a aucune — demandez à un propriétaire ou un gestionnaire.',
+    attnQuietHours:'Heures calmes. Rien n'+"'"+'est enregistré avant %s, donc une liste vide maintenant ne vous apprend rien.',
     attnNoneOpen:'Rien d'+"'"+'ouvert. Le serveur vérifie ceci toutes les heures.',
     attnClearBtn:'Effacer',
     autoRuleLastFired:'Dernier déclenchement %s', autoRuleNeverRun:'Jamais exécutée',
@@ -9582,6 +9589,33 @@ function renderAttention(){
     return;
   }
   if (!attentionFindings.length) {
+    // AN EMPTY LIST HERE MEANS ONE OF THREE THINGS, and only one of them is
+    // good news. Saying "nothing open" for all three is the exact failure this
+    // panel exists to prevent.
+    //
+    // 1. This account may not READ them. attention_findings carries a
+    //    restrictive SELECT policy requiring SEE_MONEY, and a restrictive
+    //    policy returns zero rows with no error. The Automation tab is gated
+    //    by plan, not by role, so a foreman can be standing here.
+    if (!canSeeMoney()) {
+      rows.innerHTML = `<p class="sub bad">${esc(tr('attnHiddenFromYou'))}</p>`;
+      return;
+    }
+    // 2. The server is inside its quiet window, where attention-sweep skips
+    //    the insert entirely -- it records nothing, it does not merely hold
+    //    the push back. So overnight an empty list carries no information at
+    //    all, on the panel whose title is "runs with the office closed".
+    const qs = attentionSettings;
+    if (qs && qs.quiet_hours_start != null && qs.quiet_hours_end != null) {
+      const offset = approximateUtcOffsetHours(qs.timezone);
+      if (isQuietHour(new Date(), qs.quiet_hours_start, qs.quiet_hours_end, offset)) {
+        rows.innerHTML = `<p class="sub bad">${
+          esc(tr('attnQuietHours', String(qs.quiet_hours_end).padStart(2, '0') + ':00'))}</p>`;
+        return;
+      }
+    }
+    // 3. Genuinely nothing open, outside quiet hours, for somebody allowed to
+    //    see them. Only now is "nothing open" true.
     rows.innerHTML = `<p class="sub">${esc(tr('attnNoneOpen'))}</p>`;
     return;
   }
