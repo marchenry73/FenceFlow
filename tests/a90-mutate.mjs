@@ -26,10 +26,16 @@ const MUTANTS = [
   ["a91", "the empty due-list goes back to one message for every reason",
    "previewEmpty.textContent = (!s.enabled || !anyKindOn)",
    "previewEmpty.textContent = (false)"],
+  ["a93", "no-email stops beating opened, so a job with nowhere to send reads as a nudge",
+   "action = !hasEmail", "action = false"],
+  ["a93", "the opened/never-opened split collapses back to one label",
+   "tr(j.quote_viewed_at ? 'chaseActFollowOpened' : 'chaseActFollowUnopened')",
+   "tr('chaseActFollowOpened')"],
 ];
 
 const TEST = { a90: "tests/a90-attention-panel-renders.test.mjs",
-               a91: "tests/a91-followup-panel-renders.test.mjs" };
+               a91: "tests/a91-followup-panel-renders.test.mjs",
+               a93: "tests/a93-chase-labels.test.mjs" };
 
 let survived = 0;
 for (const [suite, what, from, to] of MUTANTS) {

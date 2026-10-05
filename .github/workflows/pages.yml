@@ -135,6 +135,9 @@ jobs:
       - name: Gate - the follow-up panel actually renders
         run: node tests/a91-followup-panel-renders.test.mjs
 
+      - name: Gate - the chase list labels the three kinds of follow-up
+        run: node tests/a93-chase-labels.test.mjs
+
       # Covers BOTH render tests: five mutations, each of which must make its
       # own suite go red. The first is a typo'd global -- the case no grep in
       # this repo would catch.
