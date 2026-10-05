@@ -11,9 +11,14 @@
 - **One thing needs you, one line:** add a 4 ft vinyl **corner post** to the
   catalog at **$16.75**. That is the whole of what you spotted. Easiest in the
   app: Catalog → new item → Corner post, Vinyl, height 4.
-- **One switch is yours to flip:** nine server-side alerts are built and off.
-  I built the panel; I did not turn them on, because it starts pushing
-  notifications to your phone.
+- **Three people opened your quote and never heard back — $23,540 between
+  them, one of them Makayla.** Your follow-up emails are switched on at the top
+  and every individual rule underneath is off, so none has ever sent. Nothing
+  is broken; nothing was ever asked to send.
+- **Two switches are yours to flip:** the follow-up rules above, and nine
+  server-side alerts that are built and off. I built the panels and fixed what
+  made both look fine while doing nothing. I did not turn either on — both send
+  things to customers or to your phone.
 - **App 1.602 is live**, with the house/pool/driveway box drawn to scale and
   free-standing gates. Verified from the release row and the hosted file, not
   the build log.
@@ -374,3 +379,47 @@ One thing in there worth ten minutes before you do: Hillsborough County has its
 own contractor registration rules and plenty of fence jobs need a permit
 regardless of who pulls it. "I'm working toward it" is a much stronger sentence
 when you know exactly what *it* is.
+
+
+---
+
+## The one I would act on: nobody is following anybody up
+
+`follow_up_settings.enabled` is **true** for your company. All four individual
+rules underneath it are **false**. `follow_up_log` has been empty since the day
+it shipped.
+
+Nothing is broken. It has never been asked to send anything.
+
+What hid it is that the "due follow-ups" preview honours the rules. With every
+rule off it draws an **empty list underneath a ticked master switch** — which
+reads exactly like nobody needs chasing.
+
+Here is who was actually waiting while it said that:
+
+**Opened your quote, never approved**
+
+| Who | Opened | Quote |
+|---|---|---|
+| Makayla | 1 Oct | $4,420.37 |
+| James Bond | 21 Sep | $13,266.87 (no email on file) |
+| John Beaunissant | 29 Aug | $5,853.81 |
+
+**Approved, no deposit taken** — Yviona and Marco, both 2 October.
+
+That is **$23,540 of quotes that people opened and then heard nothing more
+about.** Makayla is the one you are actively working on; she looked at it four
+days ago.
+
+I have **not** switched anything on — these send real emails to real customers,
+and which rules run and to whom is yours. The settings are in Automation, under
+"Sales follow-ups": tick the rules you want and set the delays.
+
+What I did change is the lying part. The panel now says *which kind of nothing*
+it is — a warning when the master switch is on but no rule is ticked, and a
+due-list empty message that says outright that empty is not the same as nobody
+waiting. Same trap as the alerts panel, wearing a different hat.
+
+Worth knowing before you tick anything: there are **quiet hours** (9pm–8am,
+America/New_York) and a **daily cap of 25**, so switching rules on will not fire
+a backlog at people at three in the morning.
