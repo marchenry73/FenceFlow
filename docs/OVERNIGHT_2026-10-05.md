@@ -208,10 +208,26 @@ designed to do; it has nothing correct to choose from.
 That also answers the price question I left you: **$16.75**, because all three
 siblings in that identical family are $16.75.
 
-I have written the SQL (`supabase_a87_vinyl_4ft_corner_post.sql`) but **not run
-it**, because two things in it are inferred rather than yours: the price, and
-the supplier's actual name for the part — and that name is what shows on the
-materials list someone carries to a counter.
+I have written the SQL (`supabase_a87_vinyl_4ft_corner_post.sql`) and **dry-run
+it** against the live schema inside a transaction that rolls back. That was
+worth doing: the first draft had three bugs and would simply have failed on
+your machine — it left out `sync_id`, which cannot be null, filed the post under
+"miscellaneous", and omitted the unit and maker so the row would not have
+matched its own family.
+
+And one that would not have errored, which is worse: it copied the sibling's
+`source_doc` of **"Confirmed"** onto a price nobody has confirmed. The row now
+goes in marked **"Placeholder — verify with your supplier"**, which is the exact
+wording the office looks for — so it will flag that price as unverified until a
+supplier answers, which is what the price request goes out to ask.
+
+Verified in the transaction: 1 corner post before, 2 after one run, still 2
+after a second — safe to run twice. Then rolled back, and the live count
+re-checked: still 1. Nothing in your catalog was touched.
+
+It is still **not run for real**, now for one reason only: the supplier's own
+name for the part, which is what shows on the materials list someone carries to
+a counter.
 
 Easiest road is the app: **Catalog → new item → role Corner post, type Vinyl,
 height 4, price 16.75**, and type the supplier's real name off the invoice.
