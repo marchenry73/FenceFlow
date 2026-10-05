@@ -14,8 +14,12 @@
 - **One switch is yours to flip:** nine server-side alerts are built and off.
   I built the panel; I did not turn them on, because it starts pushing
   notifications to your phone.
-- **App 1.602 is publishing** as I write this, with the house/pool/driveway box
-  drawn to scale and free-standing gates.
+- **App 1.602 is live**, with the house/pool/driveway box drawn to scale and
+  free-standing gates. Verified from the release row and the hosted file, not
+  the build log.
+- **Before you send Makayla's quote: open it on the phone and press Suggest
+  Quantities.** Her quote currently has **no corner post on it at all** — both
+  were tombstoned on 1 October and never came back. See below.
 
 Everything below is the detail.
 
@@ -253,3 +257,38 @@ silently broken: a backslash was eaten on its way into the file, so the word
 boundary became a backspace character and it matched nothing, which made all
 244 look unused. A check that reports everything is as useless as one that
 reports nothing.)
+
+
+## Makayla's quote is missing its corner posts
+
+This is the one I would act on first, because it is a quote about to go to a
+real customer.
+
+Her job has three vinyl runs — two at 6 ft and one at 4 ft — and **no corner
+post line on the estimate at all**. Both corner posts were tombstoned on
+1 October (23:14 and 23:48), the same event that hit John's and James's jobs,
+and nothing has restored them since.
+
+| | |
+|---|---|
+| Live line items | 24, totalling $2,966.70 |
+| Tombstoned | 2 × `5"x5" Co-Ex Corner Post, White` @ $16.56 |
+| Missing from the quote | $33.12 before tax and markup |
+
+The money is small. Being wrong on a quote you are about to send is not, and
+the line items are the part a customer can read.
+
+**The repair is on the phone, not in SQL:** open her job and press *Suggest
+Quantities*. That re-derives the takeoff from the drawing and puts the corner
+posts back. I have not done it from here — `price-job` on the server is not
+anchor-aware, so driving it remotely is how the collapsed totals got pushed in
+the first place.
+
+Two notes while you are in there:
+
+- She has a **4 ft run**, so the missing catalog row above applies to her too.
+  Add the 4 ft corner post first and the re-price will pick it up; leave it and
+  her 4 ft corner gets the 8.5 ft post for a six-foot fence.
+- John's and James's jobs are still tombstoned as well — 18 items / $9,475 and
+  13 items / $21,511. You said to leave those for another time, so I have. They
+  are listed here only so the number is written down somewhere.
