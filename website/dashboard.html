@@ -11176,7 +11176,21 @@ const JOB_COLUMNS = [
   // row and the Blocked view quietly matched nothing at all. tests/
   // job-columns.test.mjs is the check that says so; it is not in the Pages
   // workflow, which is why nobody saw it.
-  'blocked_at'
+  'blocked_at',
+  // When this customer asked not to be emailed again. dueFollowUp() refuses a
+  // job that has it -- `if (job.opted_out_at) return null` -- and the sender
+  // honours it. But the office never SELECTED it, so on this page the property
+  // was undefined and the refusal never fired: both the due-list and the
+  // per-rule "N waiting" counts included people who had opted out, and
+  // presented them as emails that would be sent.
+  //
+  // Nobody has opted out yet (0 rows, checked 5 Oct 2026), so nothing wrong has
+  // been shown. It would have gone wrong the first time somebody did.
+  //
+  // Note for tests/job-columns.test.mjs: it scans dashboard.html, and this
+  // property is read inside website/js/lib/follow-ups.mjs, so it could not
+  // have caught this one.
+  'opted_out_at'
 ].join(',');
 
 /* ---------- extra crew, granted access, and access requests ----------

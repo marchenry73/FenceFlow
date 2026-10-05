@@ -78,6 +78,40 @@ test("every property the page reads off a job is in JOB_COLUMNS", () => {
   );
 });
 
+/* THE MODULES READ JOB ROWS TOO, and scanning only dashboard.html missed one.
+ *
+ * follow-ups.mjs is handed job rows straight out of the page's own `jobs`
+ * array -- dueFollowUp(job, settings, now) and previewDueFollowUps(jobs, ...).
+ * Every property IT reads has to be in JOB_COLUMNS just as much as one the
+ * page reads itself, because it is the same object.
+ *
+ * opted_out_at got through exactly here on 5 Oct 2026. dueFollowUp refuses a
+ * job carrying it -- `if (job.opted_out_at) return null` -- but the office
+ * never selected the column, so the property was undefined, the refusal never
+ * fired, and both the due-list and the per-rule "N waiting" counts offered to
+ * email people who had asked not to be. Nobody had opted out yet, so nothing
+ * wrong was ever shown; it would have gone wrong the first time somebody did.
+ */
+test("every job property the follow-up module reads is in JOB_COLUMNS too", () => {
+  const modSrc = readFileSync(new URL("../website/js/lib/follow-ups.mjs", import.meta.url), "utf8");
+  // This module names its parameter `job` throughout, so the scan is exact
+  // rather than heuristic -- no reuse of the name for anything else.
+  const read = new Set([...modSrc.matchAll(/\bjob\.([a-zA-Z_][a-zA-Z0-9_]*)/g)].map((m) => m[1]));
+  assert.ok(read.size > 3, `canary: only ${read.size} job.<prop> reads found -- the scan is broken`);
+  assert.ok(read.has("opted_out_at"),
+    "canary: the module no longer reads opted_out_at, so this check is pinned to the wrong file");
+
+  const declared = extractJobColumnsList(src);
+  const missing = [...read].filter((p) => !declared.has(p) && !KNOWN_NON_COLUMNS.has(p)).sort();
+  assert.deepEqual(
+    missing,
+    [],
+    `follow-ups.mjs reads job.${missing.join(", job.")} off a row the page selected without ` +
+      `${missing.length === 1 ? "it" : "them"} -- undefined at runtime, so the rule silently ` +
+      `never fires. Add to JOB_COLUMNS in dashboard.html`
+  );
+});
+
 test("planted failure: the scan has teeth", () => {
   // Prove the regex+diff actually catches a missing column, rather than
   // trivially passing because it scans nothing. Simulate a page that reads
