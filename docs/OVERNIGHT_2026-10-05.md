@@ -322,3 +322,55 @@ customer name on them and look like drafts.
 
 Nothing here needs doing tonight. It is written down so the number exists, and
 so that next time nobody has to guess which deletions were real.
+
+---
+
+## What turning the alerts on would tell you, today
+
+I ran the nine detectors' own SQL against your real data, with only the
+enabled-gate bypassed, to see whether the switch is worth flipping or whether
+it would just sit there empty.
+
+**One fires right now, and it is money:**
+
+> **No deposit collected.** James's job — approved 3 October, **$3,500 deposit
+> agreed, $0 collected**, status ACCEPTED.
+
+The other three money detectors are quiet (no chargebacks, nothing collected on
+a declined job, no failed payment attempts in 30 days), which is good news
+honestly arrived at rather than an empty panel.
+
+That one job is worth a second look for another reason. It is **the same job
+that has no email address on it** — the one whose contract email correctly
+recorded `no_address`. So: accepted, $3,500 outstanding, and the customer never
+received their contract, because there is nowhere to send it.
+
+I know you said to leave the John and James item. That was about re-pricing, so
+I have not touched the job — but an uncollected $3,500 deposit is a different
+thing from a re-price, and it seemed wrong to leave it unsaid.
+
+## Two more things, both waiting for you rather than needing you
+
+**A supplier price request** — `docs/SUPPLIER_PRICE_REQUEST.html` to print, and
+`.csv` to email. 48 items, named exactly as your catalog spells them, so
+whatever comes back loads straight in. One price column only, because the
+importer refuses to guess between List and Net. The highlighted row is the 4 ft
+corner post you do not have: it asks the supplier for **their** part name and
+price, which are the two things I could not invent for you.
+
+It is gated by a test that runs the office's own importer over the finished
+file, so a change to the importer can no longer quietly break the sheet.
+
+**The reply about licensing and insurance** — `docs/CUSTOMER_REPLY_LICENSING.md`.
+You asked for this and it had never been written. The answer is in the second
+line rather than the last, and it names the risk to *them* in plain words,
+because transparency that leaves out the part the customer cares about is not
+transparency. Then what you actually have: photos, references, receipts,
+and coming back to fix anything that is not right.
+
+Not sent. Yours to send.
+
+One thing in there worth ten minutes before you do: Hillsborough County has its
+own contractor registration rules and plenty of fence jobs need a permit
+regardless of who pulls it. "I'm working toward it" is a much stronger sentence
+when you know exactly what *it* is.
