@@ -28734,10 +28734,33 @@ async function openJobMailThread(id){
 }
 
 /* ---------- wiring (every element here is in the static markup) ---------- */
+// THE FILING FOLDERS ALL SHOWED THE INBOX.
+//
+// This read `b.dataset.folder === 'sent' ? 'sent' : 'inbox'`, so every button
+// except Sent collapsed to the inbox. Starred, Snoozed, Archived and Trash
+// were five buttons that all did the same thing, and mail that was archived,
+// snoozed or trashed left the inbox with nowhere to be found again.
+//
+// Drafts was worse than useless: loadMailThreads() branches to loadMailDrafts()
+// on `mailView.folder === 'drafts'`, a value this line could never produce, so
+// the branch was unreachable and "keep what he was writing" saved drafts that
+// could not be opened.
+//
+// None of this was missing on the server. mail_list_threads2 already takes
+// inbox, sent, all, starred, snoozed, archived and trash, and its own comment
+// explains that the filing views read 'inbox' underneath. The office just
+// never asked for them.
+//
+// The allowed list is not decoration: that function raises 'Unknown folder'
+// (SQLSTATE 22023) for anything outside its set, so a stray data-folder must
+// fall back rather than reach it. 'drafts' is in this list and NOT in the
+// server's, deliberately -- it is served from the client before the rpc.
+const MAIL_FOLDERS = ['inbox', 'sent', 'drafts', 'starred', 'snoozed', 'archived', 'trash'];
 $('mailFolders').addEventListener('click', e => {
   const b = e.target.closest('[data-folder]');
   if (!b) return;
-  mailView.folder = b.dataset.folder === 'sent' ? 'sent' : 'inbox';
+  const asked = b.dataset.folder || 'inbox';
+  mailView.folder = MAIL_FOLDERS.includes(asked) ? asked : 'inbox';
   mailView.account = b.dataset.account || '';
   renderMailFolders();
   loadMailThreads(true);
