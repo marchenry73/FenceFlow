@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "engine": {
-    "version": "2026.10.9",
-    "generated_at": "2026-10-04T22:14:51.865903500Z"
+    "version": "2026.10.10",
+    "generated_at": "2026-10-05T16:21:43.335690Z"
   },
   "case": "gate-only-run",
   "note": "No points, one gate: 0 ft of fence, the gate's posts, stiffener and 3 bags still come through; labour feet clamp to zero, the gate charge stands.",
   "input": {
-    "engine_version": "2026.10.9",
+    "engine_version": "2026.10.10",
     "pixels_per_foot": 20.0,
     "job": {
       "calibration_pixels_per_foot": 20.0,
@@ -380,7 +380,7 @@
     "existing_items": []
   },
   "expected": {
-    "engine_version": "2026.10.9",
+    "engine_version": "2026.10.10",
     "linear_feet": 0.0,
     "teardown_linear_feet": 0.0,
     "billable_linear_feet": 0.0,
@@ -481,14 +481,8 @@
             "covers_linear_ft": null
           },
           {
-            "role": "GATE_POST",
-            "quantity": 1.0,
-            "prefer_covers_ft": null,
-            "covers_linear_ft": null
-          },
-          {
             "role": "BLANK_POST",
-            "quantity": 1.0,
+            "quantity": 2.0,
             "prefer_covers_ft": null,
             "covers_linear_ft": null
           },
@@ -514,7 +508,7 @@
           },
           {
             "label": "Blank posts (wall-hung gates)",
-            "quantity": 1.0,
+            "quantity": 2.0,
             "unit": "",
             "group": "POSTS"
           },
@@ -683,25 +677,11 @@
         "category": null
       },
       {
-        "sync_id": "c78ffccb-c396-3648-ad12-dfe07443b8a2",
+        "sync_id": "c39ce0f6-6935-3071-aa7f-88a574835937",
         "fence_run_sync_id": "00000024-0000-4000-8000-000000000001",
         "sort_order": 8,
         "description": "5\"x5\" Co-Ex Gate Post, White",
-        "quantity": 1.0,
-        "unit": "EA",
-        "unit_price": 16.56,
-        "supplier_unit_price": null,
-        "taxable": true,
-        "role": "GATE_POST",
-        "auto_generated": true,
-        "category": null
-      },
-      {
-        "sync_id": "c39ce0f6-6935-3071-aa7f-88a574835937",
-        "fence_run_sync_id": "00000024-0000-4000-8000-000000000001",
-        "sort_order": 9,
-        "description": "5\"x5\" Co-Ex Gate Post, White",
-        "quantity": 1.0,
+        "quantity": 2.0,
         "unit": "EA",
         "unit_price": 16.56,
         "supplier_unit_price": null,
@@ -713,7 +693,7 @@
       {
         "sync_id": "7264b9fc-0f4c-3f86-9869-024bb2acd262",
         "fence_run_sync_id": "00000024-0000-4000-8000-000000000001",
-        "sort_order": 10,
+        "sort_order": 9,
         "description": "Concrete Mix 60lb Bag",
         "quantity": 3.0,
         "unit": "EA",
@@ -737,7 +717,6 @@
       "e5769b5b-8622-395b-95f3-5f970f2db4c0",
       "339b340e-255c-33cb-8a07-328984533620",
       "6d1cf54e-0cbd-373f-ac32-a7515d147c0f",
-      "c78ffccb-c396-3648-ad12-dfe07443b8a2",
       "c39ce0f6-6935-3071-aa7f-88a574835937",
       "7264b9fc-0f4c-3f86-9869-024bb2acd262"
     ],

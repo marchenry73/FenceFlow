@@ -455,6 +455,27 @@ object ParityCases {
             val r = run(FenceType.VINYL, feet = 100.0, colour = "White", gates = gates(gate(400, 0, 4.0), gate(1200, 0, 6.0)))
             existing(1, r.syncId, "GATE_PANEL", "Vinyl Gate 6'H x 6'W, White", 1.0, 230.0, supplier = 250.0, auto = true, sort = 11)
             existing(2, r.syncId, "GATE_PANEL", "Vinyl Gate 6'H x 4'W, White", 1.0, 170.0, supplier = 190.0, auto = true, sort = 4)
+        },
+        // The two standalone-gate mountings that had no fixture, which is how a
+        // half-applied rule survived. gate-only-run (case 36) covers LINE, and
+        // LINE was the only branch the hasFenceLine rule had reached -- so the
+        // two that were still billing END posts for a fence that is not there
+        // were the two nobody was looking at.
+        //
+        // The owner's rule, 5 Oct 2026: "if a gate is a stand alone and nothing
+        // else, it should be 2 blank post and the gate, and the hardwares."
+        // Both of these must now price identically to case 36.
+        case(83, "gate-only-run-wall-mount") {
+            note = "A standalone WALL gate: no fence, so no post can be the END of one. Two blank posts, the gate and " +
+                "its hardware -- the same answer as a standalone LINE gate. This used to bill BLANK + END, putting one " +
+                "post on the end-post row for a fence line that does not exist."
+            run(FenceType.VINYL, gates = gates(gate(500, 0, 4.0, GateMounting.WALL)))
+        },
+        case(84, "gate-only-run-line-to-wall-mount") {
+            note = "A standalone LINE_TO_WALL gate. This billed GATE_POST 1 + END_POST 2 -- THREE posts for a gate that " +
+                "stands on two, and two of them on the end-post row. Now two blank posts, the same as every other " +
+                "standalone gate."
+            run(FenceType.VINYL, gates = gates(gate(500, 0, 4.0, GateMounting.LINE_TO_WALL)))
         }
     )
 

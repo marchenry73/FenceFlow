@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "engine": {
-    "version": "2026.10.9",
-    "generated_at": "2026-10-04T22:14:51.865903500Z"
+    "version": "2026.10.10",
+    "generated_at": "2026-10-05T16:21:43.335690Z"
   },
   "case": "minimum-labour-charge-under-the-job-floor",
   "note": "Both floors at once, which is how the owner runs it: labour lifts to $200, and the whole-job minimum still applies underneath on top of that.",
   "input": {
-    "engine_version": "2026.10.9",
+    "engine_version": "2026.10.10",
     "pixels_per_foot": 20.0,
     "job": {
       "calibration_pixels_per_foot": 20.0,
@@ -380,7 +380,7 @@
     "existing_items": []
   },
   "expected": {
-    "engine_version": "2026.10.9",
+    "engine_version": "2026.10.10",
     "linear_feet": 4.0,
     "teardown_linear_feet": 0.0,
     "billable_linear_feet": 4.0,

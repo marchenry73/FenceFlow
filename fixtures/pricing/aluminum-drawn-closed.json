@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "engine": {
-    "version": "2026.10.9",
-    "generated_at": "2026-10-04T22:14:51.865903500Z"
+    "version": "2026.10.10",
+    "generated_at": "2026-10-05T16:21:43.335690Z"
   },
   "case": "aluminum-drawn-closed",
   "note": "Aluminum in White: the panel and line post narrow to the White rows, the rest fall back to all.",
   "input": {
-    "engine_version": "2026.10.9",
+    "engine_version": "2026.10.10",
     "pixels_per_foot": 20.0,
     "job": {
       "calibration_pixels_per_foot": 20.0,
@@ -320,7 +320,7 @@
     "existing_items": []
   },
   "expected": {
-    "engine_version": "2026.10.9",
+    "engine_version": "2026.10.10",
     "linear_feet": 240.0,
     "teardown_linear_feet": 0.0,
     "billable_linear_feet": 240.0,

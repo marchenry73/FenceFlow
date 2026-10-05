@@ -353,7 +353,14 @@ export function computePostCounts(
   // so it has to agree with what gateAreaEntries actually builds, or a
   // LINE_TO_WALL gate stands one more post than it bills a cap for -- which
   // it did, until now. WALL and LINE both still take exactly two.
-  const gatePosts = gates.reduce((sum, g) => sum + (g.mounting === "LINE_TO_WALL" ? 3 : 2), 0);
+  // A STANDALONE GATE STANDS ON TWO POSTS, WHATEVER THE MOUNTING SAYS.
+  // The twin of the same rule in EstimateEngine.computePostCounts. With no
+  // fence there is no second place for the line to end, so the third post has
+  // nothing to be -- and leaving it made a standalone LINE_TO_WALL gate bill
+  // THREE post caps standing on TWO posts.
+  const hasFenceLineForPosts = geometry.totalLinearFeet > 0;
+  const gatePosts = gates.reduce(
+    (sum, g) => sum + (g.mounting === "LINE_TO_WALL" && hasFenceLineForPosts ? 3 : 2), 0);
   const cornerPosts = geometry.cornerCount;
   const endPosts = geometry.endCount;
 
@@ -568,6 +575,33 @@ function gateAreaEntries(fenceType: FenceType, gate: GateMarker, hasFenceLine: b
   // connects to it, a BLANK where nothing does.
   const latchPost: MaterialRole = hasFenceLine ? "END_POST" : "BLANK_POST";
   if (STIFFENED_GATE_TYPES.has(fenceType)) entries.push(qty("STIFFENER", 1.0));
+
+  // NO FENCE AT ALL: two blank posts, whatever the mounting says.
+  //
+  // The twin of the block in EstimateEngine.gateAreaEntries -- both or
+  // neither, and the 85 parity fixtures are what hold them together.
+  //
+  // The owner's rule, 5 Oct 2026, in his words: "if a gate is a stand alone
+  // and nothing else, it should be 2 blank post and the gate, and the
+  // hardwares."
+  //
+  // The mounting describes how a gate meets a FENCE. With no fence drawn there
+  // is nothing for it to describe: no post can be the END of a line that is not
+  // there, and neither post carries one. Before this, a standalone gate billed
+  // BLANK + END on WALL, GATE + BLANK on LINE, and GATE + END + END on
+  // LINE_TO_WALL -- three posts for a gate that stands on two.
+  if (!hasFenceLine) {
+    entries.push(qty("BLANK_POST", 2.0));
+    entries.push(qty("CONCRETE_BAG", GATE_HINGE_BAGS + GATE_LATCH_BAGS));
+    // No wall-mount hole plugs: those are the holes drilled through the
+    // stiffener into the post a gate is BOLTED TO A WALL by, and a gate
+    // standing on its own two posts is not bolted to anything. Keeping them
+    // made a standalone WALL gate cost more than the identical standalone LINE
+    // gate, for a wall that is not there. Twin of the same removal in
+    // EstimateEngine.
+    return entries;
+  }
+
   switch (gate.mounting) {
     case "WALL":
       entries.push(qty("BLANK_POST", 1.0));

@@ -221,7 +221,7 @@ export {
  * or one holding both ends of a single run, is ignored. Each of those prices
  * exactly as an unjoined job does -- two free ends, two end posts.
  */
-export const PRICING_ENGINE_VERSION = "2026.10.9";
+export const PRICING_ENGINE_VERSION = "2026.10.10";
 
 // ---------------------------------------------------------------------------
 // Contract shapes (docs/PRICING_CONTRACT.md). Column names, never invented.

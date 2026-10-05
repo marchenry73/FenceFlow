@@ -352,7 +352,7 @@ object EstimateEngine {
      * Anchored (signed/sent) totals do not move regardless, as above.
      *
      */
-    const val PRICING_ENGINE_VERSION = "2026.10.9"
+    const val PRICING_ENGINE_VERSION = "2026.10.10"
 
     /**
      * Money, to the cent: the ONE place a total is rounded.
@@ -787,8 +787,20 @@ object EstimateEngine {
         // The `n: Int` is load-bearing, not style: a bare `if (..) 3 else 2`
         // leaves sumOf ambiguous between its Int and Long overloads and does
         // not compile.
+        // A STANDALONE GATE STANDS ON TWO POSTS, WHATEVER THE MOUNTING SAYS.
+        //
+        // The comment above is right that this count must agree with what
+        // gateAreaEntries builds -- and when the standalone rule landed there
+        // (two blank posts for every mounting, 5 Oct 2026) this was left
+        // saying 3 for LINE_TO_WALL. The fixture caught it the honest way: a
+        // standalone LINE_TO_WALL gate billed THREE post caps while standing
+        // on TWO posts.
+        //
+        // With no fence drawn there is no second place for the line to end,
+        // so the third post has nothing to be.
+        val hasFenceLine = geometry.totalLinearFeet > 0f
         val gatePosts = gates.sumOf { gate ->
-            val n: Int = if (gate.mounting == GateMounting.LINE_TO_WALL) 3 else 2
+            val n: Int = if (gate.mounting == GateMounting.LINE_TO_WALL && hasFenceLine) 3 else 2
             n
         }
         val cornerPosts = geometry.cornerCount
@@ -1027,6 +1039,44 @@ object EstimateEngine {
         val latchPost = if (hasFenceLine) MaterialRole.END_POST else MaterialRole.BLANK_POST
         val entries = mutableListOf<QtyEntry>()
         if (fenceType in STIFFENED_GATE_TYPES) entries += QtyEntry(MaterialRole.STIFFENER, 1.0)
+
+        // NO FENCE AT ALL: two blank posts, whatever the mounting says.
+        //
+        // The owner's rule, 5 Oct 2026, asked in these words: "if a gate is a
+        // stand alone and nothing else, it should be 2 blank post and the gate,
+        // and the hardwares."
+        //
+        // The mounting describes how a gate meets a FENCE -- hung off a wall,
+        // standing in the line, or closing the run against a wall. With no
+        // fence drawn there is nothing for it to describe: no post can be the
+        // END of a line that is not there, and neither post is carrying one.
+        // Both are simply posts in the ground with a gate between them.
+        //
+        // This replaces three different answers to the same question. Before
+        // it, a standalone gate billed BLANK + END on WALL, GATE + BLANK on
+        // LINE, and GATE + END + END on LINE_TO_WALL -- three posts for a gate
+        // that stands on two.
+        //
+        // The money barely moves on LINE, which was already two posts both
+        // priced off the GATE_POST row (BLANK_POST has no catalog row anywhere
+        // and falls back to it). It moves on the other two: WALL stops billing
+        // one post off the END_POST row, and LINE_TO_WALL stops billing a post
+        // that does not exist.
+        //
+        // Concrete is deliberately left to the branches below: it is keyed on
+        // the hinge/latch split rather than on the post role, and a standalone
+        // gate still has a hinge side and a latch side.
+        if (!hasFenceLine) {
+            entries += QtyEntry(MaterialRole.BLANK_POST, 2.0)
+            entries += QtyEntry(MaterialRole.CONCRETE_BAG, GATE_HINGE_BAGS + GATE_LATCH_BAGS)
+            // NO wall-mount hole plugs. Those are the holes drilled through
+            // the stiffener into the post a gate is BOLTED TO A WALL by, and a
+            // gate standing on its own two posts is not bolted to anything.
+            // Keeping them made a standalone WALL gate cost more than the
+            // identical standalone LINE gate, for a wall that is not there.
+            return entries
+        }
+
         when (gate.mounting) {
             GateMounting.WALL -> {
                 entries += QtyEntry(MaterialRole.BLANK_POST, 1.0)
