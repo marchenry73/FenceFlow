@@ -97,8 +97,20 @@ test("1. the entity carries two NOT NULL text fields defaulted to empty, and not
 });
 
 // =============================================================================
-test("2. Room: version 50, the migration is declared AND registered, and the 4 -> 50 chain has no gap and no repeat", () => {
-  assert.match(SRC.appdb, /version = 50,/, "the database version is not 50");
+test("2. Room: MIGRATION_49_50 is declared AND registered, and the 4 -> declared-version chain has no gap and no repeat", () => {
+  // RE-AIMED 5 Oct 2026, following the precedent a40 already set: read the
+  // version the database DECLARES rather than one typed in here. This asserted
+  // `version = 50,` and went red the moment 51 landed -- the marker size
+  // columns, so a house or pool is drawn to its real size -- which is an
+  // entirely normal thing to do and not something this file is here to forbid.
+  //
+  // What it IS here for is unchanged and still checked below: that 49 -> 50
+  // exists, is registered with the builder, runs SchemaV50's statements, and
+  // that the chain from 4 up to whatever the version is has no gap and no
+  // repeat. A phone that meets a missing step cannot open its database.
+  const declared = Number((SRC.appdb.match(/version\s*=\s*(\d+),/) || [])[1]);
+  assert.ok(Number.isInteger(declared) && declared >= 50,
+    `the database version could not be read, or went backwards past 50: ${declared}`);
   assert.match(SRC.appdb, /MIGRATION_49_50 = object : Migration\(49, 50\)/,
     "MIGRATION_49_50 is not declared");
   assert.match(SRC.appdb, /SchemaV50\.MIGRATION_49_50_STATEMENTS/,
@@ -107,7 +119,11 @@ test("2. Room: version 50, the migration is declared AND registered, and the 4 -
   // Declared and NOT added to the builder is the exact shape of "the app refuses to open its
   // own database on upgrade", and it compiles perfectly.
   const builder = bodyOf(SRC.appdb, "fun getInstance(");
-  assert.ok(builder !== null && /MIGRATION_49_50\)/.test(builder),
+  // The anchor was `MIGRATION_49_50)`, which only matched while 49 -> 50 was
+  // the LAST migration in the list. The moment 50 -> 51 was appended it read as
+  // "declared but never registered" -- an alarming message for a list that is
+  // perfectly correct. A word boundary asks the question the message asks.
+  assert.ok(builder !== null && /\bMIGRATION_49_50\b/.test(builder),
     "MIGRATION_49_50 is declared but never passed to addMigrations -- a phone at 49 would throw on open");
 
   const chain = [...SRC.appdb.matchAll(/object : Migration\((\d+), (\d+)\)/g)]
@@ -116,7 +132,7 @@ test("2. Room: version 50, the migration is declared AND registered, and the 4 -
   const byFrom = new Map(chain.map(([f, t]) => [f, t]));
   assert.equal(byFrom.size, chain.length, "two migrations start from the same version");
   let v = 4;
-  while (v < 50) {
+  while (v < declared) {
     assert.equal(byFrom.get(v), v + 1, `the chain breaks at ${v}: there is no ${v} -> ${v + 1}`);
     v++;
   }
