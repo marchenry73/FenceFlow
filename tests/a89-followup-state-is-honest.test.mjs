@@ -91,13 +91,29 @@ console.log("\n5. A LANGUAGE SWITCH MUST NOT UNDO THE HONEST MESSAGES");
 // Spanish replaced the specific "no rule is switched on" wording with the
 // ambiguous static line it exists to replace -- and nothing re-rendered it
 // afterwards, so it stayed wrong until a reload.
+// The list is matched by CONTENTS, not as a literal.
+//
+// It was pinned as the exact string `[renderFollowUps, renderAttention]`, and
+// on 5 Oct 2026 renderBilling was added to it -- for the same reason those two
+// are in it, the billing line was being overwritten by applyStaticText and the
+// owner lost sight of which plan he was on. That is this check's own argument
+// applied to a third panel, and it turned the check red.
+//
+// A test that forbids the fix it exists to encourage is worse than no test.
+// What matters is that these two panels are redrawn and that it happens after
+// applyStaticText; whether a fourth joins them is not this file's business.
+// a96 pins renderBilling's place in the list.
+const redrawList = (page.match(/for \(const redraw of \[([^\]]*)\]\)/) || [, ""])[1];
 ok("5a", "setLang redraws the panels that write their own translated text",
-  /for \(const redraw of \[renderFollowUps, renderAttention\]\)/.test(page));
+  /\brenderFollowUps\b/.test(redrawList) && /\brenderAttention\b/.test(redrawList),
+  `the redraw list is [${redrawList}]`);
 ok("5b", "and each redraw is guarded, so a failing panel cannot leave somebody stuck in the wrong language",
   /try \{ redraw\(\); \} catch/.test(page));
 ok("5c", "it happens AFTER applyStaticText, or the static text would just overwrite it again",
   page.indexOf("applyStaticText();\n  // applyStaticText only rewrites") <
-    page.indexOf("for (const redraw of [renderFollowUps, renderAttention])"));
+    page.indexOf("for (const redraw of ["));
+ok("5d", "CANARY: 5a really reads the list, so emptying it turns 5a red",
+  !(/\brenderFollowUps\b/.test("") && /\brenderAttention\b/.test("")));
 
 console.log("\n6. CANARIES");
 ok("6a", "CANARY: checking the master switch alone would not have caught this -- 1c reads the RULES",

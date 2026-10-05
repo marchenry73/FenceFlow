@@ -53,9 +53,18 @@ const MUTANTS = [
    "unfilledPlaceholders(subject, text)", "unfilledPlaceholders(text)"],
   ["a91", "a failed settings read goes back to confidently reporting OFF",
    "followUpSettingsReadFailed ? tr('fuCouldNotAsk')", "false ? tr('fuCouldNotAsk')"],
+  // The anchor stops at the opening bracket ON PURPOSE. It used to name the
+  // whole list, `[renderFollowUps, renderAttention]`, and on 5 Oct 2026
+  // renderBilling was added to it -- so the anchor stopped matching, the
+  // mutation was SKIPPED, and the harness reported 17 of 18 killed. A skipped
+  // mutation is correctly counted as not killed, which is the only reason this
+  // was noticed rather than quietly passing.
+  //
+  // Anchoring on the part that cannot change keeps the mutation alive as the
+  // list grows: emptying it is still exactly the failure being proved.
   ["a89", "setLang stops redrawing the panels, so a language switch undoes the honest message",
-   "for (const redraw of [renderFollowUps, renderAttention])",
-   "for (const redraw of [])"],
+   "for (const redraw of [",
+   "for (const redraw of []) { } if (false) for (const redraw of ["],
   // Proves the ranking assertion is real: reversing the sort must now fail.
   ["a93", "the chase ranking is reversed",
    ": b.score - a.score);", ": a.score - b.score);"],

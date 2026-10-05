@@ -165,3 +165,15 @@ jobs:
 
       - id: deployment
         uses: actions/deploy-pages@v4
+
+      # The owner reported he could not see which plan he was on. #billState
+      # carried a data-t, so applyStaticText put the placeholder back on every
+      # language change, nothing repainted it, and loadBilling ran only at
+      # first page load. Three things, one invisible plan.
+      - name: Gate - the plan stays on the screen
+        run: node --test tests/a96-billing-plan-visible.test.mjs
+
+      # Five filing folders that all showed the Inbox, and a Drafts branch that
+      # could never run. The server had supported all of it the whole time.
+      - name: Gate - every mail folder is reachable
+        run: node --test tests/a97-mail-folders-reachable.test.mjs
