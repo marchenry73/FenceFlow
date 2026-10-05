@@ -691,10 +691,25 @@ async function emailTheContract(
       const digest = new Uint8Array(await crypto.subtle.digest(
         "SHA-256", new TextEncoder().encode(`pending:${job.sync_id}:${approvedAt}`)));
       const key = Array.from(digest, (b) => b.toString(16).padStart(2, "0")).join("");
+      // 'unconfirmed', NOT 'sending'. This row can never be settled by anyone:
+      // the sender claims the ledger under contractKey(facts) -- a hash of the
+      // address, total, deposit and scope -- and this key is deliberately a
+      // DIFFERENT one, because colliding with the sender's key could overwrite
+      // or block the real verdict, which would be far worse than a stray note.
+      //
+      // So a 'sending' row here would sit claiming an email was in flight for
+      // ever, with nothing in the system able to resolve it. 'unconfirmed' is
+      // what quote-view actually knows -- it asked and did not hear back -- and
+      // it is terminal, which is honest: this row is a note about THIS page's
+      // attempt, not a claim on the contract.
+      //
+      // settled_at is set for the same reason: the question is closed as far as
+      // this function is concerned, whatever the detached call went on to do.
       const { error } = await admin.from("quote_approval_emails").insert({
         company_id: job.company_id, job_sync_id: job.sync_id, contract_key: key,
-        state: "sending", reason_code: "awaiting_sender",
-        reason: "The sender was called and had not answered when the page replied. If this row is still here, it never answered.",
+        state: "unconfirmed", reason_code: "sender_did_not_answer",
+        reason: "The sender was called and had not answered by the time the page replied. It may still have sent: look for a second row for this job carrying the sender's own verdict.",
+        settled_at: new Date().toISOString(),
       });
       if (error && error.code !== "23505") {
         console.error("quote-view: could not record the pending contract email --",
