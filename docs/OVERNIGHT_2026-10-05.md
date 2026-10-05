@@ -423,3 +423,46 @@ waiting. Same trap as the alerts panel, wearing a different hat.
 Worth knowing before you tick anything: there are **quiet hours** (9pm–8am,
 America/New_York) and a **daily cap of 25**, so switching rules on will not fire
 a backlog at people at three in the morning.
+## The chase list now tells you whether they opened it
+
+Your Follow-up priority panel ranked every sent quote by value times days
+waiting and labelled them all "Follow up". But `quote_viewed_at` was sitting on
+the job the whole time, and it separates two situations that need opposite
+things:
+
+- **Opened, then silence** — they read it and didn't say yes. Nudge them.
+- **Never opened** — they never saw it. Wrong address, spam folder, or it never
+  arrived. Nudging is the wrong move; it needs resending, or a phone call.
+
+The button now says which. The **ranking is untouched** — you're used to that
+order and quietly reshuffling your priority list to make a point isn't a trade
+worth making.
+
+On your data right now, all three unanswered quotes had been opened. Worth
+knowing before you pick up the phone.
+
+## More things checked that are fine
+
+**Push notifications work.** Six devices registered, four active in the last
+30 days — so if you do switch the alerts on, they will actually reach you. I
+checked this because telling you to flip a switch that pushes to your phone is
+worth nothing if the push doesn't arrive.
+
+**Payments work.** Stripe is connected, 6 payments taken, 34 jobs have a
+payment link, and there are manual cash and card records too. The nine
+"pending" rows are payment links that were created and never used — all on the
+John and James jobs plus a test. Nothing is stuck mid-flight.
+
+**Automation rules are on and have fired.** All four enabled, four runs
+logged. Unlike the follow-ups, this one is genuinely working.
+
+**Mail is syncing.** One account connected, messages coming through.
+
+**Data integrity is sound.** I swept for orphaned rows: two payment records
+pointing at a job that no longer exists, and both are themselves already
+deleted — tombstoned residue, not live money. Six line items and one fence run
+point at missing jobs; they are invisible (everything joins through the job)
+and harmless. Five soft-deleted jobs still carry live line items, which is
+arguably right — restoring a job needs them.
+
+Nothing in any of that needs doing.
