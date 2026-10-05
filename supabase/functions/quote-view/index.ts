@@ -642,10 +642,29 @@ async function emailTheContract(
         "SHA-256", new TextEncoder().encode(`unreached:${job.sync_id}:${approvedAt}`)));
       const key = Array.from(digest, (b) => b.toString(16).padStart(2, "0")).join("");
       // THE ERROR IS A RETURN VALUE, NOT AN EXCEPTION. PostgREST hands back
-      // { error } and throws nothing, so this catch has never once fired on a
-      // refused insert -- which is why five approvals produced no row AND no
-      // log line. A failure that cannot report itself is indistinguishable
-      // from a feature nobody used.
+      // { error } and throws nothing, so the catch below cannot fire on a
+      // refused insert: the row would simply not appear, silently.
+      //
+      // Written while chasing "no contract email has ever been sent". Worth
+      // recording what that actually turned out to be, because the next person
+      // will chase it too -- and because the answer was that it mostly works.
+      //
+      // Of the six approvals on record, four predate quote-approval-email's
+      // deployment (2026-10-02 17:17 UTC) and had no function to call. Of the
+      // two after it, the 3 October one has no email address on the job, and
+      // the sender DID run for it and wrote state 'no_address' -- the correct
+      // verdict, and the only row in quote_approval_emails. The 2 October one
+      // carries a signature file stamped 22 August, six weeks before its
+      // quote_approved_at, so it is unlikely to be a fresh approval through
+      // this path at all.
+      //
+      // So: one row, one correct verdict, and nothing yet that should have
+      // produced a sent email and did not. The quiet was chronology and a
+      // missing address, NOT a swallowed error.
+      //
+      // The check stays regardless, because the fog it removes is real: had the
+      // insert been refused, there would have been no row and no log, and that
+      // is indistinguishable from a feature nobody used.
       const { error } = await admin.from("quote_approval_emails").insert({
         company_id: job.company_id, job_sync_id: job.sync_id, contract_key: key, state: "failed",
         reason_code: code, reason, settled_at: new Date().toISOString(),
