@@ -8,11 +8,11 @@
     <changefreq>weekly</changefreq>
     <priority>1.0</priority>
   </url>
-  <url>
-    <loc>https://fenceflowapp.com/lead.html</loc>
-    <changefreq>monthly</changefreq>
-    <priority>0.8</priority>
-  </url>
+<!-- lead.html is deliberately NOT listed. It only works with a ?c=<company>
+     token, and the bare URL was indexable: a stranger could land on it from a
+     search, fill the form in and be told the link was invalid, losing their
+     enquiry. The page now refuses to show the form without a token, and this
+     entry would still be sending people to that refusal. -->
   <url>
     <loc>https://fenceflowapp.com/fence-solutions/</loc>
     <changefreq>monthly</changefreq>

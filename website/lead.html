@@ -41,11 +41,15 @@
 </head>
 <body>
 <header>
-  <div class="co" id="coName">Get a fence quote</div>
-  <div class="sub">Tell us about your fence — we'll call you back to set up a free quote.</div>
+  <div class="co" id="coName" data-t="title">Get a fence quote</div>
+  <div class="sub" data-t="lede">Tell us about your fence — we'll call you back to set up a free quote.</div>
 </header>
 <div class="wrap">
   <div class="done" id="done"></div>
+  <!-- Shown INSTEAD of the form when the link carries no company token. The
+       guard is at the foot of this file; deliberately NOT driven by data-t,
+       because applyStaticText() would then overwrite it on DOMContentLoaded. -->
+  <div class="msg err" id="nolink"></div>
   <form class="panel" id="form">
     <label data-t="name">Your name</label><input id="f_name" autocomplete="name" required>
     <label data-t="phone">Phone</label><input id="f_phone" type="tel" autocomplete="tel">
@@ -67,7 +71,7 @@
 const L = {
   en: {
     title: 'Get a fence quote',
-    lede: 'Tell us what you need and we will get back to you.',
+    lede: "Tell us about your fence — we'll call you back to set up a free quote.",
     name: 'Your name', phone: 'Phone', email: 'Email',
     address: 'Property address', addressPh: 'Street, City, ST ZIP',
     want: 'What are you looking for?',
@@ -77,10 +81,11 @@ const L = {
     thanksTail: ' will call you back to set up your free quote. Thank you!',
     team: 'the team',
     sendError: 'Could not send just now.',
+    noLink: 'This page needs the full link from the company you are contacting. Without it, nothing typed here can reach anyone. Please go back to the message, advert or website you came from and follow the complete link.',
   },
   es: {
     title: 'Pida un presupuesto de cerca',
-    lede: 'Cuéntenos qué necesita y le respondemos.',
+    lede: 'Cuéntenos sobre su cerca y le llamamos para organizar un presupuesto gratis.',
     name: 'Su nombre', phone: 'Teléfono', email: 'Correo electrónico',
     address: 'Dirección de la propiedad', addressPh: 'Calle, ciudad, estado, código postal',
     want: '¿Qué está buscando?',
@@ -90,10 +95,11 @@ const L = {
     thanksTail: ' le llamará para concretar su presupuesto gratis. ¡Gracias!',
     team: 'el equipo',
     sendError: 'No se pudo enviar en este momento.',
+    noLink: 'Esta página necesita el enlace completo de la empresa con la que quiere contactar. Sin él, nada de lo que escriba aquí puede llegar a nadie. Vuelva al mensaje, anuncio o sitio web de donde vino y siga el enlace completo.',
   },
   fr: {
     title: 'Demandez un devis de clôture',
-    lede: 'Dites-nous ce qu\u2019il vous faut et nous vous recontactons.',
+    lede: 'Parlez-nous de votre cl\u00f4ture et nous vous rappellerons pour organiser un devis gratuit.',
     name: 'Votre nom', phone: 'Téléphone', email: 'Courriel',
     address: 'Adresse du bien', addressPh: 'Rue, ville, état, code postal',
     want: 'Que cherchez-vous ?',
@@ -103,6 +109,7 @@ const L = {
     thanksTail: ' vous rappellera pour organiser votre devis gratuit. Merci !',
     team: 'l’équipe',
     sendError: 'Impossible d’envoyer pour le moment.',
+    noLink: 'Cette page a besoin du lien complet fourni par l’entreprise que vous contactez. Sans lui, rien de ce qui est saisi ici ne peut parvenir à personne. Retournez au message, à l’annonce ou au site d’où vous venez et suivez le lien complet.',
   },
 };
 
@@ -155,8 +162,38 @@ const $=id=>document.getElementById(id);
 // say so.
 const API=window.FENCEFLOW_CONFIG.SUPABASE_URL+'/functions/v1';
 const token=new URLSearchParams(location.search).get('c')||'';
+
+// NO COMPANY TOKEN, NO FORM.
+//
+// lead-intake refuses a post whose ?c= is not a uuid, with 400 "That link is
+// not valid." (supabase/functions/lead-intake/index.ts) -- correctly, because
+// it has no company to file the request against. But this page rendered the
+// whole form regardless and only failed on SUBMIT, and sitemap.xml advertised
+// the bare https://fenceflowapp.com/lead.html to search engines. So a stranger
+// could find this page in Google, type their name, phone, address and what
+// they wanted, press the button, and be told the link was invalid. Their
+// enquiry was lost and there was nothing they could do about it, while the
+// owner never knew they had tried. A form that cannot succeed must not be
+// offered -- it is the "no fake features" rule applied to the one surface
+// strangers actually see. The sitemap entry went at the same time.
+//
+// The test is deliberately the SAME one the function applies, loose as it is:
+// a page stricter than the server would refuse a link the server would have
+// accepted, which is a worse failure than this one.
+const TOKEN_SHAPE=/^[0-9a-f-]{36}$/;
+const hasToken=TOKEN_SHAPE.test(token);
+if(!hasToken){
+  $('form').style.display='none';
+  $('nolink').textContent=tr('noLink');
+  $('nolink').classList.add('on');
+}
+
 $('form').addEventListener('submit', async e=>{
   e.preventDefault();
+  // Belt and braces. The form is hidden above, so this cannot be reached by
+  // clicking; it stops a programmatic submit posting a homeowner's details
+  // with no company to receive them.
+  if(!hasToken) return;
   const err=$('err'); err.classList.remove('on');
   $('go').disabled=true;
   try{
