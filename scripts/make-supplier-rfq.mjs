@@ -17,9 +17,26 @@
 // for the part and their real price, which are the two things stopping that
 // catalog row from being written.
 import { readFileSync, writeFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
+import { dirname, join, resolve } from "node:path";
 
-const OUT = "C:/Users/march/AndroidProjects/FenceEstimator/docs";
-const rows = JSON.parse(readFileSync("C:/tmp/rfq.json", "utf8")).rows;
+// Relative to the repo, not to one machine. The first version hardcoded two
+// absolute Windows paths, which made it runnable by nobody but the laptop it
+// was written on -- including a CI runner that might one day want to check the
+// committed sheet still matches the catalog.
+//
+// The catalog JSON is whatever this produced:
+//   npx supabase db query --linked --project-ref <ref> -f query.sql --output json
+// Pass its path as the first argument.
+const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const OUT = join(ROOT, "docs");
+const SRC = process.argv[2];
+if (!SRC) {
+  console.error("usage: node scripts/make-supplier-rfq.mjs <catalog-query.json>");
+  console.error("  the JSON is a supabase db query --output json result with a .rows array");
+  process.exit(1);
+}
+const rows = JSON.parse(readFileSync(SRC, "utf8")).rows;
 
 // The gap, marked so he can see it is not one of his rows.
 const MISSING = {
