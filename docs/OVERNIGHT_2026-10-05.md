@@ -561,7 +561,7 @@ no grep anywhere in this project would catch that, and it is caught now.
 
 ## The test suite, and three live bugs it was holding
 
-I ran all 191 website tests. **180 pass, 11 failed.** Working through them was
+I ran all 191 website tests. **180 passed, 11 failed. Nine are now fixed; the two that remain are red on purpose.** Working through them was
 the most productive hour of the night, because almost none of them run anywhere
 automatically — the website workflow ran a handful, and the publish gate does
 not run `tests/*.test.mjs` at all. So they had been red and unread.
@@ -594,11 +594,25 @@ case I checked the new behaviour was right before touching the test:
 **Two are red on purpose** — spec tests for joining work that has not landed,
 one of them marked as needing your decision first. Those should stay red.
 
-**Two remain**, both pinning the old "two gate posts" rule from before you asked
-for one gate post and a latch post. The new rule is right — it is covered by the
-app's own unit tests, it passed the pricing parity gate, and it shipped in
-1.602 — but updating those two tests means rewriting their expected quantities
-line by line, and I would rather do that awake than guess at 8am.
+**The last two were the "two gate posts" rule**, from before you asked for one
+gate post and a latch post. I did them in the end, by measuring rather than
+guessing, and the measurement is the reassuring part:
+
+| | before | after |
+|---|---|---|
+| Line gate | 2 gate posts + 2 end posts | 1 + 3 |
+| Line-to-wall gate | 2 gate posts + 3 end posts | 1 + 4 |
+
+**Four posts either way. Five posts either way.** Nothing was added or lost —
+a post changed which catalog row it bills, which is exactly what you asked
+for. And two checks in those files passed untouched the whole time, which is
+what proves it: every "no count moved" check (post caps, concrete bags, total
+posts), and the one asserting the grand total does not move on a catalog where
+a gate post costs what an end post costs.
+
+So the money is identical. The materials list now just says which post is
+which — the hinge post carries the gate, the latch post is one more post the
+fence ends on.
 
 **Both `job-columns` and `office-language-parity` are now on the website
 workflow.** They are cheap, each catches a whole class of silent breakage, and
