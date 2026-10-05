@@ -23,9 +23,13 @@ const MUTANTS = [
   ["a91", "the warning reads the master switch instead of the rules",
    "const anyKindOn = FOLLOW_UP_KIND_DEFS.some(def => !!s[def.enabledField]);",
    "const anyKindOn = !!s.enabled;"],
-  ["a91", "the empty due-list goes back to one message for every reason",
-   "previewEmpty.textContent = (!s.enabled || !anyKindOn)",
-   "previewEmpty.textContent = (false)"],
+  // RE-AIMED: the condition it pointed at was two-state and said "no rule is
+  // switched on" to somebody whose master switch was off but whose rules WERE
+  // ticked. Now three-state, so the mutation collapses the first two back
+  // together -- which is the regression worth catching.
+  ["a91", "master-off and no-rule-ticked collapse back into one message",
+   "!s.enabled ? tr('fuPreviewEmptyOff')",
+   "!s.enabled ? tr('fuPreviewEmptyNoRules')"],
   ["a93", "no-email stops beating opened, so a job with nowhere to send reads as a nudge",
    "action = !hasEmail", "action = false"],
   ["a93", "the opened/never-opened split collapses back to one label",

@@ -40,8 +40,14 @@ ok("1e", "and it is styled as a warning, not as ordinary help text",
   page.includes("warn ? 'sub bad' : 'sub'"));
 
 console.log("\n2. THE EMPTY DUE-LIST EXPLAINS ITSELF");
-ok("2a", "the empty message depends on whether anything is switched on",
-  page.includes("(!s.enabled || !anyKindOn)") && page.includes("fuPreviewEmptyNoRules"));
+// THREE states, not two. The first version collapsed "the master switch is
+// off" and "it is on but no rule is ticked" into one message that said no rule
+// was switched on -- which is false, and misdirecting, for somebody who HAD
+// ticked rules and left the master off.
+ok("2a", "the empty message tells apart master-off, no-rule-ticked, and genuinely-nothing-due",
+  page.includes("!s.enabled ? tr('fuPreviewEmptyOff')") &&
+  page.includes(": !anyKindOn ? tr('fuPreviewEmptyNoRules')") &&
+  page.includes(": tr('fuPreviewEmptyMsg')"));
 ok("2b", "and the no-rules wording says plainly that empty is not the same as nobody waiting",
   /not the same as nobody needing a follow-up/.test(page));
 ok("2c", "the ordinary empty message is still used when rules ARE on",

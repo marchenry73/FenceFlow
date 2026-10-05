@@ -82,8 +82,19 @@ ok("4a", "when the switch is off the panel SAYS so rather than showing an empty 
   page.includes("attnOffMeansBlind"));
 ok("4b", "and that string actually says an empty list would not mean all clear",
   /An empty list would not mean all clear/.test(page));
-ok("4c", "when it is on and genuinely empty, it says when it last looked",
-  page.includes("attnNoneOpen") && /Checked within the last hour/.test(page));
+// CORRECTED 5 Oct 2026. This demanded the words "Checked within the last
+// hour", which the panel has no way of knowing. Nothing on the client can see
+// whether the hourly Action ran, and straight after pressing Turn on it is
+// plainly false -- the first check is up to an hour away. A panel whose whole
+// job is to stop an empty list reading as good news must not itself claim a
+// check it cannot evidence.
+//
+// So the rule is now the opposite: it may name the SCHEDULE, which is true,
+// and must not assert a completed run.
+ok("4c", "when it is on and genuinely empty, it names the schedule rather than claiming a check happened",
+  page.includes("attnNoneOpen") &&
+  /The server checks these every hour/.test(page) &&
+  !/Checked within the last hour/.test(page));
 ok("4d", "severity is not carried by colour alone -- critical reuses the filled brief-dot",
   page.includes("f.severity === 'critical' ? ' urgent' : ''"));
 

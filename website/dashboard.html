@@ -4547,6 +4547,7 @@ jobViewAll:'All', jobViewToday:'Today', jobViewWeek:'This week', jobViewUnschedu
     fuRuleWaiting:'%s waiting now', fuRuleWaitingNone:'none waiting',
     fuStateOff:'Follow-ups are off. Nothing below will send, and the list of what is due stays empty whether anyone is waiting or not.',
     fuStateOnButNoRules:'Switched on, but no rule below is ticked -- so nothing will ever send. Tick the ones you want.',
+    fuPreviewEmptyOff:'Nothing is due because follow-ups are switched off. That is not the same as nobody needing one.',
     fuPreviewEmptyNoRules:'Nothing is due because no rule is switched on. This is not the same as nobody needing a follow-up.',
     fuLogEmptyMsg:'No follow-up email has been sent yet.',
     fuColJob:'Job', fuColKind:'Follow-up', fuColWhen:'When',
@@ -6305,6 +6306,7 @@ jobViewAll:'Todos', jobViewToday:'Hoy', jobViewWeek:'Esta semana', jobViewUnsche
     fuRuleWaiting:'%s esperando ahora', fuRuleWaitingNone:'ninguno esperando',
     fuStateOff:'Los seguimientos están desactivados. Nada de lo de abajo se enviará, y la lista de pendientes queda vacía haya quien haya esperando.',
     fuStateOnButNoRules:'Activado, pero no hay ninguna regla marcada abajo, así que nunca se enviará nada. Marca las que quieras.',
+    fuPreviewEmptyOff:'No hay nada pendiente porque los seguimientos están desactivados. Eso no es lo mismo que que nadie necesite uno.',
     fuPreviewEmptyNoRules:'No hay nada pendiente porque no hay ninguna regla activada. Eso no es lo mismo que que nadie necesite seguimiento.',
     fuLogEmptyMsg:'Todavía no se ha enviado ningún correo de seguimiento.',
     fuColJob:'Trabajo', fuColKind:'Seguimiento', fuColWhen:'Cuándo',
@@ -8031,6 +8033,7 @@ jobViewAll:'Tous', jobViewToday:'Aujourdhui', jobViewWeek:'Cette semaine', jobVi
     fuRuleWaiting:'%s en attente', fuRuleWaitingNone:'aucun en attente',
     fuStateOff:'Les relances sont désactivées. Rien ci-dessous ne partira, et la liste des relances dues reste vide même si quelqu'+"'"+'un attend.',
     fuStateOnButNoRules:'Activé, mais aucune règle ci-dessous n'+"'"+'est cochée, donc rien ne partira jamais. Cochez celles que vous voulez.',
+    fuPreviewEmptyOff:'Rien n'+"'"+'est dû parce que les relances sont désactivées. Ce n'+"'"+'est pas la même chose que personne à relancer.',
     fuPreviewEmptyNoRules:'Rien n'+"'"+'est dû parce qu'+"'"+'aucune règle n'+"'"+'est activée. Ce n'+"'"+'est pas la même chose que personne à relancer.',
     fuLogHead:'Envois récents',
     fuLogBody:'Chaque courriel de relance réellement envoyé : quel type, quel chantier, et quand.',
@@ -8668,6 +8671,18 @@ function setLang(code) {
   LANG = code;
   try { localStorage.setItem('ff_lang', code); } catch (e) {}
   applyStaticText();
+  // applyStaticText only rewrites [data-t] elements. Anything a renderer wrote
+  // itself keeps the OLD language until something re-renders it -- and worse,
+  // where an element has BOTH a data-t and a renderer (the follow-up due-list
+  // does), the static text wins and silently replaces the more specific
+  // message the renderer had put there.
+  //
+  // These two are cheap and read only what is already in memory. Guarded
+  // individually: failing to redraw a panel must not leave somebody unable to
+  // change language.
+  for (const redraw of [renderFollowUps, renderAttention]) {
+    try { redraw(); } catch (e) { console.error('setLang: could not redraw a panel:', e); }
+  }
 }
 
 /* Asks before something irreversible, in the product's own voice.
@@ -9820,8 +9835,13 @@ function renderFollowUps(){
     previewEmpty.style.display = preview.length ? 'none' : 'block';
     // An empty due-list means two completely different things depending on
     // whether any rule is switched on, and the difference is the whole point.
-    previewEmpty.textContent = (!s.enabled || !anyKindOn)
-      ? tr('fuPreviewEmptyNoRules') : tr('fuPreviewEmptyMsg');
+    // Three states, because they are three different things to do about it:
+    // the master switch is off; it is on but no rule is ticked; or everything
+    // is on and genuinely nothing is due. Collapsing the first two told
+    // somebody who HAD ticked rules that no rule was switched on.
+    previewEmpty.textContent = !s.enabled ? tr('fuPreviewEmptyOff')
+      : !anyKindOn ? tr('fuPreviewEmptyNoRules')
+      : tr('fuPreviewEmptyMsg');
   }
 
   const logEl = $('fuLogRows'), logEmpty = $('fuLogEmpty');
@@ -10175,9 +10195,11 @@ async function boot(){
   // there was no way off that screen at all.
   if (user) {
     $('signOut').style.display='inline-block';
-    $('osearchBox').style.display = '';
+    // The account menu ONLY. Sign out lives inside it, and this branch exists
+    // so somebody authenticated with no company can still get off that screen.
+    // Search and + New stay hidden: there is no company to search and nothing
+    // to create, and a control that cannot work should not be on the page.
     $('acctBox').style.display = '';
-    $('newBox').style.display = '';
   }
   $('booting').style.display='none';
   if(!user){
@@ -10494,9 +10516,10 @@ function showBlocked(status){
   $('app').style.display='block';
   if (profile) {
     $('signOut').style.display='inline-block';
-    $('osearchBox').style.display = '';
+    // Same reasoning as boot(): this is the blocked / billing screen, every
+    // tab behind it is hidden, so Search and + New would be controls over
+    // nothing. The account menu stays so there is a way out.
     $('acctBox').style.display = '';
-    $('newBox').style.display = '';
   }
   $('app').innerHTML = `
     <div class="panel" style="max-width:34rem;margin:3rem auto">

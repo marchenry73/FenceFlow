@@ -114,7 +114,11 @@ console.log("\n2. SWITCHED OFF ENTIRELY");
   if (!threw) {
     ok("2b", "the note says follow-ups are off", els.fuStateNote.textContent === "fuStateOff",
       els.fuStateNote.textContent);
-    ok("2c", "the due-list still explains itself", els.fuPreviewEmpty.textContent === "fuPreviewEmptyNoRules");
+    // Its OWN message, not the no-rule-ticked one. Saying "no rule is switched
+    // on" to somebody whose master switch is off is both wrong and points them
+    // at the wrong control.
+    ok("2c", "the due-list says follow-ups are OFF, which is a different thing from no rule being ticked",
+      els.fuPreviewEmpty.textContent === "fuPreviewEmptyOff", els.fuPreviewEmpty.textContent);
   }
 }
 

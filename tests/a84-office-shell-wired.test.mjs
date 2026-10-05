@@ -47,8 +47,23 @@ ok("1d", "and each is revealed by script once somebody is signed in",
   count("$('osearchBox').style.display = ''") >= 1 &&
   count("$('acctBox').style.display = ''") >= 1 &&
   count("$('newBox').style.display = ''") >= 1);
-ok("1e", "revealed on EVERY sign-in path, not only the main one -- a header right on one route and wrong on two is a bug waiting for whoever uses the other two",
-  count("$('osearchBox').style.display = ''") >= 3);
+// CORRECTED 5 Oct 2026. This asserted all three controls appear on all three
+// sign-in paths, which was my own mistake encoded as a rule. Two of the three
+// paths are PARTIAL sign-ins -- somebody authenticated with no company at all
+// (the "One last step" panel), and the blocked/billing screen with every tab
+// hidden behind it. On both, Search has nothing to search and + New has
+// nothing to create, so revealing them breaks the same "a visible control
+// either works or is not there" rule this file exists to enforce.
+//
+// The account menu is different and DOES belong on all three: the sign-out
+// button lives inside it, and being able to leave those screens is the whole
+// reason it is revealed that early.
+ok("1e", "the account menu is revealed on EVERY path, because sign out lives in it and those screens need a way out",
+  count("$('acctBox').style.display = ''") >= 3);
+ok("1f", "Search and + New are revealed ONLY on the fully-signed-in path -- not over a company that does not exist yet, nor behind a billing block",
+  count("$('osearchBox').style.display = ''") === 1 &&
+  count("$('newBox').style.display = ''") === 1,
+  `search ${count("$('osearchBox').style.display = ''")}, new ${count("$('newBox').style.display = ''")}`);
 
 console.log("\n2. SEARCH REACHES THE DATABASE AND OPENS REAL RECORDS");
 ok("2a", "the box calls search_office, the function that actually exists",
