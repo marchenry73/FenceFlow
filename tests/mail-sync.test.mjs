@@ -1455,7 +1455,16 @@ test("workflow: expressions stay in env, never inside the script (no injection t
   assert.ok(!script.includes("${{"), "a ${{ }} expression inside run: is a script-injection hole");
   // Planted: the check finds one when it is there.
   assert.ok(runScript("jobs:\n  x:\n    steps:\n      - run: |\n          echo ${{ github.event.inputs.action }}\n").includes("${{"));
-  assert.match(WORKFLOW, /cron: '\*\/10 \* \* \* \*'/);
+  // MOVED 10 -> 5 minutes. He asked for mail to sync "the fastest it can", and
+  // five minutes is the floor GitHub Actions schedules will honour -- a cron
+  // below it is not run more often, it is just ignored down to about that. So
+  // this is the fastest this route goes, and the office still calls mail-sync
+  // itself whenever the Email tab is open (and every 90s while it stays open),
+  // which is what makes it feel immediate when somebody is actually looking.
+  //
+  // Pinned rather than left loose because the interval is a cost as well as a
+  // speed: every run wakes a function against every connected mailbox.
+  assert.match(WORKFLOW, /cron: '\*\/5 \* \* \* \*'/);
   assert.match(WORKFLOW, /secrets\.MAIL_SYNC_TRIGGER_SECRET/);
 });
 
