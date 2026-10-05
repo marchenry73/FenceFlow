@@ -1004,7 +1004,25 @@ data class SiteMarker(
     val kind: SiteMarkerKind = SiteMarkerKind.OBSTACLE,
     val x: Float = 0f,
     val y: Float = 0f,
-    val label: String = ""
+    val label: String = "",
+    /**
+     * A marker with a size is a BOX; one without is a point.
+     *
+     * Zero means point, deliberately, rather than a nullable size beside an
+     * is_box flag -- two fields that can disagree about whether something is a
+     * box is one more thing to keep in step, and a width of zero is not a box.
+     * Every marker that existed before this column did has zero and goes on
+     * drawing exactly as it did.
+     *
+     * In FEET, like everything else a person types about a fence, converted to
+     * drawing units at paint time by the same scale the runs use. Storing
+     * drawing units would make a house change size when the grid was
+     * recalibrated.
+     */
+    val widthFt: Float = 0f,
+    val heightFt: Float = 0f,
+    /** Degrees clockwise. A house is almost never square to the road. */
+    val rotationDeg: Float = 0f
 )
 
 /**

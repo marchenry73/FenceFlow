@@ -2182,4 +2182,8 @@
     <string name="pm_saved">Guardado, y releído desde la oficina para confirmarlo.</string>
     <string name="pm_verify_failed">La oficina no guardó lo que se envió. Aquí no se ha cambiado nada. Revíselo e inténtelo otra vez.</string>
     <string name="pm_server_refused">La oficina rechazó el cambio. Puede que su cuenta no tenga permiso para cambiar los ajustes de la empresa.</string>
+    <string name="draw_marker_size_hint">Tamaño en el terreno, en pies. Déjelo vacío para una marca simple.</string>
+    <string name="draw_marker_width_ft">Ancho pies</string>
+    <string name="draw_marker_depth_ft">Fondo pies</string>
+    <string name="draw_marker_turn_deg">Giro °</string>
 </resources>

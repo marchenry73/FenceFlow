@@ -76,6 +76,7 @@ import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.SnackbarDuration
 import androidx.compose.material3.SnackbarResult
 import androidx.compose.material3.TextButton
+import androidx.compose.ui.graphics.drawscope.rotate
 import com.fenceestimator.app.ui.runs.SideTypesCard
 import androidx.compose.material3.SegmentedButton
 import androidx.compose.material3.SegmentedButtonDefaults
@@ -1829,6 +1830,38 @@ fun SurveyDrawScreen(
                         siteMarkers.forEach { marker ->
                             val c = transform.toCanvas(FencePoint(marker.x, marker.y))
                             val color = PlanColors.marker(marker.kind)
+                            // A SIZED MARKER IS A BOX. He asked three times for the
+                            // house to be "a larger box, something that looks like a
+                            // house", and it kept coming back a dot because a dot was
+                            // all a SiteMarker could be -- x, y and a label, nowhere
+                            // to put a size.
+                            //
+                            // Feet, converted here by the same scale the fence uses,
+                            // so a recalibrated grid moves the house with the fence
+                            // rather than leaving it the wrong size beside it.
+                            val wFt = marker.widthFt
+                            val hFt = marker.heightFt
+                            if (wFt > 0f && hFt > 0f) {
+                                val scale = gridPxPerFt
+                                val halfW = (wFt * scale / 2f) * transform.scale
+                                val halfH = (hFt * scale / 2f) * transform.scale
+                                rotate(degrees = marker.rotationDeg, pivot = c) {
+                                    drawRect(
+                                        color = color.copy(alpha = 0.16f),
+                                        topLeft = Offset(c.x - halfW, c.y - halfH),
+                                        size = androidx.compose.ui.geometry.Size(halfW * 2, halfH * 2)
+                                    )
+                                    drawRect(
+                                        color = color,
+                                        topLeft = Offset(c.x - halfW, c.y - halfH),
+                                        size = androidx.compose.ui.geometry.Size(halfW * 2, halfH * 2),
+                                        style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.5f)
+                                    )
+                                }
+                            }
+                            // The dot stays, box or not: it is the thing a finger
+                            // grabs to move the marker, and a box with no handle is
+                            // a box he cannot pick up.
                             drawCircle(color, radius = 13f, center = c)
                             drawCircle(Color.White, radius = 13f, center = c, style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2.5f))
                             drawContext.canvas.nativeCanvas.drawText(
@@ -2325,8 +2358,8 @@ fun SurveyDrawScreen(
     markerDialogPoint?.let { point ->
         SiteMarkerDialog(
             existing = siteMarkers,
-            onConfirm = { kind, label ->
-                viewModel.addSiteMarker(kind, point.x, point.y, label)
+            onConfirm = { kind, label, w, h, rot ->
+                viewModel.addSiteMarker(kind, point.x, point.y, label, w, h, rot)
                 markerDialogPoint = null
             },
             onDelete = { marker -> viewModel.deleteSiteMarker(marker) },
@@ -2425,12 +2458,19 @@ private fun markerPickerLabelRes(kind: SiteMarkerKind): Int =
 @Composable
 private fun SiteMarkerDialog(
     existing: List<SiteMarker>,
-    onConfirm: (SiteMarkerKind, String) -> Unit,
+    // Carries the box too. A dialog that collects three numbers and hands
+    // back two of them is a dialog whose fields do nothing.
+    onConfirm: (SiteMarkerKind, String, Float, Float, Float) -> Unit,
     onDelete: (SiteMarker) -> Unit,
     onDismiss: () -> Unit
 ) {
     var kind by remember { mutableStateOf(SiteMarkerKind.OBSTACLE) }
     var label by remember { mutableStateOf("") }
+    // Typed in FEET. Blank means no box, which is every marker that is not a
+    // building: a tree does not have a width worth drawing.
+    var wFt by remember { mutableStateOf("") }
+    var hFt by remember { mutableStateOf("") }
+    var rotDeg by remember { mutableStateOf("") }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -2471,6 +2511,39 @@ private fun SiteMarkerDialog(
                         color = MaterialTheme.colorScheme.error
                     )
                 }
+                // THE SIZE, for the kinds that have one. A house, a pool and a
+                // driveway are shapes on the ground; a tree, a slope or a buried
+                // utility is a spot. Offering width and height on all nine would
+                // be asking how wide an easement is.
+                //
+                // Left blank it stays a point, which is what every marker drawn
+                // before today is.
+                if (kind in BOXABLE_MARKERS) {
+                    Spacer(Modifier.height(Space.sm))
+                    Text(
+                        stringResource(R.string.draw_marker_size_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(Modifier.height(Space.xs))
+                    Row(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
+                        OutlinedTextField(
+                            value = wFt, onValueChange = { wFt = it.filter { c -> c.isDigit() || c == '.' } },
+                            label = { Text(stringResource(R.string.draw_marker_width_ft)) },
+                            singleLine = true, modifier = Modifier.weight(1f)
+                        )
+                        OutlinedTextField(
+                            value = hFt, onValueChange = { hFt = it.filter { c -> c.isDigit() || c == '.' } },
+                            label = { Text(stringResource(R.string.draw_marker_depth_ft)) },
+                            singleLine = true, modifier = Modifier.weight(1f)
+                        )
+                        OutlinedTextField(
+                            value = rotDeg, onValueChange = { rotDeg = it.filter { c -> c.isDigit() || c == '.' } },
+                            label = { Text(stringResource(R.string.draw_marker_turn_deg)) },
+                            singleLine = true, modifier = Modifier.weight(1f)
+                        )
+                    }
+                }
                 Spacer(Modifier.height(Space.sm))
                 OutlinedTextField(
                     value = label, onValueChange = { label = it },
@@ -2495,7 +2568,14 @@ private fun SiteMarkerDialog(
                 }
             }
         },
-        confirmButton = { Button(onClick = { onConfirm(kind, label) }) { Text(stringResource(R.string.draw_add_marker)) } },
+        confirmButton = { Button(onClick = {
+            onConfirm(
+                kind, label,
+                wFt.toFloatOrNull() ?: 0f,
+                hFt.toFloatOrNull() ?: 0f,
+                rotDeg.toFloatOrNull() ?: 0f
+            )
+        }) { Text(stringResource(R.string.draw_add_marker)) } },
         dismissButton = { OutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } }
     )
 }
@@ -3687,6 +3767,19 @@ private const val DOUBLE_TAP_WINDOW_MS = 320L
 
 /** How far apart two taps may be and still be the same spot, in screen pixels. */
 private const val DOUBLE_TAP_SLOP_PX = 44f
+
+/**
+ * Markers that are a SHAPE on the ground rather than a spot on it.
+ *
+ * A house, a pool and a driveway have a footprint he can measure and would
+ * want drawn to scale. A tree, a slope, an easement, a buried utility or an
+ * obstacle is a place -- asking how wide an easement is would be asking a
+ * question with no answer, and a form that asks unanswerable questions is a
+ * form people stop filling in.
+ */
+private val BOXABLE_MARKERS = setOf(
+    SiteMarkerKind.HOUSE, SiteMarkerKind.POOL, SiteMarkerKind.DRIVEWAY
+)
 
 private const val VERTEX_HIT_RADIUS_PX = 40f
 

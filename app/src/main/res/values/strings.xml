@@ -2253,4 +2253,8 @@
     <string name="pm_saved">Saved, and read back from the office to be sure.</string>
     <string name="pm_verify_failed">The office did not store what was sent. Nothing has been changed here. Check and try again.</string>
     <string name="pm_server_refused">The office refused the change. Your login may not be allowed to change company settings.</string>
+    <string name="draw_marker_size_hint">Size on the ground, in feet. Leave blank for a simple marker.</string>
+    <string name="draw_marker_width_ft">Width ft</string>
+    <string name="draw_marker_depth_ft">Depth ft</string>
+    <string name="draw_marker_turn_deg">Turn °</string>
 </resources>

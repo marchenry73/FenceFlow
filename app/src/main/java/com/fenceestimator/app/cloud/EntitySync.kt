@@ -1106,7 +1106,13 @@ data class CloudSiteMarker(
     val kind: String = "OBSTACLE",
     val x: Float = 0f,
     val y: Float = 0f,
-    val label: String = ""
+    val label: String = "",
+    // A marker with a size is a box; zero is the point it has always been.
+    // Defaulted, so a phone on an older build that pushes a row without them
+    // leaves them alone rather than writing nulls over a house somebody drew.
+    @SerialName("width_ft") val widthFt: Float = 0f,
+    @SerialName("height_ft") val heightFt: Float = 0f,
+    @SerialName("rotation_deg") val rotationDeg: Float = 0f
 )
 
 @Serializable
@@ -2010,7 +2016,10 @@ object EntitySync {
                 )
             }
             repository.getSiteMarkers(job.id).forEach {
-                markers += CloudSiteMarker(companyId, it.syncId, js, it.kind.name, it.x, it.y, it.label)
+                markers += CloudSiteMarker(
+                    companyId, it.syncId, js, it.kind.name, it.x, it.y, it.label,
+                    it.widthFt, it.heightFt, it.rotationDeg
+                )
             }
             // A crew member's "can we move the gate?" and the office's answer.
             // This table existed in the cloud and on the website and the app
@@ -3470,14 +3479,18 @@ object EntitySync {
                 skipIfOrphaned { repository.addSiteMarker(
                     SiteMarker(
                         syncId = row.syncId, jobId = jobId,
-                        kind = kind, x = row.x, y = row.y, label = row.label
+                        kind = kind, x = row.x, y = row.y, label = row.label,
+                        widthFt = row.widthFt, heightFt = row.heightFt,
+                        rotationDeg = row.rotationDeg
                     )
                 ) } ?: return@forEach
                 added++
             } else {
                 // A marked obstacle that moved has to reach whoever is digging.
                 val merged = existing.copy(
-                    kind = kind, x = row.x, y = row.y, label = row.label
+                    kind = kind, x = row.x, y = row.y, label = row.label,
+                    widthFt = row.widthFt, heightFt = row.heightFt,
+                    rotationDeg = row.rotationDeg
                 )
                 if (merged != existing) { skipIfOrphaned { repository.updateSiteMarker(merged) } ?: return@forEach; added++ }
             }

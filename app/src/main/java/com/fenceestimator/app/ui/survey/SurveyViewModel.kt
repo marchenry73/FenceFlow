@@ -1997,10 +1997,22 @@ class SurveyViewModel(
     val siteMarkers: StateFlow<List<SiteMarker>> = repository.observeSiteMarkers(jobId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    fun addSiteMarker(kind: SiteMarkerKind, x: Float, y: Float, label: String) {
+    fun addSiteMarker(
+        kind: SiteMarkerKind, x: Float, y: Float, label: String,
+        widthFt: Float = 0f, heightFt: Float = 0f, rotationDeg: Float = 0f
+    ) {
         if (viewerIsGuestDemo()) return
         viewModelScope.launch {
-            repository.addSiteMarker(SiteMarker(jobId = jobId, kind = kind, x = x, y = y, label = label))
+            repository.addSiteMarker(SiteMarker(
+                jobId = jobId, kind = kind, x = x, y = y, label = label,
+                // Negatives would draw a box inside out; zero is the point it
+                // has always been, so the floor is zero rather than a refusal.
+                widthFt = widthFt.coerceAtLeast(0f),
+                heightFt = heightFt.coerceAtLeast(0f),
+                // Any angle is legal, but 370 degrees is 10 and storing 370
+                // makes every later comparison harder than it needs to be.
+                rotationDeg = ((rotationDeg % 360f) + 360f) % 360f
+            ))
         }
     }
 
