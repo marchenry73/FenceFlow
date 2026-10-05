@@ -714,3 +714,46 @@ alone. It is written and not applied; applying it is what makes that test go
 green.
 
 A review pass caught this, not me.
+
+---
+
+## A review of the night's work, and what it found
+
+I ran an adversarial review over all of it — five independent readers, then
+verifiers told to refute what they found. It raised 32 findings and its own
+verifiers threw out 10 of them.
+
+**It stopped me shipping something harmful.** See the payroll correction above:
+my `can_see_pay` fix would have blanked money on every sales phone, and your
+repo already contained the file undoing that exact change.
+
+**Five more real bugs in what I built overnight, all now fixed and live:**
+
+- The alerts panel's **whole explanatory paragraph was blank on the live site**
+  — it referenced a translation key that did not exist, and the page erases
+  such elements rather than falling back.
+- It claimed **"Checked within the last hour"** on an empty list, which nothing
+  evidenced — and which is plainly untrue immediately after you switch it on.
+- **Quiet hours record nothing at all.** The server skips writing, not just
+  notifying, so overnight an empty list meant nothing — on a panel titled
+  "runs with the office closed".
+- A **foreman would see "Nothing open"** because the database hides every alert
+  from anyone without money permission. Empty meant "you may not read these".
+- My follow-up counts **included customers who had asked not to be emailed**.
+  Nobody has opted out yet, so nothing wrong was ever shown.
+
+Plus: the Clear button was offered to people the server would refuse, a failed
+load read as "nothing open", and the counts would have stuck at their opening
+value for ever once a rule actually sent.
+
+**It also found three weaknesses in my own tests**, which is the part I value
+most: one claimed to check the chase ranking while rendering a single job
+(reversing the sort would have passed), the language-switch fix had no test at
+all, and my mutation harness was pointed at the wrong file for one suite —
+reporting a sound check as toothless.
+
+The alerts panel now distinguishes **four** kinds of empty: you may not see
+these; the server is in quiet hours and recording nothing; the request failed;
+or there genuinely is nothing. It started with one.
+
+51 commits. All 15 gates green, 14/14 mutations killed.
