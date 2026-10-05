@@ -502,3 +502,48 @@ and harmless. Five soft-deleted jobs still carry live line items, which is
 arguably right — restoring a job needs them.
 
 Nothing in any of that needs doing.
+
+---
+
+## What I did not build, and why
+
+You asked for these in the office plan. Skipping them silently would be worse
+than saying so.
+
+**Undo-send and scheduled send.** Both need something to send the mail later,
+and there is no worker. Holding it in the browser means closing the tab
+silently drops the email — worse than not offering it. Doing it honestly needs
+`pg_cron` plus `pg_net`, which is real infrastructure that touches sending, and
+I was not standing that up unsupervised overnight. Say the word and it is a
+proper piece of work.
+
+**Breadcrumbs.** In a tabbed single-page office they would restate the tab you
+are already looking at. Real cost, no information.
+
+**Keyboard shortcuts.** Genuine risk of swallowing keystrokes while you are
+typing an email, and shortcuts nobody can discover are not used. It would need
+a help overlay to be worth anything, which is more surface than the feature
+deserves for how you actually use the office.
+
+**A notifications centre.** Its only data source would have been
+`attention_findings`, which was empty and switched off everywhere — a panel
+that is permanently blank. I built the switch and the panel for the alerts
+themselves instead, which is the same information with something behind it.
+
+**Column visibility on tables.** The tables already collapse at phone width.
+I would rather not add a control that mostly gets set once and forgotten.
+
+## The new panels are actually executed now, not just grepped
+
+Worth saying because it is the thing I could not do before. The office cannot
+be driven without a login, so every change to these panels has gone live
+unexercised.
+
+Two tests now lift the real `renderAttention` and `renderFollowUps` out of the
+page and **run them** against a stand-in DOM — switched off, switched on with
+nothing waiting, switched on with findings, and as somebody who is not allowed
+to change the setting. A crash there is a crash in your browser.
+
+And five mutations prove those tests have teeth, each required to make its own
+suite go red. The first one renames a global to something that does not exist:
+no grep anywhere in this project would catch that, and it is caught now.
