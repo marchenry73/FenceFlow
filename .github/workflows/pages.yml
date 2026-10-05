@@ -119,7 +119,13 @@ jobs:
       - name: Gate - the alert panel actually renders
         run: node tests/a90-attention-panel-renders.test.mjs
 
-      - name: Gate - and that render test catches a runtime break
+      - name: Gate - the follow-up panel actually renders
+        run: node tests/a91-followup-panel-renders.test.mjs
+
+      # Covers BOTH render tests: five mutations, each of which must make its
+      # own suite go red. The first is a typo'd global -- the case no grep in
+      # this repo would catch.
+      - name: Gate - and those render tests catch a runtime break
         run: node tests/a90-mutate.mjs
 
       - uses: actions/configure-pages@v5
