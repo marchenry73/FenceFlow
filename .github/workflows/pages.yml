@@ -63,6 +63,22 @@ jobs:
       - name: Gate - no calls to functions that do not exist
         run: node tests/dashboard-undefined-calls.test.mjs
 
+      # Syntax and names are both satisfied by a control that is PRESENT and
+      # reaches nothing. This asks the question those two cannot: is the thing
+      # wired to anything -- does the search box call the RPC, does + New point
+      # at a button that exists, has every nav tab still got its panel. Written
+      # because SideTypesCard passed its own tests for days while mounted on no
+      # screen at all.
+      - name: Gate - the office shell is wired, not just present
+        run: node tests/a84-office-shell-wired.test.mjs
+
+      # And this proves the gate above can fail: it breaks a copy of the page
+      # eight ways and requires the matching check to go red each time. It
+      # already caught one check that could not -- a prefix match that a renamed
+      # function slipped straight past.
+      - name: Gate - those wiring checks can actually fail
+        run: node tests/a84-mutate.mjs
+
       - uses: actions/configure-pages@v5
 
       - uses: actions/upload-pages-artifact@v3
