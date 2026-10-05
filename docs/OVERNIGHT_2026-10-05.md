@@ -10,6 +10,8 @@ Ordered by what it is worth to you, not by when I found it.
    them**, one of them Makayla, four days ago. Your follow-up emails are
    switched on at the top and every single rule underneath is off, so not one
    has ever sent. Nothing is broken; nothing was ever asked to send.
+   *(Turning that rule on would email **two** of the three — James has no
+   address on file. See the corrected numbers below.)*
 2. **$3,500 deposit agreed and never collected** on James's job, approved
    3 October. It is also the job with no email address on it, which is why his
    contract never went out either.
@@ -630,3 +632,43 @@ You can check this yourself any time with:
 ```
 node scripts/run-website-tests.mjs
 ```
+
+
+---
+
+## Correcting what I said the follow-up rules would send
+
+I gave you counts earlier from my own SQL. Then I wired the real decision
+function into the office and the numbers disagreed, so I checked properly
+against `dueFollowUp()` — the function the sender actually uses — scoped to
+your company. Two things I said were too generous.
+
+**What each rule would really send today:**
+
+| Rule | Would email |
+|---|---|
+| Opened the quote, never approved | **2** |
+| New lead never contacted | **1** |
+| Quote sent, never opened | 0 |
+| Approved, no deposit | **0** |
+
+**The two corrections:**
+
+- **"Three people opened and never heard back"** — three *jobs* match, and
+  $23,540 is the right total for your pipeline. But the rule would only email
+  **two** of them: James has no email address, and the sender refuses a job it
+  cannot reach. That is correct behaviour, not a bug.
+- **"Two approved with no deposit"** — the follow-up rule would email **none**
+  of them. It only chases a deposit that was actually *agreed*, and Yviona's
+  and Marco's jobs have a deposit amount of zero, so there is nothing
+  outstanding to chase. James's job does have $3,500 agreed and unpaid — but
+  again, no email address.
+
+So James's **$3,500 is real and still uncollected**, and no follow-up email
+will ever chase it. That one needs you, or an email address on the job. It is
+the *alerts* panel that surfaces it, not the follow-up emails — two different
+mechanisms, and I had been blurring them.
+
+**Each rule now shows its own count in the office**, next to its checkbox, so
+you are not taking my word for any of this. The number is computed the same way
+the sender decides, including refusing jobs with no address.
