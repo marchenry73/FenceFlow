@@ -3534,6 +3534,7 @@ jobViewAll:'All', jobViewToday:'Today', jobViewWeek:'This week', jobViewUnschedu
     briefingBody:'What changed in the last 24 hours, and what needs you today — a summary of the alerts and totals below, not a new set of checks.',
     chaseHead:'Follow-up priority',
     chaseBody:'Every open lead, sent quote and unpaid approval, ranked by what it is worth times how long it has been waiting — so a big job that has gone quiet outranks a small one from this morning. Click the bar to see the math.',
+    chaseActNoEmail:'No email on file - call them',
     chaseActSendQuote:'Send the quote', chaseActContact:'Contact them', chaseActDeposit:'Collect deposit',
     chaseActFollowOpened:'Opened it - nudge them', chaseActFollowUnopened:'Never opened - resend or ring',
     chaseStatInPlay:'Value in play (%s)', chaseStatWon:'Won this week (%s)', chaseStatLost:'Lost, all time (%s)',
@@ -5289,6 +5290,7 @@ jobViewAll:'Todos', jobViewToday:'Hoy', jobViewWeek:'Esta semana', jobViewUnsche
     briefingBody:'Lo que cambió en las últimas 24 horas y lo que necesita su atención hoy — un resumen de las alertas y totales de abajo, no una lista nueva de revisiones.',
     chaseHead:'Prioridad de seguimiento',
     chaseBody:'Cada lead abierto, presupuesto enviado y aprobación sin pagar, ordenados por su valor multiplicado por cuánto llevan esperando — así un trabajo grande que se quedó callado pasa por delante de uno chico de esta mañana. Toque la barra para ver el cálculo.',
+    chaseActNoEmail:'Sin correo en el archivo - llámalos',
     chaseActSendQuote:'Enviar el presupuesto', chaseActContact:'Contactarlos', chaseActDeposit:'Cobrar el depósito',
     chaseActFollowOpened:'Lo abrió - recuérdaselo', chaseActFollowUnopened:'No lo abrió - reenvía o llama',
     chaseStatInPlay:'Valor en juego (%s)', chaseStatWon:'Ganado esta semana (%s)', chaseStatLost:'Perdido, en total (%s)',
@@ -7014,6 +7016,7 @@ jobViewAll:'Tous', jobViewToday:'Aujourdhui', jobViewWeek:'Cette semaine', jobVi
     briefingBody:'Ce qui a changé dans les dernières 24 heures, et ce qui demande votre attention aujourd’hui — un résumé des alertes et totaux ci-dessous, pas une nouvelle liste de vérifications.',
     chaseHead:'Priorité de relance',
     chaseBody:'Chaque piste ouverte, devis envoyé et approbation non payée, classés selon leur valeur multipliée par le temps d’attente — un gros chantier devenu silencieux passe ainsi devant un petit datant de ce matin. Cliquez sur la barre pour voir le calcul.',
+    chaseActNoEmail:'Aucun courriel au dossier - appelez',
     chaseActSendQuote:'Envoyer le devis', chaseActContact:'Les contacter', chaseActDeposit:'Encaisser l’acompte',
     chaseActFollowOpened:'Devis ouvert - relancez', chaseActFollowUnopened:'Jamais ouvert - renvoyez ou appelez',
     chaseStatInPlay:'Valeur en jeu (%s)', chaseStatWon:'Gagné cette semaine (%s)', chaseStatLost:'Perdu, depuis le début (%s)',
@@ -13255,6 +13258,9 @@ async function renderChase(){
   const rows = open.map(j => {
     const stage = stageOf(j);
     let waitFrom, action;
+    // Trimmed, because an address of " " is not an address. Same test the
+    // follow-up sender and the contract email both apply before giving up.
+    const hasEmail = !!String(j.email || '').trim();
     if (stage === 'New Lead') {
       waitFrom = j.created_at;
       action = j.first_contact_at
@@ -13271,8 +13277,14 @@ async function renderChase(){
       // screen and the emails cannot disagree about who has looked.
       //
       // The score is untouched. Only the label knows the difference.
-      action = { kind:'follow',
-                 label: tr(j.quote_viewed_at ? 'chaseActFollowOpened' : 'chaseActFollowUnopened') };
+      // No address beats both of the above: whether they opened it is moot if
+      // there is nowhere to send the next one. This is the James case --
+      // approved, deposit outstanding, and the contract email recorded
+      // 'no_address' because the job has no email on it.
+      action = !hasEmail
+        ? { kind:'follow', label: tr('chaseActNoEmail') }
+        : { kind:'follow',
+            label: tr(j.quote_viewed_at ? 'chaseActFollowOpened' : 'chaseActFollowUnopened') };
     } else { // Approved, no deposit -- same fields the no_deposit alert reads
       waitFrom = j.quote_approved_at || j.created_at;
       action = { kind:'deposit', label:tr('chaseActDeposit') };

@@ -52,12 +52,31 @@ for (const k of ["fuStateOff", "fuStateOnButNoRules", "fuPreviewEmptyNoRules"]) 
   ok(`3-${k}`, `${k} is defined three times`, count(`    ${k}:`) === 3, `found ${count(`    ${k}:`)}`);
 }
 
-console.log("\n4. CANARIES");
-ok("4a", "CANARY: checking the master switch alone would not have caught this -- 1c reads the RULES",
+console.log("\n4. THE CHASE LIST SAYS WHICH KIND OF 'FOLLOW UP' THIS IS");
+// Same principle one panel over: "Follow up" was the label whether they had
+// read the quote, never opened it, or had no address to receive it at all.
+// Three different situations needing three different actions.
+ok("4a", "a quote that was opened reads differently from one that was not",
+  page.includes("tr(j.quote_viewed_at ? 'chaseActFollowOpened' : 'chaseActFollowUnopened')"));
+ok("4b", "and no address beats both, because whether they opened it is moot with nowhere to send",
+  page.includes("action = !hasEmail"));
+ok("4c", "hasEmail trims, so a single space is not an address",
+  page.includes(`const hasEmail = !!String(j.email || '').trim();`));
+ok("4d", "the generic 'Follow up' label is gone from the page entirely",
+  !/chaseActFollow'/.test(page) && !/chaseActFollow:/.test(page));
+for (const k of ["chaseActFollowOpened", "chaseActFollowUnopened", "chaseActNoEmail"]) {
+  ok(`4-${k}`, `${k} is defined three times`, count(`    ${k}:`) + count(` ${k}:`) >= 3);
+}
+// The ranking must NOT have been touched: he is used to that order.
+ok("4e", "the score is still value times days waiting, untouched by any of this",
+  page.includes("score: value * ageDays"));
+
+console.log("\n5. CANARIES");
+ok("5a", "CANARY: checking the master switch alone would not have caught this -- 1c reads the RULES",
   !"const anyKindOn = !!s.enabled;".includes("FOLLOW_UP_KIND_DEFS.some"));
-ok("4b", "CANARY: 2a is anchored to the condition, so reverting the empty message to a constant fails it",
+ok("5b", "CANARY: 2a is anchored to the condition, so reverting the empty message to a constant fails it",
   !"previewEmpty.textContent = tr('fuPreviewEmptyMsg');".includes("!anyKindOn"));
-ok("4c", "CANARY: the real page defines FOLLOW_UP_KIND_DEFS, so 1c is not matching a name that does not exist",
+ok("5c", "CANARY: the real page defines FOLLOW_UP_KIND_DEFS, so 1c is not matching a name that does not exist",
   page.includes("FOLLOW_UP_KIND_DEFS") && count("FOLLOW_UP_KIND_DEFS") >= 3);
 
 console.log(`\n${failed === 0 ? "PASS" : "FAIL"}  ${passed} passed, ${failed} failed`);
