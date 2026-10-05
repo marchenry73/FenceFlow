@@ -239,8 +239,13 @@ test("the gate AREA is still decided by where the gate hangs, not by what the fe
   // so the plugs do NOT follow the stiffener out on a non-vinyl wall gate.
   const want = {
     WALL: { BLANK_POST: 1, GATE_POST: 0, END_POST: 3, HOLE_PLUG: 4, CONCRETE_BAG: 17 },
-    LINE: { BLANK_POST: 0, GATE_POST: 2, END_POST: 2, HOLE_PLUG: 0, CONCRETE_BAG: 19 },
-    LINE_TO_WALL: { BLANK_POST: 0, GATE_POST: 2, END_POST: 3, HOLE_PLUG: 0, CONCRETE_BAG: 20 },
+    // MOVED 5 Oct 2026: a gate hangs on ONE gate post, and the latch side is
+    // a post the fence ends on. GATE_POST 2 -> 1 and END_POST +1 in both LINE
+    // mountings; the SUM is unchanged (four and five), and the concrete and
+    // plug counts below are untouched because the number of posts in the
+    // ground did not move -- only which catalog row each one bills.
+    LINE: { BLANK_POST: 0, GATE_POST: 1, END_POST: 3, HOLE_PLUG: 0, CONCRETE_BAG: 19 },
+    LINE_TO_WALL: { BLANK_POST: 0, GATE_POST: 1, END_POST: 4, HOLE_PLUG: 0, CONCRETE_BAG: 20 },
   };
   for (const [mounting, roles] of Object.entries(want)) {
     for (const t of FENCE_TYPES) {
