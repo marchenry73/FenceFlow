@@ -1459,8 +1459,9 @@ test("workflow: expressions stay in env, never inside the script (no injection t
   // five minutes is the floor GitHub Actions schedules will honour -- a cron
   // below it is not run more often, it is just ignored down to about that. So
   // this is the fastest this route goes, and the office still calls mail-sync
-  // itself whenever the Email tab is open (and every 90s while it stays open),
-  // which is what makes it feel immediate when somebody is actually looking.
+  // itself whenever the Email tab is open (and every 60s while it stays open --
+  // MAIL_POLL_MS in dashboard.html), which is what makes it feel immediate when
+  // somebody is actually looking.
   //
   // Pinned rather than left loose because the interval is a cost as well as a
   // speed: every run wakes a function against every connected mailbox.
