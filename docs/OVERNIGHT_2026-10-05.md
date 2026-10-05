@@ -298,6 +298,27 @@ The 1 October tombstoning touched **46** line items with the bad signature, plus
 October carries a real user id, so they are ordinary edits. Four days is not
 proof the cause is gone, but it has not recurred.
 
-John's and James's jobs are still tombstoned (18 items / $9,475 and 13 /
-$21,511). You said to leave those, so I have. They are written down here only
-so the number exists somewhere.
+Having been caught out once, I went back and split **every** deletion since
+1 September by that same signature rather than by date. The full picture:
+
+**Genuinely damaged** — empty `deleted_by`, nobody chose this:
+
+| Job | Items | Value |
+|---|---|---|
+| James Bond | 13 | $21,510.71 |
+| John Beaunissant | 18 | $9,475.34 |
+| John | 3 | $993.60 |
+| (unnamed job 22c819b8) | 5 | $691.65 |
+| (unnamed job 9747af55) | 10 | $652.54 |
+| **Total** | **49** | **$33,323.84** |
+
+**Deliberately deleted** — a real user id, somebody meant it. Nothing to fix:
+Marco (13 items, $10,847.64), John (3, $5,464.58), an unnamed job (15,
+$2,731.14), Makayla (2, $33.12) and another unnamed job (3, $33.12).
+
+So the damage is **almost entirely the two jobs you already told me to leave**.
+Beyond them there is about $2,338 spread over three jobs, two of which have no
+customer name on them and look like drafts.
+
+Nothing here needs doing tonight. It is written down so the number exists, and
+so that next time nobody has to guess which deletions were real.
