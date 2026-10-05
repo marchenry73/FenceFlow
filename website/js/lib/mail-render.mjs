@@ -745,3 +745,32 @@ export function firstNameOf(full) {
   if (!s) return "";
   return s.split(/\s+/)[0] || "";
 }
+
+/**
+ * Placeholders still sitting unfilled in text that is about to be SENT.
+ *
+ * fillTemplate deliberately leaves `{{customer_first_name}}` standing when it
+ * has no value for it, so the gap is visible rather than silently blank, and
+ * the compose sheet names the missing ones in red underneath. None of that
+ * stops anybody clicking Send: every other check in sendCompose was about
+ * addresses, counts and sizes, so "Hi {{customer_first_name}}," would have
+ * gone to a customer with nothing in the way of it.
+ *
+ * Returns the distinct names, in the order they appear, so the refusal can say
+ * which ones rather than just that something is wrong.
+ *
+ * Same pattern as fillTemplate on purpose: anything that is not
+ * {{lower_snake}} is not a placeholder this app ever wrote, and a stray `{{`
+ * in prose is not something to accuse somebody of.
+ */
+export function unfilledPlaceholders(...texts) {
+  const found = [];
+  for (const t of texts) {
+    const s = String(t == null ? "" : t);
+    for (const m of s.matchAll(/\{\{\s*([a-z0-9_]+)\s*\}\}/gi)) {
+      const name = String(m[1]).toLowerCase();
+      if (!found.includes(name)) found.push(name);
+    }
+  }
+  return found;
+}

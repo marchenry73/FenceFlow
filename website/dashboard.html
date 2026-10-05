@@ -1434,6 +1434,16 @@
           <button class="btn btn-sm btn-grey" id="automationRunNow" data-t="autoCheckNowBtn">Check now</button>
         </div>
       </div>
+      <div class="panel" id="attnPanel">
+        <h2 style="margin-bottom:2px" data-t="attnHead">Alerts that run with the office closed</h2>
+        <p class="sub" style="margin-top:0" data-t="attnBody">The rules above only run while this page is open. These nine
+          are checked on the server every hour whether anyone is looking or not: money already at risk,
+          a crew about to be sent to a job that is not ready, and 811, permit and HOA deadlines.
+          They only notify &mdash; they never change a job, move money or delete anything.</p>
+        <div class="msg" id="attnMsg"></div>
+        <div id="attnSwitch"></div>
+        <div id="attnRows"></div>
+      </div>
       <div class="panel">
         <h2 style="margin-bottom:2px" data-t="autoFlagsHead">Flagged jobs</h2>
         <p class="sub" style="margin-top:0" data-t="autoFlagsBody">Jobs an automation rule raised a flag on. Clearing one does not
@@ -3273,7 +3283,7 @@ import {
   MAIL_LIMITS, MAIL_ERROR_KEYS, mailSandboxAttr, buildSrcdoc, sanitizeMailHtml, textToHtml, htmlToPlain,
   quoteForReply, forwardBlock, replySubject, replyRecipients, parseAddressList, addressLabel, listLabel,
   safeFilename, formatBytes, mailErrorParts, threadRowHtml, cleanLine, mailTimeLabel, senderWarning,
-  fillTemplate, firstNameOf, TEMPLATE_VARS,
+  fillTemplate, firstNameOf, TEMPLATE_VARS, unfilledPlaceholders,
 } from './js/lib/mail-render.mjs';
 // The quote-send email's words, in all three languages, shared with the
 // server's copy in supabase/functions/_shared/email-templates.ts and held to
@@ -3366,6 +3376,7 @@ jobViewAll:'All', jobViewToday:'Today', jobViewWeek:'This week', jobViewUnschedu
     setLblHead:'Labels', setLblBody:'Your own filing. Put a label on a conversation from the email itself.', setLblPh:'New label', setLblAdd:'Add', setLblNone:'No labels yet.', setLblDelete:'Delete', setLblDeleteQ:'Delete this label?', setLblDeleteBody:'It comes off every conversation it is on. The emails themselves are not touched.', setLblDupe:'You already have a label with that name.', mailLabelAdd:'Add a label', mailLabelRemove:'Remove this label',
     setTplHead:'Email templates', setTplBody:'The emails you send over and over. Pick one while writing and FenceFlow fills in what it knows about the job.', setTplName:'Name', setTplSubject:'Subject', setTplBodyLabel:'Message', setTplSave:'Save template', setTplNew:'New template', setTplNone:'No templates yet.', setTplSaved:'Template saved.', setTplNeedName:'Give the template a name so you can find it later.', setTplDelete:'Delete', setTplDeleteQ:'Delete this template?', setTplDeleteBody:'Emails already sent with it are not affected.', setTplGone:'That template is no longer there.', setTplVars:'You can use: %s',
     mailTplLabel:'Use a template', mailTplNone:'No template', mailTplFilled:'Template filled in.', mailTplMissing:'Still to fill in: %s',
+    mailUnfilledPlaceholder:'This still has %s in it, which the customer would see. Fix it, or press Send again to send it as it is.',
     mailFolderDrafts:'Drafts', mailNoDrafts:'No drafts. Anything you start writing is kept here.', mailDraftNoRecipient:'(no recipient yet)',
     mailDraftSaved:'Draft saved at %s.', mailDraftKept:'Saved to Drafts.', mailDraftGone:'That draft is no longer there.', mailDraftNoFiles:'Attachments are not kept with a draft. Add them again before sending.',
     mailFolderFiled:'Filed', mailFolderStarred:'Starred', mailFolderSnoozed:'Snoozed', mailFolderArchived:'Archived', mailFolderTrash:'Trash',
@@ -4499,6 +4510,16 @@ jobViewAll:'All', jobViewToday:'Today', jobViewWeek:'This week', jobViewUnschedu
     autoLogHead:'Automation log',
     autoLogBody:'Every time a rule fired: which job, when, and what it did.',
     autoColWhen:'When', autoColRule:'Rule', autoColJob:'Job', autoColWhat:'What happened',
+    attnHead:'Alerts that run with the office closed',
+    attnOnNow:'On. The server checks these every hour.',
+    attnOffNow:'Off. Nothing is checking these.',
+    attnTurnOn:'Turn on', attnTurnOff:'Turn off',
+    attnTurnedOn:'On. The first check runs within the hour.',
+    attnTurnedOff:'Off. Nothing will be checked until you turn it back on.',
+    attnCannotFlip:'Only an owner or manager can change this.',
+    attnOffMeansBlind:'While this is off there is nothing to show here, and nothing being watched. An empty list would not mean all clear.',
+    attnNoneOpen:'Nothing needs you. Checked within the last hour.',
+    attnClearBtn:'Clear',
     autoRunsEmptyMsg:'No rule has fired yet.',
     autoRuleLastFired:'Last fired %s', autoRuleNeverRun:'Never run yet',
 
@@ -5106,6 +5127,7 @@ jobViewAll:'Todos', jobViewToday:'Hoy', jobViewWeek:'Esta semana', jobViewUnsche
     setLblHead:'Etiquetas', setLblBody:'Su propia organización. Ponga una etiqueta a una conversación desde el correo.', setLblPh:'Nueva etiqueta', setLblAdd:'Agregar', setLblNone:'Todavía no hay etiquetas.', setLblDelete:'Eliminar', setLblDeleteQ:'¿Eliminar esta etiqueta?', setLblDeleteBody:'Se quita de todas las conversaciones donde esté. Los correos no se tocan.', setLblDupe:'Ya tiene una etiqueta con ese nombre.', mailLabelAdd:'Agregar etiqueta', mailLabelRemove:'Quitar esta etiqueta',
     setTplHead:'Plantillas de correo', setTplBody:'Los correos que envía una y otra vez. Elija uno al escribir y FenceFlow completa lo que sabe del trabajo.', setTplName:'Nombre', setTplSubject:'Asunto', setTplBodyLabel:'Mensaje', setTplSave:'Guardar plantilla', setTplNew:'Plantilla nueva', setTplNone:'Todavía no hay plantillas.', setTplSaved:'Plantilla guardada.', setTplNeedName:'Póngale un nombre para poder encontrarla después.', setTplDelete:'Eliminar', setTplDeleteQ:'¿Eliminar esta plantilla?', setTplDeleteBody:'Los correos ya enviados con ella no cambian.', setTplGone:'Esa plantilla ya no está.', setTplVars:'Puede usar: %s',
     mailTplLabel:'Usar una plantilla', mailTplNone:'Sin plantilla', mailTplFilled:'Plantilla completada.', mailTplMissing:'Falta completar: %s',
+    mailUnfilledPlaceholder:'Esto todavía contiene %s, y el cliente lo vería. Corrígelo, o pulsa Enviar otra vez para enviarlo así.',
     mailFolderDrafts:'Borradores', mailNoDrafts:'Sin borradores. Lo que empiece a escribir se guarda aquí.', mailDraftNoRecipient:'(aún sin destinatario)',
     mailDraftSaved:'Borrador guardado a las %s.', mailDraftKept:'Guardado en Borradores.', mailDraftGone:'Ese borrador ya no está.', mailDraftNoFiles:'Los adjuntos no se guardan con el borrador. Agréguelos de nuevo antes de enviar.',
     mailFolderFiled:'Archivado', mailFolderStarred:'Destacados', mailFolderSnoozed:'Pospuestos', mailFolderArchived:'Archivados', mailFolderTrash:'Papelera',
@@ -6239,6 +6261,16 @@ jobViewAll:'Todos', jobViewToday:'Hoy', jobViewWeek:'Esta semana', jobViewUnsche
     autoLogHead:'Registro de automatización',
     autoLogBody:'Cada vez que una regla se activó: qué trabajo, cuándo, y qué hizo.',
     autoColWhen:'Cuándo', autoColRule:'Regla', autoColJob:'Trabajo', autoColWhat:'Qué pasó',
+    attnHead:'Alertas que funcionan con la oficina cerrada',
+    attnOnNow:'Activado. El servidor las revisa cada hora.',
+    attnOffNow:'Desactivado. Nadie está revisando esto.',
+    attnTurnOn:'Activar', attnTurnOff:'Desactivar',
+    attnTurnedOn:'Activado. La primera revisión se hará dentro de una hora.',
+    attnTurnedOff:'Desactivado. No se revisará nada hasta que lo vuelvas a activar.',
+    attnCannotFlip:'Solo un propietario o gerente puede cambiar esto.',
+    attnOffMeansBlind:'Mientras esté desactivado no hay nada que mostrar aquí, y nada vigilado. Una lista vacía no significaría que todo está bien.',
+    attnNoneOpen:'Nada requiere tu atención. Revisado en la última hora.',
+    attnClearBtn:'Listo',
     autoRunsEmptyMsg:'Ninguna regla se ha activado todavía.',
     autoRuleLastFired:'Se activó por última vez %s', autoRuleNeverRun:'Nunca se ha ejecutado',
 
@@ -6816,6 +6848,7 @@ jobViewAll:'Tous', jobViewToday:'Aujourdhui', jobViewWeek:'Cette semaine', jobVi
     setLblHead:'Étiquettes', setLblBody:'Votre propre classement. Posez une étiquette sur une conversation depuis le courrier.', setLblPh:'Nouvelle étiquette', setLblAdd:'Ajouter', setLblNone:'Aucune étiquette pour le moment.', setLblDelete:'Supprimer', setLblDeleteQ:'Supprimer cette étiquette ?', setLblDeleteBody:'Elle est retirée de toutes les conversations concernées. Les courriers ne changent pas.', setLblDupe:'Vous avez déjà une étiquette de ce nom.', mailLabelAdd:'Ajouter une étiquette', mailLabelRemove:'Retirer cette étiquette',
     setTplHead:'Modèles de courrier', setTplBody:'Les e-mails que vous envoyez sans cesse. Choisissez-en un en écrivant et FenceFlow remplit ce qu il sait du chantier.', setTplName:'Nom', setTplSubject:'Objet', setTplBodyLabel:'Message', setTplSave:'Enregistrer le modèle', setTplNew:'Nouveau modèle', setTplNone:'Aucun modèle pour le moment.', setTplSaved:'Modèle enregistré.', setTplNeedName:'Donnez-lui un nom pour le retrouver ensuite.', setTplDelete:'Supprimer', setTplDeleteQ:'Supprimer ce modèle ?', setTplDeleteBody:'Les e-mails déjà envoyés avec ne changent pas.', setTplGone:'Ce modèle a disparu.', setTplVars:'Vous pouvez utiliser : %s',
     mailTplLabel:'Utiliser un modèle', mailTplNone:'Aucun modèle', mailTplFilled:'Modèle complété.', mailTplMissing:'Reste à compléter : %s',
+    mailUnfilledPlaceholder:'Ceci contient encore %s, que le client verrait. Corrigez-le, ou appuyez de nouveau sur Envoyer pour l'+"'"+'envoyer tel quel.',
     mailFolderDrafts:'Brouillons', mailNoDrafts:'Aucun brouillon. Ce que vous commencez à écrire est conservé ici.', mailDraftNoRecipient:'(pas encore de destinataire)',
     mailDraftSaved:'Brouillon enregistré à %s.', mailDraftKept:'Enregistré dans Brouillons.', mailDraftGone:'Ce brouillon nexiste plus.', mailDraftNoFiles:'Les pièces jointes ne sont pas conservées avec un brouillon. Ajoutez-les de nouveau avant denvoyer.',
     mailFolderFiled:'Classé', mailFolderStarred:'Suivis', mailFolderSnoozed:'Reportés', mailFolderArchived:'Archivés', mailFolderTrash:'Corbeille',
@@ -7950,6 +7983,16 @@ jobViewAll:'Tous', jobViewToday:'Aujourdhui', jobViewWeek:'Cette semaine', jobVi
     autoLogBody:'Chaque fois qu\'une règle s\'est déclenchée : quel chantier, quand, et ce qu\'elle a fait.',
     autoColWhen:'Quand', autoColRule:'Règle', autoColJob:'Chantier', autoColWhat:'Ce qui s\'est passé',
     autoRunsEmptyMsg:'Aucune règle ne s\'est encore déclenchée.',
+    attnHead:'Alertes actives même bureau fermé',
+    attnOnNow:'Activé. Le serveur les vérifie toutes les heures.',
+    attnOffNow:'Désactivé. Personne ne vérifie ceci.',
+    attnTurnOn:'Activer', attnTurnOff:'Désactiver',
+    attnTurnedOn:'Activé. La première vérification aura lieu dans une heure au plus.',
+    attnTurnedOff:'Désactivé. Rien ne sera vérifié tant que vous ne le réactivez pas.',
+    attnCannotFlip:'Seul un propriétaire ou un gestionnaire peut changer ceci.',
+    attnOffMeansBlind:'Tant que ceci est désactivé il n'+"'"+'y a rien à afficher ici, et rien sous surveillance. Une liste vide ne voudrait pas dire que tout va bien.',
+    attnNoneOpen:'Rien ne vous attend. Vérifié dans la dernière heure.',
+    attnClearBtn:'Effacer',
     autoRuleLastFired:'Dernier déclenchement %s', autoRuleNeverRun:'Jamais exécutée',
 
     // ---- Sales follow-up emails ----
@@ -9446,6 +9489,100 @@ function renderAutomation(){
   }
   const empty = $('automationRunsEmpty');
   if (empty) empty.style.display = automationRuns.length ? 'none' : 'block';
+}
+
+/* ---- the server-side sweep: the half that runs with this page closed ---- */
+
+let attentionSettings = null;   // null means "no row", which the table defines as off
+let attentionFindings = [];
+
+/** Reads the switch and the open findings. Both are plain RLS selects scoped to
+    the company; neither is the security boundary, the server's own policy is. */
+async function loadAttentionState(){
+  attentionSettings = null;
+  attentionFindings = [];
+  try {
+    const s = await db.from('attention_sweep_settings')
+      .select('enabled,quiet_hours_start,quiet_hours_end,timezone,updated_at').maybeSingle();
+    if (!s.error) attentionSettings = s.data || null;
+  } catch (e) { /* no row and no table both read as off, which is the safe way round */ }
+  try {
+    const f = await db.from('attention_findings')
+      .select('id,job_sync_id,detector,severity,message,created_at')
+      .is('cleared_at', null)
+      .order('created_at', { ascending: false }).limit(200);
+    if (!f.error) attentionFindings = f.data || [];
+  } catch (e) { /* same */ }
+}
+
+function renderAttention(){
+  const sw = $('attnSwitch');
+  if (!sw) return;
+  const on = !!(attentionSettings && attentionSettings.enabled);
+
+  // THE SWITCH SAYS WHAT IT WILL DO BEFORE IT DOES IT. Turning this on starts
+  // sending push notifications to phones, so it does not read as a harmless
+  // display toggle.
+  const canFlip = canEdit();
+  sw.innerHTML = `
+    <div class="brief-row${on ? '' : ' urgent'}" style="cursor:default">
+      <span class="brief-dot"></span>
+      <span>${esc(on ? tr('attnOnNow') : tr('attnOffNow'))}</span>
+      <button class="btn btn-sm ${on ? 'btn-grey' : ''}" type="button" id="attnToggle"
+        ${canFlip ? '' : 'disabled'}>${esc(on ? tr('attnTurnOff') : tr('attnTurnOn'))}</button>
+    </div>
+    ${canFlip ? '' : `<p class="sub">${esc(tr('attnCannotFlip'))}</p>`}`;
+  const btn = $('attnToggle');
+  if (btn) btn.onclick = () => setAttentionEnabled(!on);
+
+  const rows = $('attnRows');
+  if (!rows) return;
+  if (!on) {
+    // Deliberately NOT an empty list. An empty list under a switch that is off
+    // reads as "all clear", which is the exact lie this whole panel exists to
+    // stop -- the office showing nothing because nothing is looking.
+    rows.innerHTML = `<p class="sub">${esc(tr('attnOffMeansBlind'))}</p>`;
+    return;
+  }
+  if (!attentionFindings.length) {
+    rows.innerHTML = `<p class="sub">${esc(tr('attnNoneOpen'))}</p>`;
+    return;
+  }
+  rows.innerHTML = attentionFindings.map(f => {
+    const def = ALERT_DEFS.find(x => x.key === f.detector);
+    const j = jobBySync(f.job_sync_id);
+    const who = j ? (j.customer_name || j.address || tr('jobGoneLabel')) : tr('jobGoneLabel');
+    return `<div class="brief-row${f.severity === 'critical' ? ' urgent' : ''}">
+      <span class="brief-dot"></span>
+      <span><b>${esc(def ? tr(def.labelKey) : f.detector)}</b> &middot; ${esc(who)}<br>
+        <span class="sub">${esc(f.message)} &middot; ${esc(d(f.created_at).toLocaleString())}</span></span>
+      <button class="btn btn-sm btn-grey attn-clear" type="button"
+        data-id="${esc(f.id)}">${esc(tr('attnClearBtn'))}</button>
+    </div>`;
+  }).join('');
+  for (const b of rows.querySelectorAll('.attn-clear')) {
+    b.onclick = () => clearAttentionFinding(b.dataset.id);
+  }
+}
+
+/** Server-side gate is set_attention_sweep_enabled's own
+    has_permission('EDIT_CATALOG_AND_SETTINGS'); this check only keeps a
+    control from being offered to someone it would refuse. */
+async function setAttentionEnabled(on){
+  if (!canEdit()) return;
+  const { error } = await db.rpc('set_attention_sweep_enabled', { p_enabled: on });
+  if (error) { msg('attnMsg', error.message, 'err'); return; }
+  await loadAttentionState();
+  renderAttention();
+  msg('attnMsg', on ? tr('attnTurnedOn') : tr('attnTurnedOff'), 'ok');
+}
+
+async function clearAttentionFinding(id){
+  if (!canEdit()) return;
+  const { error } = await db.rpc('clear_attention_finding', { p_finding_id: id });
+  if (error) { msg('attnMsg', error.message, 'err'); return; }
+  await loadAttentionState();
+  renderAttention();
 }
 
 /** Turns one rule on or off for the whole company. Gated server-side by
@@ -11480,10 +11617,18 @@ async function loadAll(){
     await loadAutomationState();
     await loadAutomationRuns();
     await loadAutomationFlags();
+    await loadAttentionState();
   } catch (e) {
     console.error('loadAll: automation section failed:', e);
   }
   renderAutomation();
+  // In its own try, unlike its neighbours, because it is the newest thing on
+  // this page and loadAll is a straight line: anything thrown here would stop
+  // the follow-up section and everything below it from loading at all. A new
+  // panel failing should cost its own panel, not the sections that worked
+  // yesterday.
+  try { renderAttention(); }
+  catch (e) { console.error('loadAll: the attention panel failed to render:', e); }
   try {
     await loadFollowUpSettings();
     await loadFollowUpLog();
@@ -27554,6 +27699,28 @@ async function sendCompose(){
   if (new TextEncoder().encode(text).length > MAIL_LIMITS.textMaxBytes) return msg('mc_msg', tr('mailTextTooLong'), 'err');
   if (composeFileCount() > MAIL_LIMITS.maxAttachments) return msg('mc_msg', tr('mailAttachLimit'), 'err');
   if (composeFileBytes() > MAIL_LIMITS.attachmentsTotalBytes) return msg('mc_msg', tr('mailAttachLimit'), 'err');
+
+  // AN UNFILLED PLACEHOLDER IS THE ONE MISTAKE IN THIS SHEET THE CUSTOMER SEES.
+  //
+  // Every check above is about addresses, counts and sizes -- none of them ever
+  // looked at the words. fillTemplate deliberately leaves {{customer_first_name}}
+  // standing when it has no value for it, and the template picker names the gaps
+  // in red underneath, but nothing stopped a click on Send: "Hi
+  // {{customer_first_name}}," would have gone out exactly like that.
+  //
+  // Refuse ONCE and then take him at his word. A hard refusal would lock him out
+  // of sending any mail that legitimately contains a {{ -- improbable in a fence
+  // quote, but a lockout he cannot talk his way out of is worse than the thing it
+  // prevents. The warned set is the NAMES, so fixing one placeholder and leaving
+  // another still earns a fresh warning rather than silent consent.
+  const unfilled = unfilledPlaceholders(subject, text);
+  if (unfilled.length) {
+    const names = unfilled.map(n => '{{' + n + '}}').join(', ');
+    if (c.placeholderWarned !== names) {
+      c.placeholderWarned = names;
+      return msg('mc_msg', tr('mailUnfilledPlaceholder', names), 'err');
+    }
+  }
 
   c.busy = true;
   $('mc_send').disabled = true;

@@ -79,6 +79,24 @@ jobs:
       - name: Gate - those wiring checks can actually fail
         run: node tests/a84-mutate.mjs
 
+      # Behavioural, not static: mail-render.mjs is a real module, so this calls
+      # the placeholder guard the way the compose sheet calls it and asserts on
+      # what comes back -- then checks the send path actually asks it. Every
+      # other check in sendCompose was about addresses, counts and sizes, so
+      # "Hi {{customer_first_name}}," had nothing in its way.
+      - name: Gate - no unfilled placeholder can reach a customer
+        run: node tests/a85-unfilled-placeholder-guard.test.mjs
+
+      # Cross-file: the office calls two SECURITY DEFINER functions, and
+      # PostgREST matches a function by name AND argument names. p_enabled
+      # spelled enabled is a 404 at the click and a compile error nowhere. This
+      # reads the SQL, not just the page.
+      - name: Gate - the alert panel reaches the server that exists
+        run: node tests/a86-attention-panel-wired.test.mjs
+
+      - name: Gate - those cross-file checks can actually fail
+        run: node tests/a86-mutate.mjs
+
       - uses: actions/configure-pages@v5
 
       - uses: actions/upload-pages-artifact@v3
