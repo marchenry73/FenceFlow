@@ -2,28 +2,48 @@
 
 ## Read this bit if you read nothing else
 
-- **The contract email is not broken.** I told you five approvals had produced
-  nothing. That was wrong. It has run once, correctly, and the quiet was
-  chronology and a missing address. Details below.
-- **Two real bugs fixed.** An unfilled `{{placeholder}}` could be mailed to a
-  customer; and a publish could burn two hours to refuse something it knew in
-  one second.
-- **One thing needs you, one line:** add a 4 ft vinyl **corner post** to the
-  catalog at **$16.75**. That is the whole of what you spotted. Easiest in the
-  app: Catalog → new item → Corner post, Vinyl, height 4.
-- **Three people opened your quote and never heard back — $23,540 between
-  them, one of them Makayla.** Your follow-up emails are switched on at the top
-  and every individual rule underneath is off, so none has ever sent. Nothing
-  is broken; nothing was ever asked to send.
-- **Two switches are yours to flip:** the follow-up rules above, and nine
-  server-side alerts that are built and off. I built the panels and fixed what
-  made both look fine while doing nothing. I did not turn either on — both send
-  things to customers or to your phone.
-- **App 1.602 is live**, with the house/pool/driveway box drawn to scale and
-  free-standing gates. Verified from the release row and the hosted file, not
-  the build log.
-- **Makayla's quote has no corner post on it** — but you appear to have
-  removed them on purpose, so read that section before changing anything.
+Ordered by what it is worth to you, not by when I found it.
+
+**Money sitting still**
+
+1. **Three people opened your quote and never heard back — $23,540 between
+   them**, one of them Makayla, four days ago. Your follow-up emails are
+   switched on at the top and every single rule underneath is off, so not one
+   has ever sent. Nothing is broken; nothing was ever asked to send.
+2. **$3,500 deposit agreed and never collected** on James's job, approved
+   3 October. It is also the job with no email address on it, which is why his
+   contract never went out either.
+
+**Needs a decision from you**
+
+3. **One catalog row** — a 4 ft vinyl corner post at **$16.75**. That is the
+   whole of what you spotted. Easiest in the app: Catalog → new item → Corner
+   post, Vinyl, height 4, and type the supplier's real name for it.
+4. **Two switches, both yours.** The follow-up rules above, and nine
+   server-side alerts that are built and switched off. I built the panels and
+   fixed what made both look fine while doing nothing — but I turned neither
+   on, because both send things to customers or to your phone.
+5. **Makayla's quote has no corner post on it** — and you appear to have taken
+   them off deliberately. Read that section before changing anything.
+
+**Waiting for you, nothing to decide**
+
+6. **A supplier price request** to print or email — 48 items named exactly as
+   your catalog spells them, so the reply loads straight in, and it asks them
+   to name the 4 ft corner post.
+7. **The reply to the customer about licensing and insurance.** You asked for
+   it and it had never been written.
+
+**Done**
+
+8. **App 1.602 is live** — the house, pool and driveway drawn to real size, and
+   free-standing gates. Verified from the release row and the hosted file, not
+   the build log.
+9. **Two real bugs fixed.** An unfilled `{{placeholder}}` could be emailed to a
+   customer; and a publish could burn two hours to refuse something it knew in
+   the first second.
+10. **The contract email is not broken.** I told you five approvals had
+    produced nothing. That was wrong, and it is corrected below.
 
 Everything below is the detail.
 
