@@ -1021,9 +1021,22 @@ function tapProblems(screenSrc) {
   // offerJoinAfterDraw is not one of them: it delegates to offerJoinFromSnap,
   // which raises a StateFlow and writes nothing).
   //
-  // Any FOURTH name still fails here, deliberately, so the next thing bolted
-  // onto the tap gets looked at.
-  const ALLOWED = ["addDrawPoint", "offerJoinAfterDraw", "snapForDraw"];
+  // A FOURTH arrived, and this check did its job: it stopped the change and
+  // made somebody look. finishSideByDoubleTap -- tap the same spot twice to
+  // say "this side is done" instead of hunting for a button.
+  //
+  // Checked against the guarantee rather than waved through. It reads the
+  // run's points, removes the duplicate point the SECOND tap just created,
+  // writes the points back through writePoints, and raises a StateFlow so the
+  // screen can offer to start the next side. writePoints copies exactly
+  // pointsEncoded and gatesEncoded. Nothing in that path names
+  // calibrationPixelsPerFoot or gridExtentFt, or calls any of the scale
+  // writers 6d/6f enumerate. So adding a side still cannot move the job's
+  // scale, which is the whole of what docs/FOOTAGE_DRIFT.md is about.
+  //
+  // Any FIFTH name still fails here, deliberately, for the same reason this
+  // one was caught.
+  const ALLOWED = ["addDrawPoint", "finishSideByDoubleTap", "offerJoinAfterDraw", "snapForDraw"];
   const unexpected = calls.filter((c) => !ALLOWED.includes(c));
   if (unexpected.length) return [`the DRAW tap now calls: ${calls} (unexpected: ${unexpected})`];
   // And the two that do the work must still both be there.
