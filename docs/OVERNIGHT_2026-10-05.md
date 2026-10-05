@@ -561,7 +561,7 @@ no grep anywhere in this project would catch that, and it is caught now.
 
 ## The test suite, and three live bugs it was holding
 
-I ran all 191 website tests. **180 passed, 11 failed. Nine are now fixed; the two that remain are red on purpose.** Working through them was
+I ran all 191 website tests. **180 passed, 11 failed. Eight are now fixed; the three that remain are red on purpose.** A clean run on this repo is 188 of 191. Working through them was
 the most productive hour of the night, because almost none of them run anywhere
 automatically — the website workflow ran a handful, and the publish gate does
 not run `tests/*.test.mjs` at all. So they had been red and unread.
@@ -591,8 +591,10 @@ case I checked the new behaviour was right before touching the test:
 - A height check called the house box a second owner of the catalog's height
   column. Two tables may both have a `height_ft`.
 
-**Two are red on purpose** — spec tests for joining work that has not landed,
-one of them marked as needing your decision first. Those should stay red.
+**Three are red on purpose and should stay that way.** Two are spec tests for
+joining work that has not landed, one marked as needing your decision first.
+The third is the labour test — its four failing checks *are* the security
+report above. It goes green by fixing the function, never by editing the test.
 
 **The last two were the "two gate posts" rule**, from before you asked for one
 gate post and a latch post. I did them in the end, by measuring rather than
