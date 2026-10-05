@@ -9834,11 +9834,27 @@ function renderFollowUps(){
   // the daily cap, so after 9pm it answers zero for everything, which would
   // read as nobody waiting.
   const nowForPreview = new Date();
+  // Already sent, so not waiting. The sender writes a follow_up_log row per
+  // (job, kind) and will not send that pairing again, so counting them would
+  // make the number stick at its opening value for ever once a rule is on --
+  // "3 waiting" that never falls as the three go out.
+  //
+  // Keyed on job and kind, not on the stage: every stage key these four rules
+  // use is a fixed timestamp (quote_viewed_at, quote_approved_at, created_at),
+  // so a pairing that has been sent cannot come due again.
+  //
+  // followUpLog holds the most recent 100 rows, so on a company that has sent
+  // more than that this can only ever OVER-count, never under -- which is the
+  // safe direction for a number somebody is deciding to switch sending on by.
+  const alreadySent = new Set((followUpLog || []).map(r => r.job_sync_id + '|' + r.kind));
   const waitingFor = (def) => {
     const only = { ...s, enabled: true };
     for (const other of FOLLOW_UP_KIND_DEFS) only[other.enabledField] = other.key === def.key;
     let n = 0;
-    for (const j of jobs || []) { if (dueFollowUp(j, only, nowForPreview)) n++; }
+    for (const j of jobs || []) {
+      if (alreadySent.has(j.sync_id + '|' + def.key)) continue;
+      if (dueFollowUp(j, only, nowForPreview)) n++;
+    }
     return n;
   };
 

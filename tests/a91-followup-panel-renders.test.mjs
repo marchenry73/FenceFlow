@@ -40,7 +40,7 @@ const WAITING_JOBS = [
     first_contact_at: "2026-09-01T00:00:00Z" },
 ];
 
-function render(settings, { duePreview = [], jobs = WAITING_JOBS } = {}) {
+function render(settings, { duePreview = [], jobs = WAITING_JOBS, sentLog = [] } = {}) {
   const els = {};
   const el = (id) => (els[id] = els[id] || {
     id, innerHTML: "", textContent: "", className: "", value: "", checked: false,
@@ -58,11 +58,15 @@ function render(settings, { duePreview = [], jobs = WAITING_JOBS } = {}) {
     jobs,
     dueFollowUp,            // the real one, not a stub that would agree with me
     jobBySync: () => null,
-    followUpLog: [],
+    followUpLog: sentLog,
     fuKindLabel: (k) => k,
     previewDueFollowUps: () => duePreview,
     FOLLOW_UP_KIND_DEFS: KIND_FIELDS.map((f, i) => ({
-      key: "k" + i, enabledField: f, delayField: f.replace("_enabled", "_days"),
+      // The REAL rule key, not a made-up one. follow_up_log rows carry this
+      // exact string in their `kind` column, so a stub of "k0" made the
+      // already-sent lookup miss every time and the test failed against
+      // working code.
+      key: f.replace("_enabled", ""), enabledField: f, delayField: f.replace("_enabled", "_days"),
       labelKey: "lbl" + i, delayLabelKey: "dly" + i,
     })),
     FOLLOW_UP_DEFAULT_SETTINGS: { enabled: false, quiet_hours_start: 21, quiet_hours_end: 8,
@@ -168,6 +172,26 @@ console.log("\n4. HOW MANY ARE WAITING BEHIND EACH CHECKBOX");
   const nums = (h) => (h.match(/fuRuleWaiting:\d+/g) || []).join();
   ok("4f", "the counts are the same ticked or not -- it answers 'what would this do'",
     nums(off) === nums(on), nums(off) + " vs " + nums(on));
+}
+
+{
+  // Already sent is not waiting. Without this the number sticks at its opening
+  // value for ever once a rule is on: "2 waiting" that never falls as the two
+  // go out, because the sender will not send the same (job, kind) twice.
+  const els = render({ ...BASE, ...allOff, enabled: true },
+    { sentLog: [{ job_sync_id: "a", kind: "quote_viewed_not_approved", sent_at: "2026-10-01T00:00:00Z" }] });
+  const rows = els.fuRulesRows.innerHTML;
+  ok("4g", "a job already emailed for that rule stops being counted as waiting",
+    (rows.match(/fuRuleWaiting:1/g) || []).length === 1,
+    "found " + (rows.match(/fuRuleWaiting:\d+/g) || []).join(" "));
+  ok("4h", "and the rule it was sent for now says none waiting, not one",
+    (rows.match(/fuRuleWaitingNone/g) || []).length === 3);
+  // The log is keyed on job AND kind: the same job still counts for a
+  // different rule, which is a separate email the sender would still send.
+  const other = render({ ...BASE, ...allOff, enabled: true },
+    { sentLog: [{ job_sync_id: "a", kind: "approved_no_deposit", sent_at: "2026-10-01T00:00:00Z" }] });
+  ok("4i", "a send of a DIFFERENT rule does not suppress this one",
+    (other.fuRulesRows.innerHTML.match(/fuRuleWaiting:1/g) || []).length === 2);
 }
 
 console.log("\n5. NO SETTINGS ROW AT ALL");

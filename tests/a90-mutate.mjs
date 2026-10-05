@@ -40,6 +40,8 @@ const MUTANTS = [
   ["a90", "the Clear button is offered to everyone again, and silently does nothing for most",
    "${canFlip ? `<button class=\"btn btn-sm btn-grey attn-clear\"",
    "${true ? `<button class=\"btn btn-sm btn-grey attn-clear\""],
+  ["a91", "already-sent follow-ups start counting as waiting again",
+   "if (alreadySent.has(j.sync_id + '|' + def.key)) continue;", ""],
   ["a89", "setLang stops redrawing the panels, so a language switch undoes the honest message",
    "for (const redraw of [renderFollowUps, renderAttention])",
    "for (const redraw of [])"],
