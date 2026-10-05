@@ -11080,7 +11080,16 @@ const JOB_COLUMNS = [
   // contract_total: job_money_columns() lists it, and a role without
   // SEE_MONEY cannot read this table at all. Turned into a price only by
   // anchoredTotalOf(); tests/office-accepted-price.test.mjs pins who reads it.
-  'accepted_total'
+  'accepted_total',
+  // When the app marked a job blocked. The Jobs tab's "Blocked" view reads
+  // this and nothing else, deliberately -- it is the column the app already
+  // sets, rather than a second definition that could disagree with the phone.
+  //
+  // It was read without being SELECTED, so j.blocked_at was undefined on every
+  // row and the Blocked view quietly matched nothing at all. tests/
+  // job-columns.test.mjs is the check that says so; it is not in the Pages
+  // workflow, which is why nobody saw it.
+  'blocked_at'
 ].join(',');
 
 /* ---------- extra crew, granted access, and access requests ----------

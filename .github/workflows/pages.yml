@@ -63,6 +63,19 @@ jobs:
       - name: Gate - no calls to functions that do not exist
         run: node tests/dashboard-undefined-calls.test.mjs
 
+      # Reading a column the page never SELECTed is undefined at runtime, not
+      # an error -- so the feature just quietly matches nothing. That is
+      # exactly what happened to the Jobs tab's "Blocked" view: it read
+      # blocked_at, which was not in JOB_COLUMNS, and so matched no job ever.
+      # This check existed and caught it; it simply was not running anywhere.
+      - name: Gate - the page only reads job columns it actually selects
+        run: node tests/job-columns.test.mjs
+
+      # Keys present in English but missing from Spanish or French render as
+      # "undefined" to two thirds of this app.
+      - name: Gate - all three languages have the same keys
+        run: node tests/office-language-parity.test.mjs
+
       # Syntax and names are both satisfied by a control that is PRESENT and
       # reaches nothing. This asks the question those two cannot: is the thing
       # wired to anything -- does the search box call the RPC, does + New point
