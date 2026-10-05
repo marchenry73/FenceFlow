@@ -93,7 +93,7 @@ job**, so that customer was never sent their contract. You said to leave the
 John/James item alone, so I have not touched it — just flagging that the
 missing address is why, and adding one would let the contract go out.
 
-## Two real bugs, both fixed
+## Two bugs fixed early on
 
 **An unfilled placeholder could reach a customer.** The compose sheet leaves
 `{{customer_first_name}}` visible when it has no value and names the gaps in
@@ -136,16 +136,7 @@ could not: the check for `syncNavGroups` was a prefix of
 check watching it. Three others had the same flaw. All four fixed; 8/8 now
 killed.
 
-## Not built, on purpose
-
-**Undo-send and scheduled send.** Both need something to send the mail later.
-There is no worker — holding it in the browser means closing the tab silently
-drops the mail, which is worse than not offering it. It would take `pg_cron`
-plus `pg_net` to do honestly, which is real infrastructure that touches
-sending, and I am not standing that up unsupervised overnight. Say the word
-and it is a proper piece of work.
-
-## One switch you may want on — your call, I have not touched it
+## One switch you may want on — I built it, you flip it
 
 There are **nine server-side alert detectors** built, deployed, and triggered
 hourly by a GitHub Action: money already at risk or gone, a crew about to be
@@ -159,17 +150,17 @@ Off is the deliberate default, so this is not a bug. But it does mean a built
 feature is currently doing nothing for you.
 
 I have not switched it on, because it starts sending push notifications to
-your phone and that is your decision, not mine. It is one row per company when
-you want it.
+your phone and that is your decision, not mine. What I did do is build the
+panel it needs, which is the next section.
 
 This is also why I did **not** build the notifications centre from the office
 plan tonight: its only data source is that table, so it would have been a
 panel that is permanently empty — a control that does nothing, which is the
 one thing you said you did not want.
 
-## I built the switch, so it is now yours to flip
+### What the panel does
 
-Rather than leave that as a note, I built the panel. It sits in **Automation**,
+It sits in **Automation**,
 under the existing rules, because it is the same idea — the difference is only
 that these nine run with the office closed.
 
@@ -486,7 +477,7 @@ worth making.
 On your data right now, all three unanswered quotes had been opened. Worth
 knowing before you pick up the phone.
 
-## More things checked that are fine
+## And more that is fine
 
 **Push notifications work.** Six devices registered, four active in the last
 30 days — so if you do switch the alerts on, they will actually reach you. I
