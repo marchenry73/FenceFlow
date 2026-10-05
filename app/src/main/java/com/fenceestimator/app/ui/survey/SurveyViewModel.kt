@@ -1511,8 +1511,24 @@ class SurveyViewModel(
      * the selected run, so his next tap starts it.
      */
     fun startNewSideAfterFinish(defaults: BusinessProfile?) {
+        // INHERIT WHAT HE WAS DRAWING.
+        //
+        // This said isTeardown = false outright. Marking out an OLD fence to
+        // tear down is a multi-side job exactly as a new fence is, so the
+        // second side of a teardown silently became a NEW FENCE run: labelled
+        // "Side 2" instead of "Old fence 2", and priced for the posts, panels
+        // and concrete he is REMOVING rather than installing. Every side after
+        // the first, on every teardown he double-tapped his way around.
+        //
+        // Read before the state is cleared, because clearing it is what loses
+        // the answer.
+        val finishedId = _sideFinished.value?.runId
+        val wasTeardown = finishedId
+            ?.let { id -> runs.value.firstOrNull { it.id == id } }
+            ?.isTeardown
+            ?: false
         _sideFinished.value = null
-        addRun(defaults, isTeardown = false)
+        addRun(defaults, isTeardown = wasTeardown)
     }
 
     /** Straight-line length through a run's points, in feet, at the edit scale. */
