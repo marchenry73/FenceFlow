@@ -97,6 +97,14 @@ jobs:
       - name: Gate - those cross-file checks can actually fail
         run: node tests/a86-mutate.mjs
 
+      # The price request we send suppliers claims their reply will import.
+      # This runs the office's OWN parser over it -- ppParseTable,
+      # ppDetectColumns, ppReadRows lifted out of the page -- so a change to
+      # the importer that would break the sheet fails here rather than on the
+      # day a supplier sends it back.
+      - name: Gate - the supplier price request still imports
+        run: node tests/a88-supplier-rfq-imports.test.mjs
+
       - uses: actions/configure-pages@v5
 
       - uses: actions/upload-pages-artifact@v3
