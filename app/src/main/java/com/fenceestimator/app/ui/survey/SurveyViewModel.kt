@@ -1723,11 +1723,35 @@ class SurveyViewModel(
             // whose gap did not close, which is precisely today's behaviour and
             // the safe direction (one post too few is never billed).
             //
-            // Through [moveJoinedEnd] -- the ordinary drawing door -- so it is
-            // ONE Undo step, it re-prices like any other drawing edit, and the
-            // office hears about the footage the same way it hears about a
-            // dragged corner.
-            offer.gapCloser?.let { slideRunToMeet(it) }
+            // Through the ordinary drawing door either way, so it is ONE Undo
+            // step, it re-prices like any other drawing edit, and the office
+            // hears about the footage the same way it hears about a dragged
+            // corner.
+            //
+            // WHICH door depends on whether the OTHER end of the side being
+            // moved is already standing at a shared post.
+            //
+            //   far end free   -> slide the whole side. Its length is
+            //                     unchanged, which is what he asked for: the
+            //                     line moves over and the footage does not
+            //                     budge.
+            //   far end joined -> move ONLY the tapped corner. Both of this
+            //                     side's corners are now fixed to real posts,
+            //                     so the side genuinely IS a different length;
+            //                     stretching it is the honest answer.
+            //
+            // Sliding in the second case drags the far corner off the post it
+            // shares with its neighbour. The joint id is untouched, so the
+            // takeoff goes on deducting ONE shared post while the plan shows
+            // two ends apart -- closing the corner he tapped by opening one he
+            // did not, and billing a post, a cap and a bag of concrete short.
+            // With the old distance cap gone that gap can be many feet.
+            //
+            // This is what moveJoinedEnd was written for. When the slide
+            // replaced it, it became unreachable and took this case with it.
+            offer.gapCloser?.let { closer ->
+                if (farEndIsJoined(closer)) moveJoinedEnd(closer) else slideRunToMeet(closer)
+            }
             // Every run of the job, not just the rows written. A detach writes
             // ONE end blank and a T-join writes only the two ends tapped, so
             // the run that was the post's OWNER can keep a corner post in its
@@ -1773,6 +1797,22 @@ class SurveyViewModel(
      * Through [editRun] and [writePoints] like any other drawing edit, so it is
      * ONE Undo step and the office hears about it the same way.
      */
+    /**
+     * Whether the end of the moving run that is NOT being tapped already
+     * stands at a shared post.
+     *
+     * The tapped end is free by construction -- gapCloserFor only ever offers
+     * to move an end that is -- but it says nothing about the other one, and a
+     * side in the middle of a chain has both ends joined. Read off the run's
+     * own [FenceRun.startJoint]/[endJoint], which is where a join is recorded.
+     */
+    private fun farEndIsJoined(closer: RunJoinGesture.JoinGapCloser): Boolean {
+        val target = runs.value.firstOrNull { it.syncId == closer.end.runId } ?: return false
+        // Tapped the END, so the far end is the START, and the other way round.
+        val farJoint = if (closer.end.atEnd) target.startJoint else target.endJoint
+        return farJoint.isNotBlank()
+    }
+
     private fun slideRunToMeet(closer: RunJoinGesture.JoinGapCloser) {
         val target = runs.value.firstOrNull { it.syncId == closer.end.runId } ?: return
         editRun(target.id) { run ->
@@ -1787,7 +1827,26 @@ class SurveyViewModel(
             val dy = closer.to.y - closer.from.y
             val slid = points.map { FencePoint(it.x + dx, it.y + dy) }
             if (slid.any { !isWritablePoint(it.x, it.y) }) return@editRun
-            writePoints(run, slid.toMutableList())
+
+            // THE GATES HAVE TO COME WITH IT.
+            //
+            // A GateMarker is a loose plan point, matched to its side at READ
+            // time by projecting onto the nearest segment (GateGeometry.spanFor,
+            // clamped to the ends). Moving the fence and leaving the gates where
+            // they were therefore does not leave them behind in a visible way --
+            // it slides each one ALONG the fence by the component of the move
+            // parallel to that side, clamps one near a corner onto the corner,
+            // and on a multi-segment run can re-match it to a different side
+            // altogether. The drawing, the crew plan and the PDF all read
+            // gatesEncoded, so the crew builds from the wrong opening.
+            //
+            // SideLength.kt's followSide exists for the general case, where each
+            // corner moves differently. This is a pure translation: every point
+            // shifts by the same offset, so every gate does too, and the gate's
+            // position along its side is preserved exactly.
+            val gates = FenceCodec.decodeGates(run.gatesEncoded)
+            val slidGates = gates.map { it.copy(x = it.x + dx, y = it.y + dy) }
+            writePoints(run, slid.toMutableList(), FenceCodec.encodeGates(slidGates))
         }
     }
 

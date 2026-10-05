@@ -125,6 +125,12 @@ jobs:
       - name: Gate - both engines declare the same version, and only one function ships it
         run: node tests/a94-deployed-engine-matches-source.test.mjs
 
+      # Attaching a side must carry its gates with it, and must not drag an
+      # already-joined far corner off the post it shares. Nothing covered
+      # slideRunToMeet before 1.602 shipped both defects.
+      - name: Gate - attaching a side keeps its gates and its far corner
+        run: node tests/a95-slide-keeps-gates-and-far-corner.test.mjs
+
       # Follow-ups were switched ON with every individual rule OFF, and the
       # due-list honours the rules -- so it sat empty under a ticked master
       # switch while three opened-and-unanswered quotes were on the books.
