@@ -58,7 +58,12 @@ const out = join(tmpdir(), "website-test-report.txt");
 writeFileSync(out, report.join("\n") + "\n");
 console.log(`\npass=${pass} fail=${fail} timeout=${timeout} of ${tests.length}`);
 console.log(`full timings: ${out}`);
-// Two files are red ON PURPOSE -- a32-join-posts and a32-join-transition are
-// spec tests for joining work that has not landed, one of them marked as
-// needing the owner's decision first. A clean run is 189 of 191, not 191.
+// THREE files are red ON PURPOSE, so a clean run is 188 of 191, not 191:
+//
+//   a32-join-posts, a32-join-transition -- spec tests for joining work that
+//     has not landed, one of them marked as needing the owner's decision.
+//   a4-labour -- 22 of its 26 checks pass; the four that do not ARE its
+//     report, that can_see_pay() asks for SEE_MONEY rather than SEE_PAY. It
+//     should go green by FIXING THE FUNCTION (see
+//     supabase_a92_can_see_pay_checks_see_pay.sql), never by editing the test.
 process.exit(Math.min(255, fail + timeout));
