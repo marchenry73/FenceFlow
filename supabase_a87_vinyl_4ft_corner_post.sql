@@ -1,4 +1,4 @@
--- THE 4 FT VINYL CORNER POST. Prepared, NOT run. See the bottom for why.
+-- THE 4 FT VINYL CORNER POST. Dry-run against the live schema; see the end.
 --
 -- March, 4 October: "4ft vinyl corner post should be a 6ft post, not for a
 -- 6ft high vinyl fence."
@@ -34,54 +34,86 @@
 -- designed; it simply has nothing correct to choose.
 
 insert into public.material_items
-    (company_id, name, role, fence_type, height_ft, unit_price, color_or_finish)
+    (sync_id, company_id, name, category, role, fence_type, height_ft,
+     unit, unit_price, taxable, is_active, color_or_finish,
+     manufacturer_sync_id, source_doc)
 select
+    gen_random_uuid(),          -- NOT NULL, and nothing defaults it. The first
+                                -- draft of this file omitted it and failed on
+                                -- the live schema; see the note at the end.
     mi.company_id,
     '5x5x72 HFS Corner Post White 4'' Closed Top',
+    mi.category,                -- POST. The column default is MISC, which
+                                -- would file a post under miscellaneous.
     'CORNER_POST',
     'VINYL',
     4,
-    16.75,
-    mi.color_or_finish
+    mi.unit,                    -- EA
+    16.75,                      -- what all three of its siblings cost
+    mi.taxable,
+    true,
+    mi.color_or_finish,         -- White
+    mi.manufacturer_sync_id,    -- same maker as the rest of the 4 ft family
+    -- NOT the sibling's 'Confirmed'. $16.75 is inferred from the three other
+    -- posts in this family, and copying "Confirmed" onto it would state that
+    -- a supplier gave us this number when none has. This exact wording is
+    -- what isSeededUnverifiedPrice() matches, so the office flags the price
+    -- as a placeholder until the supplier answers -- which is precisely what
+    -- docs/SUPPLIER_PRICE_REQUEST asks them.
+    'Placeholder — verify with your supplier'
 from public.material_items mi
--- Copied from the END post of the SAME family, so company_id and colour come
--- from a row that really exists rather than being typed in here. If a company
--- does not stock the 4 ft family, it gets no row and nothing changes for it.
+-- Copied from the END post of the SAME family, so company_id, maker, unit and
+-- colour come from a row that really exists rather than being typed in here.
+-- A company that does not stock the 4 ft family gets no row and nothing
+-- changes for it.
 where mi.name = '5x5x72 HFS End Post White 4'' Closed Top'
   and mi.role::text = 'END_POST'
+  and mi.deleted_at is null
   and not exists (
       select 1 from public.material_items x
       where x.company_id = mi.company_id
         and x.role::text = 'CORNER_POST'
         and x.fence_type::text = 'VINYL'
         and x.height_ft = 4
+        and x.deleted_at is null
   );
 
--- Check it landed, and that nothing else moved:
+-- Read it back. A write is not done until it has been read back asserting the
+-- new value -- not the statement's success, and not a row count.
 --
---   select name, unit_price, height_ft from public.material_items
---   where role::text='CORNER_POST' and fence_type::text='VINYL'
---   order by height_ft;
+--   select name, unit_price, height_ft, category, source_doc
+--     from public.material_items
+--    where role::text='CORNER_POST' and fence_type::text='VINYL'
+--      and deleted_at is null
+--    order by height_ft;
 --
--- Expected after: two rows, height 4 at 16.75 and height 6 at 16.56.
+-- Expected after: two rows. height 4 at 16.75, category POST, source_doc
+-- "Placeholder — verify with your supplier"; height 6 at 16.56 unchanged.
 
 -- ---------------------------------------------------------------------------
--- WHY THIS IS NOT RUN
+-- WHAT THE DRY RUN FOUND
 --
--- Two things in it are inferred rather than stated.
+-- Run inside BEGIN ... ROLLBACK against the live schema before this file was
+-- handed over, which is the only reason it works. The first draft:
 --
--- The PRICE. $16.75 is what all three of its siblings cost -- the End, Line
--- and Blank posts of the identical 5x5x72 family -- so it is a good inference,
--- and it is still an inference. This row feeds customer quotes.
+--   * omitted sync_id, which is NOT NULL with no default -- it failed outright
+--     with 23502 and would have done the same on his machine;
+--   * let category default to MISC, filing a post under miscellaneous;
+--   * omitted unit, taxable and manufacturer_sync_id, so the row would not
+--     have matched its own family;
+--   * would have copied the sibling's source_doc of "Confirmed" onto an
+--     inferred price.
 --
--- The NAME. It follows the family's pattern, but the supplier's actual name for
--- the part may differ, and the name is what shows on a materials list somebody
--- takes to a counter.
+-- Re-run after fixing: inserts exactly one row, and running it a SECOND time
+-- inserts nothing, because of the not-exists guard. Both verified, then rolled
+-- back. Nothing in the catalog was changed by the test.
 --
--- Both are one line from March. Until then this sits here rather than in his
--- live catalog, and the engine goes on doing the defensible thing.
+-- STILL NOT RUN FOR REAL, for one reason only: the NAME. The supplier's own
+-- name for the part may differ from the pattern used here, and the name is
+-- what shows on a materials list somebody carries to a counter. The price is
+-- now self-declaring -- it goes in marked as a placeholder, and the office
+-- will flag it until a supplier confirms it.
 --
 -- It can also just be added in the app: Catalog, new item, role Corner post,
--- type Vinyl, height 4, price 16.75. That is the same row by a safer road, and
--- it is probably the better one -- he can type the supplier's real name as he
--- reads it off the invoice.
+-- type Vinyl, height 4, price 16.75 -- and type the supplier's real name as
+-- you read it off the invoice. That is the same row by a safer road.
