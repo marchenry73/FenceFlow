@@ -3278,7 +3278,7 @@ import {
   shiftCountsForPay, perFootShareFeet, perFootPayForJob, perFootCredits,
 } from './js/lib/pay.mjs';
 import {
-  FOLLOW_UP_KINDS, DEFAULT_SETTINGS as FOLLOW_UP_DEFAULT_SETTINGS, previewDueFollowUps,
+  FOLLOW_UP_KINDS, DEFAULT_SETTINGS as FOLLOW_UP_DEFAULT_SETTINGS, previewDueFollowUps, dueFollowUp,
 } from './js/lib/follow-ups.mjs';
 import {
   MAIL_LIMITS, MAIL_ERROR_KEYS, mailSandboxAttr, buildSrcdoc, sanitizeMailHtml, textToHtml, htmlToPlain,
@@ -4543,6 +4543,7 @@ jobViewAll:'All', jobViewToday:'Today', jobViewWeek:'This week', jobViewUnschedu
     fuPreviewEmptyMsg:'Nothing would send right now.',
     fuLogHead:'Recent sends',
     fuLogBody:'Every follow-up email actually sent: what kind, which job, and when.',
+    fuRuleWaiting:'%s waiting now', fuRuleWaitingNone:'none waiting',
     fuStateOff:'Follow-ups are off. Nothing below will send, and the list of what is due stays empty whether anyone is waiting or not.',
     fuStateOnButNoRules:'Switched on, but no rule below is ticked -- so nothing will ever send. Tick the ones you want.',
     fuPreviewEmptyNoRules:'Nothing is due because no rule is switched on. This is not the same as nobody needing a follow-up.',
@@ -6299,6 +6300,7 @@ jobViewAll:'Todos', jobViewToday:'Hoy', jobViewWeek:'Esta semana', jobViewUnsche
     fuPreviewEmptyMsg:'No se enviaría nada ahora mismo.',
     fuLogHead:'Envíos recientes',
     fuLogBody:'Cada correo de seguimiento realmente enviado: qué tipo, qué trabajo y cuándo.',
+    fuRuleWaiting:'%s esperando ahora', fuRuleWaitingNone:'ninguno esperando',
     fuStateOff:'Los seguimientos están desactivados. Nada de lo de abajo se enviará, y la lista de pendientes queda vacía haya quien haya esperando.',
     fuStateOnButNoRules:'Activado, pero no hay ninguna regla marcada abajo, así que nunca se enviará nada. Marca las que quieras.',
     fuPreviewEmptyNoRules:'No hay nada pendiente porque no hay ninguna regla activada. Eso no es lo mismo que que nadie necesite seguimiento.',
@@ -8023,6 +8025,7 @@ jobViewAll:'Tous', jobViewToday:'Aujourdhui', jobViewWeek:'Cette semaine', jobVi
     fuPreviewHead:'Ce qui serait envoyé maintenant',
     fuPreviewBody:'Lecture seule. Calculé à partir des mêmes règles que la fonction d\'envoi, y compris les heures de silence et le plafond quotidien, pour voir l\'effet avant d\'activer quoi que ce soit. Ceci n\'envoie jamais de courriel par lui-même.',
     fuPreviewEmptyMsg:'Rien ne serait envoyé pour le moment.',
+    fuRuleWaiting:'%s en attente', fuRuleWaitingNone:'aucun en attente',
     fuStateOff:'Les relances sont désactivées. Rien ci-dessous ne partira, et la liste des relances dues reste vide même si quelqu'+"'"+'un attend.',
     fuStateOnButNoRules:'Activé, mais aucune règle ci-dessous n'+"'"+'est cochée, donc rien ne partira jamais. Cochez celles que vous voulez.',
     fuPreviewEmptyNoRules:'Rien n'+"'"+'est dû parce qu'+"'"+'aucune règle n'+"'"+'est activée. Ce n'+"'"+'est pas la même chose que personne à relancer.',
@@ -9751,14 +9754,38 @@ function renderFollowUps(){
   const capInput = $('fu_daily_cap');
   if (capInput) { capInput.value = s.daily_cap; capInput.disabled = !editable; }
 
+  // HOW MANY PEOPLE ARE BEHIND EACH CHECKBOX.
+  //
+  // Asked one rule at a time, with every other rule off, so each answer is
+  // that rule's own and they do not mask one another. The real sender is
+  // exclusive -- a job matching two rules gets one email -- so these counts can
+  // add up to more than the number of emails that would go out with everything
+  // switched on. Each is still the right answer to "what does THIS one do",
+  // which is the question a checkbox asks.
+  //
+  // dueFollowUp, not previewDueFollowUps: the latter applies quiet hours and
+  // the daily cap, so after 9pm it answers zero for everything, which would
+  // read as nobody waiting.
+  const nowForPreview = new Date();
+  const waitingFor = (def) => {
+    const only = { ...s, enabled: true };
+    for (const other of FOLLOW_UP_KIND_DEFS) only[other.enabledField] = other.key === def.key;
+    let n = 0;
+    for (const j of jobs || []) { if (dueFollowUp(j, only, nowForPreview)) n++; }
+    return n;
+  };
+
   rowsEl.innerHTML = FOLLOW_UP_KIND_DEFS.map(def => {
     const on = !!s[def.enabledField];
     const delay = s[def.delayField];
+    const waiting = waitingFor(def);
     return `<div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line)">
       <label style="display:flex;align-items:center;gap:8px;flex:1">
         <input type="checkbox" data-fu-enabled="${esc(def.key)}" ${on ? 'checked' : ''} ${editable ? '' : 'disabled'}>
         ${esc(tr(def.labelKey))}
       </label>
+      <span class="sub${waiting ? ' bad' : ''}" style="white-space:nowrap">${
+        esc(waiting ? tr('fuRuleWaiting', waiting) : tr('fuRuleWaitingNone'))}</span>
       <label style="display:flex;align-items:center;gap:6px;color:var(--muted);font-size:13px">
         ${esc(tr(def.delayLabelKey))}
         <input type="number" min="0" step="1" style="width:70px" data-fu-delay="${esc(def.key)}" value="${esc(delay)}" ${editable ? '' : 'disabled'}>
