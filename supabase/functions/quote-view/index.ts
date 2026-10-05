@@ -641,12 +641,48 @@ async function emailTheContract(
       const digest = new Uint8Array(await crypto.subtle.digest(
         "SHA-256", new TextEncoder().encode(`unreached:${job.sync_id}:${approvedAt}`)));
       const key = Array.from(digest, (b) => b.toString(16).padStart(2, "0")).join("");
-      await admin.from("quote_approval_emails").insert({
+      // THE ERROR IS A RETURN VALUE, NOT AN EXCEPTION. PostgREST hands back
+      // { error } and throws nothing, so this catch has never once fired on a
+      // refused insert -- which is why five approvals produced no row AND no
+      // log line. A failure that cannot report itself is indistinguishable
+      // from a feature nobody used.
+      const { error } = await admin.from("quote_approval_emails").insert({
         company_id: job.company_id, job_sync_id: job.sync_id, contract_key: key, state: "failed",
         reason_code: code, reason, settled_at: new Date().toISOString(),
       });
+      if (error) {
+        console.error(
+          "quote-view: could not record that the contract email was not sent --",
+          error.code ?? "", error.message ?? String(error),
+        );
+      }
     } catch (e) {
       console.error("quote-view: could not record that the contract email was not sent", String((e as Error)?.message ?? e));
+    }
+  };
+
+  /* An approval that reached the sender but whose answer we never saw.
+     Without this, the slow path leaves NOTHING behind: quote-view gives up
+     waiting, returns "pending", and if the detached call is then cut off with
+     the function instance there is no row, no log and no way to tell the
+     attempt from an approval that never tried. One row saying "we asked and
+     did not hear back" is the difference between a mystery and a lead. */
+  const recordPending = async () => {
+    try {
+      const digest = new Uint8Array(await crypto.subtle.digest(
+        "SHA-256", new TextEncoder().encode(`pending:${job.sync_id}:${approvedAt}`)));
+      const key = Array.from(digest, (b) => b.toString(16).padStart(2, "0")).join("");
+      const { error } = await admin.from("quote_approval_emails").insert({
+        company_id: job.company_id, job_sync_id: job.sync_id, contract_key: key,
+        state: "sending", reason_code: "awaiting_sender",
+        reason: "The sender was called and had not answered when the page replied. If this row is still here, it never answered.",
+      });
+      if (error && error.code !== "23505") {
+        console.error("quote-view: could not record the pending contract email --",
+          error.code ?? "", error.message ?? String(error));
+      }
+    } catch (e) {
+      console.error("quote-view: could not record the pending contract email", String((e as Error)?.message ?? e));
     }
   };
   try {
@@ -688,7 +724,13 @@ async function emailTheContract(
     const late = new Promise<"late">((resolve) => { timer = setTimeout(() => resolve("late"), CONTRACT_EMAIL_WAIT_MS); });
     const r = await Promise.race([call, late]);
     clearTimeout(timer);
-    if (r === "late") return { state: "pending" };
+    if (r === "late") {
+      // Written BEFORE returning, while this instance is certainly alive. The
+      // detached call may still succeed and overwrite this with a real verdict;
+      // if it does not, this row is the only evidence the attempt happened.
+      await recordPending();
+      return { state: "pending" };
+    }
     // From here on, the sender either answered or did not. When it answered with a verdict (sent, failed,
     // no address...) it has already recorded it and told the office. When it could not be asked, or its
     // answer is not one, nobody else will -- so this function does, on the record and by push.

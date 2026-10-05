@@ -964,7 +964,11 @@
   <a class="logo" href="#" id="brandHome" data-t-title="brandHomeTitle"
      title="Back to your dashboard"
      >Fence<span>Flow</span> <span style="font-weight:400;font-size:13px;color:#8A93A3">Office</span></a>
-  <div class="osearch-wrap" id="osearchBox">
+  <!-- Hidden until somebody is signed in. There is nothing to search and
+       nothing to create before then, and the spec's own rule is that a visible
+       control either works or is not there. Shown by the same line that reveals
+       Sign out. -->
+  <div class="osearch-wrap" id="osearchBox" style="display:none">
     <input id="osearch" type="search" autocomplete="off" role="combobox" aria-expanded="false"
            aria-controls="osearchResults" aria-autocomplete="list"
            data-t-ph="searchPh" placeholder="Search customers, jobs, addresses, email">
@@ -977,7 +981,7 @@
          menu entry that opens nothing is worse than a shorter menu. Each one
          defers to the EXISTING button rather than reimplementing it, so there
          is one way to make a job and not two that can drift. -->
-    <div class="hmenu" id="newBox">
+    <div class="hmenu" id="newBox" style="display:none">
       <button class="btn btn-sm" id="newBtn" type="button" aria-haspopup="menu"
               aria-expanded="false" aria-controls="newMenu" data-t="newBtn">+ New</button>
       <div class="hmenu-pop" id="newMenu" role="menu" hidden>
@@ -998,7 +1002,7 @@
          of them something you touch about twice a year. The button is who you
          are signed in as, which is also the thing the old bare label was
          trying to tell you. -->
-    <div class="hmenu" id="acctBox">
+    <div class="hmenu" id="acctBox" style="display:none">
       <button class="btn btn-sm btn-ghost" id="acctBtn" type="button" aria-haspopup="menu"
               aria-expanded="false" aria-controls="acctMenu">
         <span class="who" id="who"></span>
@@ -9963,7 +9967,12 @@ async function boot(){
   // was stuck: could not sign out, could not switch accounts, and refreshing
   // put them straight back. If create_company_with_owner failed for any reason
   // there was no way off that screen at all.
-  if (user) $('signOut').style.display='inline-block';
+  if (user) {
+    $('signOut').style.display='inline-block';
+    $('osearchBox').style.display = '';
+    $('acctBox').style.display = '';
+    $('newBox').style.display = '';
+  }
   $('booting').style.display='none';
   if(!user){
     $('auth').style.display='block';
@@ -10054,6 +10063,11 @@ async function boot(){
   $('auth').style.display='none'; $('app').style.display='block';
   switchTab('dash');
   $('signOut').style.display='inline-block'; $('refresh').style.display='inline-block';
+  // The header is a toolbar for somebody who is signed in. syncNewMenu runs
+  // after the gates and can hide #newBox again if this plan can create nothing.
+  $('osearchBox').style.display = '';
+  $('acctBox').style.display = '';
+  $('newBox').style.display = '';
   if (profile.role === 'OWNER') {
     $('showTestPanel').style.display = '';
     $('showTestToggle').checked = showTestPref();
@@ -10272,7 +10286,12 @@ function showBlocked(status){
   $('booting').style.display='none';
   $('auth').style.display='none';
   $('app').style.display='block';
-  if (profile) $('signOut').style.display='inline-block';
+  if (profile) {
+    $('signOut').style.display='inline-block';
+    $('osearchBox').style.display = '';
+    $('acctBox').style.display = '';
+    $('newBox').style.display = '';
+  }
   $('app').innerHTML = `
     <div class="panel" style="max-width:34rem;margin:3rem auto">
       <h2 style="margin-top:0">${
