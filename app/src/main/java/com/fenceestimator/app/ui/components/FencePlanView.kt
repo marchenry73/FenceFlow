@@ -21,7 +21,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.drawscope.rotate
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.TextMeasurer
 import androidx.compose.ui.text.TextStyle
@@ -244,7 +246,45 @@ fun FencePlanCanvas(
 
                 markers.forEach { marker ->
                     val at = place(FencePoint(marker.x, marker.y))
-                    drawCircle(PlanColors.marker(marker.kind), radius = 13f, center = at)
+                    val colour = PlanColors.marker(marker.kind)
+
+                    // A HOUSE IS A BOX HERE TOO.
+                    //
+                    // A marker with a width and a depth is a box, and this view
+                    // drew every one of them as a 13px dot. SurveyDrawScreen was
+                    // the only place in the app that read widthFt/heightFt, so a
+                    // house measured at 40 by 30 and turned to the road showed
+                    // its real footprint to the person who drew it and a dot to
+                    // the CREW building from this plan -- and to the customer,
+                    // since this is the plan that goes out.
+                    //
+                    // Feet times pxPerFoot times the fit scale is the same
+                    // conversion squarePx uses above, so the box lands on the
+                    // grid squares it was drawn against rather than near them.
+                    val wFt = marker.widthFt
+                    val hFt = marker.heightFt
+                    if (wFt > 0f && hFt > 0f) {
+                        val halfW = wFt * pxPerFoot * scale / 2f
+                        val halfH = hFt * pxPerFoot * scale / 2f
+                        rotate(degrees = marker.rotationDeg, pivot = at) {
+                            drawRect(
+                                color = colour.copy(alpha = 0.16f),
+                                topLeft = Offset(at.x - halfW, at.y - halfH),
+                                size = Size(halfW * 2, halfH * 2),
+                            )
+                            drawRect(
+                                color = colour,
+                                topLeft = Offset(at.x - halfW, at.y - halfH),
+                                size = Size(halfW * 2, halfH * 2),
+                                style = Stroke(width = 2.5f),
+                            )
+                        }
+                    }
+
+                    // The dot stays whether or not there is a box around it: it
+                    // is what the legend's colour refers to, and on a plan with
+                    // a big house it is the only thing marking the exact spot.
+                    drawCircle(colour, radius = 13f, center = at)
                     drawCircle(Color.White, radius = 13f, center = at, style = Stroke(width = 3f))
                 }
             }
