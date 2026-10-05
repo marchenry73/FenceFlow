@@ -2446,7 +2446,10 @@
       <div class="panel">
         <h2 data-t="billSubHead">Your FenceFlow Subscription</h2>
         <div class="msg" id="billMsg"></div>
-        <p id="billState" style="font-size:15px;margin:6px 0 16px" data-t="billCheckingPlan">Checking your plan…</p>
+        <!-- NO data-t here. renderBilling() writes this line, and a data-t would
+             let applyStaticText() put the placeholder back on every language
+             change -- which is exactly how the owner lost sight of his plan. -->
+        <p id="billState" style="font-size:15px;margin:6px 0 16px">Checking your plan…</p>
         <div class="row2" id="planCards"></div>
         <p style="font-size:12px;color:var(--muted);margin-top:14px" data-t="billHandledNote">
           Billing is handled here on the web rather than in the Android app, so none of it
@@ -8693,7 +8696,12 @@ function setLang(code) {
   // These two are cheap and read only what is already in memory. Guarded
   // individually: failing to redraw a panel must not leave somebody unable to
   // change language.
-  for (const redraw of [renderFollowUps, renderAttention]) {
+  // renderBilling joined these on 5 Oct 2026. It repaints from the cached
+  // my_billing_status answer and returns immediately if there is none, so it
+  // keeps the "cheap and already in memory" promise above; it is synchronous
+  // for the same reason, since an async function's rejection would sail past
+  // the try/catch below.
+  for (const redraw of [renderFollowUps, renderAttention, renderBilling]) {
     try { redraw(); } catch (e) { console.error('setLang: could not redraw a panel:', e); }
   }
 }
@@ -11868,8 +11876,38 @@ const PLANS = [
     featureKeys:['planFeatEverythingInCrew','planFeatUnlimitedLogins','planFeatProfitMargin','planFeatCostBreakdowns','planFeatArAging','planFeatDigest','planFeatCloudBackup','planFeatPrioritySupport'] }
 ];
 
+// The last answer from my_billing_status, kept so the panel can be repainted
+// in another language without asking the server again. setLang's redraw list
+// is documented as cheap and in-memory, and an async function there would also
+// escape its try/catch, so a re-fetch is the wrong shape for that caller.
+let billingAnswer = null;
+
 async function loadBilling(){
-  const { data, error } = await db.rpc('my_billing_status');
+  billingAnswer = await db.rpc('my_billing_status');
+  renderBilling();
+  await loadJobPayments();
+  await loadSeats();
+  await loadDeviceKeys();
+}
+
+// REPAINTS FROM THE CACHE, split out of loadBilling on 5 Oct 2026 because the
+// owner reported he could not see which plan he was on.
+//
+// #billState carried data-t="billCheckingPlan" -- "Checking your plan…" -- so
+// applyStaticText() put that placeholder back on EVERY language change, and
+// setLang's redraw list held only the follow-up and attention panels. Meanwhile
+// loadBilling had exactly one caller, the tail of loadAll at the initial page
+// load, and switchTab never called it. So once that line had been reset it
+// could not come back: not by reopening the tab, not by navigating anywhere,
+// only by a full reload. The plan is named nowhere else on the page, so the
+// effect was an owner who simply could not find out what he was paying for.
+//
+// The data-t is gone from the markup as well. An element that a renderer
+// writes must not also claim a static key -- that is the same collision the
+// comment in setLang already warns about for the follow-up due-list.
+function renderBilling(){
+  if (!billingAnswer) return;
+  const { data, error } = billingAnswer;
   const row = Array.isArray(data) ? data[0] : data;
 
   const state = $('billState');
@@ -11957,10 +11995,6 @@ async function loadBilling(){
 
   document.querySelectorAll('#planCards button[data-plan]').forEach(b=>
     b.addEventListener('click',()=>startCheckout(PLANS[+b.dataset.plan])));
-
-  await loadJobPayments();
-  await loadSeats();
-  await loadDeviceKeys();
 }
 
 /* Who holds a login, and the one control that gives a seat back.
@@ -29224,6 +29258,13 @@ function switchTab(name){
   // when what is stored cannot be read, and that must not depend on the
   // business-settings load beside it succeeding.
   if(name==='settings') loadPaymentMethods().catch(e=>console.error('loadPaymentMethods threw:', e));
+  // Billing, for exactly the reason Settings above is reloaded on open, and
+  // reported the same way: "I am not able to see what plan I am on." It had
+  // one caller, the tail of loadAll, so the plan line showed whatever was true
+  // when the page was first opened -- and after a language change it showed
+  // the placeholder for ever, because nothing on this path put it back.
+  // Opening the tab now asks again rather than trusting a load from hours ago.
+  if(name==='billing') loadBilling().catch(e=>console.error('loadBilling threw:', e));
 }
 document.querySelectorAll('.tab').forEach(t=>
   t.addEventListener('click',()=>switchTab(t.dataset.tab)));
