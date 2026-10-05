@@ -3534,7 +3534,8 @@ jobViewAll:'All', jobViewToday:'Today', jobViewWeek:'This week', jobViewUnschedu
     briefingBody:'What changed in the last 24 hours, and what needs you today — a summary of the alerts and totals below, not a new set of checks.',
     chaseHead:'Follow-up priority',
     chaseBody:'Every open lead, sent quote and unpaid approval, ranked by what it is worth times how long it has been waiting — so a big job that has gone quiet outranks a small one from this morning. Click the bar to see the math.',
-    chaseActSendQuote:'Send the quote', chaseActContact:'Contact them', chaseActFollow:'Follow up', chaseActDeposit:'Collect deposit',
+    chaseActSendQuote:'Send the quote', chaseActContact:'Contact them', chaseActDeposit:'Collect deposit',
+    chaseActFollowOpened:'Opened it - nudge them', chaseActFollowUnopened:'Never opened - resend or ring',
     chaseStatInPlay:'Value in play (%s)', chaseStatWon:'Won this week (%s)', chaseStatLost:'Lost, all time (%s)',
     chaseEmpty:'Nothing open to chase right now.', chaseNotPriced:'not priced yet',
     chaseBarUnpriced:'Not priced yet, so there is no value to rank it by. Ranked by how long it has waited, and put first: an unanswered enquiry is the most time-sensitive thing here. Waiting %s days.',
@@ -5288,7 +5289,8 @@ jobViewAll:'Todos', jobViewToday:'Hoy', jobViewWeek:'Esta semana', jobViewUnsche
     briefingBody:'Lo que cambió en las últimas 24 horas y lo que necesita su atención hoy — un resumen de las alertas y totales de abajo, no una lista nueva de revisiones.',
     chaseHead:'Prioridad de seguimiento',
     chaseBody:'Cada lead abierto, presupuesto enviado y aprobación sin pagar, ordenados por su valor multiplicado por cuánto llevan esperando — así un trabajo grande que se quedó callado pasa por delante de uno chico de esta mañana. Toque la barra para ver el cálculo.',
-    chaseActSendQuote:'Enviar el presupuesto', chaseActContact:'Contactarlos', chaseActFollow:'Dar seguimiento', chaseActDeposit:'Cobrar el depósito',
+    chaseActSendQuote:'Enviar el presupuesto', chaseActContact:'Contactarlos', chaseActDeposit:'Cobrar el depósito',
+    chaseActFollowOpened:'Lo abrió - recuérdaselo', chaseActFollowUnopened:'No lo abrió - reenvía o llama',
     chaseStatInPlay:'Valor en juego (%s)', chaseStatWon:'Ganado esta semana (%s)', chaseStatLost:'Perdido, en total (%s)',
     chaseEmpty:'No hay nada abierto que seguir ahora mismo.', chaseNotPriced:'sin precio todavía',
     chaseBarUnpriced:'Todavía sin precio, así que no hay valor con el cual ordenarlo. Se ordena por cuánto lleva esperando y va primero: una consulta sin respuesta es lo más urgente aquí. Esperando %s días.',
@@ -7012,7 +7014,8 @@ jobViewAll:'Tous', jobViewToday:'Aujourdhui', jobViewWeek:'Cette semaine', jobVi
     briefingBody:'Ce qui a changé dans les dernières 24 heures, et ce qui demande votre attention aujourd’hui — un résumé des alertes et totaux ci-dessous, pas une nouvelle liste de vérifications.',
     chaseHead:'Priorité de relance',
     chaseBody:'Chaque piste ouverte, devis envoyé et approbation non payée, classés selon leur valeur multipliée par le temps d’attente — un gros chantier devenu silencieux passe ainsi devant un petit datant de ce matin. Cliquez sur la barre pour voir le calcul.',
-    chaseActSendQuote:'Envoyer le devis', chaseActContact:'Les contacter', chaseActFollow:'Relancer', chaseActDeposit:'Encaisser l’acompte',
+    chaseActSendQuote:'Envoyer le devis', chaseActContact:'Les contacter', chaseActDeposit:'Encaisser l’acompte',
+    chaseActFollowOpened:'Devis ouvert - relancez', chaseActFollowUnopened:'Jamais ouvert - renvoyez ou appelez',
     chaseStatInPlay:'Valeur en jeu (%s)', chaseStatWon:'Gagné cette semaine (%s)', chaseStatLost:'Perdu, depuis le début (%s)',
     chaseEmpty:'Rien à relancer pour le moment.', chaseNotPriced:'pas encore chiffré',
     chaseBarUnpriced:'Pas encore chiffré, donc aucune valeur pour le classer. Classé selon son temps d’attente et placé en tête : une demande sans réponse est ce qu’il y a de plus urgent ici. En attente depuis %s jours.',
@@ -13261,7 +13264,15 @@ async function renderChase(){
       // Same field the stale_quote alert reads; falls back to created_at
       // only for a legacy row that somehow reached SENT with no timestamp.
       waitFrom = j.quote_sent_at || j.created_at;
-      action = { kind:'follow', label:tr('chaseActFollow') };
+      // quote_viewed_at separates two situations this list used to show
+      // identically: a quote that was read and went quiet (nudge them) and one
+      // that was never opened at all (they never saw it -- resend, or ring).
+      // Same field the quote_viewed_not_approved follow-up rule reads, so the
+      // screen and the emails cannot disagree about who has looked.
+      //
+      // The score is untouched. Only the label knows the difference.
+      action = { kind:'follow',
+                 label: tr(j.quote_viewed_at ? 'chaseActFollowOpened' : 'chaseActFollowUnopened') };
     } else { // Approved, no deposit -- same fields the no_deposit alert reads
       waitFrom = j.quote_approved_at || j.created_at;
       action = { kind:'deposit', label:tr('chaseActDeposit') };
