@@ -112,6 +112,16 @@ jobs:
       - name: Gate - the follow-up panel says which kind of nothing it is
         run: node tests/a89-followup-state-is-honest.test.mjs
 
+      # The office cannot be driven headlessly without a login, so every change
+      # to these panels has gone live unexercised. This LIFTS renderAttention
+      # out of the page and RUNS it against a fake DOM in all three of the
+      # states it has to tell apart -- a throw here is a throw in his browser.
+      - name: Gate - the alert panel actually renders
+        run: node tests/a90-attention-panel-renders.test.mjs
+
+      - name: Gate - and that render test catches a runtime break
+        run: node tests/a90-mutate.mjs
+
       - uses: actions/configure-pages@v5
 
       - uses: actions/upload-pages-artifact@v3
