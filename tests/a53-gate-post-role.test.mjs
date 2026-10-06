@@ -230,8 +230,31 @@ test("THE ROLES reach the QUOTE, not just the takeoff: a priced line off his own
   assert.equal(itemOf(quote("WALL"), "GATE_POST"), undefined,
     "WALL: a GATE_POST line is back on a wall gate -- change (D) says its two posts are a blank post and an end post");
   // CONTROL: this is new. Under 2026.10.3 no fence type, no mounting, no catalog produced one.
-  assert.ok(PRICING_ENGINE_VERSION > "2026.10.3",
-    "the engine version did not move: this change bills a different catalog row and is a formula change");
+  // COMPONENT-WISE, not a string compare.
+  //
+  // This read `PRICING_ENGINE_VERSION > "2026.10.3"`, which is a STRING
+  // comparison: "2026.10.11" > "2026.10.3" is FALSE, because at the ninth
+  // character '1' sorts below '3'. The engine had not gone backwards; the
+  // assertion simply stopped being able to pass the moment the patch number
+  // reached double digits, and it would have fired on 2026.10.10 just the same.
+  //
+  // a26, a29, a40-engine and a40-carriers each hit this and each grew their own
+  // comparator with the same warning in the comment. This is the fifth.
+  const newer = (a, b) => {
+    const pa = String(a).split(".").map(Number);
+    const pb = String(b).split(".").map(Number);
+    for (let i = 0; i < Math.max(pa.length, pb.length); i++) {
+      const d = (pa[i] ?? 0) - (pb[i] ?? 0);
+      if (d !== 0) return d > 0;
+    }
+    return false;
+  };
+  assert.ok(newer(PRICING_ENGINE_VERSION, "2026.10.3"),
+    `the engine version did not move: this change bills a different catalog row and is a formula change (version is ${PRICING_ENGINE_VERSION})`);
+  // CONTROL: the comparison is the component-wise one, not the string compare
+  // that put this check beyond reach for two patch numbers.
+  assert.ok(newer("2026.10.11", "2026.10.3") && !newer("2026.10.3", "2026.10.11"),
+    "control: the version comparison is still a string compare");
 });
 
 // ===================================== 2. NOT ONE COUNT MOVED (POST_CAP, CONCRETE) ==

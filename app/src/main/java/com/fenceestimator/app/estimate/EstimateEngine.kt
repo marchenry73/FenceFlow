@@ -352,7 +352,7 @@ object EstimateEngine {
      * Anchored (signed/sent) totals do not move regardless, as above.
      *
      */
-    const val PRICING_ENGINE_VERSION = "2026.10.11"
+    const val PRICING_ENGINE_VERSION = "2026.10.12"
 
     /**
      * Money, to the cent: the ONE place a total is rounded.
@@ -803,8 +803,27 @@ object EstimateEngine {
             val n: Int = if (gate.mounting == GateMounting.LINE_TO_WALL && hasFenceLine) 3 else 2
             n
         }
-        val cornerPosts = geometry.cornerCount
-        val endPosts = geometry.endCount
+        val cornerPosts = if (hasFenceLine) geometry.cornerCount else 0
+        // NO FENCE LINE, NO END OF ONE.
+        //
+        // endCount counts VERTICES classified END, which depends only on how
+        // many points the run has. hasFenceLine is length. The two disagree for
+        // a run with points and no length -- and that run is not a theory: a
+        // double-tap on the drawing drops a point BEFORE the dialog opens, so a
+        // run made that way has two coincident points, two "ends" and zero feet.
+        //
+        // Put a single gate on it and the quote read BLANK_POST 2 from the
+        // standalone gate rule PLUS END_POST 2 from here: four posts, four caps
+        // and their concrete, for a gate standing on two. Reported from the
+        // field on 5 Oct 2026 -- "I put a gate on there and it showed 2 end
+        // posts and 2 blank ones" -- and reproduced from two coincident points.
+        //
+        // The gate code three lines up already reasons this way, that no post
+        // can be the END of a line that is not there. This is the same sentence
+        // applied to the count beside it, which was the half that never got it.
+        // Corners go too: a vertex between two zero-length segments is not a
+        // corner of anything.
+        val endPosts = if (hasFenceLine) geometry.endCount else 0
 
         // A closed loop needs no closing post -- the last bay lands back on the
         // first one -- so only an open run gets the extra post on the end.

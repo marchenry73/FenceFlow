@@ -944,7 +944,19 @@ test("BLAST RADIUS on the parity fixtures: the fix would change the chosen rows 
   const dir = join(ROOT, "fixtures", "pricing");
   const files = readdirSync(dir).filter((f) => f.endsWith(".json") && f !== "manifest.json");
   const manifest = JSON.parse(readFileSync(join(dir, "manifest.json"), "utf8"));
-  assert.equal(files.length, 85);
+  // COUNTED, not pinned.
+  //
+  // This asserted files.length === 85 outright, so adding a parity case -- the
+  // thing everyone is encouraged to do when a bug is found -- turned this test
+  // red for a reason that has nothing to do with heights. What this file is
+  // actually about is the BLAST RADIUS: exactly two fixtures change, and both
+  // are ornamental iron at 6 ft. That claim is true of 85 fixtures and of 200.
+  //
+  // The manifest cross-check below is what stops the count drifting unnoticed,
+  // and it is the better guard because it compares two things that must agree
+  // rather than one thing against a number typed in by hand.
+  assert.ok(files.length >= 85,
+    `expected at least the 85 fixtures this was written against, found ${files.length}`);
   assert.equal(manifest.case_count, files.length, "control: the manifest counts the fixtures it ships");
   const changed = [], subsetBad = [];
   let runsChecked = 0, withHeightRows = 0;

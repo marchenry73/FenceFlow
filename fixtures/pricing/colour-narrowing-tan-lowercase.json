@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "engine": {
-    "version": "2026.10.11",
-    "generated_at": "2026-10-05T19:39:58.500186800Z"
+    "version": "2026.10.12",
+    "generated_at": "2026-10-06T00:39:34.609160100Z"
   },
   "case": "colour-narrowing-tan-lowercase",
   "note": "Colour 'tan' matches the Tan rows case-insensitively; roles with no Tan row fall back to every row.",
   "input": {
-    "engine_version": "2026.10.11",
+    "engine_version": "2026.10.12",
     "pixels_per_foot": 20.0,
     "job": {
       "calibration_pixels_per_foot": 20.0,
@@ -380,7 +380,7 @@
     "existing_items": []
   },
   "expected": {
-    "engine_version": "2026.10.11",
+    "engine_version": "2026.10.12",
     "linear_feet": 100.0,
     "teardown_linear_feet": 0.0,
     "billable_linear_feet": 100.0,

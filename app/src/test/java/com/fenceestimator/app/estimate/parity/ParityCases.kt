@@ -476,6 +476,31 @@ object ParityCases {
                 "stands on two, and two of them on the end-post row. Now two blank posts, the same as every other " +
                 "standalone gate."
             run(FenceType.VINYL, gates = gates(gate(500, 0, 4.0, GateMounting.LINE_TO_WALL)))
+        },
+        // THE RUN THAT HAS POINTS AND NO LENGTH.
+        //
+        // Reported from the field on 5 Oct 2026: "I put a gate on there and it
+        // showed 2 end posts and 2 blank ones." One gate, four posts.
+        //
+        // The two points are in the SAME PLACE, which is not a contrived input:
+        // a double-tap on the drawing screen drops a point before the dialog
+        // opens, so a run made that way has two coincident points, two vertices
+        // classified END, and zero feet. hasFenceLine is judged on LENGTH and
+        // endCount on POINTS, so the gate took the standalone branch (two blank
+        // posts) while computePostCounts added two end posts beside it.
+        //
+        // Every other gate-only case has NO points at all, which is why none of
+        // them caught this: they agree with each other about a run that does not
+        // exist, and said nothing about one that half does.
+        case(85, "gate-only-run-two-coincident-points") {
+            note = "A gate on a run whose two points sit on the same spot -- what a double-tap leaves behind. Zero feet, " +
+                "so no post can be the END of a line that is not there. Must price identically to case 36: two blank " +
+                "posts, two caps, the gate and its hardware. It billed four posts and four caps."
+            run(
+                FenceType.VINYL,
+                points = pts(500 to 0, 500 to 0),
+                gates = gates(gate(500, 0, 4.0, GateMounting.LINE)),
+            )
         }
     )
 

@@ -282,8 +282,34 @@ export {
  * engine can only pin what the engine already does. What caught it was
  * ConcreteBagsTest -- a hand-written assertion about what the answer OUGHT to
  * be. GateAreaTest now carries the wall case explicitly for the same reason.
+ *
+ * Bumped 2026.10.11 -> 2026.10.12 (5 Oct 2026) because A RUN CAN HAVE POINTS
+ * AND NO LENGTH, and the two halves of the engine disagreed about it.
+ *
+ * `hasFenceLine` is judged on LENGTH (totalLinearFeet > 0). `endCount` is
+ * judged on POINTS -- it counts vertices classified END. A run whose two
+ * points sit on the same spot has two ends and zero feet, so a gate on it took
+ * the standalone branch (BLANK_POST 2) while computePostCounts added END_POST
+ * 2 beside it. Four posts, four caps and their concrete for a gate that stands
+ * on two.
+ *
+ * That run is not contrived. A double-tap on the drawing screen drops a point
+ * BEFORE the dialog opens, so one made that way has exactly two coincident
+ * points. Reported from the field: "I put a gate on there and it showed 2 end
+ * posts and 2 blank ones."
+ *
+ * endPosts and cornerPosts now both follow hasFenceLine, which is the same
+ * sentence the gate code already uses -- no post can be the END of a line that
+ * is not there -- applied to the count beside it.
+ *
+ * NARROW BY CONSTRUCTION: it can only move a run whose length is zero, and a
+ * run with any length at all prices exactly as it did. New case 85,
+ * gate-only-run-two-coincident-points, pins it; every other gate-only case has
+ * NO points, which is why none of them caught this -- they agreed with each
+ * other about a run that does not exist and said nothing about one that half
+ * does.
  */
-export const PRICING_ENGINE_VERSION = "2026.10.11";
+export const PRICING_ENGINE_VERSION = "2026.10.12";
 
 // ---------------------------------------------------------------------------
 // Contract shapes (docs/PRICING_CONTRACT.md). Column names, never invented.

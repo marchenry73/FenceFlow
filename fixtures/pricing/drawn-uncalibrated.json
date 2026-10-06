@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "engine": {
-    "version": "2026.10.11",
-    "generated_at": "2026-10-05T19:39:58.500186800Z"
+    "version": "2026.10.12",
+    "generated_at": "2026-10-06T00:39:34.609160100Z"
   },
   "case": "drawn-uncalibrated",
   "note": "No calibration on the job, but this is a GRID job, not a survey photo: EstimateEngine.footageOf falls back to the grid's flat 20 px/ft for LABOUR exactly as suggestQuantities already does for materials, so both price off the same 100 ft -- 100 ft x $8/ft = $800 labour, not zero. The asymmetry this case's name once reproduced (full materials, zero labour on an uncalibrated run) is gone for a grid job; it survives only for an uncalibrated survey PHOTO, a job shape this fixture format has no field to represent -- see tests/a17-photo-uncalibrated-pricing.test.mjs and PhotoScaleTest.kt, which pin that case directly against the real Job / load.ts.",
   "input": {
-    "engine_version": "2026.10.11",
+    "engine_version": "2026.10.12",
     "pixels_per_foot": 20.0,
     "job": {
       "calibration_pixels_per_foot": null,
@@ -380,7 +380,7 @@
     "existing_items": []
   },
   "expected": {
-    "engine_version": "2026.10.11",
+    "engine_version": "2026.10.12",
     "linear_feet": 100.0,
     "teardown_linear_feet": 0.0,
     "billable_linear_feet": 100.0,

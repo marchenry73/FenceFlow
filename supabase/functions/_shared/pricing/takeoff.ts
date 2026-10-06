@@ -361,8 +361,26 @@ export function computePostCounts(
   const hasFenceLineForPosts = geometry.totalLinearFeet > 0;
   const gatePosts = gates.reduce(
     (sum, g) => sum + (g.mounting === "LINE_TO_WALL" && hasFenceLineForPosts ? 3 : 2), 0);
-  const cornerPosts = geometry.cornerCount;
-  const endPosts = geometry.endCount;
+  const cornerPosts = hasFenceLineForPosts ? geometry.cornerCount : 0;
+  // NO FENCE LINE, NO END OF ONE.
+  //
+  // endCount counts VERTICES classified END, which depends only on how many
+  // points the run has. hasFenceLineForPosts is length. Those two disagree for
+  // a run that has points and no length -- and that run is not a theory: a
+  // double-tap on the drawing drops a point BEFORE the dialog opens, so a run
+  // made that way has two coincident points, two "ends" and zero feet.
+  //
+  // Put a single gate on it and the quote read: BLANK_POST 2 from the
+  // standalone gate rule, plus END_POST 2 from here. Four posts, four caps and
+  // their concrete, for a gate that stands on two. Reported from the field on
+  // 5 Oct 2026 as "I put a gate on there and it showed 2 end posts and 2 blank
+  // ones", and reproduced exactly from a run with two coincident points.
+  //
+  // The gate code already reasons this way -- "no post can be the END of a
+  // line that is not there" -- and this is the same sentence applied to the
+  // count beside it. Corners go too, for the identical reason: a vertex
+  // between two zero-length segments is not a corner of anything.
+  const endPosts = hasFenceLineForPosts ? geometry.endCount : 0;
 
   // A closed loop needs no closing post -- the last bay lands back on the
   // first one -- so only an open run gets the extra post on the end.
