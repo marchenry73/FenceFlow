@@ -2263,7 +2263,9 @@ fun SurveyDrawScreen(
                                     canvasContentSize.first, canvasContentSize.second,
                                     canvasSize, viewZoom, viewPan
                                 ).scale,
-                                segmentFeet = loupeSegmentFeet
+                                segmentFeet = loupeSegmentFeet,
+                                runs = runs,
+                                activeRunId = activeRun.id,
                             )
                         }
                     }
@@ -4512,7 +4514,10 @@ private fun MagnifierLoupe(
     satelliteAnchor: SatelliteAnchor?,
     satelliteTiles: Map<String, Bitmap>,
     baseScale: Float,
-    segmentFeet: List<Float>
+    segmentFeet: List<Float>,
+    /** Every run on the job, so the loupe shows what he is aiming AT. */
+    runs: List<FenceRun>,
+    activeRunId: Long,
 ) {
     Column(horizontalAlignment = Alignment.CenterHorizontally) {
         Box(
@@ -4536,6 +4541,45 @@ private fun MagnifierLoupe(
                     // drawGridLabel's doc.
                     showGridLabels = false
                 )
+                // THE FENCE ITSELF.
+                //
+                // "When I use the adjust one I don't see the fence in the zoom
+                // so I can know where to drop it."
+                //
+                // The loupe drew the photo, the grid and a crosshair, and
+                // stopped -- so the one thing he was aiming AT was the one
+                // thing missing. A magnified aerial photo with a crosshair on
+                // it tells you where your finger is and nothing about where the
+                // line wants to go.
+                //
+                // Drawn UNDER the crosshair, so the point being dragged stays
+                // the thing you can see. The active run reads solid and the
+                // others faint, the same way the main canvas separates them, so
+                // the loupe does not invent a second visual language for the
+                // same drawing.
+                for (r in runs) {
+                    val pts = FenceCodec.decodePoints(r.pointsEncoded)
+                    if (pts.size < 2) continue
+                    val isActive = r.id == activeRunId
+                    val colour = if (r.isTeardown) PlanColors.teardownLine else PlanColors.fenceLine
+                    for (i in 1 until pts.size) {
+                        drawLine(
+                            color = if (isActive) colour else colour.copy(alpha = 0.35f),
+                            start = localTransform.toCanvas(pts[i - 1]),
+                            end = localTransform.toCanvas(pts[i]),
+                            strokeWidth = if (isActive) 4f else 2.5f,
+                        )
+                    }
+                    // The corners, so he can see what he is landing ON -- the
+                    // commonest reason to be in Adjust at all is putting a
+                    // corner back where the tape says it is.
+                    if (isActive) {
+                        for (pt in pts) {
+                            drawCircle(colour, radius = 5f, center = localTransform.toCanvas(pt))
+                        }
+                    }
+                }
+
                 // A crosshair at the loupe's exact centre -- always the point
                 // being dragged, by construction of localTransform above.
                 val c = Offset(size.width / 2f, size.height / 2f)
