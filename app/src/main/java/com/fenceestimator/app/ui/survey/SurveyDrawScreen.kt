@@ -3792,6 +3792,7 @@ private fun GateMountingChoice(selected: GateMounting, onSelect: (GateMounting) 
     val options = listOf(
         Triple(GateMounting.LINE, stringResource(R.string.misc_gate_mount_line), stringResource(R.string.misc_gate_mount_line_detail)),
         Triple(GateMounting.LINE_TO_WALL, stringResource(R.string.misc_gate_mount_line_to_wall), stringResource(R.string.misc_gate_mount_line_to_wall_detail)),
+        Triple(GateMounting.LATCHES_TO_WALL, stringResource(R.string.misc_gate_mount_latches_to_wall), stringResource(R.string.misc_gate_mount_latches_to_wall_detail)),
         Triple(GateMounting.WALL, stringResource(R.string.misc_gate_mount_wall), stringResource(R.string.misc_gate_mount_wall_detail))
     )
     Column {

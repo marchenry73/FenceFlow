@@ -1417,6 +1417,8 @@
     <string name="misc_gate_mount_line_detail">Poteau d\'extrémité, scellé au béton (2 sacs)</string>
     <string name="misc_gate_mount_line_to_wall">Dans la ligne, la clôture continue jusqu\'à un mur</string>
     <string name="misc_gate_mount_line_to_wall_detail">Deux poteaux d\'extrémité, béton</string>
+    <string name="misc_gate_mount_latches_to_wall">Charnières sur la clôture, se verrouille contre un mur</string>
+    <string name="misc_gate_mount_latches_to_wall_detail">Un poteau de portail dans le béton, loquet boulonné au mur</string>
     <string name="misc_gate_mount_wall">Sur le mur</string>
     <string name="misc_gate_mount_wall_detail">Poteau plein + poteau d\'extrémité, 4 bouchons, sans béton</string>
     <string name="misc_nudge_per_tap">1 pi par appui</string>

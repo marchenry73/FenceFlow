@@ -492,6 +492,34 @@ object ParityCases {
         // Every other gate-only case has NO points at all, which is why none of
         // them caught this: they agree with each other about a run that does not
         // exist, and said nothing about one that half does.
+        // HINGED ON THE FENCE, LATCHING ONTO A WALL. The owner asked for this
+        // as its own option on 5 Oct 2026 and settled what it buys.
+        //
+        // The ONLY mounting that buys one post. computePostCounts has to agree
+        // with gateAreaEntries about that or the caps and the line concrete
+        // come out wrong -- which is exactly how a standalone LINE_TO_WALL gate
+        // came to bill three caps while standing on two, with the roles already
+        // fixed and the count left behind.
+        case(86, "gate-latches-to-wall") {
+            note = "Fence runs up to the gate post and stops; the gate closes the gap to a wall. ONE post, " +
+                "billed off GATE_POST because it carries the gate, one lot of hinge concrete because only it " +
+                "is in the ground, and the same 4 wall-mount hole plugs a wall-hung gate uses for the latch " +
+                "side. No end post: the post is already billed once."
+            run(
+                FenceType.VINYL, feet = 100.0, colour = "White",
+                gates = gates(gate(500, 0, 4.0, GateMounting.LATCHES_TO_WALL)),
+            )
+        },
+        // A wall is still there when no fence is, so this is NOT a standalone
+        // gate -- the same reason WALL is excluded from that rule. It must keep
+        // its one post, its plugs and its single bag rather than collapsing to
+        // two blank posts.
+        case(87, "gate-latches-to-wall-no-fence") {
+            note = "The same mounting with no fence drawn. Attached to a wall, so the standalone rule does " +
+                "NOT apply: still one gate post, 4 hole plugs and hinge concrete only -- not the two blank " +
+                "posts a gate standing on its own gets."
+            run(FenceType.VINYL, gates = gates(gate(500, 0, 4.0, GateMounting.LATCHES_TO_WALL)))
+        },
         case(85, "gate-only-run-two-coincident-points") {
             note = "A gate on a run whose two points sit on the same spot -- what a double-tap leaves behind. Zero feet, " +
                 "so no post can be the END of a line that is not there. Must price identically to case 36: two blank " +

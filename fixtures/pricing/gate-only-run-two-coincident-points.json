@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "engine": {
-    "version": "2026.10.12",
-    "generated_at": "2026-10-06T00:39:34.609160100Z"
+    "version": "2026.10.13",
+    "generated_at": "2026-10-06T23:02:34.738142600Z"
   },
   "case": "gate-only-run-two-coincident-points",
   "note": "A gate on a run whose two points sit on the same spot -- what a double-tap leaves behind. Zero feet, so no post can be the END of a line that is not there. Must price identically to case 36: two blank posts, two caps, the gate and its hardware. It billed four posts and four caps.",
   "input": {
-    "engine_version": "2026.10.12",
+    "engine_version": "2026.10.13",
     "pixels_per_foot": 20.0,
     "job": {
       "calibration_pixels_per_foot": 20.0,
@@ -380,7 +380,7 @@
     "existing_items": []
   },
   "expected": {
-    "engine_version": "2026.10.12",
+    "engine_version": "2026.10.13",
     "linear_feet": 0.0,
     "teardown_linear_feet": 0.0,
     "billable_linear_feet": 0.0,

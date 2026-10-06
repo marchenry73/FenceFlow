@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "engine": {
-    "version": "2026.10.12",
-    "generated_at": "2026-10-06T00:39:34.609160100Z"
+    "version": "2026.10.13",
+    "generated_at": "2026-10-06T23:02:34.738142600Z"
   },
   "case": "chain-link-drawn-closed",
   "note": "Chain link around a drawn closed square: four corners are terminal posts, no ends; bands and rail ends follow.",
   "input": {
-    "engine_version": "2026.10.12",
+    "engine_version": "2026.10.13",
     "pixels_per_foot": 20.0,
     "job": {
       "calibration_pixels_per_foot": 20.0,
@@ -380,7 +380,7 @@
     "existing_items": []
   },
   "expected": {
-    "engine_version": "2026.10.12",
+    "engine_version": "2026.10.13",
     "linear_feet": 200.0,
     "teardown_linear_feet": 0.0,
     "billable_linear_feet": 200.0,

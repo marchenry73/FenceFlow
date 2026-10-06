@@ -352,7 +352,7 @@ object EstimateEngine {
      * Anchored (signed/sent) totals do not move regardless, as above.
      *
      */
-    const val PRICING_ENGINE_VERSION = "2026.10.12"
+    const val PRICING_ENGINE_VERSION = "2026.10.13"
 
     /**
      * Money, to the cent: the ONE place a total is rounded.
@@ -799,8 +799,22 @@ object EstimateEngine {
         // With no fence drawn there is no second place for the line to end,
         // so the third post has nothing to be.
         val hasFenceLine = geometry.totalLinearFeet > 0f
+        // THIS COUNT MUST AGREE WITH WHAT gateAreaEntries BUILDS, post for post.
+        // POST_CAP is priced off totalPosts and the line's concrete off
+        // totalPosts - gatePosts, so a disagreement here bills caps and bags for
+        // posts that are not in the ground. That is not hypothetical: a
+        // standalone LINE_TO_WALL gate billed three caps while standing on two,
+        // because the roles were fixed here and the count was not.
         val gatePosts = gates.sumOf { gate ->
-            val n: Int = if (gate.mounting == GateMounting.LINE_TO_WALL && hasFenceLine) 3 else 2
+            val n: Int = when (gate.mounting) {
+                // One post, and the gate itself reaches the wall. The only
+                // mounting that does not buy a pair.
+                GateMounting.LATCHES_TO_WALL -> 1
+                // The gate's two, plus the post where the run terminates at the
+                // wall -- but only while there IS a run to terminate.
+                GateMounting.LINE_TO_WALL -> if (hasFenceLine) 3 else 2
+                else -> 2
+            }
             n
         }
         val cornerPosts = if (hasFenceLine) geometry.cornerCount else 0
@@ -1091,7 +1105,12 @@ object EstimateEngine {
         // priced off the GATE_POST row (BLANK_POST has no catalog row anywhere
         // and falls back to it). LINE_TO_WALL stops billing a post, a cap and a
         // bag for something that does not exist.
-        if (!hasFenceLine && gate.mounting != GateMounting.WALL) {
+        // WALL and LATCHES_TO_WALL are both attached to a wall, and a wall is
+        // still there when no fence is -- so neither is "a stand alone and
+        // nothing else". They keep their own branches below.
+        val attachedToAWall =
+            gate.mounting == GateMounting.WALL || gate.mounting == GateMounting.LATCHES_TO_WALL
+        if (!hasFenceLine && !attachedToAWall) {
             entries += QtyEntry(MaterialRole.BLANK_POST, 2.0)
             entries += QtyEntry(MaterialRole.CONCRETE_BAG, GATE_HINGE_BAGS + GATE_LATCH_BAGS)
             return entries
@@ -1165,6 +1184,28 @@ object EstimateEngine {
                     MaterialRole.CONCRETE_BAG,
                     GATE_HINGE_BAGS + GATE_LATCH_BAGS + GATE_LATCH_BAGS
                 )
+            }
+            GateMounting.LATCHES_TO_WALL -> {
+                // ONE POST. The fence runs up to it, it carries the gate, and
+                // the gate closes the gap to the wall:
+                //
+                //     fence ---------[gate post]  (gate)  ||wall||
+                //
+                // His answers, 5 Oct 2026: the fence STOPS at the gate; the post
+                // bills off the GATE_POST row because it is carrying the gate;
+                // one post in the ground means one lot of hinge bags; and the
+                // latch side uses the same wall-mount hole plugs a wall-hung
+                // gate does.
+                //
+                // NO END_POST, even though the fence line ends here. The post is
+                // already billed once, as the gate post, and billing it again as
+                // an end post is the surplus-post mistake this file has made
+                // twice -- once per gate on every job, each time.
+                entries += QtyEntry(MaterialRole.GATE_POST, 1.0)
+                entries += QtyEntry(MaterialRole.HOLE_PLUG, WALL_MOUNT_HOLES)
+                // The wall side is bolted and set in nothing, so only the hinge
+                // post takes concrete. Same reasoning as WALL above, mirrored.
+                entries += QtyEntry(MaterialRole.CONCRETE_BAG, GATE_HINGE_BAGS)
             }
         }
         return entries

@@ -2918,6 +2918,7 @@
         <div><label data-t="tplFieldGateMount">Gate mounting</label><select id="tpl_gate_m">
           <option value="LINE" data-t="gateMountLine">Line</option><option value="WALL" data-t="gateMountWall">Wall</option>
           <option value="LINE_TO_WALL" data-t="gateMountLineToWall">Line to wall</option>
+          <option value="LATCHES_TO_WALL" data-t="gateMountLatchesToWall">Latches to a wall</option>
         </select></div>
       </div>
       <label style="display:flex;align-items:center;gap:6px;margin-top:12px">
@@ -3178,6 +3179,7 @@
           <label>Mounting</label><select id="satGateMounting">
             <option value="LINE">Line</option><option value="WALL">Wall</option>
             <option value="LINE_TO_WALL">Line to wall</option>
+            <option value="LATCHES_TO_WALL">Latches to a wall</option>
           </select>
           <label>Swing</label><select id="satGateSwing">
             <option value="IN">In</option><option value="OUT">Out</option>
@@ -4244,7 +4246,7 @@ jobViewAll:'All', jobViewToday:'Today', jobViewWeek:'This week', jobViewUnschedu
     tplFieldBags:'Bags of concrete / post',
     tplSpacingNote:'Post spacing follows panel width on this fence type.',
     tplFieldGateWidth:'Gate width (ft)', tplFieldGateMount:'Gate mounting',
-    gateMountLine:'Line', gateMountWall:'Wall', gateMountLineToWall:'Line to wall',
+    gateMountLine:'Line', gateMountWall:'Wall', gateMountLineToWall:'Line to wall', gateMountLatchesToWall:'Latches to a wall',
     tplDefaultLabelPrefix:'Make this my default for %s',
     tplNameRequiredMsg:'Give this template a name.',
     tplDefaultTemplateName:'this template',
@@ -6007,7 +6009,7 @@ jobViewAll:'Todos', jobViewToday:'Hoy', jobViewWeek:'Esta semana', jobViewUnsche
     tplFieldBags:'Bolsas de concreto por poste',
     tplSpacingNote:'El espaciado de postes sigue el ancho del panel en este tipo de cerca.',
     tplFieldGateWidth:'Ancho de la puerta (pies)', tplFieldGateMount:'Montaje de la puerta',
-    gateMountLine:'En línea', gateMountWall:'En pared', gateMountLineToWall:'De línea a pared',
+    gateMountLine:'En línea', gateMountWall:'En pared', gateMountLineToWall:'De línea a pared', gateMountLatchesToWall:'Cierra contra la pared',
     tplDefaultLabelPrefix:'Hacer que esta sea mi predeterminada para %s',
     tplNameRequiredMsg:'Póngale un nombre a esta plantilla.',
     tplDefaultTemplateName:'esta plantilla',
@@ -7740,7 +7742,7 @@ jobViewAll:'Tous', jobViewToday:'Aujourdhui', jobViewWeek:'Cette semaine', jobVi
     tplFieldBags:'Sacs de béton par poteau',
     tplSpacingNote:'L’espacement des poteaux suit la largeur du panneau pour ce type de clôture.',
     tplFieldGateWidth:'Largeur du portail (pi)', tplFieldGateMount:'Fixation du portail',
-    gateMountLine:'Sur ligne', gateMountWall:'Sur mur', gateMountLineToWall:'De ligne à mur',
+    gateMountLine:'Sur ligne', gateMountWall:'Sur mur', gateMountLineToWall:'De ligne à mur', gateMountLatchesToWall:'Se verrouille au mur',
     tplDefaultLabelPrefix:'En faire mon modèle par défaut pour %s',
     tplNameRequiredMsg:'Donnez un nom à ce modèle.',
     tplDefaultTemplateName:'ce modèle',
@@ -21680,7 +21682,7 @@ function decodeRunGates(raw){
     if(parts.length<3) return null;
     const x=parseFloat(parts[0]), y=parseFloat(parts[1]), widthFt=parseFloat(parts[2]);
     if(Number.isNaN(x)||Number.isNaN(y)||Number.isNaN(widthFt)) return null;
-    const mounting = ['LINE','WALL','LINE_TO_WALL'].includes(parts[3]) ? parts[3] : 'LINE';
+    const mounting = ['LINE','WALL','LINE_TO_WALL','LATCHES_TO_WALL'].includes(parts[3]) ? parts[3] : 'LINE';
     const swing = ['IN','OUT','BOTH'].includes(parts[4]) ? parts[4] : 'IN';
     return {x,y,widthFt,mounting,swing};
   }).filter(Boolean);
@@ -22915,6 +22917,7 @@ function wizStepBuildHtml(){
           <option value="LINE" ${s.gate_mounting==='LINE'?'selected':''}>Line</option>
           <option value="WALL" ${s.gate_mounting==='WALL'?'selected':''}>Wall</option>
           <option value="LINE_TO_WALL" ${s.gate_mounting==='LINE_TO_WALL'?'selected':''}>Line to wall</option>
+          <option value="LATCHES_TO_WALL" ${s.gate_mounting==='LATCHES_TO_WALL'?'selected':''}>Latches to a wall</option>
         </select></div>
       </div>
     </div>

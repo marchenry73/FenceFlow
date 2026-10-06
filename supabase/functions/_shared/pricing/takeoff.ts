@@ -359,8 +359,12 @@ export function computePostCounts(
   // nothing to be -- and leaving it made a standalone LINE_TO_WALL gate bill
   // THREE post caps standing on TWO posts.
   const hasFenceLineForPosts = geometry.totalLinearFeet > 0;
-  const gatePosts = gates.reduce(
-    (sum, g) => sum + (g.mounting === "LINE_TO_WALL" && hasFenceLineForPosts ? 3 : 2), 0);
+  // MUST AGREE WITH gateAreaEntries, post for post: POST_CAP is priced off
+  // totalPosts and the line concrete off totalPosts - gatePosts, so a
+  // disagreement bills caps and bags for posts that are not in the ground.
+  const gatePostsFor = (m: string): number =>
+    m === "LATCHES_TO_WALL" ? 1 : (m === "LINE_TO_WALL" && hasFenceLineForPosts ? 3 : 2);
+  const gatePosts = gates.reduce((sum, g) => sum + gatePostsFor(g.mounting), 0);
   const cornerPosts = hasFenceLineForPosts ? geometry.cornerCount : 0;
   // NO FENCE LINE, NO END OF ONE.
   //
@@ -619,7 +623,10 @@ function gateAreaEntries(fenceType: FenceType, gate: GateMarker, hasFenceLine: b
   // between them, and both take their bag. Before this, LINE billed
   // GATE + BLANK and LINE_TO_WALL billed GATE + END + END -- three posts for a
   // gate that stands on two.
-  if (!hasFenceLine && gate.mounting !== "WALL") {
+  // WALL and LATCHES_TO_WALL are both attached to a wall, and a wall is still
+  // there when no fence is -- so neither is "a stand alone and nothing else".
+  const attachedToAWall = gate.mounting === "WALL" || gate.mounting === "LATCHES_TO_WALL";
+  if (!hasFenceLine && !attachedToAWall) {
     entries.push(qty("BLANK_POST", 2.0));
     entries.push(qty("CONCRETE_BAG", GATE_HINGE_BAGS + GATE_LATCH_BAGS));
     return entries;
@@ -684,6 +691,26 @@ function gateAreaEntries(fenceType: FenceType, gate: GateMarker, hasFenceLine: b
       entries.push(qty("GATE_POST", 1.0));
       entries.push(qty("END_POST", 2.0));
       entries.push(qty("CONCRETE_BAG", GATE_HINGE_BAGS + GATE_LATCH_BAGS + GATE_LATCH_BAGS));
+      break;
+    case "LATCHES_TO_WALL":
+      // ONE POST. The fence runs up to it, it carries the gate, and the gate
+      // closes the gap to the wall:
+      //
+      //     fence ---------[gate post]  (gate)  ||wall||
+      //
+      // The owner's answers, 5 Oct 2026: the fence STOPS at the gate; the post
+      // bills off the GATE_POST row because it carries the gate; one post in
+      // the ground means one lot of hinge bags; the latch side uses the same
+      // wall-mount hole plugs a wall-hung gate does.
+      //
+      // NO END_POST, even though the fence line ends here -- the post is
+      // already billed once as the gate post, and billing it again is the
+      // surplus-post mistake this file has made twice.
+      entries.push(qty("GATE_POST", 1.0));
+      entries.push(qty("HOLE_PLUG", WALL_MOUNT_HOLES));
+      // The wall side is bolted and set in nothing, so only the hinge post
+      // takes concrete. The mirror of WALL above.
+      entries.push(qty("CONCRETE_BAG", GATE_HINGE_BAGS));
       break;
   }
   return entries;

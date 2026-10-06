@@ -4,8 +4,8 @@
     "version": "2026.10.13",
     "generated_at": "2026-10-06T23:02:34.738142600Z"
   },
-  "case": "points-malformed-pairs",
-  "note": "Malformed pairs are dropped, not fatal: only 0:0 and 4000:0 survive, a 200 ft straight run.",
+  "case": "gate-latches-to-wall",
+  "note": "Fence runs up to the gate post and stops; the gate closes the gap to a wall. ONE post, billed off GATE_POST because it carries the gate, one lot of hinge concrete because only it is in the ground, and the same 4 wall-mount hole plugs a wall-hung gate uses for the latch side. No end post: the post is already billed once.",
   "input": {
     "engine_version": "2026.10.13",
     "pixels_per_foot": 20.0,
@@ -29,14 +29,14 @@
     },
     "runs": [
       {
-        "sync_id": "00000009-0000-4000-8000-000000000001",
+        "sync_id": "00000056-0000-4000-8000-000000000001",
         "label": "vinyl",
         "fence_type": "VINYL",
-        "color_or_finish": "",
-        "points_encoded": "0.0:0.0,abc,2000.0:0.0:5,xx:yy,,4000.0:0.0",
-        "gates_encoded": "",
+        "color_or_finish": "White",
+        "points_encoded": "",
+        "gates_encoded": "500.0:0.0:4.0:LATCHES_TO_WALL:IN",
         "closed_loop": false,
-        "manual_linear_feet": null,
+        "manual_linear_feet": 100.0,
         "manual_corner_count": 0,
         "panel_width_ft": 6.0,
         "panel_height_ft": 6.0,
@@ -381,59 +381,42 @@
   },
   "expected": {
     "engine_version": "2026.10.13",
-    "linear_feet": 200.0,
+    "linear_feet": 100.0,
     "teardown_linear_feet": 0.0,
-    "billable_linear_feet": 200.0,
+    "billable_linear_feet": 100.0,
     "runs": [
       {
-        "run_sync_id": "00000009-0000-4000-8000-000000000001",
+        "run_sync_id": "00000056-0000-4000-8000-000000000001",
         "is_teardown": false,
-        "gate_count": 0,
-        "gross_feet": 200.0,
-        "gate_feet": 0.0,
-        "net_feet": 200.0,
+        "gate_count": 1,
+        "gross_feet": 100.0,
+        "gate_feet": 4.0,
+        "net_feet": 96.0,
         "geometry": {
           "corner_count": 0,
           "end_count": 2,
           "line_vertex_count": 0,
-          "segments": [
-            {
-              "from_index": 0,
-              "to_index": 1,
-              "length_ft": 200.0
-            }
-          ],
-          "vertices": [
-            {
-              "index": 0,
-              "kind": "END",
-              "turn_degrees": 0.0
-            },
-            {
-              "index": 1,
-              "kind": "END",
-              "turn_degrees": 0.0
-            }
-          ]
+          "segments": [],
+          "vertices": []
         },
         "posts": {
-          "line": 33,
+          "line": 14,
           "corner": 0,
           "end": 2,
-          "gate": 0,
-          "terminal": 2,
-          "total": 35
+          "gate": 1,
+          "terminal": 3,
+          "total": 17
         },
         "entries": [
           {
             "role": "PANEL",
-            "quantity": 34.0,
+            "quantity": 16.0,
             "prefer_covers_ft": 6.0,
-            "covers_linear_ft": 200.0
+            "covers_linear_ft": 96.0
           },
           {
             "role": "LINE_POST",
-            "quantity": 33.0,
+            "quantity": 14.0,
             "prefer_covers_ft": null,
             "covers_linear_ft": null
           },
@@ -451,13 +434,67 @@
           },
           {
             "role": "POST_CAP",
-            "quantity": 35.0,
+            "quantity": 17.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "GATE_PANEL",
+            "quantity": 1.0,
+            "prefer_covers_ft": 4.0,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "HINGE_SET",
+            "quantity": 1.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "LATCH",
+            "quantity": 1.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "HANDLE",
+            "quantity": 1.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "BRACE",
+            "quantity": 1.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "TRIM",
+            "quantity": 4.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "STIFFENER",
+            "quantity": 1.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "GATE_POST",
+            "quantity": 1.0,
+            "prefer_covers_ft": null,
+            "covers_linear_ft": null
+          },
+          {
+            "role": "HOLE_PLUG",
+            "quantity": 4.0,
             "prefer_covers_ft": null,
             "covers_linear_ft": null
           },
           {
             "role": "CONCRETE_BAG",
-            "quantity": 35.0,
+            "quantity": 18.0,
             "prefer_covers_ft": null,
             "covers_linear_ft": null
           }
@@ -465,13 +502,19 @@
         "takeoff": [
           {
             "label": "Fence length",
-            "quantity": 200.0,
+            "quantity": 100.0,
             "unit": "ft",
             "group": "SITE"
           },
           {
+            "label": "Gates",
+            "quantity": 1.0,
+            "unit": "",
+            "group": "SITE"
+          },
+          {
             "label": "Line posts",
-            "quantity": 33.0,
+            "quantity": 14.0,
             "unit": "",
             "group": "POSTS"
           },
@@ -482,39 +525,81 @@
             "group": "POSTS"
           },
           {
+            "label": "Gate posts (end posts + stiffener)",
+            "quantity": 1.0,
+            "unit": "",
+            "group": "POSTS"
+          },
+          {
             "label": "Total posts",
-            "quantity": 35.0,
+            "quantity": 17.0,
             "unit": "",
             "group": "POSTS"
           },
           {
             "label": "Post caps",
-            "quantity": 35.0,
+            "quantity": 17.0,
             "unit": "",
             "group": "POSTS"
           },
           {
             "label": "Panels",
-            "quantity": 34.0,
+            "quantity": 16.0,
             "unit": "",
             "group": "PANELS"
           },
           {
             "label": "Concrete",
-            "quantity": 35.0,
+            "quantity": 18.0,
             "unit": "bags",
             "group": "CONCRETE"
+          },
+          {
+            "label": "Hinge sets",
+            "quantity": 1.0,
+            "unit": "",
+            "group": "GATES"
+          },
+          {
+            "label": "Latches",
+            "quantity": 1.0,
+            "unit": "",
+            "group": "GATES"
+          },
+          {
+            "label": "Gate handles",
+            "quantity": 1.0,
+            "unit": "",
+            "group": "GATES"
+          },
+          {
+            "label": "Gate braces",
+            "quantity": 1.0,
+            "unit": "",
+            "group": "GATES"
+          },
+          {
+            "label": "Econo stiffeners",
+            "quantity": 1.0,
+            "unit": "",
+            "group": "GATES"
+          },
+          {
+            "label": "Hole plugs",
+            "quantity": 4.0,
+            "unit": "",
+            "group": "GATES"
           }
         ]
       }
     ],
     "items": [
       {
-        "sync_id": "5fc23b41-7d54-3837-827f-5efd12dfb6f4",
-        "fence_run_sync_id": "00000009-0000-4000-8000-000000000001",
+        "sync_id": "5a4d5541-bb1f-3596-a00a-cd0c85a563ff",
+        "fence_run_sync_id": "00000056-0000-4000-8000-000000000001",
         "sort_order": 0,
         "description": "Panel T&G Vinyl Privacy 6'H x 6'W - White",
-        "quantity": 34.0,
+        "quantity": 16.0,
         "unit": "EA",
         "unit_price": 52.35,
         "supplier_unit_price": null,
@@ -524,11 +609,11 @@
         "category": null
       },
       {
-        "sync_id": "476c84b2-4ce9-33a0-a4c1-c93f41429150",
-        "fence_run_sync_id": "00000009-0000-4000-8000-000000000001",
+        "sync_id": "5e2cb2f4-7aa3-3315-89d3-ca6462090b3b",
+        "fence_run_sync_id": "00000056-0000-4000-8000-000000000001",
         "sort_order": 1,
         "description": "5\"x5\" Co-Ex Line Post, White",
-        "quantity": 33.0,
+        "quantity": 14.0,
         "unit": "EA",
         "unit_price": 16.56,
         "supplier_unit_price": null,
@@ -538,8 +623,8 @@
         "category": null
       },
       {
-        "sync_id": "41614169-0a68-3168-b972-211b2c43b1c6",
-        "fence_run_sync_id": "00000009-0000-4000-8000-000000000001",
+        "sync_id": "ec33605d-a3c3-3899-8ec7-1ae5b1d39bd5",
+        "fence_run_sync_id": "00000056-0000-4000-8000-000000000001",
         "sort_order": 2,
         "description": "5\"x5\" Co-Ex End Post, White",
         "quantity": 2.0,
@@ -552,11 +637,11 @@
         "category": null
       },
       {
-        "sync_id": "3706e781-72ab-3358-961d-ba8beaa98caf",
-        "fence_run_sync_id": "00000009-0000-4000-8000-000000000001",
+        "sync_id": "4df8e3f2-3059-3a3d-b9d2-18b126f4342f",
+        "fence_run_sync_id": "00000056-0000-4000-8000-000000000001",
         "sort_order": 3,
         "description": "5\" External Pyramid PVC Post Cap, White",
-        "quantity": 35.0,
+        "quantity": 17.0,
         "unit": "EA",
         "unit_price": 0.74,
         "supplier_unit_price": null,
@@ -566,11 +651,137 @@
         "category": null
       },
       {
-        "sync_id": "1b21a1dc-038f-3adb-882a-ce979ed92ce8",
-        "fence_run_sync_id": "00000009-0000-4000-8000-000000000001",
+        "sync_id": "52e4eb13-8708-31a7-bb72-5eedc992c7ba",
+        "fence_run_sync_id": "00000056-0000-4000-8000-000000000001",
         "sort_order": 4,
+        "description": "Regular PVC Gate 6'H x 5'W, White",
+        "quantity": 1.0,
+        "unit": "EA",
+        "unit_price": 145.05,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "GATE_PANEL",
+        "auto_generated": true,
+        "category": null
+      },
+      {
+        "sync_id": "49524b40-7629-38b9-bc47-09869f331276",
+        "fence_run_sync_id": "00000056-0000-4000-8000-000000000001",
+        "sort_order": 5,
+        "description": "Self-Closing Hinge Set (box, 12 pairs)",
+        "quantity": 1.0,
+        "unit": "BOX",
+        "unit_price": 32.25,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "HINGE_SET",
+        "auto_generated": true,
+        "category": null
+      },
+      {
+        "sync_id": "25d33b76-e34c-3ebb-98f8-aa319878d450",
+        "fence_run_sync_id": "00000056-0000-4000-8000-000000000001",
+        "sort_order": 6,
+        "description": "Two-Way Latch (box of 20)",
+        "quantity": 1.0,
+        "unit": "BOX",
+        "unit_price": 25.87,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "LATCH",
+        "auto_generated": true,
+        "category": null
+      },
+      {
+        "sync_id": "75c000d6-31e6-3f91-a22c-87bf6030958c",
+        "fence_run_sync_id": "00000056-0000-4000-8000-000000000001",
+        "sort_order": 7,
+        "description": "7\" SS Gate Handle (box of 50)",
+        "quantity": 1.0,
+        "unit": "BOX",
+        "unit_price": 5.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "HANDLE",
+        "auto_generated": true,
+        "category": null
+      },
+      {
+        "sync_id": "807eef1d-977d-39d3-b433-2f2d21313422",
+        "fence_run_sync_id": "00000056-0000-4000-8000-000000000001",
+        "sort_order": 8,
+        "description": "Gate Support Brace, 8'",
+        "quantity": 1.0,
+        "unit": "EA",
+        "unit_price": 6.5,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "BRACE",
+        "auto_generated": true,
+        "category": null
+      },
+      {
+        "sync_id": "f4a57360-a483-3cea-b8cd-35e1397f6bb0",
+        "fence_run_sync_id": "00000056-0000-4000-8000-000000000001",
+        "sort_order": 9,
+        "description": "7/8 x 1-1/2 x 62 1/4 Trim U-Channel, White",
+        "quantity": 4.0,
+        "unit": "EA",
+        "unit_price": 2.0,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "TRIM",
+        "auto_generated": true,
+        "category": null
+      },
+      {
+        "sync_id": "5cf8e8a2-879c-3b62-9e5d-4126a056a2f5",
+        "fence_run_sync_id": "00000056-0000-4000-8000-000000000001",
+        "sort_order": 10,
+        "description": "5\" Econo Stiffener x 8'(H)",
+        "quantity": 1.0,
+        "unit": "EA",
+        "unit_price": 52.75,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "STIFFENER",
+        "auto_generated": true,
+        "category": null
+      },
+      {
+        "sync_id": "765fa27d-fe03-3baf-a9ec-1a31762ca2a6",
+        "fence_run_sync_id": "00000056-0000-4000-8000-000000000001",
+        "sort_order": 11,
+        "description": "5\"x5\" Co-Ex Gate Post, White",
+        "quantity": 1.0,
+        "unit": "EA",
+        "unit_price": 16.56,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "GATE_POST",
+        "auto_generated": true,
+        "category": null
+      },
+      {
+        "sync_id": "4e2e6204-1a4d-3943-a5b2-52f9f2abc98c",
+        "fence_run_sync_id": "00000056-0000-4000-8000-000000000001",
+        "sort_order": 12,
+        "description": "5/8\" Hole Plug, White",
+        "quantity": 4.0,
+        "unit": "EA",
+        "unit_price": 0.15,
+        "supplier_unit_price": null,
+        "taxable": true,
+        "role": "HOLE_PLUG",
+        "auto_generated": true,
+        "category": null
+      },
+      {
+        "sync_id": "ec34b87f-4c3d-3b1f-b933-bd81b1e264d3",
+        "fence_run_sync_id": "00000056-0000-4000-8000-000000000001",
+        "sort_order": 13,
         "description": "Concrete Mix 60lb Bag",
-        "quantity": 35.0,
+        "quantity": 18.0,
         "unit": "EA",
         "unit_price": 4.75,
         "supplier_unit_price": null,
@@ -584,28 +795,37 @@
     "zero_priced": [],
     "zero_priced_names": [],
     "totals_items": [
-      "5fc23b41-7d54-3837-827f-5efd12dfb6f4",
-      "476c84b2-4ce9-33a0-a4c1-c93f41429150",
-      "41614169-0a68-3168-b972-211b2c43b1c6",
-      "3706e781-72ab-3358-961d-ba8beaa98caf",
-      "1b21a1dc-038f-3adb-882a-ce979ed92ce8"
+      "5a4d5541-bb1f-3596-a00a-cd0c85a563ff",
+      "5e2cb2f4-7aa3-3315-89d3-ca6462090b3b",
+      "ec33605d-a3c3-3899-8ec7-1ae5b1d39bd5",
+      "4df8e3f2-3059-3a3d-b9d2-18b126f4342f",
+      "52e4eb13-8708-31a7-bb72-5eedc992c7ba",
+      "49524b40-7629-38b9-bc47-09869f331276",
+      "25d33b76-e34c-3ebb-98f8-aa319878d450",
+      "75c000d6-31e6-3f91-a22c-87bf6030958c",
+      "807eef1d-977d-39d3-b433-2f2d21313422",
+      "f4a57360-a483-3cea-b8cd-35e1397f6bb0",
+      "5cf8e8a2-879c-3b62-9e5d-4126a056a2f5",
+      "765fa27d-fe03-3baf-a9ec-1a31762ca2a6",
+      "4e2e6204-1a4d-3943-a5b2-52f9f2abc98c",
+      "ec34b87f-4c3d-3b1f-b933-bd81b1e264d3"
     ],
     "totals": {
-      "materials_subtotal": 2551.65,
-      "taxable_subtotal": 2551.65,
-      "tax": 178.61550000000003,
-      "labor_cost": 1600.0,
+      "materials_subtotal": 1493.2199999999996,
+      "taxable_subtotal": 1493.2199999999996,
+      "tax": 104.52539999999998,
+      "labor_cost": 768.0,
       "teardown_cost": 0.0,
       "trash_haul_fee": 0.0,
-      "gate_feet": 0.0,
-      "gate_charge": 0.0,
+      "gate_feet": 4.0,
+      "gate_charge": 80.0,
       "change_order_cost": 0.0,
       "change_order_feet": 0.0,
       "markup_amount": 0.0,
       "discount_amount": 0.0,
-      "pre_markup_total": 4330.2654999999995,
-      "grand_total": 4330.27,
-      "billable_linear_feet": 200.0
+      "pre_markup_total": 2445.7454,
+      "grand_total": 2445.75,
+      "billable_linear_feet": 100.0
     }
   }
 }

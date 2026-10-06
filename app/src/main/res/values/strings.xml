@@ -1467,6 +1467,8 @@
     <string name="misc_gate_mount_line_detail">End post, set in concrete (2 bags)</string>
     <string name="misc_gate_mount_line_to_wall">In the line, fence runs on to a wall</string>
     <string name="misc_gate_mount_line_to_wall_detail">Two end posts, concrete</string>
+    <string name="misc_gate_mount_latches_to_wall">Hinged on the fence, latches to a wall</string>
+    <string name="misc_gate_mount_latches_to_wall_detail">One gate post in concrete, latch bolted to the wall</string>
     <string name="misc_gate_mount_wall">Off the wall</string>
     <string name="misc_gate_mount_wall_detail">Blank post + end post, 4 hole plugs, no concrete</string>
     <string name="misc_nudge_per_tap">1 ft per tap</string>

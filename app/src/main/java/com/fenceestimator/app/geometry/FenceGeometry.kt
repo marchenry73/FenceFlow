@@ -35,7 +35,31 @@ enum class GateMounting {
      * In the line, with the rest of the fence carrying on to a wall -- so the
      * run terminates twice and needs a second end post.
      */
-    LINE_TO_WALL
+    LINE_TO_WALL,
+
+    /**
+     * Hinged on the fence and LATCHING ONTO A WALL. The fence runs up to the
+     * gate post and stops; the gate itself closes the gap to the wall.
+     *
+     *     fence ---------[gate post]  (gate)  ||wall||
+     *
+     * The owner asked for this as its own option on 5 Oct 2026 -- "I need a way
+     * to add that the gate is hanging on the fence line and latching on the
+     * wall post" -- and settled what it buys: ONE post, billed off the GATE_POST
+     * row because it carries the gate, set in concrete with the hinge bags, plus
+     * the same wall-mount hole plugs a wall-hung gate uses for the latch side.
+     *
+     * THE ONLY MOUNTING THAT BUYS ONE POST. Every other gate bills a pair, and
+     * computePostCounts has to agree with that or the caps and concrete come out
+     * wrong -- which is exactly how a standalone LINE_TO_WALL gate came to bill
+     * three post caps while standing on two.
+     *
+     * It is the mirror of [WALL]: that one hinges off a wall and latches to a
+     * fence post, this one hinges on a fence post and latches to the wall. Both
+     * are attached to something that is still there when no fence is drawn, so
+     * NEITHER is a standalone gate.
+     */
+    LATCHES_TO_WALL
 }
 
 /**

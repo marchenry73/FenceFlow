@@ -45,7 +45,7 @@ export type MaterialRole = (typeof MATERIAL_ROLES)[number];
  * and guessing wrong is a truck coming back from the yard. A wall-hung gate
  * needs no concrete at all, which is the single biggest difference.
  */
-export const GATE_MOUNTINGS = ["WALL", "LINE", "LINE_TO_WALL"] as const;
+export const GATE_MOUNTINGS = ["WALL", "LINE", "LINE_TO_WALL", "LATCHES_TO_WALL"] as const;
 export type GateMounting = (typeof GATE_MOUNTINGS)[number];
 
 /** Which way a gate opens. Recorded on the gate; the takeoff does not read it. */

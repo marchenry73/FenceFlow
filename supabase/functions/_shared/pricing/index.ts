@@ -309,7 +309,7 @@ export {
  * other about a run that does not exist and said nothing about one that half
  * does.
  */
-export const PRICING_ENGINE_VERSION = "2026.10.12";
+export const PRICING_ENGINE_VERSION = "2026.10.13";
 
 // ---------------------------------------------------------------------------
 // Contract shapes (docs/PRICING_CONTRACT.md). Column names, never invented.

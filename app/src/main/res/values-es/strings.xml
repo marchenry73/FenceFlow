@@ -1417,6 +1417,8 @@
     <string name="misc_gate_mount_line_detail">Poste terminal, fijado con concreto (2 bolsas)</string>
     <string name="misc_gate_mount_line_to_wall">En la línea, la cerca sigue hasta una pared</string>
     <string name="misc_gate_mount_line_to_wall_detail">Dos postes terminales, concreto</string>
+    <string name="misc_gate_mount_latches_to_wall">Con bisagras en la cerca, cierra contra una pared</string>
+    <string name="misc_gate_mount_latches_to_wall_detail">Un poste de puerta en concreto, pestillo atornillado a la pared</string>
     <string name="misc_gate_mount_wall">Desde la pared</string>
     <string name="misc_gate_mount_wall_detail">Poste ciego + poste terminal, 4 tapones, sin concreto</string>
     <string name="misc_nudge_per_tap">1 pie por toque</string>
