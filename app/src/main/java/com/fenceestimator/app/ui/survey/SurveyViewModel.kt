@@ -1473,23 +1473,37 @@ class SurveyViewModel(
      * A side of fewer than two points is not a side, so no question is asked:
      * there is nothing to continue and nothing to separate from.
      */
-    fun finishSideByDoubleTap() {
+    fun finishSideByDoubleTap(addedByFirstTap: FencePoint? = null) {
         val run = selectedRun() ?: return
         val points = FenceCodec.decodePoints(run.pointsEncoded)
-        if (points.size < 2) return
-        val last = points.last()
-        val prior = points[points.size - 2]
-        val duplicate = last.x == prior.x && last.y == prior.y
-        if (duplicate) {
+        if (points.isEmpty()) return
+
+        // TAKE BACK THE POINT THE FIRST TAP ADDED -- the one the SCREEN says it
+        // added, not one inferred from coordinates.
+        //
+        // This compared the last two points for exact float equality and removed
+        // the last only if they matched to the bit. But the gesture accepts a
+        // second tap anywhere within DOUBLE_TAP_SLOP_PX, and snapForDraw can
+        // move a point away from the finger as well. So a double-tap that was
+        // close enough to COUNT ended the side and LEFT THE STRAY POINT, which
+        // is a short segment hanging off the fence -- reported as "it creates a
+        // line before opening the new slide, it messes up the fence".
+        //
+        // Worse, that leftover is how a run ends up with points and no length,
+        // which until engine 2026.10.12 billed two end posts for a fence that
+        // was not there. One tap, four posts on the quote.
+        //
+        // The screen knows exactly which point it put in: it is the value it
+        // passed to addDrawPoint, after the snap. Comparing against THAT is
+        // exact because it is the same value travelling back, not a second
+        // measurement of the same intention.
+        if (addedByFirstTap != null) {
             editRun(run.id) { fresh ->
                 val pts = FenceCodec.decodePoints(fresh.pointsEncoded).toMutableList()
-                if (pts.size >= 2) {
-                    val a = pts[pts.size - 1]
-                    val b = pts[pts.size - 2]
-                    if (a.x == b.x && a.y == b.y) {
-                        pts.removeAt(pts.size - 1)
-                        writePoints(fresh, pts)
-                    }
+                val last = pts.lastOrNull()
+                if (last != null && last.x == addedByFirstTap.x && last.y == addedByFirstTap.y) {
+                    pts.removeAt(pts.size - 1)
+                    writePoints(fresh, pts)
                 }
             }
         }

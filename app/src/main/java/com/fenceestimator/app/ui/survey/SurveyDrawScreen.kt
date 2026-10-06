@@ -206,6 +206,16 @@ fun SurveyDrawScreen(
 
     var lastTapAtMs by remember { mutableStateOf(0L) }
     var lastTapOffset by remember { mutableStateOf<Offset?>(null) }
+    // The point the FIRST tap of a possible double-tap actually added, kept so
+    // the second tap can take back exactly that one rather than guessing from
+    // coordinates. finishSideByDoubleTap used to compare the last two points
+    // for exact float equality, but the gesture accepts a second tap anywhere
+    // within DOUBLE_TAP_SLOP_PX -- and the snap can move a point as well. So
+    // two taps close enough to COUNT as a double-tap, yet not pixel-identical,
+    // ended the side AND left the stray point behind. That is the owner's
+    // report: "double click on the grid ... creates a line before opening the
+    // new slide, it messes up the fence."
+    var lastAddedPoint by remember { mutableStateOf<com.fenceestimator.app.geometry.FencePoint?>(null) }
     val sideFinished by viewModel.sideFinished.collectAsState()
     val job by viewModel.job.collectAsState()
     // Whether the survey photo is the background right now. A display choice,
@@ -1382,7 +1392,9 @@ fun SurveyDrawScreen(
                                                 if (quick && nearLast) {
                                                     lastTapAtMs = 0L
                                                     lastTapOffset = null
-                                                    viewModel.finishSideByDoubleTap()
+                                                    val added = lastAddedPoint
+                                                    lastAddedPoint = null
+                                                    viewModel.finishSideByDoubleTap(added)
                                                     return@detectTapGestures
                                                 }
                                                 lastTapAtMs = now
@@ -1394,6 +1406,11 @@ fun SurveyDrawScreen(
                                                 )
                                                 lastSnap = snap.takeIf { it.snapped }
                                                 viewModel.addDrawPoint(snap.point)
+                                                // Remember what went in, AFTER the snap has had
+                                                // its say -- the snap is what moves a point away
+                                                // from where the finger landed, and that gap is
+                                                // what the old equality check fell into.
+                                                lastAddedPoint = snap.point
                                                 // The snap has already put this point exactly on
                                                 // another side's corner if it was aiming at one.
                                                 // Ask whether the two sides MEET -- the half
