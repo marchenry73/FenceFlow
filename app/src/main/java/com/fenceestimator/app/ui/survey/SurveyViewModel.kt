@@ -187,7 +187,17 @@ class SurveyViewModel(
                                 // CrashReporter usage elsewhere) and flagged so
                                 // the drawing screen can say so too -- cleared
                                 // the moment a later refresh actually succeeds.
-                                runCatching { TakeoffRefresher.refreshRun(repository, run, mayReprice) }
+                                // priceUnpriced: a side he has JUST DRAWN has no
+                                // lines yet, and without this it falls out of
+                                // refreshRun and never gets priced until he
+                                // presses Suggest Quantities once by hand. On
+                                // the drawing screen, drawing a side is asking
+                                // for it to be priced.
+                                runCatching {
+                                    TakeoffRefresher.refreshRun(
+                                        repository, run, mayReprice, priceUnpriced = true,
+                                    )
+                                }
                                     .onSuccess { _repriceFailed.value = false }
                                     .onFailure { e ->
                                         CrashReporter.report(appContext, "survey-reprice", e)

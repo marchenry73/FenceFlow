@@ -30,6 +30,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlinx.coroutines.withContext
 import java.io.File
 
@@ -454,10 +455,43 @@ class EstimateViewModel(
         }
     }
 
+    /**
+     * Sets the waste allowance AND re-prices, instead of only storing a number.
+     *
+     * "When I click waste allowances, it should auto update without having to
+     * click suggest quantities again."
+     *
+     * It stored the percentage and stopped. Nothing re-priced, because the only
+     * automatic re-pricing is SurveyViewModel.watchDrawingForRepricing, which
+     * observes FENCE RUNS -- and waste lives on the JOB, so that watcher never
+     * saw it. The chips moved, the materials did not, and the only way to make
+     * the two agree was to press Suggest Quantities on every run by hand.
+     *
+     * WAITING FOR THE WRITE TO COME BACK IS THE WHOLE TRICK. regenerateInternal
+     * reads `job.value` -- for the waste percentage and for the calibration
+     * scale -- and `job` is a StateFlow fed by observeJob, which has not caught
+     * up the instant updateJob() returns. Re-pricing straight away would price
+     * against the OLD percentage, so the chips would appear to lag one press
+     * behind: press 10%, see the 5% answer. That is a worse bug than the one
+     * being fixed, because it looks like it works.
+     *
+     * If the write does not come back, nothing is re-priced rather than
+     * something being priced wrongly. Suggest Quantities is still there, which
+     * is exactly where he was before.
+     */
     fun setWastePercent(percent: Double) {
         if (session.state.value.isGuestDemo) return
         val current = job.value ?: return
-        viewModelScope.launch { repository.updateJob(current.copy(wastePercent = percent)) }
+        // Pressing the chip that is already selected should not rebuild every
+        // run's lines for an answer that cannot have changed.
+        if (current.wastePercent == percent) return
+        viewModelScope.launch {
+            repository.updateJob(current.copy(wastePercent = percent))
+            val landed = withTimeoutOrNull(WASTE_SETTLE_MS) {
+                job.first { it?.wastePercent == percent }
+            } != null
+            if (landed) regenerateAll()
+        }
     }
 
     fun regenerateAll() {
@@ -676,5 +710,17 @@ class EstimateViewModel(
 
     private companion object {
         val EMPTY_TOTALS = EstimateEngine.Totals(0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+
+        /**
+         * How long to wait for a waste change to come back through observeJob
+         * before giving up on re-pricing it.
+         *
+         * Generous on purpose: this is a local Room write coming back through a
+         * Flow, which is milliseconds, and the cost of waiting too long is a
+         * short delay while the cost of giving up too early is a re-price
+         * against the old percentage. A second is far beyond the former and
+         * still short enough that nobody stares at it.
+         */
+        const val WASTE_SETTLE_MS = 1_000L
     }
 }

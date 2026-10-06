@@ -120,7 +120,17 @@ object TakeoffRefresher {
      *   yes.
      * @return true if line items were actually rewritten.
      */
-    suspend fun refreshRun(repository: Repository, run: FenceRun, mayReprice: Boolean): Boolean {
+    /**
+     * @param priceUnpriced price a run that has NO lines yet, instead of
+     *   leaving it alone. Opt-in, and only the drawing screen's watcher asks
+     *   for it -- see the guard below for what it costs elsewhere.
+     */
+    suspend fun refreshRun(
+        repository: Repository,
+        run: FenceRun,
+        mayReprice: Boolean,
+        priceUnpriced: Boolean = false,
+    ): Boolean {
         if (!mayReprice) return false
 
         val takeoffLines = repository.getLineItems(run.jobId)
@@ -140,7 +150,25 @@ object TakeoffRefresher {
         // Never invent an estimate for a run nobody has priced yet. A run
         // whose every line was edited by hand HAS been priced, and still
         // gains the lines a new gate needs.
-        if (takeoffLines.isEmpty()) return false
+        //
+        // EXCEPT WHILE HE IS DRAWING IT. "I want the suggest quantities to
+        // already be calculating as I'm drawing, and when I'm done, it can be
+        // ready." The watcher on the drawing screen already re-prices every run
+        // whose shape changed -- but a side he has just drawn has no lines yet,
+        // so it fell out HERE and he had to press Suggest Quantities once per
+        // run before the automatic pricing would follow it at all.
+        //
+        // Opt-in rather than simply deleting the guard, because the guard is
+        // right everywhere else: a job nobody has chosen to price should not
+        // quietly grow a bill of materials because something touched a row.
+        // Drawing a side IS choosing to price it, which is what makes the
+        // drawing screen the one place this flips.
+        //
+        // Everything below still applies -- an uncalibrated photo still blocks
+        // it, an empty catalog still blocks it, and a teardown run still gets
+        // no materials. This decides WHEN to start pricing, never what the
+        // price is.
+        if (takeoffLines.isEmpty() && !priceUnpriced) return false
 
         val job = repository.getJob(run.jobId) ?: return false
 
