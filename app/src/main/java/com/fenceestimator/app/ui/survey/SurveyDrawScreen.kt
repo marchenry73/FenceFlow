@@ -9,6 +9,7 @@ import androidx.compose.foundation.gestures.calculatePan
 import androidx.compose.foundation.gestures.calculateCentroid
 import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitLongPressOrCancellation
 import com.fenceestimator.app.R
 import com.fenceestimator.app.ui.components.EmptyState
 import com.fenceestimator.app.geometry.GateGeometry
@@ -310,7 +311,20 @@ fun SurveyDrawScreen(
      * dialog is up would otherwise leave a confirmation naming one run and a
      * selection pointing at another, and the Erase would take the wrong one.
      */
-    var pendingRunErase by remember(selectedRunId) { mutableStateOf(false) }
+    // WHICH run is being erased, carried explicitly, and deliberately NOT keyed
+    // on selectedRunId.
+    //
+    // This was `pendingRunErase by remember(selectedRunId)`, a plain boolean
+    // meaning "erase the selected one". That is safe while the only way in is a
+    // toolbar button acting on the selection, and it quietly breaks the moment
+    // a long-press names a DIFFERENT run: selecting the pressed side rebuilds
+    // this state and resets it to false, so the dialog never opens at all --
+    // and it would have tested fine, because long-pressing the ALREADY-selected
+    // side changes no key and works. The two lines below are keyed the same
+    // way, so selecting on long-press also throws away his zoom and pan.
+    //
+    // Carrying the id means neither has to move.
+    var pendingEraseRunId by remember { mutableStateOf<Long?>(null) }
     var viewZoom by remember(selectedRunId) { mutableStateOf(1f) }
     var viewPan by remember(selectedRunId) { mutableStateOf(Offset.Zero) }
 
@@ -783,7 +797,7 @@ fun SurveyDrawScreen(
                         ToolIconButton(
                             icon = Icons.Filled.Delete,
                             contentDescription = stringResource(R.string.draw_erase_run),
-                            onClick = { pendingRunErase = true }
+                            onClick = { pendingEraseRunId = selectedRunId }
                         )
                     }
                 }
@@ -1171,6 +1185,70 @@ fun SurveyDrawScreen(
                                             event.changes.forEach { it.consume() }
                                         }
                                     } while (event.changes.any { it.pressed })
+                                }
+                            }
+                            // LONG-PRESS A SIDE TO ERASE IT.
+                            //
+                            // He asked for this in these words: "Need to be able to
+                            // remove fences, maybe circle it in the grid or eraser or
+                            // something, whatever would be easier" -- and then chose
+                            // long-press-and-confirm over the alternatives.
+                            //
+                            // The erase itself ALREADY EXISTED: a bin in the top tool
+                            // bar, acting on the selected run, behind session.canDelete.
+                            // That bar overflows, so the control was off the end of it
+                            // and effectively unreachable. Nothing here is a new delete
+                            // path; this is a second way to reach the same dialog, and
+                            // the same viewModel.eraseRun.
+                            //
+                            // ITS OWN LAYER, not onLongPress on the shared
+                            // detectTapGestures below. Compose does not fire onTap after
+                            // a long press, so adding it there would silently swallow a
+                            // slow, careful tap that today places a corner -- and in
+                            // GATE and MARKER a held finger IS a placement.
+                            //
+                            // On a MISS it does nothing at all and consumes nothing, so
+                            // every existing tap and drag behaves exactly as before. On
+                            // a HIT it consumes through to the finger lift, so the tap
+                            // layer below does not also drop a corner under the dialog.
+                            .pointerInput(mode, runs, session.canDelete) {
+                                // Only where a held finger is not already doing
+                                // something: placing a gate, a marker, or a calibration
+                                // point. PAN is included because that is the mode he is
+                                // in when looking at the whole yard deciding what to
+                                // remove.
+                                val eraseMode = mode == SurveyMode.DRAW ||
+                                    mode == SurveyMode.ADJUST ||
+                                    mode == SurveyMode.PAN
+                                if (session.canDelete && eraseMode) {
+                                    awaitEachGesture {
+                                        val down = awaitFirstDown(requireUnconsumed = false)
+                                        val held = awaitLongPressOrCancellation(down.id) ?: return@awaitEachGesture
+                                        val transform = viewTransform(
+                                            canvasContentSize.first, canvasContentSize.second,
+                                            canvasSize, viewZoom, viewPan,
+                                        )
+                                        val at = transform.toImage(held.position)
+                                        // A vertex under the finger belongs to Adjust, and
+                                        // a gate to the gate tools. Reach is divided by the
+                                        // view scale so it stays a constant distance ON THE
+                                        // SCREEN: a fixed figure in drawing units makes every
+                                        // side pressable at once when zoomed out, and none of
+                                        // them reachable when zoomed in.
+                                        val reach = VERTEX_HIT_RADIUS_PX / transform.scale
+                                        val hit = viewModel.runNearest(at, reach)
+                                        if (hit != null) {
+                                            pendingEraseRunId = hit.id
+                                            // Swallow the rest of the gesture, including the
+                                            // lift, so the tap layer below treats it as
+                                            // cancelled rather than as a tap.
+                                            held.consume()
+                                            do {
+                                                val event = awaitPointerEvent()
+                                                event.changes.forEach { it.consume() }
+                                            } while (event.changes.any { it.pressed })
+                                        }
+                                    }
                                 }
                             }
                             .pointerInput(mode, committedPoints, bmp, activeRun.id, usingGrid, gates, siteMarkers, fitActive) {
@@ -2330,19 +2408,19 @@ fun SurveyDrawScreen(
     // session -- a sign-out, or a role change pushed down while the drawing is
     // open. The run editor's own delete repeats its gate on its dialog for the
     // same reason.
-    if (pendingRunErase && session.canDelete) {
-        val eraseTarget = runs.firstOrNull { it.id == selectedRunId }
+    if (pendingEraseRunId != null && session.canDelete) {
+        val eraseTarget = runs.firstOrNull { it.id == pendingEraseRunId }
         if (eraseTarget == null) {
-            // The selection went while the dialog was up (a sync from the
-            // office, another phone). There is nothing left to name, and
-            // erasing whatever the selection landed on instead would be a
-            // delete nobody confirmed.
-            pendingRunErase = false
+            // The run went while the dialog was up (a sync from the office,
+            // another phone). There is nothing left to name, and erasing
+            // whatever the selection landed on instead would be a delete
+            // nobody confirmed.
+            pendingEraseRunId = null
         } else {
             val eraseName = eraseTarget.label.takeIf { it.isNotBlank() }
                 ?: stringResource(R.string.misc_survey_untitled)
             AlertDialog(
-                onDismissRequest = { pendingRunErase = false },
+                onDismissRequest = { pendingEraseRunId = null },
                 title = { Text(stringResource(R.string.draw_erase_run_title)) },
                 text = { Text(stringResource(R.string.draw_erase_run_body, eraseName)) },
                 confirmButton = {
@@ -2351,11 +2429,14 @@ fun SurveyDrawScreen(
                     // keeps meaning one thing across the app.
                     Button(
                         onClick = {
-                            pendingRunErase = false
+                            val target = eraseTarget.id
+                            pendingEraseRunId = null
                             // The snap cue describes the last point placed on
                             // the run that is about to go.
                             lastSnap = null
-                            viewModel.eraseSelectedRun()
+                            // BY ID. The dialog may be naming a side he
+                            // long-pressed, which is not the selected one.
+                            viewModel.eraseRun(target)
                         },
                         colors = androidx.compose.material3.ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.error,
@@ -2364,7 +2445,7 @@ fun SurveyDrawScreen(
                     ) { Text(stringResource(R.string.draw_erase)) }
                 },
                 dismissButton = {
-                    OutlinedButton(onClick = { pendingRunErase = false }) {
+                    OutlinedButton(onClick = { pendingEraseRunId = null }) {
                         Text(stringResource(R.string.action_cancel))
                     }
                 }

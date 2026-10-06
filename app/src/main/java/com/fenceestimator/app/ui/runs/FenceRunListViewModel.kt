@@ -125,8 +125,39 @@ class FenceRunListViewModel(
         }
         viewModelScope.launch {
             val nextOrder = (runs.value.maxOfOrNull { it.sortOrder } ?: -1) + 1
+            // A COPY NEEDS ITS OWN CLOUD IDENTITY, AND NO BORROWED JOINTS.
+            //
+            // copy() does NOT re-evaluate a default, so `syncId` carried the
+            // ORIGINAL's value straight across -- two local rows, one cloud
+            // identity. Room allowed it (fence_runs has no unique index on
+            // syncId, only Index("jobId")), and from there it is a data-loss
+            // path in two directions:
+            //
+            //   - Deleting the COPY queues deleteSynced(run.syncId), and the
+            //     reaper deletes by syncId, so the ORIGINAL dies on every phone
+            //     including this one. Its line items go the same way, because
+            //     their ids are derived from the run's syncId.
+            //   - pushFenceRuns upserts on (company_id, sync_id), so the copy
+            //     -- which is created with blank points -- can overwrite the
+            //     original's cloud row with nothing.
+            //
+            // Found 5 Oct 2026 while adding long-press erase to the drawing
+            // screen, which is what made deleting a run easy enough to matter.
+            // Checked against the live data at the same time: 57 runs, 57
+            // distinct sync ids, and none labelled as a copy -- so there is no
+            // sign it has fired yet. That is not a reason to leave it, and
+            // "no duplicates in the cloud" is not evidence either way, because
+            // the upsert makes two rows impossible by construction: a collision
+            // shows up as an overwritten original, not as a duplicate.
+            //
+            // The joints go too. A copy is not standing at the original's
+            // shared post, and an inherited joint id makes the engine deduct a
+            // post for a corner the copy does not have.
             val copy = run.copy(
                 id = 0,
+                syncId = java.util.UUID.randomUUID().toString(),
+                startJoint = "",
+                endJoint = "",
                 label = if (run.label.isBlank()) "Copy" else "${run.label} (copy)",
                 sortOrder = nextOrder,
                 pointsEncoded = "",

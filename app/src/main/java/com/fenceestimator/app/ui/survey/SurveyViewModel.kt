@@ -2286,6 +2286,27 @@ class SurveyViewModel(
     fun eraseSelectedRun() {
         if (!viewerMayDelete()) return
         val runId = _selectedRunId.value ?: return
+        eraseRun(runId)
+    }
+
+    /**
+     * Erases a run BY ID, rather than whichever one happens to be selected.
+     *
+     * Long-pressing a side on the drawing erases the side under the finger, and
+     * that is very often not the selected one. eraseSelectedRun() read
+     * `_selectedRunId` at the moment Erase was tapped, so pointing it at a
+     * long-pressed run would have meant selecting that run first -- which the
+     * drawing screen cannot afford: `pendingRunErase`, `viewZoom` and `viewPan`
+     * are all `remember(selectedRunId)`, so changing the selection resets the
+     * dialog flag to false (the dialog would never open) and throws away his
+     * zoom and pan. The id travels instead.
+     *
+     * The permission is asked here as well as in eraseSelectedRun. Two entry
+     * points, two checks: a guard that lives only on the path you happened to
+     * read is a guard the other path does not have.
+     */
+    fun eraseRun(runId: Long) {
+        if (!viewerMayDelete()) return
         viewModelScope.launch {
             drawingWrites.withLock {
                 // Confirms the run still belongs to this job before removing it,
@@ -2300,9 +2321,52 @@ class SurveyViewModel(
                 // to emit. In between, the screen holds a selected id with no row
                 // behind it and draws nothing at all -- a blank canvas that reads
                 // as the whole job having been wiped.
-                _selectedRunId.value = repository.getFenceRuns(jobId).firstOrNull()?.id
+                //
+                // ONLY when the erased run was the selected one. Erasing a side
+                // he long-pressed somewhere else must not move the selection out
+                // from under the side he is working on.
+                if (_selectedRunId.value == run.id) {
+                    _selectedRunId.value = repository.getFenceRuns(jobId).firstOrNull()?.id
+                }
             }
         }
+    }
+
+    /**
+     * The run whose fence line passes nearest [p], within [reach], or null.
+     *
+     * NEAREST, not the first within reach: where two sides cross or run close
+     * together, taking the first match erases whichever happens to sit earlier
+     * in the list, which from the outside looks like the app deleting the wrong
+     * fence at random. Teardown runs are included -- an old fence marked for
+     * removal is a side he may equally want rid of.
+     */
+    fun runNearest(p: FencePoint, reach: Float): FenceRun? {
+        var best: FenceRun? = null
+        var bestDistance = reach
+        for (run in runs.value) {
+            val pts = FenceCodec.decodePoints(run.pointsEncoded)
+            for (i in 1 until pts.size) {
+                val d = distanceToSegment(p, pts[i - 1], pts[i])
+                if (d <= bestDistance) {
+                    bestDistance = d
+                    best = run
+                }
+            }
+        }
+        return best
+    }
+
+    /** Perpendicular distance from [p] to the segment [a]..[b], in drawing units. */
+    private fun distanceToSegment(p: FencePoint, a: FencePoint, b: FencePoint): Float {
+        val dx = b.x - a.x
+        val dy = b.y - a.y
+        val lengthSq = dx * dx + dy * dy
+        // A zero-length segment -- two coincident points, which a double-tap
+        // could once leave behind -- is just the distance to the point.
+        if (lengthSq <= 0f) return kotlin.math.hypot(p.x - a.x, p.y - a.y)
+        val t = (((p.x - a.x) * dx + (p.y - a.y) * dy) / lengthSq).coerceIn(0f, 1f)
+        return kotlin.math.hypot(p.x - (a.x + t * dx), p.y - (a.y + t * dy))
     }
 
     /**
