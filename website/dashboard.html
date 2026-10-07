@@ -2527,6 +2527,15 @@
       </div>
       <div class="row2">
         <div><label data-t="jobLabelEmail">Email</label><input id="j_email"></div>
+        <!-- Under the email address on purpose: it is a fact ABOUT that
+             address, and the follow-up rules are the only thing that reads
+             it. Set here, honoured by send-follow-ups (which skips any job
+             with opted_out_at) and by the waiting counts on Automation. -->
+        <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
+          <input type="checkbox" id="j_opted_out" style="width:auto;margin:0">
+          <label for="j_opted_out" data-t="jobOptedOut" style="margin:0">Do not send follow-up emails to this customer</label>
+        </div>
+        <div id="j_opted_out_when" class="muted" style="font-size:12px;margin-top:2px"></div>
         <div><label data-t="jobLabelReferral">How they found us</label><select id="j_referral_source"></select>
           <input id="j_referral_other" style="display:none;margin-top:6px" data-t="refOtherPh" placeholder="Where did they hear about you?"></div>
       </div>
@@ -4246,6 +4255,8 @@ jobViewAll:'All', jobViewToday:'Today', jobViewWeek:'This week', jobViewUnschedu
     tplFieldBags:'Bags of concrete / post',
     tplSpacingNote:'Post spacing follows panel width on this fence type.',
     tplFieldGateWidth:'Gate width (ft)', tplFieldGateMount:'Gate mounting',
+    jobOptedOut:'Do not send follow-up emails to this customer',
+    jobOptedOutSince:'Asked not to be emailed on %s',
     gateMountLine:'Line', gateMountWall:'Wall', gateMountLineToWall:'Line to wall', gateMountLatchesToWall:'Latches to a wall',
     tplDefaultLabelPrefix:'Make this my default for %s',
     tplNameRequiredMsg:'Give this template a name.',
@@ -6009,6 +6020,8 @@ jobViewAll:'Todos', jobViewToday:'Hoy', jobViewWeek:'Esta semana', jobViewUnsche
     tplFieldBags:'Bolsas de concreto por poste',
     tplSpacingNote:'El espaciado de postes sigue el ancho del panel en este tipo de cerca.',
     tplFieldGateWidth:'Ancho de la puerta (pies)', tplFieldGateMount:'Montaje de la puerta',
+    jobOptedOut:'No enviar correos de seguimiento a este cliente',
+    jobOptedOutSince:'Pidió no recibir correos el %s',
     gateMountLine:'En línea', gateMountWall:'En pared', gateMountLineToWall:'De línea a pared', gateMountLatchesToWall:'Cierra contra la pared',
     tplDefaultLabelPrefix:'Hacer que esta sea mi predeterminada para %s',
     tplNameRequiredMsg:'Póngale un nombre a esta plantilla.',
@@ -7742,6 +7755,8 @@ jobViewAll:'Tous', jobViewToday:'Aujourdhui', jobViewWeek:'Cette semaine', jobVi
     tplFieldBags:'Sacs de béton par poteau',
     tplSpacingNote:'L’espacement des poteaux suit la largeur du panneau pour ce type de clôture.',
     tplFieldGateWidth:'Largeur du portail (pi)', tplFieldGateMount:'Fixation du portail',
+    jobOptedOut:'Ne pas envoyer de courriels de relance à ce client',
+    jobOptedOutSince:'A demandé à ne plus être contacté le %s',
     gateMountLine:'Sur ligne', gateMountWall:'Sur mur', gateMountLineToWall:'De ligne à mur', gateMountLatchesToWall:'Se verrouille au mur',
     tplDefaultLabelPrefix:'En faire mon modèle par défaut pour %s',
     tplNameRequiredMsg:'Donnez un nom à ce modèle.',
@@ -22111,6 +22126,16 @@ async function showJob(id){
   // real lead source with nobody having touched the field.
   fillReferralOptions('j_referral_source', openJob.referral_source);
   J_TEXT.forEach(k=>{const el=$('j_'+k); if(el) el.value=openJob[k]||'';});
+  // A timestamp shown as a tick. The DATE is kept rather than replaced on
+  // every save -- when somebody asked to stop being emailed is worth
+  // knowing, and rewriting it each time the sheet is saved would lose it.
+  {
+    const box = $('j_opted_out'), when = $('j_opted_out_when');
+    if (box) box.checked = !!openJob.opted_out_at;
+    if (when) when.textContent = openJob.opted_out_at
+      ? tr('jobOptedOutSince', d(openJob.opted_out_at).toLocaleDateString())
+      : '';
+  }
   // Closes the free-text box, in case the job open before this one left it up.
   onReferralPick('j_');
   J_NUM.forEach(k=>{const el=$('j_'+k); if(el) el.value=openJob[k]??0;});
@@ -22306,6 +22331,15 @@ async function saveJob(){
   if(!openJob||!canEdit()) return;
   const patch={};
   J_TEXT.forEach(k=>{const el=$('j_'+k); if(el) patch[k]=el.value;});
+  // Ticked -> a timestamp, KEEPING the original if there already is one, so
+  // the date he asked is not rewritten by an unrelated save. Unticked ->
+  // null, which is what lets somebody be put back on the list.
+  {
+    const box = $('j_opted_out');
+    if (box) patch.opted_out_at = box.checked
+      ? (openJob.opted_out_at || new Date().toISOString())
+      : null;
+  }
   J_NUM.forEach(k=>{const el=$('j_'+k); if(el) patch[k]=num(el.value);});
   J_SEL.forEach(k=>{const el=$('j_'+k); if(el) patch[k]=el.value;});
   // A locked control is not sent. showJob locks the date and the lead for
