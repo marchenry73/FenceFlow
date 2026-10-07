@@ -85,6 +85,10 @@
     <string name="mode_calibrate">Calibrate</string>
     <string name="mode_gate">Gate</string>
     <string name="mode_mark_site">Mark Site</string>
+    <string name="mode_curve">Curve</string>
+    <string name="draw_curve_hint_start">Tap where the curve starts</string>
+    <string name="draw_curve_hint_through">Now tap a point the fence has to run through</string>
+    <string name="draw_curve_hint_end">Now tap where it ends</string>
     <string name="mode_adjust">Adjust</string>
     <string name="mode_move_view">Move View</string>
     <string name="survey_upload_photo">Upload Photo</string>

@@ -78,6 +78,10 @@
     <string name="mode_calibrate">Calibrar</string>
     <string name="mode_gate">Portón</string>
     <string name="mode_mark_site">Marcar sitio</string>
+    <string name="mode_curve">Curva</string>
+    <string name="draw_curve_hint_start">Toque donde empieza la curva</string>
+    <string name="draw_curve_hint_through">Ahora toque un punto por donde debe pasar la cerca</string>
+    <string name="draw_curve_hint_end">Ahora toque donde termina</string>
     <string name="mode_adjust">Ajustar</string>
     <string name="mode_move_view">Mover vista</string>
     <string name="survey_upload_photo">Subir foto</string>

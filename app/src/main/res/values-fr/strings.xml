@@ -78,6 +78,10 @@
     <string name="mode_calibrate">Calibrer</string>
     <string name="mode_gate">Portail</string>
     <string name="mode_mark_site">Marquer</string>
+    <string name="mode_curve">Courbe</string>
+    <string name="draw_curve_hint_start">Touchez le début de la courbe</string>
+    <string name="draw_curve_hint_through">Touchez maintenant un point où la clôture doit passer</string>
+    <string name="draw_curve_hint_end">Touchez maintenant la fin</string>
     <string name="mode_adjust">Ajuster</string>
     <string name="mode_move_view">Déplacer</string>
     <string name="survey_upload_photo">Ajouter une photo</string>

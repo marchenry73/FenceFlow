@@ -266,6 +266,8 @@ fun SurveyDrawScreen(
         initial = com.fenceestimator.app.data.BusinessProfile()
     )
     val pendingCalibration by viewModel.pendingCalibrationPoints.collectAsState()
+    val curveTaps by viewModel.curveTaps.collectAsState()
+    val curvePreview by viewModel.curvePreview.collectAsState()
     val context = LocalContext.current
 
     // Lodged once per visit, before any ensureSelection can run, and keyed on
@@ -640,6 +642,10 @@ fun SurveyDrawScreen(
     // next, which is the thing he must never have happen.
     LaunchedEffect(mode) {
         if (mode != SurveyMode.JOIN) viewModel.clearJoinPick()
+        // A half-placed curve does not survive leaving the mode. Two taps left
+        // sitting there would attach themselves to whatever he tapped next time
+        // he came back, which is a curve he did not draw.
+        if (mode != SurveyMode.CURVE) viewModel.clearCurveTaps()
     }
 
     Scaffold(
@@ -1516,6 +1522,19 @@ fun SurveyDrawScreen(
                                                 else gateDialogPoint = imgPoint
                                             }
                                             SurveyMode.MARKER -> markerDialogPoint = imgPoint
+                                            // CURVE: three taps -- where it starts, a
+                                            // point the fence has to run through, and
+                                            // where it ends. The third commits. Snapped
+                                            // like a drawn point, so a curve can start on
+                                            // the end of a side he has already drawn.
+                                            SurveyMode.CURVE -> {
+                                                val snap = viewModel.snapForDraw(
+                                                    imgPoint,
+                                                    snapOn,
+                                                    vertexReach = screenVertexReach(transform.scale),
+                                                )
+                                                viewModel.addCurveTap(snap.point)
+                                            }
                                             // ATTACH: tap the end of one side,
                                             // then the end of the other. The
                                             // tolerance is converted out of
@@ -1973,6 +1992,28 @@ fun SurveyDrawScreen(
                         }
                         } // showMarkersLayer
 
+                        // THE CURVE BEING PLACED. Three taps is not many, but
+                        // placing them blind is: without this he is guessing
+                        // where the bow lands until it is already committed.
+                        // Drawn dashed so it reads as not-yet-real, and only
+                        // the taps show until all three are down, because the
+                        // curve does not exist until then.
+                        if (curvePreview.size >= 2) {
+                            for (i in 1 until curvePreview.size) {
+                                drawLine(
+                                    SafetyOrange40,
+                                    transform.toCanvas(curvePreview[i - 1]),
+                                    transform.toCanvas(curvePreview[i]),
+                                    strokeWidth = 3f,
+                                )
+                            }
+                        }
+                        curveTaps.forEach { t ->
+                            val c = transform.toCanvas(t)
+                            drawCircle(SafetyOrange40, radius = 9f, center = c)
+                            drawCircle(Color.White, radius = 9f, center = c,
+                                style = androidx.compose.ui.graphics.drawscope.Stroke(width = 2f))
+                        }
                         pendingCalibration.forEach { p ->
                             drawCircle(PlanColors.calibrationPoint, radius = 10f, center = transform.toCanvas(p))
                         }

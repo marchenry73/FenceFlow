@@ -12,6 +12,7 @@ import com.fenceestimator.app.data.Job
 import com.fenceestimator.app.data.Repository
 import com.fenceestimator.app.data.SiteMarker
 import com.fenceestimator.app.data.SiteMarkerKind
+import com.fenceestimator.app.geometry.CurvedRun
 import com.fenceestimator.app.geometry.FenceCodec
 import com.fenceestimator.app.geometry.FenceGeometryEngine
 import com.fenceestimator.app.geometry.FencePoint
@@ -46,6 +47,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -59,7 +61,7 @@ import java.io.File
 import java.io.FileOutputStream
 import java.util.UUID
 
-enum class SurveyMode { DRAW, CALIBRATE, GATE, MARKER, ADJUST, JOIN, PAN }
+enum class SurveyMode { DRAW, CALIBRATE, GATE, MARKER, ADJUST, JOIN, PAN, CURVE }
 
 /**
  * An attachment (or a detachment) waiting for him to say yes, and what it does
@@ -832,6 +834,57 @@ class SurveyViewModel(
             writePoints(run, points)
         }
     }
+
+    /**
+     * The taps collected so far in CURVE mode: start, the point the fence must
+     * run through, and the end. Three is the least a curve can be described in.
+     */
+    private val _curveTaps = MutableStateFlow<List<FencePoint>>(emptyList())
+    val curveTaps: StateFlow<List<FencePoint>> = _curveTaps.asStateFlow()
+
+    /** What the curve would look like with the taps so far, for drawing a preview. */
+    val curvePreview: StateFlow<List<FencePoint>> = _curveTaps
+        .map { taps -> if (taps.size == 3) CurvedRun.through(taps[0], taps[1], taps[2]) else emptyList() }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptyList())
+
+    /**
+     * A tap in CURVE mode. The third one commits.
+     *
+     * "Need to be able to add fences that are curved even though we're going to
+     * be barely use that option."
+     *
+     * A curve needs no new kind of run and no new pricing: a fence that follows
+     * a curve is built as short straight bays, so it IS a polyline, and the
+     * engine already measures polylines, spaces posts along them and counts
+     * their vertices. CurvedRun turns three taps into those points, subdividing
+     * until no vertex turns far enough to be billed as a CORNER post.
+     *
+     * Baked, deliberately: what is stored is the points, so afterwards it is an
+     * ordinary run he can nudge in Adjust like any other. The curve is not
+     * re-editable AS a curve, which is the honest trade for a tool he said he
+     * would barely use -- and it means a curve cannot become a thing the rest
+     * of the app has to understand.
+     */
+    fun addCurveTap(point: FencePoint) {
+        if (!writablePointOrDropped(point, "addCurveTap")) return
+        val taps = _curveTaps.value + point
+        if (taps.size < 3) { _curveTaps.value = taps; return }
+        _curveTaps.value = emptyList()
+        val curve = CurvedRun.through(taps[0], taps[1], taps[2])
+        editRun(_selectedRunId.value) { run ->
+            val existing = FenceCodec.decodePoints(run.pointsEncoded)
+            // Appending to a run that already ends where the curve starts would
+            // repeat that point, which is a zero-length segment -- the shape
+            // that gave a gate four posts until engine 2026.10.12.
+            val joined = if (existing.isNotEmpty() &&
+                existing.last().x == curve.first().x && existing.last().y == curve.first().y
+            ) existing + curve.drop(1) else existing + curve
+            writePoints(run, joined)
+        }
+    }
+
+    /** Throws away a half-drawn curve -- leaving the mode, or changing his mind. */
+    fun clearCurveTaps() { _curveTaps.value = emptyList() }
 
     /**
      * Refuses a non-finite coordinate before it can be persisted, and says so
