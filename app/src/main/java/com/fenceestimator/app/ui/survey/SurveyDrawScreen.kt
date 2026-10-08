@@ -327,6 +327,10 @@ fun SurveyDrawScreen(
     //
     // Carrying the id means neither has to move.
     var pendingEraseRunId by remember { mutableStateOf<Long?>(null) }
+    // WHICH WALL. A side is a polyline, so an L is one side with two walls
+    // and the whole-side erase took both. -1 means the whole side, which is
+    // what the toolbar bin still does.
+    var pendingEraseWall by remember { mutableStateOf(-1) }
     var viewZoom by remember(selectedRunId) { mutableStateOf(1f) }
     var viewPan by remember(selectedRunId) { mutableStateOf(Offset.Zero) }
 
@@ -363,6 +367,10 @@ fun SurveyDrawScreen(
     var showDimensionsLayer by rememberSaveable { mutableStateOf(true) }
     var calibrationDialogPoints by remember { mutableStateOf<Pair<FencePoint, FencePoint>?>(null) }
     var gateDialogPoint by remember { mutableStateOf<FencePoint?>(null) }
+    // Captured WITH the tap, because the view transform is in scope there and
+    // not down at the dialog. How close to a fence the tap was allowed to be
+    // for the gate to join that fence, in drawing units.
+    var gateDialogReach by remember { mutableStateOf(0f) }
     // Which segment's dimension is open for typing, if any. Lives out here
     // beside the other dialog state so the dialog itself can sit with them.
     var editingSegment by remember { mutableStateOf<Int?>(null) }
@@ -803,7 +811,7 @@ fun SurveyDrawScreen(
                         ToolIconButton(
                             icon = Icons.Filled.Delete,
                             contentDescription = stringResource(R.string.draw_erase_run),
-                            onClick = { pendingEraseRunId = selectedRunId }
+                            onClick = { pendingEraseRunId = selectedRunId; pendingEraseWall = -1 }
                         )
                     }
                 }
@@ -1223,9 +1231,15 @@ fun SurveyDrawScreen(
                                 // point. PAN is included because that is the mode he is
                                 // in when looking at the whole yard deciding what to
                                 // remove.
-                                val eraseMode = mode == SurveyMode.DRAW ||
-                                    mode == SurveyMode.ADJUST ||
-                                    mode == SurveyMode.PAN
+                                // DRAW ONLY. This also accepted ADJUST and PAN, on the
+                                // reasoning that PAN is where you stand back and decide
+                                // what to remove. In the hand it is wrong: "When I click
+                                // adjust and I hold my hands, it still shows me to erase
+                                // the fence." Adjust is for moving a corner, and holding
+                                // still over one while lining it up is the normal way to
+                                // use it -- so the erase dialog kept interrupting the
+                                // very gesture the mode exists for.
+                                val eraseMode = mode == SurveyMode.DRAW
                                 if (session.canDelete && eraseMode) {
                                     awaitEachGesture {
                                         val down = awaitFirstDown(requireUnconsumed = false)
@@ -1242,9 +1256,10 @@ fun SurveyDrawScreen(
                                         // side pressable at once when zoomed out, and none of
                                         // them reachable when zoomed in.
                                         val reach = VERTEX_HIT_RADIUS_PX / transform.scale
-                                        val hit = viewModel.runNearest(at, reach)
+                                        val hit = viewModel.wallNearest(at, reach)
                                         if (hit != null) {
-                                            pendingEraseRunId = hit.id
+                                            pendingEraseRunId = hit.first.id
+                                            pendingEraseWall = hit.second
                                             // Swallow the rest of the gesture, including the
                                             // lift, so the tap layer below treats it as
                                             // cancelled rather than as a tap.
@@ -1519,7 +1534,10 @@ fun SurveyDrawScreen(
                                                     (c - tapOffset).getDistance() <= GATE_TAP_SLOP
                                                 }
                                                 if (hit != null) pendingGateRemoval = hit
-                                                else gateDialogPoint = imgPoint
+                                                else {
+                                                    gateDialogPoint = imgPoint
+                                                    gateDialogReach = GATE_TAP_SLOP / transform.scale
+                                                }
                                             }
                                             SurveyMode.MARKER -> markerDialogPoint = imgPoint
                                             // CURVE: three taps -- where it starts, a
@@ -2346,7 +2364,11 @@ fun SurveyDrawScreen(
     gateDialogPoint?.let { point ->
         GateWidthDialog(
             onConfirm = { widthFt, mounting, swing ->
-                viewModel.addGate(point.x, point.y, widthFt, mounting, swing, runDefaults)
+                // nearReach: a gate tapped ON a fence joins that fence; one
+                // tapped in open ground stands on its own. Measured when the
+                // tap happened, in drawing units, so it is the same distance
+                // under the finger at any zoom.
+                viewModel.addGate(point.x, point.y, widthFt, mounting, swing, runDefaults, gateDialogReach)
                 gateDialogPoint = null
             },
             onDismiss = { gateDialogPoint = null }
@@ -2459,13 +2481,44 @@ fun SurveyDrawScreen(
             // whatever the selection landed on instead would be a delete
             // nobody confirmed.
             pendingEraseRunId = null
+            pendingEraseWall = -1
         } else {
+            // What this press actually costs, worked out before he presses it.
+            // Splitting a side in two means four end posts where there were
+            // two, and a gate on the wall goes with the wall. Finding either
+            // out afterwards, from a price that moved, is no good.
+            val plan = if (pendingEraseWall >= 0)
+                viewModel.erasePreview(eraseTarget.id, pendingEraseWall) else null
             val eraseName = eraseTarget.label.takeIf { it.isNotBlank() }
                 ?: stringResource(R.string.misc_survey_untitled)
             AlertDialog(
                 onDismissRequest = { pendingEraseRunId = null },
-                title = { Text(stringResource(R.string.draw_erase_run_title)) },
-                text = { Text(stringResource(R.string.draw_erase_run_body, eraseName)) },
+                title = {
+                    Text(stringResource(
+                        if (plan != null && !plan.eraseWholeRun) R.string.draw_erase_wall_title
+                        else R.string.draw_erase_run_title
+                    ))
+                },
+                text = {
+                    if (plan != null && !plan.eraseWholeRun) {
+                        // The two surprises spelled out, and only when they
+                        // apply: a warning that is always there is a warning
+                        // nobody reads.
+                        Column {
+                            Text(stringResource(R.string.draw_erase_wall_body, eraseName))
+                            if (plan.splitsInTwo) {
+                                Text(stringResource(R.string.draw_erase_wall_splits),
+                                    modifier = Modifier.padding(top = Space.xs))
+                            }
+                            if (plan.removed.isNotEmpty()) {
+                                Text(stringResource(R.string.draw_erase_wall_gate),
+                                    modifier = Modifier.padding(top = Space.xs))
+                            }
+                        }
+                    } else {
+                        Text(stringResource(R.string.draw_erase_run_body, eraseName))
+                    }
+                },
                 confirmButton = {
                     // Red is spent only on what Undo cannot take back, the same
                     // rule the job list and the run editor follow, so the colour
@@ -2473,13 +2526,18 @@ fun SurveyDrawScreen(
                     Button(
                         onClick = {
                             val target = eraseTarget.id
+                            val wall = pendingEraseWall
                             pendingEraseRunId = null
+                            pendingEraseWall = -1
                             // The snap cue describes the last point placed on
                             // the run that is about to go.
                             lastSnap = null
                             // BY ID. The dialog may be naming a side he
                             // long-pressed, which is not the selected one.
-                            viewModel.eraseRun(target)
+                            // A wall if he long-pressed one, the whole side if
+                            // he used the bin in the tool bar.
+                            if (wall >= 0) viewModel.eraseSegment(target, wall)
+                            else viewModel.eraseRun(target)
                         },
                         colors = androidx.compose.material3.ButtonDefaults.buttonColors(
                             containerColor = MaterialTheme.colorScheme.error,

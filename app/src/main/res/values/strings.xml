@@ -329,6 +329,10 @@
     <string name="draw_keep">Keep</string>
     <!-- Erasing a single fence run from the canvas -->
     <string name="draw_erase_run">Erase the selected fence run</string>
+    <string name="draw_erase_wall_title">Erase this bit of fence?</string>
+    <string name="draw_erase_wall_body">This stretch of %1$s comes off the drawing, with the materials priced from it. The rest of the side stays.</string>
+    <string name="draw_erase_wall_splits">It will leave TWO separate sides, so the estimate gains two end posts, their caps and their concrete.</string>
+    <string name="draw_erase_wall_gate">A gate on this stretch comes off with it.</string>
     <string name="draw_erase_run_title">Erase this fence run?</string>
     <string name="draw_erase_run_body">%1$s comes off this drawing, with its fence line, its gates and the materials priced from it. Undo will not bring it back. It goes to the trash, so the office can still restore it.</string>
     <string name="draw_erase">Erase</string>

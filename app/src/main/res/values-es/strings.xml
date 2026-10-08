@@ -300,6 +300,10 @@
     <string name="draw_remove">Quitar</string>
     <string name="draw_keep">Dejar</string>
     <string name="draw_erase_run">Borrar el tramo de cerca seleccionado</string>
+    <string name="draw_erase_wall_title">¿Borrar este tramo de cerca?</string>
+    <string name="draw_erase_wall_body">Este tramo de %1$s sale del dibujo, junto con los materiales calculados a partir de él. El resto del lado se queda.</string>
+    <string name="draw_erase_wall_splits">Quedarán DOS lados separados, así que el presupuesto suma dos postes terminales, sus tapas y su concreto.</string>
+    <string name="draw_erase_wall_gate">Un portón en este tramo sale con él.</string>
     <string name="draw_erase_run_title">¿Borrar este tramo de cerca?</string>
     <string name="draw_erase_run_body">%1$s se quita de este dibujo, junto con su línea de cerca, sus puertas y los materiales calculados a partir de ella. Deshacer no lo recuperará. Va a la papelera, así que la oficina todavía puede restaurarlo.</string>
     <string name="draw_erase">Borrar</string>

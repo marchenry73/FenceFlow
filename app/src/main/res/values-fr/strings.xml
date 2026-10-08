@@ -300,6 +300,10 @@
     <string name="draw_remove">Retirer</string>
     <string name="draw_keep">Garder</string>
     <string name="draw_erase_run">Effacer le tronçon de clôture sélectionné</string>
+    <string name="draw_erase_wall_title">Effacer cette portion de clôture ?</string>
+    <string name="draw_erase_wall_body">Cette portion de %1$s disparaît du plan, avec les matériaux calculés à partir d’elle. Le reste du côté demeure.</string>
+    <string name="draw_erase_wall_splits">Il restera DEUX côtés distincts, donc le devis gagne deux poteaux d’extrémité, leurs chapeaux et leur béton.</string>
+    <string name="draw_erase_wall_gate">Un portail situé sur cette portion disparaît avec elle.</string>
     <string name="draw_erase_run_title">Effacer ce tronçon de clôture ?</string>
     <string name="draw_erase_run_body">%1$s est retiré de ce plan, avec sa ligne de clôture, ses portails et les matériaux chiffrés à partir de lui. Annuler ne le rétablira pas. Il va à la corbeille, le bureau peut donc encore le restaurer.</string>
     <string name="draw_erase">Effacer</string>

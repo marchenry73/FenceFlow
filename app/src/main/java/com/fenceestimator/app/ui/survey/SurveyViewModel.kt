@@ -17,6 +17,7 @@ import com.fenceestimator.app.geometry.FenceCodec
 import com.fenceestimator.app.geometry.FenceGeometryEngine
 import com.fenceestimator.app.geometry.FencePoint
 import com.fenceestimator.app.geometry.GateMarker
+import com.fenceestimator.app.geometry.SegmentErase
 import com.fenceestimator.app.geometry.GateMounting
 import com.fenceestimator.app.geometry.GateSwing
 import com.fenceestimator.app.geometry.JoinCandidateRun
@@ -2190,12 +2191,44 @@ class SurveyViewModel(
         widthFt: Float,
         mounting: GateMounting = GateMounting.LINE,
         swing: GateSwing = GateSwing.IN,
-        runDefaults: BusinessProfile? = null
+        runDefaults: BusinessProfile? = null,
+        /**
+         * How close to a fence line the tap has to be, in DRAWING units, for
+         * the gate to belong to that side. Converted from screen pixels by
+         * the caller, so the target stays the same size under the finger at
+         * any zoom. Zero disables the search, which is what a caller with no
+         * view transform to hand should pass.
+         */
+        nearReach: Float = 0f,
     ) {
         if (viewerIsGuestDemo()) return
         viewModelScope.launch {
             drawingWrites.withLock {
-                val targetId = selectedRun()?.id ?: runs.value.firstOrNull()?.id
+                // WHICH SIDE DOES THIS GATE BELONG TO?
+                //
+                // This read `selectedRun() ?: runs.first()` -- whichever run
+                // happened to be selected, however far away he tapped. Two
+                // consequences, and he hit the second:
+                //
+                //   * tapping a gate onto the fence he can see put it on a
+                //     DIFFERENT side if that other one was selected;
+                //   * "I'm not able to have a gate be on it's own" -- on a job
+                //     with any fence drawn, a gate tapped in open ground was
+                //     swallowed by that fence instead of standing alone.
+                //
+                // So: the fence he tapped ON wins; an empty selected run is
+                // where a standalone gate belongs; and open ground on a job
+                // that already has fence gets the gate its OWN run, which is
+                // what a gate standing on its own is.
+                val selected = selectedRun()
+                val selectedIsEmpty = selected != null &&
+                    FenceCodec.decodePoints(selected.pointsEncoded).size < 2
+                val tappedOn = if (nearReach > 0f) runNearest(FencePoint(x, y), nearReach) else null
+                val targetId = when {
+                    tappedOn != null -> tappedOn.id
+                    selectedIsEmpty -> selected?.id
+                    else -> null
+                }
                 val run = if (targetId != null) {
                     repository.getFenceRun(targetId)?.takeIf { it.jobId == jobId } ?: return@withLock
                 } else {
@@ -2396,6 +2429,86 @@ class SurveyViewModel(
     }
 
     /**
+     * Erases ONE WALL of a side, splitting the side in two when the wall was in
+     * the middle.
+     *
+     * "When erasing the fence, it should only erase one side and if I want to
+     * erase the other side, same thing." A side here is a RUN, and a run is a
+     * polyline, so an L or a U is one run with several walls -- and long-press
+     * erase took the lot.
+     *
+     * The arithmetic is in SegmentErase, pure and tested. This half does the
+     * writing, and the two things it has to get right are JOINTS and the new
+     * run's IDENTITY.
+     */
+    fun eraseSegment(runId: Long, segmentIndex: Int) {
+        if (!viewerMayDelete()) return
+        viewModelScope.launch {
+            drawingWrites.withLock {
+                val run = repository.getFenceRun(runId)?.takeIf { it.jobId == jobId } ?: return@withLock
+                val points = FenceCodec.decodePoints(run.pointsEncoded)
+                val gates = FenceCodec.decodeGates(run.gatesEncoded)
+                val plan = SegmentErase.plan(points, gates, segmentIndex)
+
+                if (plan.eraseWholeRun) {
+                    // Inline rather than calling eraseRun: that takes this same
+                    // lock, and a Kotlin Mutex is NOT reentrant, so calling it
+                    // from in here would deadlock the drawing for good.
+                    repository.deleteFenceRun(run)
+                    _undo.update { it.forget(run.id) }
+                    _redo.update { it.afterEdit(run.id) }
+                    if (_selectedRunId.value == run.id) {
+                        _selectedRunId.value = repository.getFenceRuns(jobId).firstOrNull()?.id
+                    }
+                    return@withLock
+                }
+
+                // A CUT END CARRIES NO JOINT. The joint ids say this end shares
+                // a post with another side, and the engine deducts a post for
+                // one. Leaving an id on an end that has just moved -- or that
+                // no longer exists -- is the survivor billing a shared corner
+                // that is not there, which is a post, a cap and a bag short.
+                val cutsTheStart = segmentIndex == 0
+                val cutsTheEnd = segmentIndex == points.size - 2
+                val kept = run.copy(
+                    startJoint = if (cutsTheStart || plan.splitsInTwo) "" else run.startJoint,
+                    endJoint = if (cutsTheEnd) "" else if (plan.splitsInTwo) "" else run.endJoint,
+                )
+                commitEdit(
+                    run,
+                    kept.copy(
+                        pointsEncoded = FenceCodec.encodePoints(plan.keep),
+                        gatesEncoded = FenceCodec.encodeGates(plan.keptGates),
+                    ),
+                )
+
+                if (plan.splitsInTwo) {
+                    // The far piece is a NEW side. It inherits the original's
+                    // type, heights and spacing -- it is the same fence -- but
+                    // it must have its OWN sync id: copy() keeps the original's,
+                    // and two rows sharing one cloud identity is how deleting
+                    // one kills the other on every phone.
+                    val siblings = repository.getFenceRuns(jobId)
+                    repository.createFenceRun(
+                        run.copy(
+                            id = 0,
+                            syncId = java.util.UUID.randomUUID().toString(),
+                            label = nextQuickRunLabel(siblings.map { it.label }, run.isTeardown),
+                            sortOrder = (siblings.maxOfOrNull { it.sortOrder } ?: -1) + 1,
+                            // The cut end is free; the far end keeps whatever
+                            // the original was attached to.
+                            startJoint = "",
+                            endJoint = run.endJoint,
+                            pointsEncoded = FenceCodec.encodePoints(plan.split),
+                            gatesEncoded = FenceCodec.encodeGates(plan.splitGates),
+                        )
+                    )
+                }
+            }
+        }
+    }
+
+    /**
      * The run whose fence line passes nearest [p], within [reach], or null.
      *
      * NEAREST, not the first within reach: where two sides cross or run close
@@ -2404,8 +2517,17 @@ class SurveyViewModel(
      * fence at random. Teardown runs are included -- an old fence marked for
      * removal is a side he may equally want rid of.
      */
-    fun runNearest(p: FencePoint, reach: Float): FenceRun? {
-        var best: FenceRun? = null
+    fun runNearest(p: FencePoint, reach: Float): FenceRun? = wallNearest(p, reach)?.first
+
+    /**
+     * The run AND the wall of it nearest [p], within [reach].
+     *
+     * The wall index is what lets a long-press erase one wall of an L rather
+     * than the whole side. Segment i runs from points[i] to points[i + 1],
+     * which is the numbering SegmentErase uses.
+     */
+    fun wallNearest(p: FencePoint, reach: Float): Pair<FenceRun, Int>? {
+        var best: Pair<FenceRun, Int>? = null
         var bestDistance = reach
         for (run in runs.value) {
             val pts = FenceCodec.decodePoints(run.pointsEncoded)
@@ -2413,11 +2535,26 @@ class SurveyViewModel(
                 val d = distanceToSegment(p, pts[i - 1], pts[i])
                 if (d <= bestDistance) {
                     bestDistance = d
-                    best = run
+                    best = run to (i - 1)
                 }
             }
         }
         return best
+    }
+
+    /**
+     * What erasing that wall would do, so the dialog can say it BEFORE he
+     * presses. Splitting a side in two raises the price -- four end posts where
+     * there were two -- and a gate on the wall goes with it. Both are surprises
+     * worth having in advance rather than afterwards.
+     */
+    fun erasePreview(runId: Long, segmentIndex: Int): SegmentErase.Plan? {
+        val run = runs.value.firstOrNull { it.id == runId } ?: return null
+        return SegmentErase.plan(
+            FenceCodec.decodePoints(run.pointsEncoded),
+            FenceCodec.decodeGates(run.gatesEncoded),
+            segmentIndex,
+        )
     }
 
     /** Perpendicular distance from [p] to the segment [a]..[b], in drawing units. */
