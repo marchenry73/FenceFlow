@@ -430,6 +430,15 @@ internal fun pullMayWriteLine(local: EstimateLineItem?): Boolean = local?.pendin
  * the pull put it straight back onto the edited terms, every pass, so the
  * protection the edit is there to provide never held on a synced phone.
  */
+/**
+ * The same rule for a site marker ([SiteMarker.pendingPush]).
+ *
+ * This was the one child table with NO guard at all: the pull wrote the
+ * cloud's x and y over any local marker whose values differed -- which is
+ * precisely the case where somebody had just dragged it.
+ */
+internal fun pullMayWriteMarker(local: SiteMarker?): Boolean = local?.pendingPush != true
+
 internal fun pullMayWriteOrder(local: ChangeOrder?): Boolean =
     local == null || !(local.pendingPush || local.signatureClearedAt != null)
 
@@ -1805,7 +1814,7 @@ object EntitySync {
                 // blanked the translation key of every step beside it -- see
                 // jobStepsInSameColumnBatches.
                 step("job steps")     { jobStepPushRows(rows.steps).sumOf { upsert("job_steps", it) } }
-                step("site markers")  { upsert("site_markers", rows.markers) }
+                step("site markers")  { pushSiteMarkers(repository, rows.markers, rows.markerSources) }
                 // Insert-only, for two reasons that point the same way.
                 //
                 // A field change is the crew asking the office a question -- move the
@@ -1850,6 +1859,8 @@ object EntitySync {
         val lineItems: List<CloudLineItem> = emptyList(),
         /** The local rows [lineItems] were built from, as read, for Repository.markLineItemsPushed. */
         val lineItemSources: List<EstimateLineItem> = emptyList(),
+        /** The local rows [markers] were built from, as read, for Repository.markSiteMarkersPushed. */
+        val markerSources: List<SiteMarker> = emptyList(),
         val expenses: List<CloudExpense> = emptyList(),
         val punch: List<CloudPunchItem> = emptyList(),
         val orders: List<CloudChangeOrder> = emptyList(),
@@ -1901,6 +1912,21 @@ object EntitySync {
         val waitingRevival = repository.lineItemResurrections.pending()
         val lineSources = repository.getAllLineItemsByJob().values.flatten()
             .filter { it.pendingPush || it.syncId in waitingRevival }
+
+        // Site markers by their own mark too, and for the same two reasons.
+        //
+        // Read HERE, above the job-clock gate, deliberately. A marker drag
+        // writes only the marker row -- it never touches jobs.updated_at, and
+        // it must not (a bookkeeping write that moves that clock is how
+        // offline edits were lost once already). So a job the office had
+        // touched more recently held back ALL of its markers for the whole
+        // pass while the ungated pull kept writing the cloud's copies over
+        // them: the dragged position was not even in the payload. Leaving the
+        // mark on the pull side alone would have stopped the revert and left
+        // the new position permanently un-pushed, which is a different kind of
+        // broken -- a control that appears to work and silently never leaves
+        // the phone.
+        val markerSources = repository.getAllSiteMarkers().filter { it.pendingPush }
 
         // Don't write this phone's copy of a job whose cloud row is newer.
         //
@@ -1958,9 +1984,27 @@ object EntitySync {
         }
         val lineItems = sentLines.map { it.toCloud(companyId, jobById.getValue(it.jobId).syncId, runSyncIdById) }
 
+        // Markers of a job this person still has, and not of one the cloud
+        // has tombstoned -- the same two conditions the line items above are
+        // filtered by, and nothing else. No clock.
+        val sentMarkers = markerSources.filter { m ->
+            val job = jobById[m.jobId] ?: return@filter false
+            job.accessEndedAt == null && cloudTouchedAt?.get(job.syncId)?.second != true
+        }
+        val markersByOwnMark = sentMarkers.map { m ->
+            CloudSiteMarker(
+                companyId, m.syncId, jobById.getValue(m.jobId).syncId, m.kind.name,
+                m.x, m.y, m.label, m.widthFt, m.heightFt, m.rotationDeg
+            )
+        }
+
         val jobs = allJobs.filter { job -> mayPushJobChildren(job, cloudTouchedAt, scope) }
         if (jobs.isEmpty()) {
-            return JobChildRows(lineItems = lineItems, lineItemSources = sentLines, cloudTouchedAt = cloudTouchedAt)
+            return JobChildRows(
+                lineItems = lineItems, lineItemSources = sentLines,
+                markers = markersByOwnMark, markerSources = sentMarkers,
+                cloudTouchedAt = cloudTouchedAt
+            )
         }
 
         val expenses = mutableListOf<CloudExpense>()
@@ -1968,7 +2012,6 @@ object EntitySync {
         val orders = mutableListOf<CloudChangeOrder>()
         val orderSources = mutableListOf<ChangeOrder>()
         val steps = mutableListOf<CloudJobStep>()
-        val markers = mutableListOf<CloudSiteMarker>()
         val changes = mutableListOf<CloudFieldChange>()
 
         jobs.forEach { job ->
@@ -2015,12 +2058,6 @@ object EntitySync {
                     stepKey = it.stepKey
                 )
             }
-            repository.getSiteMarkers(job.id).forEach {
-                markers += CloudSiteMarker(
-                    companyId, it.syncId, js, it.kind.name, it.x, it.y, it.label,
-                    it.widthFt, it.heightFt, it.rotationDeg
-                )
-            }
             // A crew member's "can we move the gate?" and the office's answer.
             // This table existed in the cloud and on the website and the app
             // never sent it, so a request made on one phone was invisible on
@@ -2041,7 +2078,9 @@ object EntitySync {
         return JobChildRows(
             lineItems = lineItems, lineItemSources = sentLines, expenses = expenses, punch = punch,
             orders = orders, orderSources = orderSources,
-            steps = steps, markers = markers, changes = changes,
+            steps = steps, changes = changes,
+            // Gathered above, by their own mark, outside the job-clock gate.
+            markers = markersByOwnMark, markerSources = sentMarkers,
             cloudTouchedAt = cloudTouchedAt
         )
     }
@@ -2065,6 +2104,37 @@ object EntitySync {
      * (Repository.markLineItemsPushed). A chunk that failed stays marked and
      * goes again next pass; the pull leaves marked lines alone meanwhile.
      */
+    /**
+     * Markers up, a chunk at a time, clearing the mark on each chunk the cloud
+     * took -- and only where the row still holds what went up
+     * (Repository.markSiteMarkersPushed). A chunk that failed stays marked and
+     * goes again next pass; the pull leaves marked markers alone meanwhile.
+     *
+     * Chunked and partially-clearing rather than all-or-nothing for the reason
+     * written on pushLineItems: a single failure must not cost the whole
+     * batch, and a success must not clear a mark for something that did not go.
+     */
+    private suspend fun pushSiteMarkers(
+        repository: Repository,
+        markers: List<CloudSiteMarker>,
+        sources: List<SiteMarker>
+    ): Int {
+        if (markers.isEmpty()) return 0
+        val sourceBySyncId = sources.associateBy { it.syncId }
+        var sent = 0
+        var firstFailure: Throwable? = null
+        markers.chunked(200).forEach { chunk ->
+            runCatching { upsert("site_markers", chunk) }
+                .onSuccess { n ->
+                    sent += n
+                    repository.markSiteMarkersPushed(chunk.mapNotNull { sourceBySyncId[it.syncId] })
+                }
+                .onFailure { if (firstFailure == null) firstFailure = it }
+        }
+        firstFailure?.let { throw it }
+        return sent
+    }
+
     private suspend fun pushLineItems(
         repository: Repository,
         lineItems: List<CloudLineItem>,
@@ -3475,8 +3545,24 @@ object EntitySync {
             val kind = runCatching { SiteMarkerKind.valueOf(row.kind) }
                 .getOrDefault(SiteMarkerKind.OBSTACLE)
             val existing = localMarkersBySyncId[row.syncId]
+            // A MARKER THIS PHONE CHANGED WINS OVER THE PULL.
+            //
+            // There was no guard here at all. The pull runs straight after the
+            // push, the push's payload was snapshotted before any of it went
+            // up, and markers went up wholesale from every device -- so a drag
+            // was pushed as its OLD position and then written back over by this
+            // very line. The condition below (merged != existing) reads like a
+            // guard and is not one: it is a no-op suppressor, and it is TRUE
+            // exactly when somebody has just moved the marker.
+            //
+            // Same refusal the two sibling tables make, at the same point in
+            // their own pull loops (pullMayWriteLine, pullMayWriteOrder). The
+            // marker goes up next pass and the cloud's copy arrives then.
+            if (!pullMayWriteMarker(existing)) return@forEach
             if (existing == null) {
-                skipIfOrphaned { repository.addSiteMarker(
+                // FromCloud: this row came from the cloud, so it is not waiting
+                // to go back to it.
+                skipIfOrphaned { repository.addSiteMarkerFromCloud(
                     SiteMarker(
                         syncId = row.syncId, jobId = jobId,
                         kind = kind, x = row.x, y = row.y, label = row.label,
@@ -3492,7 +3578,7 @@ object EntitySync {
                     widthFt = row.widthFt, heightFt = row.heightFt,
                     rotationDeg = row.rotationDeg
                 )
-                if (merged != existing) { skipIfOrphaned { repository.updateSiteMarker(merged) } ?: return@forEach; added++ }
+                if (merged != existing) { skipIfOrphaned { repository.updateSiteMarkerFromCloud(merged) } ?: return@forEach; added++ }
             }
         }
 

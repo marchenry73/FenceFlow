@@ -1661,8 +1661,55 @@ class Repository(private val db: AppDatabase) {
     }
 
     fun observeSiteMarkers(jobId: Long): Flow<List<SiteMarker>> = siteMarkerDao.observeForJob(jobId)
-    suspend fun addSiteMarker(marker: SiteMarker): Long = guardWrite("addSiteMarker") { siteMarkerDao.insert(marker) }
-    suspend fun updateSiteMarker(marker: SiteMarker) = guardWrite("updateSiteMarker") { siteMarkerDao.update(marker) }
+    /**
+     * A marker a PERSON placed or moved, marked to go up.
+     *
+     * Separate from [addSiteMarkerFromCloud] / [updateSiteMarkerFromCloud] on
+     * purpose, and that split is the whole reason this works: markers had ONE
+     * write path, used by the drawing screen AND by the pull. Marking there
+     * would have the pull mark every row it wrote, so every marker would be
+     * waiting to go up for ever and the two phones would carry on overwriting
+     * each other with the mark along for the ride.
+     */
+    suspend fun addSiteMarker(marker: SiteMarker): Long = guardWrite("addSiteMarker") {
+        siteMarkerDao.insert(marker.copy(pendingPush = true))
+    }
+    suspend fun updateSiteMarker(marker: SiteMarker) = guardWrite("updateSiteMarker") {
+        siteMarkerDao.update(marker.copy(pendingPush = true))
+    }
+
+    /** The pull's door: takes the cloud's copy without marking it to go back up. */
+    suspend fun addSiteMarkerFromCloud(marker: SiteMarker): Long = guardWrite("addSiteMarkerFromCloud") {
+        siteMarkerDao.insert(marker.copy(pendingPush = false))
+    }
+    suspend fun updateSiteMarkerFromCloud(marker: SiteMarker) = guardWrite("updateSiteMarkerFromCloud") {
+        siteMarkerDao.update(marker.copy(pendingPush = false))
+    }
+
+    suspend fun getAllSiteMarkers(): List<SiteMarker> = siteMarkerDao.getAll()
+
+    /**
+     * The cloud took these markers: clear their [SiteMarker.pendingPush], but
+     * ONLY where the row still holds exactly what was sent. A marker dragged
+     * while the upsert was in flight has not gone up, and must stay marked --
+     * clearing it would drop it from the next pass and let the pull put the
+     * cloud's older position over it, which is the bug being fixed.
+     *
+     * Not a bare UPDATE ... SET pendingPush = 0 WHERE syncId IN (...): that is
+     * what [ChangeOrderDao.clearPendingPush] does, it is dead code, and it is
+     * exactly the wrong thing to copy.
+     *
+     * @param sent the rows as they were read for the push.
+     */
+    suspend fun markSiteMarkersPushed(sent: List<SiteMarker>) {
+        if (sent.isEmpty()) return
+        db.withTransaction {
+            sent.forEach { was ->
+                val now = siteMarkerDao.getBySyncId(was.syncId) ?: return@forEach
+                if (siteMarkerStillAsSent(was, now)) siteMarkerDao.update(now.copy(pendingPush = false))
+            }
+        }
+    }
     suspend fun deleteSiteMarker(marker: SiteMarker) = deleteSynced(marker.syncId, "site_markers") { siteMarkerDao.delete(marker) }
 
     fun observeChangeOrders(jobId: Long): Flow<List<ChangeOrder>> = changeOrderDao.observeForJob(jobId)
@@ -1857,6 +1904,31 @@ class Repository(private val db: AppDatabase) {
  * is the rule, and a test has to be able to state it without building a
  * Repository and a database.
  */
+/**
+ * Everything about a site marker that the push carries. Two copies that agree
+ * on all of it need nothing sent between them.
+ *
+ * jobId is deliberately absent: the push sends the job's SYNC id, and a
+ * marker never moves between jobs. pendingPush is absent because it is the
+ * mark itself, not content.
+ */
+internal fun siteMarkerPushContent(m: SiteMarker): List<Any?> = listOf(
+    m.syncId, m.kind, m.x, m.y, m.label, m.widthFt, m.heightFt, m.rotationDeg
+)
+
+/**
+ * Whether [now] -- the row as it is after the upsert came back -- still holds
+ * exactly what [sent] carried up, so its [SiteMarker.pendingPush] may be
+ * cleared ([Repository.markSiteMarkersPushed]). A drag that happened while the
+ * request was in flight has not gone up, and the marker must stay marked.
+ *
+ * File scope, not a member, for the same reason [changeOrderStillAsSent] is:
+ * this is the rule, and a test has to be able to state it without building a
+ * Repository and a database.
+ */
+internal fun siteMarkerStillAsSent(sent: SiteMarker, now: SiteMarker): Boolean =
+    siteMarkerPushContent(sent) == siteMarkerPushContent(now)
+
 internal fun changeOrderStillAsSent(sent: ChangeOrder, now: ChangeOrder): Boolean =
     sent.syncId == now.syncId &&
         sent.description == now.description &&

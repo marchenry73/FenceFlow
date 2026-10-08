@@ -1022,7 +1022,32 @@ data class SiteMarker(
     val widthFt: Float = 0f,
     val heightFt: Float = 0f,
     /** Degrees clockwise. A house is almost never square to the road. */
-    val rotationDeg: Float = 0f
+    val rotationDeg: Float = 0f,
+    /**
+     * This phone changed this marker and the cloud has not taken it yet.
+     *
+     * The same mark [EstimateLineItem.pendingPush] and
+     * [ChangeOrder.pendingPush] carry, for the same two reasons, both of which
+     * were live on markers until now:
+     *
+     *  - THE PULL OVERWROTE A DRAG. Markers were pulled with no guard of any
+     *    kind -- no mark, no clock -- so the cloud's copy went straight over a
+     *    position dragged moments earlier. A pull runs right after a push in
+     *    the same pass, and the push's payload is snapshotted before any of it
+     *    goes up, so a drag landing in that window was pushed as its OLD
+     *    position and then pulled back down.
+     *  - TWO PHONES OVERWROTE EACH OTHER FOR EVER. Every marker of every job
+     *    went up on every pass from every device, so a phone that had never
+     *    touched the house re-sent its stale copy. That is the exact loop line
+     *    items and change orders were taken out of.
+     *
+     * Set by the writes a PERSON makes ([Repository.updateSiteMarker],
+     * [Repository.addSiteMarker]) and never by the pull, which has its own
+     * unmarked door -- marking in one shared write path would have the pull
+     * mark everything it wrote and the ping-pong would simply continue under a
+     * new name.
+     */
+    val pendingPush: Boolean = false
 )
 
 /**

@@ -193,10 +193,14 @@ function freshDb(statements) {
  *       two sides joined at a corner bill ONE corner post instead of two end posts.
  *   51  site_markers.widthFt / heightFt / rotationDeg -- a house, pool or driveway drawn to its
  *       real size on the plan instead of as a dot. Shipped in 1.602.
- * Bump this line, and nothing else here, when a 52 lands.
+ *   52  site_markers.pendingPush -- this phone changed the marker and the cloud has not taken it
+ *       yet, so only these go up and the pull leaves them alone. Markers were the one child table
+ *       pushed wholesale from every device with NO pull guard, which is why a dragged house
+ *       reverted.
+ * Bump this line, and nothing else here, when a 53 lands.
  *
  * NOTE for whoever lands the owed DROP TABLE mentioned below: it was written expecting to be
- * SchemaV51. 51 was taken by the marker sizes above, so that drop is now a 52.
+ * SchemaV51. 51 went to the marker sizes and 52 to the marker mark, so that drop is now a 53.
  *
  * WHY THIS FILE IS STILL LOAD-BEARING even though the run_joins TABLE lost the design argument
  * (docs/JOINING_RUNS.md 11.1 chose the two columns on fence_runs; a59-join-storage-roundtrip check 7
@@ -207,7 +211,7 @@ function freshDb(statements) {
  * RunJoin::class leaves that list, THIS file is replaced by a59-join-storage-roundtrip.test.mjs -- do
  * not retire it before then.
  */
-const DB_VERSION = 51;
+const DB_VERSION = 52;
 
 /** Differences between the RunJoin entity and a SQLite built from the migration's statements, plus the wiring. Empty is good. */
 function schemaViolations(runJoinKt, appDatabaseKt) {

@@ -616,6 +616,18 @@ interface SiteMarkerDao {
     @Query("SELECT * FROM site_markers WHERE jobId = :jobId")
     fun observeForJob(jobId: Long): Flow<List<SiteMarker>>
 
+    /** Every marker on the phone, for the push's own-mark selection. */
+    @Query("SELECT * FROM site_markers")
+    suspend fun getAll(): List<SiteMarker>
+
+    /**
+     * One marker by its cloud identity, to re-read it after an upsert and see
+     * whether it still holds what went up. By sync id and not by Room id
+     * because the push only ever knows the sync id.
+     */
+    @Query("SELECT * FROM site_markers WHERE syncId = :syncId LIMIT 1")
+    suspend fun getBySyncId(syncId: String): SiteMarker?
+
     @Insert
     suspend fun insert(marker: SiteMarker): Long
 
