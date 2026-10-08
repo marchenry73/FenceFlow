@@ -2,7 +2,7 @@
   "schema": 1,
   "engine": {
     "version": "2026.10.13",
-    "generated_at": "2026-10-06T23:02:34.738142600Z"
+    "generated_at": "2026-10-08T18:57:51.598350500Z"
   },
   "case": "edited-gate-unidentified-kept-beside",
   "note": "An edited GATE_PANEL whose id the build does not produce and whose name matches neither built panel: nothing identifies it, so nothing is claimed. Both built panels are written and the edited line stays beside them -- an extra line beats a gate missing from the order.",
@@ -617,14 +617,14 @@
             "group": "POSTS"
           },
           {
-            "label": "End posts",
-            "quantity": 2.0,
+            "label": "End posts (2 gate)",
+            "quantity": 4.0,
             "unit": "",
             "group": "POSTS"
           },
           {
-            "label": "Gate posts (end posts + stiffener)",
-            "quantity": 4.0,
+            "label": "Gate posts",
+            "quantity": 2.0,
             "unit": "",
             "group": "POSTS"
           },

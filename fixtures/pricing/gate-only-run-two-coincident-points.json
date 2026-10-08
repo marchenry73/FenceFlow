@@ -2,7 +2,7 @@
   "schema": 1,
   "engine": {
     "version": "2026.10.13",
-    "generated_at": "2026-10-06T23:02:34.738142600Z"
+    "generated_at": "2026-10-08T18:57:51.598350500Z"
   },
   "case": "gate-only-run-two-coincident-points",
   "note": "A gate on a run whose two points sit on the same spot -- what a double-tap leaves behind. Zero feet, so no post can be the END of a line that is not there. Must price identically to case 36: two blank posts, two caps, the gate and its hardware. It billed four posts and four caps.",
@@ -518,13 +518,7 @@
             "group": "SITE"
           },
           {
-            "label": "Gate posts (end posts + stiffener)",
-            "quantity": 2.0,
-            "unit": "",
-            "group": "POSTS"
-          },
-          {
-            "label": "Blank posts (wall-hung gates)",
+            "label": "Blank posts (nothing connects)",
             "quantity": 2.0,
             "unit": "",
             "group": "POSTS"

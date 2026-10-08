@@ -2,7 +2,7 @@
   "schema": 1,
   "engine": {
     "version": "2026.10.13",
-    "generated_at": "2026-10-06T23:02:34.738142600Z"
+    "generated_at": "2026-10-08T18:57:51.598350500Z"
   },
   "case": "gate-only-run-line-to-wall-mount",
   "note": "A standalone LINE_TO_WALL gate. This billed GATE_POST 1 + END_POST 2 -- THREE posts for a gate that stands on two, and two of them on the end-post row. Now two blank posts, the same as every other standalone gate.",
@@ -501,13 +501,7 @@
             "group": "SITE"
           },
           {
-            "label": "Gate posts (end posts + stiffener)",
-            "quantity": 2.0,
-            "unit": "",
-            "group": "POSTS"
-          },
-          {
-            "label": "Blank posts (wall-hung gates)",
+            "label": "Blank posts (nothing connects)",
             "quantity": 2.0,
             "unit": "",
             "group": "POSTS"

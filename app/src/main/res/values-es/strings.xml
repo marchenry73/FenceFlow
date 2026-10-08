@@ -20,7 +20,7 @@
     <string name="posts_why_corners">De esos, esquinas</string>
     <string name="posts_why_ends">De esos, extremos</string>
     <string name="posts_why_line">Postes de línea</string>
-    <string name="posts_why_gate_posts">Postes de puerta, dos por puerta</string>
+    <string name="posts_why_gate_posts">Postes en las aberturas de las puertas</string>
     <string name="posts_why_shared">Compartidos donde se unen dos lados</string>
     <string name="posts_why_total">Total de postes</string>
     <string name="posts_why_footer">Las esquinas y los extremos no son postes adicionales: son postes que la línea ya contó, colocados en sitios concretos. Cambie la separación de postes de este tramo para cambiar el total.</string>

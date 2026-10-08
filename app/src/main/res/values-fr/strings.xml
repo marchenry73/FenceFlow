@@ -20,7 +20,7 @@
     <string name="posts_why_corners">Dont angles</string>
     <string name="posts_why_ends">Dont extrémités</string>
     <string name="posts_why_line">Poteaux de ligne</string>
-    <string name="posts_why_gate_posts">Poteaux de portail, deux par portail</string>
+    <string name="posts_why_gate_posts">Poteaux aux ouvertures de portail</string>
     <string name="posts_why_shared">Partagés à la jonction de deux côtés</string>
     <string name="posts_why_total">Total des poteaux</string>
     <string name="posts_why_footer">Les angles et les extrémités ne sont pas des poteaux supplémentaires : ce sont des poteaux déjà comptés par la ligne, placés à des endroits précis. Modifiez l\'écartement des poteaux de cette section pour changer le total.</string>

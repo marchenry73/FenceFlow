@@ -2,7 +2,7 @@
   "schema": 1,
   "engine": {
     "version": "2026.10.13",
-    "generated_at": "2026-10-06T23:02:34.738142600Z"
+    "generated_at": "2026-10-08T18:57:51.598350500Z"
   },
   "case": "multi-run-mixed-types",
   "note": "Three runs of three types on one job: items concatenated in run order, sort_order restarting per run, totals summed in (sort_order, sync_id) order across runs.",
@@ -997,14 +997,14 @@
             "group": "POSTS"
           },
           {
-            "label": "End posts",
-            "quantity": 2.0,
+            "label": "End posts (1 gate)",
+            "quantity": 3.0,
             "unit": "",
             "group": "POSTS"
           },
           {
-            "label": "Gate posts (end posts + stiffener)",
-            "quantity": 2.0,
+            "label": "Gate posts",
+            "quantity": 1.0,
             "unit": "",
             "group": "POSTS"
           },
@@ -1219,14 +1219,14 @@
             "group": "POSTS"
           },
           {
-            "label": "End posts",
-            "quantity": 2.0,
+            "label": "End posts (1 gate)",
+            "quantity": 3.0,
             "unit": "",
             "group": "POSTS"
           },
           {
-            "label": "Gate posts (end posts + stiffener)",
-            "quantity": 2.0,
+            "label": "Gate posts",
+            "quantity": 1.0,
             "unit": "",
             "group": "POSTS"
           },
@@ -1432,19 +1432,13 @@
             "group": "POSTS"
           },
           {
-            "label": "End posts",
-            "quantity": 2.0,
+            "label": "End posts (1 gate)",
+            "quantity": 3.0,
             "unit": "",
             "group": "POSTS"
           },
           {
-            "label": "Gate posts (end posts + stiffener)",
-            "quantity": 2.0,
-            "unit": "",
-            "group": "POSTS"
-          },
-          {
-            "label": "Blank posts (wall-hung gates)",
+            "label": "Blank posts (nothing connects)",
             "quantity": 1.0,
             "unit": "",
             "group": "POSTS"

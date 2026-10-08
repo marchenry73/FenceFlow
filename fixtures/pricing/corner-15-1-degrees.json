@@ -2,7 +2,7 @@
   "schema": 1,
   "engine": {
     "version": "2026.10.13",
-    "generated_at": "2026-10-06T23:02:34.738142600Z"
+    "generated_at": "2026-10-08T18:57:51.598350500Z"
   },
   "case": "corner-15-1-degrees",
   "note": "A 15.1-degree bend (atan(540/2000)) is a CORNER: one corner post comes out of the line posts.",

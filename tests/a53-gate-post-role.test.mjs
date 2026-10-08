@@ -309,13 +309,51 @@ test("NO COUNT MOVED: the gate area's posts still add up to gatePosts, and a WAL
   assert.notEqual(billedQty(quote("WALL"), "CONCRETE_BAG"), billedQty(quote("LINE"), "CONCRETE_BAG"));
 });
 
-test("NO COUNT MOVED: the takeoff summary lines are untouched, label for label", () => {
-  // runOutput and PricingAdapters.kt read the post counts back off these labels, so a label that
-  // moves breaks the parity contract on both sides. This change must not move one.
-  const labels = quote("LINE_TO_WALL").runs[0].takeoff.map((t) => t.label);
-  assert.ok(labels.includes("Gate posts (end posts + stiffener)"),
-    "the gate-post takeoff label moved: index.ts runOutput and PricingAdapters.kt key on this exact string and 30 fixtures carry it");
-  assert.ok(labels.includes("Total posts") && labels.includes("End posts"));
+test("THE TAKEOFF'S POST LINES ARE THE BILLED ROLES, and nothing keys on their text any more", () => {
+  // THIS TEST USED TO SAY THE OPPOSITE, and it was right at the time: runOutput and
+  // PricingAdapters.kt looked the post counts up in the takeoff BY LABEL, so it pinned
+  // "Gate posts (end posts + stiffener)" as a contract string nothing was allowed to reword.
+  //
+  // That lookup is gone. Both now read postCounts / explainPosts -- the arithmetic the takeoff
+  // is itself built from -- so the labels are display text again and may say what he asked them
+  // to. Keeping the old assertion would have meant a red gate guarding a workaround that no
+  // longer exists.
+  //
+  // What replaces it is the thing that actually matters: every POSTS line equals the quantity
+  // the quote BILLS for that role, and they still add up to the same total posts.
+  const out = quote("LINE_TO_WALL");
+  const takeoff = out.runs[0].takeoff;
+  const qty = (prefix) => {
+    const line = takeoff.find((t) => t.label.startsWith(prefix));
+    return line === undefined ? 0 : line.quantity;
+  };
+
+  assert.equal(qty("Line posts"), billedQty(out, "LINE_POST"), "Line posts");
+  assert.equal(qty("End posts"), billedQty(out, "END_POST"), "End posts");
+  assert.equal(qty("Gate posts"), billedQty(out, "GATE_POST"), "Gate posts");
+  assert.equal(qty("Blank posts"), billedQty(out, "BLANK_POST"), "Blank posts");
+
+  // The five role counts still come to the posts in the ground. This is the invariant that
+  // makes printing the billed split safe at all -- see PostCountsMatchTheBillTest.kt, which
+  // runs it over every mounting on the phone's side.
+  assert.equal(
+    qty("Line posts") + qty("Corner posts") + qty("End posts") + qty("Gate posts") + qty("Blank posts"),
+    qty("Total posts"),
+    "the post lines no longer add up to Total posts",
+  );
+
+  // A LINE_TO_WALL gate contributes two end posts, and the label says so rather than leaving
+  // somebody to work out why End posts reads 3 when the fence has one end.
+  const endLine = takeoff.find((t) => t.label.startsWith("End posts"));
+  assert.equal(endLine.label, "End posts (2 gate)",
+    "the end-post label should name the gate share: his own format, 'End posts 4 (2 gate)'");
+
+  // CONTROL: the prefix reader finds a real number, not a default. A test built on
+  // find(...) ?? 0 reports agreement just as happily when every label has been renamed
+  // and every lookup returns zero.
+  assert.ok(qty("Total posts") > 4, "Total posts read " + qty("Total posts"));
+  assert.ok(takeoff.every((t) => !t.label.includes("end posts + stiffener")),
+    "the old combined gate-post label is still being emitted");
 });
 
 // ======================================== 3. ADDITIVITY WHERE A GATE_POST ROW EXISTS ==

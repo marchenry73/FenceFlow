@@ -2,7 +2,7 @@
   "schema": 1,
   "engine": {
     "version": "2026.10.13",
-    "generated_at": "2026-10-06T23:02:34.738142600Z"
+    "generated_at": "2026-10-08T18:57:51.598350500Z"
   },
   "case": "gate-latches-to-wall-no-fence",
   "note": "The same mounting with no fence drawn. Attached to a wall, so the standalone rule does NOT apply: still one gate post, 4 hole plugs and hinge concrete only -- not the two blank posts a gate standing on its own gets.",
@@ -507,7 +507,7 @@
             "group": "SITE"
           },
           {
-            "label": "Gate posts (end posts + stiffener)",
+            "label": "Gate posts",
             "quantity": 1.0,
             "unit": "",
             "group": "POSTS"

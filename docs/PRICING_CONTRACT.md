@@ -197,10 +197,23 @@ part of the contract (sums iterate in order).
 - **`gate_feet`** (per run) is `sum(gate.widthFt as Double)` cast to Float --
   the engine's own `gateWidthTotal`. `net_feet` = `max(gross - gate_feet, 0)`
   in Float.
-- **`posts`** are the engine's private `PostCounts`, read back off the takeoff
-  lines ("Line posts", "Corner posts", "End posts", "Gate posts (end posts +
-  stiffener)", "Total posts"; an absent line is 0). `terminal` = corner + end
-  + gate. These are the raw counts: suppression and waste do not touch them.
+- **`posts`** are the engine's `PostCounts` -- the GEOMETRIC count, the posts
+  that go in the ground. `terminal` = corner + end + gate. These are the raw
+  counts: suppression and waste do not touch them.
+  They used to be read back off the takeoff lines BY LABEL, on both sides, which
+  made four display strings part of this contract. They are not any more: Kotlin
+  reads `EstimateEngine.explainPosts` and TypeScript reads `s.postCounts`, the
+  same `computePostCounts` the takeoff is built from. No value moved.
+- **The takeoff's POSTS lines are the BILLED roles, not those counts.** As of
+  2026-10-08 they are `qty(LINE_POST)`, `qty(CORNER_POST)`, `qty(END_POST)`,
+  `qty(GATE_POST)` and `qty(BLANK_POST)`, with "Total posts" still
+  `postCounts.totalPosts` -- which equals the five summed, for every mounting
+  (`PostCountsMatchTheBillTest`, and a53's own invariant on the server side).
+  The End posts label carries the gate share, "End posts (2 gate)", so it is NOT
+  a stable string and nothing may key on it.
+  Before this the takeoff printed the geometric split directly above line items
+  priced from the roles, so one screen gave two different answers about the same
+  posts -- and the smaller one is the one somebody orders from.
 - **`entries`** are `suggestions.entries` after waste, `wholeBags` and
   `suppressed_roles`, zero quantities included (only `buildLineItems` drops
   them). **`takeoff`** is `suggestions.takeoff` verbatim (`group` is the

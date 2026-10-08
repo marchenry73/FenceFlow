@@ -219,7 +219,14 @@ export function suggestQuantities(
   // gate-only run (a standalone gate sale, no line drawn) has none, and its
   // second post is a blank rather than the end of a fence that is not there.
   const hasFenceLine = geometry.totalLinearFeet > 0;
-  for (const gate of gates) entries = entries.concat(gateEntries(run.fenceType, gate, hasFenceLine));
+  // How many of the end posts stand at a gate -- counted from the gates' own
+  // entries, before suppressedRoles is applied below. See the Kotlin twin.
+  let gateEndPosts = 0;
+  for (const gate of gates) {
+    const gateOwn = gateEntries(run.fenceType, gate, hasFenceLine);
+    gateEndPosts += Math.trunc(doubleSum(gateOwn.filter((e) => e.role === "END_POST").map((e) => e.quantity)));
+    entries = entries.concat(gateOwn);
+  }
 
   const withWaste = applyWaste(entries, wastePercent);
   const kept = wholeBags(withWaste).filter((e) => !run.suppressedRoles.has(e.role));
@@ -228,7 +235,7 @@ export function suggestQuantities(
     geometry,
     netLinearFeet: netFt,
     entries: kept,
-    takeoff: buildTakeoff(geometry, gates.length, postCounts, kept),
+    takeoff: buildTakeoff(geometry, gates.length, postCounts, kept, gateEndPosts),
     gates,
     gateWidthTotal,
     postCounts,
@@ -245,6 +252,7 @@ function buildTakeoff(
   gateCount: number,
   posts: PostCounts,
   entries: readonly QtyEntry[],
+  gateEndPosts: number,
 ): TakeoffLine[] {
   const qtyOf = (role: MaterialRole): number => doubleSum(entries.filter((e) => e.role === role).map((e) => e.quantity));
   const line = (label: string, quantity: number, unit: string, group: TakeoffGroup): TakeoffLine => ({ label, quantity, unit, group });
@@ -252,11 +260,13 @@ function buildTakeoff(
     line("Fence length", geometry.totalLinearFeet, "ft", "SITE"),
     line("Gates", gateCount, "", "SITE"),
 
-    line("Line posts", posts.linePosts, "", "POSTS"),
-    line("Corner posts", posts.cornerPosts, "", "POSTS"),
-    line("End posts", posts.endPosts, "", "POSTS"),
-    line("Gate posts (end posts + stiffener)", posts.gatePosts, "", "POSTS"),
-    line("Blank posts (wall-hung gates)", qtyOf("BLANK_POST"), "", "POSTS"),
+    // The posts the quote BUYS, role by role -- not the geometric split.
+    // See the Kotlin twin for why, at length.
+    line("Line posts", qtyOf("LINE_POST"), "", "POSTS"),
+    line("Corner posts", qtyOf("CORNER_POST"), "", "POSTS"),
+    line(gateEndPosts > 0 ? `End posts (${gateEndPosts} gate)` : "End posts", qtyOf("END_POST"), "", "POSTS"),
+    line("Gate posts", qtyOf("GATE_POST"), "", "POSTS"),
+    line("Blank posts (nothing connects)", qtyOf("BLANK_POST"), "", "POSTS"),
     line("Total posts", posts.totalPosts, "", "POSTS"),
     line("Post caps", qtyOf("POST_CAP"), "", "POSTS"),
 

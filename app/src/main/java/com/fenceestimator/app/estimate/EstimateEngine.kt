@@ -453,7 +453,22 @@ object EstimateEngine {
         // its second post is a blank rather than the end of a fence that is not
         // there.
         val hasFenceLine = geometry.totalLinearFeet > 0f
-        gates.forEach { gate -> entries += gateEntries(run.fenceType, gate, hasFenceLine) }
+        // HOW MANY OF THE END POSTS STAND AT A GATE.
+        //
+        // Counted here, from the gates' own entries, rather than worked out
+        // later as qty(END_POST) - postCounts.endPosts: suppressedRoles is
+        // applied after this, so that subtraction goes NEGATIVE on a run with
+        // END_POST switched off, and a run with no fence line has gates that
+        // carry blanks instead of ends.
+        var gateEndPosts = 0
+        gates.forEach { gate ->
+            val gateOwn = gateEntries(run.fenceType, gate, hasFenceLine)
+            gateEndPosts += gateOwn
+                .filter { it.role == MaterialRole.END_POST }
+                .sumOf { it.quantity }
+                .toInt()
+            entries += gateOwn
+        }
 
         val withWaste = applyWaste(entries, wastePercent)
         val kept = wholeBags(withWaste).filter { it.role !in run.suppressedRoles }
@@ -462,7 +477,7 @@ object EstimateEngine {
             geometry = geometry,
             netLinearFeet = netFt,
             entries = kept,
-            takeoff = buildTakeoff(geometry, gates.size, postCounts, kept)
+            takeoff = buildTakeoff(geometry, gates.size, postCounts, kept, gateEndPosts)
         )
     }
 
@@ -609,18 +624,53 @@ object EstimateEngine {
         geometry: FenceGeometryResult,
         gateCount: Int,
         posts: PostCounts,
-        entries: List<QtyEntry>
+        entries: List<QtyEntry>,
+        gateEndPosts: Int
     ): List<TakeoffLine> {
         fun qty(role: MaterialRole) = entries.filter { it.role == role }.sumOf { it.quantity }
         return listOf(
             TakeoffLine("Fence length", geometry.totalLinearFeet.toDouble(), "ft", TakeoffGroup.SITE),
             TakeoffLine("Gates", gateCount.toDouble(), "", TakeoffGroup.SITE),
 
-            TakeoffLine("Line posts", posts.linePosts.toDouble(), "", TakeoffGroup.POSTS),
-            TakeoffLine("Corner posts", posts.cornerPosts.toDouble(), "", TakeoffGroup.POSTS),
-            TakeoffLine("End posts", posts.endPosts.toDouble(), "", TakeoffGroup.POSTS),
-            TakeoffLine("Gate posts (end posts + stiffener)", posts.gatePosts.toDouble(), "", TakeoffGroup.POSTS),
-            TakeoffLine("Blank posts (wall-hung gates)", qty(MaterialRole.BLANK_POST), "", TakeoffGroup.POSTS),
+            // THESE ARE THE POSTS THE QUOTE BUYS, ROLE BY ROLE.
+            //
+            // They used to be the GEOMETRIC split -- postCounts.endPosts (the
+            // vertices classified END) and postCounts.gatePosts (two or three
+            // posts per gate, whatever they are billed as). The line items
+            // underneath were built from the ROLES, which attribute a gate's
+            // posts differently: the hinge side is a GATE_POST, the latch side
+            // an END_POST where the fence reaches it and a BLANK_POST where
+            // nothing does (gateAreaEntries).
+            //
+            // So a fence with two ends and two line gates showed "End posts 2"
+            // and "Gate posts 2" above "End Post x4, Gate Post x2" -- one
+            // screen, two answers, and the smaller one is the one somebody
+            // orders from. His words, 7 Oct 2026: "End posts 4 (2 gate)".
+            //
+            // The TOTAL does not move. postCounts.totalPosts already equals
+            // the five role counts summed, for every mounting -- a LINE gate's
+            // 2 are GATE_POST 1 + latch 1, a LINE_TO_WALL's 3 are GATE_POST 1
+            // + END_POST 2, a LATCHES_TO_WALL's 1 is GATE_POST 1, a WALL's 2
+            // are BLANK_POST 1 + latch 1, and a standalone gate's 2 are
+            // BLANK_POST 2. PostCountsMatchTheBillTest pins that, so a new
+            // mounting that bills a post the count does not know about fails
+            // instead of quietly disagreeing here.
+            TakeoffLine("Line posts", qty(MaterialRole.LINE_POST), "", TakeoffGroup.POSTS),
+            TakeoffLine("Corner posts", qty(MaterialRole.CORNER_POST), "", TakeoffGroup.POSTS),
+            TakeoffLine(
+                // The gate share is named in the label because that is the
+                // question he asked of this line: of the four, which are at a
+                // gate? Only when there are some, so a plain fence reads
+                // "End posts".
+                if (gateEndPosts > 0) "End posts ($gateEndPosts gate)" else "End posts",
+                qty(MaterialRole.END_POST), "", TakeoffGroup.POSTS
+            ),
+            // No longer "(end posts + stiffener)": the end posts are counted
+            // on their own line above, and the stiffener has its own line under
+            // Gate hardware. This is the post that CARRIES the gate -- one per
+            // gate that hangs from a post of its own.
+            TakeoffLine("Gate posts", qty(MaterialRole.GATE_POST), "", TakeoffGroup.POSTS),
+            TakeoffLine("Blank posts (nothing connects)", qty(MaterialRole.BLANK_POST), "", TakeoffGroup.POSTS),
             TakeoffLine("Total posts", posts.totalPosts.toDouble(), "", TakeoffGroup.POSTS),
             TakeoffLine("Post caps", qty(MaterialRole.POST_CAP), "", TakeoffGroup.POSTS),
 

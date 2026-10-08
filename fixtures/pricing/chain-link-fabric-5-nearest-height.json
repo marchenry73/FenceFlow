@@ -2,7 +2,7 @@
   "schema": 1,
   "engine": {
     "version": "2026.10.13",
-    "generated_at": "2026-10-06T23:02:34.738142600Z"
+    "generated_at": "2026-10-08T18:57:51.598350500Z"
   },
   "case": "chain-link-fabric-5-nearest-height",
   "note": "Fabric height 5 sits exactly between the 4 ft and 6 ft rolls: equal distance, the cheaper wins.",

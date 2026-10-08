@@ -933,18 +933,16 @@ export function priceJob(input: PricingInput): PricingOutput {
 }
 
 function runOutput(run: FenceRun, s: EstimateSuggestions): RunOutput {
-  // PostCounts is private to the engine on the phone; PricingRunner reads
-  // every one of its figures back off the takeoff lines (zero lines are
-  // dropped there, hence the 0), and so does this, so that a renamed label
-  // fails the posts stage on both sides rather than one.
-  const takeoffInt = (label: string): number => {
-    const line = s.takeoff.find((t) => t.label === label);
-    return line === undefined ? 0 : Math.trunc(line.quantity);
-  };
-  const line = takeoffInt("Line posts");
-  const corner = takeoffInt("Corner posts");
-  const end = takeoffInt("End posts");
-  const gate = takeoffInt("Gate posts (end posts + stiffener)");
+  // READ THE ARITHMETIC, NOT THE LABELS -- see PricingAdapters.runOutput for
+  // the whole reason. These were looked up in the takeoff by display text; the
+  // End posts label now carries the gate count, so an exact match would have
+  // found nothing and reported zero posts on every gated case. postCounts is
+  // what the takeoff itself is built from.
+  const c = s.postCounts;
+  const line = c.linePosts;
+  const corner = c.cornerPosts;
+  const end = c.endPosts;
+  const gate = c.gatePosts;
 
   return {
     run_sync_id: run.syncId,
@@ -966,7 +964,7 @@ function runOutput(run: FenceRun, s: EstimateSuggestions): RunOutput {
       end,
       gate,
       terminal: corner + end + gate,
-      total: takeoffInt("Total posts"),
+      total: c.totalPosts,
     },
     entries: s.entries.map((e) => ({
       role: e.role,

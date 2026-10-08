@@ -232,7 +232,7 @@ object PricingRunner {
 
         runs.forEach { run ->
             val suggestions = EstimateEngine.suggestQuantities(run, pixelsPerFoot, job.wastePercent)
-            runOutputs += runOutput(run, suggestions)
+            runOutputs += runOutput(run, suggestions, EstimateEngine.explainPosts(run, pixelsPerFoot))
 
             // This run's lines as the regenerate reads them
             // (EstimateLineItemDao.getGeneratedForRun: sortOrder, then syncId).
@@ -331,20 +331,33 @@ object PricingRunner {
         )
     }
 
-    private fun runOutput(run: FenceRun, s: com.fenceestimator.app.estimate.EstimateSuggestions): RunOutput {
+    private fun runOutput(
+        run: FenceRun,
+        s: com.fenceestimator.app.estimate.EstimateSuggestions,
+        w: com.fenceestimator.app.estimate.PostWorkings
+    ): RunOutput {
         // The engine's first two lines (suggestQuantities), repeated so the
         // gate footage it subtracted is visible as its own stage.
         val gates = FenceCodec.decodeGates(run.gatesEncoded)
         val gateFeet = gates.sumOf { it.widthFt.toDouble() }.toFloat()
 
-        // PostCounts is private to the engine; the takeoff prints every one
-        // of its figures (zero lines are dropped there, hence the default).
-        fun takeoff(label: String): Int =
-            s.takeoff.firstOrNull { it.label == label }?.quantity?.toInt() ?: 0
-        val line = takeoff("Line posts")
-        val corner = takeoff("Corner posts")
-        val end = takeoff("End posts")
-        val gate = takeoff("Gate posts (end posts + stiffener)")
+        // READ THE ARITHMETIC, NOT THE LABELS.
+        //
+        // These four used to be looked up in the takeoff by their display
+        // text, because PostCounts is private to the engine. That is the
+        // standing trap in this repo: the End posts label now says how many
+        // of them are at a gate ("End posts (2 gate)"), so an exact-match
+        // lookup silently returned 0 and the parity output would have
+        // reported no posts at all on every gated case.
+        //
+        // explainPosts is the same computePostCounts the takeoff is built
+        // from, made public for the "why 18 posts?" sheet, so this still
+        // cannot drift from the engine -- it just no longer goes through a
+        // string somebody may reword.
+        val line = w.linePosts
+        val corner = w.cornerPosts
+        val end = w.endPosts
+        val gate = w.gatePosts
 
         return RunOutput(
             runSyncId = run.syncId,
@@ -363,7 +376,7 @@ object PricingRunner {
             posts = PostsOutput(
                 line = line, corner = corner, end = end, gate = gate,
                 terminal = corner + end + gate,
-                total = takeoff("Total posts")
+                total = w.totalPosts
             ),
             entries = s.entries.map {
                 EntryOutput(it.role.name, it.quantity, it.preferCoversFt?.toDouble(), it.coversLinearFt?.toDouble())

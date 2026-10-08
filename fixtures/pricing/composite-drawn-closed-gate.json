@@ -2,7 +2,7 @@
   "schema": 1,
   "engine": {
     "version": "2026.10.13",
-    "generated_at": "2026-10-06T23:02:34.738142600Z"
+    "generated_at": "2026-10-08T18:57:51.598350500Z"
   },
   "case": "composite-drawn-closed-gate",
   "note": "Composite, drawn closed, one 4 ft line gate (frame kit).",
@@ -435,8 +435,14 @@
             "group": "POSTS"
           },
           {
-            "label": "Gate posts (end posts + stiffener)",
-            "quantity": 2.0,
+            "label": "End posts (1 gate)",
+            "quantity": 1.0,
+            "unit": "",
+            "group": "POSTS"
+          },
+          {
+            "label": "Gate posts",
+            "quantity": 1.0,
             "unit": "",
             "group": "POSTS"
           },

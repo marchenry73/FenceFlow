@@ -2,7 +2,7 @@
   "schema": 1,
   "engine": {
     "version": "2026.10.13",
-    "generated_at": "2026-10-06T23:02:34.738142600Z"
+    "generated_at": "2026-10-08T18:57:51.598350500Z"
   },
   "case": "gate-only-run",
   "note": "No points, one gate: 0 ft of fence, the gate's posts, stiffener and 3 bags still come through; labour feet clamp to zero, the gate charge stands.",
@@ -501,13 +501,7 @@
             "group": "SITE"
           },
           {
-            "label": "Gate posts (end posts + stiffener)",
-            "quantity": 2.0,
-            "unit": "",
-            "group": "POSTS"
-          },
-          {
-            "label": "Blank posts (wall-hung gates)",
+            "label": "Blank posts (nothing connects)",
             "quantity": 2.0,
             "unit": "",
             "group": "POSTS"

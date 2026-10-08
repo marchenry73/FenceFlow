@@ -2,7 +2,7 @@
   "schema": 1,
   "engine": {
     "version": "2026.10.13",
-    "generated_at": "2026-10-06T23:02:34.738142600Z"
+    "generated_at": "2026-10-08T18:57:51.598350500Z"
   },
   "case": "universal-drawn-closed",
   "note": "A UNIVERSAL closed loop with no gate: bays give concrete and nothing else.",
@@ -193,18 +193,6 @@
             "quantity": 120.0,
             "unit": "ft",
             "group": "SITE"
-          },
-          {
-            "label": "Line posts",
-            "quantity": 16.0,
-            "unit": "",
-            "group": "POSTS"
-          },
-          {
-            "label": "Corner posts",
-            "quantity": 4.0,
-            "unit": "",
-            "group": "POSTS"
           },
           {
             "label": "Total posts",

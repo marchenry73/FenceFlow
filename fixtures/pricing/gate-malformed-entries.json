@@ -2,7 +2,7 @@
   "schema": 1,
   "engine": {
     "version": "2026.10.13",
-    "generated_at": "2026-10-06T23:02:34.738142600Z"
+    "generated_at": "2026-10-08T18:57:51.598350500Z"
   },
   "case": "gate-malformed-entries",
   "note": "Two-part and non-numeric gates are dropped; an unknown mounting falls back to LINE and an unknown swing to IN; the good one after them still counts.",
@@ -573,14 +573,14 @@
             "group": "POSTS"
           },
           {
-            "label": "End posts",
-            "quantity": 2.0,
+            "label": "End posts (3 gate)",
+            "quantity": 5.0,
             "unit": "",
             "group": "POSTS"
           },
           {
-            "label": "Gate posts (end posts + stiffener)",
-            "quantity": 5.0,
+            "label": "Gate posts",
+            "quantity": 2.0,
             "unit": "",
             "group": "POSTS"
           },

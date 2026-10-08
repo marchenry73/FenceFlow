@@ -2,7 +2,7 @@
   "schema": 1,
   "engine": {
     "version": "2026.10.13",
-    "generated_at": "2026-10-06T23:02:34.738142600Z"
+    "generated_at": "2026-10-08T18:57:51.598350500Z"
   },
   "case": "edited-gate-claimed-by-name",
   "note": "A 4 ft gate panel priced by hand at $185, under the id it had as the only gate. A 6 ft gate added since makes GATE_PANEL repeat, so both built panels get width ids; the edited line claims the one with its product name (the 4 ft), and the 6 ft is written at its catalog $230, not the typed $185.",
@@ -617,14 +617,14 @@
             "group": "POSTS"
           },
           {
-            "label": "End posts",
-            "quantity": 2.0,
+            "label": "End posts (2 gate)",
+            "quantity": 4.0,
             "unit": "",
             "group": "POSTS"
           },
           {
-            "label": "Gate posts (end posts + stiffener)",
-            "quantity": 4.0,
+            "label": "Gate posts",
+            "quantity": 2.0,
             "unit": "",
             "group": "POSTS"
           },

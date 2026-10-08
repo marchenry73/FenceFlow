@@ -22,7 +22,7 @@
     <string name="posts_why_corners">Of those, corners</string>
     <string name="posts_why_ends">Of those, ends</string>
     <string name="posts_why_line">Line posts</string>
-    <string name="posts_why_gate_posts">Gate posts, two per gate</string>
+    <string name="posts_why_gate_posts">Posts at the gate openings</string>
     <string name="posts_why_shared">Shared where two sides meet</string>
     <string name="posts_why_total">Total posts</string>
     <string name="posts_why_footer">Corners and ends are not extra posts — they are posts the line already counted, standing in particular places. Change the post spacing on this run to change the count.</string>

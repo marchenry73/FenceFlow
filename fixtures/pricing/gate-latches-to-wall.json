@@ -2,7 +2,7 @@
   "schema": 1,
   "engine": {
     "version": "2026.10.13",
-    "generated_at": "2026-10-06T23:02:34.738142600Z"
+    "generated_at": "2026-10-08T18:57:51.598350500Z"
   },
   "case": "gate-latches-to-wall",
   "note": "Fence runs up to the gate post and stops; the gate closes the gap to a wall. ONE post, billed off GATE_POST because it carries the gate, one lot of hinge concrete because only it is in the ground, and the same 4 wall-mount hole plugs a wall-hung gate uses for the latch side. No end post: the post is already billed once.",
@@ -525,7 +525,7 @@
             "group": "POSTS"
           },
           {
-            "label": "Gate posts (end posts + stiffener)",
+            "label": "Gate posts",
             "quantity": 1.0,
             "unit": "",
             "group": "POSTS"
