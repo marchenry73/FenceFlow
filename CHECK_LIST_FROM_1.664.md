@@ -106,71 +106,40 @@ you saw on anything that does not match.
 
 ## Office
 
-**Where you are.** The office site, signed in as yourself (owner). The row of
-tabs across the top is how you move: **Dashboard, Pipeline, Email, Jobs,
-Schedule, Production, Materials, Catalog, Crew, Time, Reports, Automation,
-Settings, Billing**. Where I write **Billing →** below, I mean that tab.
+**The tabs across the top** are how you move around: Dashboard, Pipeline, Email, Jobs, Schedule, Production, Materials, Catalog, Crew, Time, Reports, Automation, Settings, **Billing**. Billing is its own tab at the end — not a section inside Settings.
 
-**Your test job.** Jobs tab → the job named **TEST - delete me** (make one with
-**+ New job** if it is gone). Clicking a row opens its sheet on the right; the
-**Save** button is at the bottom of that sheet. Everything below that says
-"the job sheet" means this.
+**Your test job here** is the same **TEST - delete me**: Jobs tab, click the row, and the sheet opens on the right with Save at the bottom.
 
----
+- [ ] **See and change your plan.** You could not do either. Click the **Billing** tab — the last one, after Settings — and read the top block, "Your FenceFlow Subscription". Below it is a separate block, "Getting Paid by Customers", which is about taking cards from customers and not about your own plan; make sure it is the top one you are reading.
+  - See: a line naming the plan you are on right now, and plan cards under it with a button to move to another. That area used to be blank.
 
-- [ ] **See and change your plan.** You could not do either.
-  1. Click the **Billing** tab (last one, after Settings — it is NOT inside Settings).
-  2. Read the top block, **"Your FenceFlow Subscription"**.
-  - **See:** a line naming the plan you are on right now, and plan cards underneath with a button to move to another one. Before this, that area was blank.
-  - Below it is a separate block, **"Getting Paid by Customers"** — that is about taking cards from customers, not about your own subscription. Two different things on one page; make sure the top one names *your* plan.
+- [ ] **A past-due account cannot be charged twice.** Two ways it could: the account being past due, and you double-clicking the pay button. **LOOK ONLY** — testing it for real charges a real card. Open **Billing** and read the state line without pressing anything.
+  - See: a plain statement of where you stand. If it ever says past due, tell me before you pay. I would rather watch that one happen than have you find out by being charged.
 
-- [ ] **A past-due account cannot be charged twice.** Two ways it could: the account being past due, and you double-clicking the pay button.
-  - **LOOK ONLY.** Testing this for real charges a real card. Open **Billing** and read the state line; do not press a payment button.
-  - If it ever says you are past due, tell me before paying — I want to watch that one live rather than have you discover it.
+- [ ] **The opt-out checkbox.** Until 7 October nothing in the whole product could record "stop emailing me", although every follow-up email promises it. Open **TEST - delete me** from the Jobs tab and scroll the sheet to the customer's email address; directly under it is a checkbox, "Do not send follow-up emails to this customer". Tick it, Save, close the sheet, open the job again.
+  - See: still ticked, with a small grey line under it saying when it was set.
+  - Now untick it, Save, and reopen. See: unticked, and the grey date gone. An opt-out you cannot undo is its own kind of broken — somebody who changes their mind has to go back on the list.
+  - Now tick it again and Save, then change the **notes** field and Save a second time. See: the date still says when you FIRST ticked it, not today. It records when they asked, so saving the job for any other reason must not move it.
+  - Then click **Automation**. See: this job is not in the waiting-to-send counts.
 
-- [ ] **The opt-out checkbox.** Until 7 October nothing in the product could record "stop emailing me", although every follow-up email promises it.
-  1. Jobs tab → open **TEST - delete me**.
-  2. Scroll the job sheet to the customer's **email address**. Directly under it is a checkbox: **"Do not send follow-up emails to this customer"**.
-  3. Tick it → **Save** → close the sheet → open the job again.
-  - **See:** still ticked, with a small grey line under it saying *when* it was set.
-  4. Untick → **Save** → reopen. **See:** unticked, and the grey date line gone. (An opt-out you cannot undo is its own kind of broken — somebody who changes their mind must go back on the list.)
-  5. Tick it again and Save. Now change something unrelated — the **notes** field — and Save again. Reopen.
-  - **See:** the opt-out date is **the date you first ticked it**, not today. It is a record of when they asked, so re-saving the job for any other reason must not move it.
-  6. Click the **Automation** tab. **See:** this job is not in the waiting-to-send counts.
+- [ ] **The mail folders each show their own folder.** All of them used to show the Inbox. Click the **Email** tab — if it is not there, this account has no mailbox connected — and work down the **seven** buttons on the left in turn: Inbox, Sent, Drafts, Starred, Snoozed, Archived, Trash.
+  - See: seven different lists. Sent holds mail you sent, Trash holds deleted mail, Archived holds archived mail. If two buttons show the same list, tell me which two.
+  - Do not file a real customer's mail until you are happy with this. Before the fix, archiving something looked like putting it somewhere you could not get it back from.
 
-- [ ] **The mail folders each show their own folder.** All of them used to show the Inbox.
-  1. Click the **Email** tab. (If you do not see it, the mailbox is not connected on this account.)
-  2. Down the left are **seven** buttons: **Inbox, Sent, Drafts, Starred, Snoozed, Archived, Trash**.
-  3. Click each of the seven in turn.
-  - **See:** seven different lists. Sent shows mail you sent; Trash shows deleted mail; Archived shows archived mail. If two buttons show the same list, tell me which two.
-  - **Do not file a real customer's mail** until you are happy this is right — before the fix, archiving something appeared to put it where you could not get it back.
+- [ ] **Tap-to-pay on the quote (Cash App).** It uses the tag you have already typed, so I did not need it from you. Check it is there first: **Settings**, the payment details block, your Cash App tag (with or without the \$ — both work). Then open a test quote link **on your phone**, for a job where a deposit is still due, and scroll to "How to pay".
+  - See: the tag is now a link. Tapping it opens the Cash App app with the deposit already filled in — the same figure as the Pay deposit button above it.
+  - Then open a quote whose deposit is **already paid** but with a balance left. See: the link still opens Cash App, but with no amount in it. That is deliberate: filling in the deposit there would name the smaller of two figures as if it were the whole bill.
+  - Then put a space in the middle of the tag in Settings, Save, and reload the quote. See: no link at all, just your text as before. A link that opens Cash App on a dead profile is worse than plain text, because the customer believes they have paid.
+  - Zelle gets a sentence, not a button: "open your own banking app and send to the address above." Zelle publishes no link that can open anything, so a button there would be a dead control.
 
-- [ ] **Tap-to-pay on the quote (Cash App).** It uses the tag you have already typed; I did not need it from you.
-  1. **Settings** tab → the payment details block → check your **Cash App** tag is there (with or without the \$ — both work).
-  2. Open a **test quote link on your phone**, for a job where a deposit is still due. Scroll to **"How to pay"**.
-  - **See:** the Cash App tag is now a **link**. Tapping it opens the Cash App app **with the deposit already filled in** — the same figure as the *Pay deposit* button above it.
-  3. Now open a quote whose **deposit is already paid** but with a balance left.
-  - **See:** the link still opens Cash App, but with **no amount in it**. That is deliberate: filling in the deposit there would name the smaller of two figures as if it were the whole bill.
-  4. Go back to Settings and put a **space** in the middle of the tag, Save, reload the quote.
-  - **See:** no link at all — just your text, as before. A link that opens Cash App on a dead profile is worse than plain text, because the customer believes they have paid.
-  5. **Zelle** gets a **sentence**, not a button: *"open your own banking app and send to the address above."* Zelle publishes no link that can open anything, so a button there would be a dead control.
+- [ ] **The lead form reaches you.** It used to be a dead end. Open your public website's contact form in an ordinary browser tab and submit it with your **own** name and email, then look at the Jobs tab and the Pipeline.
+  - See: a new job from that submission, carrying what you typed.
 
-- [ ] **The lead form reaches you.** It used to be a dead end.
-  1. Open your public website's contact form in a normal browser tab.
-  2. Fill it in with your **own** name and email and submit.
-  3. Office → **Jobs** tab (and **Pipeline**).
-  - **See:** a new job from that submission, with what you typed in it.
+- [ ] **The crew's plan draws the house as a house.** It drew every site marker as a plain dot. **LOOK, DO NOT PRESS:** open a real job that has a house, tree or pool marked, and open its crew plan or the PDF you would hand a crew.
+  - See: the house as a house-shaped marker with its label — not a dot, and not an empty box.
 
-- [ ] **The crew's plan draws the house as a house.** It drew every site marker as a plain dot.
-  1. Open a real job that has a **house, tree or pool** marked on its drawing. **LOOK, DO NOT PRESS.**
-  2. Open its **crew plan** (or the PDF you would send a crew).
-  - **See:** the house as a house-shaped marker with its label — not a dot, and not an empty box.
-
-- [ ] **A copied side gets its own identity.** Duplicating a side used to share the original's, so deleting one killed the other on every phone.
-  1. On **TEST - delete me**, duplicate a side.
-  2. Delete the **copy**.
-  3. Reload the office page, and pull to refresh on the phone.
-  - **See:** the original side is still there, on both.
+- [ ] **A copied side gets its own identity.** Duplicating a side used to share the original's, so deleting one killed the other on every phone. On **TEST - delete me**, duplicate a side, delete the **copy**, then reload the office page and pull to refresh on the phone.
+  - See: the original side still there, on both.
 
 ---
 
