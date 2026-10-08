@@ -106,32 +106,71 @@ you saw on anything that does not match.
 
 ## Office
 
-- [ ] **Your plan.** Settings → Billing.
-  - See: which plan you are on, and a way to change it. Both were missing.
+**Where you are.** The office site, signed in as yourself (owner). The row of
+tabs across the top is how you move: **Dashboard, Pipeline, Email, Jobs,
+Schedule, Production, Materials, Catalog, Crew, Time, Reports, Automation,
+Settings, Billing**. Where I write **Billing →** below, I mean that tab.
 
-- [ ] **A past-due company cannot be charged twice.** Also a fast clicker on the pay button.
-  - LOOK ONLY unless you want to test with a real card.
+**Your test job.** Jobs tab → the job named **TEST - delete me** (make one with
+**+ New job** if it is gone). Clicking a row opens its sheet on the right; the
+**Save** button is at the bottom of that sheet. Everything below that says
+"the job sheet" means this.
 
-- [ ] **The opt-out checkbox.** Job sheet, under the customer's email address.
-  - Tick it on **TEST - delete me**, Save, reopen: still ticked, with the date it was set.
-  - Untick, Save, reopen: cleared. An opt-out you cannot undo is its own kind of broken.
-  - Change something unrelated and Save: the opt-out **date must not change to today**.
-  - Automation: an opted-out job is excluded from the waiting counts and never emailed.
+---
 
-- [ ] **The five mail folder buttons show five folders.** All five used to show the Inbox.
-  - Mail → Inbox, Archived, Snoozed, Sent, Trash in turn.
-  - Do not file a real customer's mail until you are happy this is right.
+- [ ] **See and change your plan.** You could not do either.
+  1. Click the **Billing** tab (last one, after Settings — it is NOT inside Settings).
+  2. Read the top block, **"Your FenceFlow Subscription"**.
+  - **See:** a line naming the plan you are on right now, and plan cards underneath with a button to move to another one. Before this, that area was blank.
+  - Below it is a separate block, **"Getting Paid by Customers"** — that is about taking cards from customers, not about your own subscription. Two different things on one page; make sure the top one names *your* plan.
 
-- [ ] **The lead form.** Submit a test lead from the website form.
-  - See: it arrives as a job. It used to be a dead end.
+- [ ] **A past-due account cannot be charged twice.** Two ways it could: the account being past due, and you double-clicking the pay button.
+  - **LOOK ONLY.** Testing this for real charges a real card. Open **Billing** and read the state line; do not press a payment button.
+  - If it ever says you are past due, tell me before paying — I want to watch that one live rather than have you discover it.
 
-- [ ] **The crew's plan draws the house as a house.** It drew every site marker as a dot.
-  - Open a job with a house/tree/pool marked, view the crew plan or the PDF.
-  - See: the house marker as a marker, not a dot, and not a box.
+- [ ] **The opt-out checkbox.** Until 7 October nothing in the product could record "stop emailing me", although every follow-up email promises it.
+  1. Jobs tab → open **TEST - delete me**.
+  2. Scroll the job sheet to the customer's **email address**. Directly under it is a checkbox: **"Do not send follow-up emails to this customer"**.
+  3. Tick it → **Save** → close the sheet → open the job again.
+  - **See:** still ticked, with a small grey line under it saying *when* it was set.
+  4. Untick → **Save** → reopen. **See:** unticked, and the grey date line gone. (An opt-out you cannot undo is its own kind of broken — somebody who changes their mind must go back on the list.)
+  5. Tick it again and Save. Now change something unrelated — the **notes** field — and Save again. Reopen.
+  - **See:** the opt-out date is **the date you first ticked it**, not today. It is a record of when they asked, so re-saving the job for any other reason must not move it.
+  6. Click the **Automation** tab. **See:** this job is not in the waiting-to-send counts.
 
-- [ ] **A copied side gets its own id.** Duplicating a side used to share the original's cloud identity, so deleting one killed the other on every phone.
-  - Duplicate a side on **TEST - delete me**, delete the copy, pull to refresh.
-  - See: the original is still there.
+- [ ] **The mail folders each show their own folder.** All of them used to show the Inbox.
+  1. Click the **Email** tab. (If you do not see it, the mailbox is not connected on this account.)
+  2. Down the left are **seven** buttons: **Inbox, Sent, Drafts, Starred, Snoozed, Archived, Trash**.
+  3. Click each of the seven in turn.
+  - **See:** seven different lists. Sent shows mail you sent; Trash shows deleted mail; Archived shows archived mail. If two buttons show the same list, tell me which two.
+  - **Do not file a real customer's mail** until you are happy this is right — before the fix, archiving something appeared to put it where you could not get it back.
+
+- [ ] **Tap-to-pay on the quote (Cash App).** It uses the tag you have already typed; I did not need it from you.
+  1. **Settings** tab → the payment details block → check your **Cash App** tag is there (with or without the \$ — both work).
+  2. Open a **test quote link on your phone**, for a job where a deposit is still due. Scroll to **"How to pay"**.
+  - **See:** the Cash App tag is now a **link**. Tapping it opens the Cash App app **with the deposit already filled in** — the same figure as the *Pay deposit* button above it.
+  3. Now open a quote whose **deposit is already paid** but with a balance left.
+  - **See:** the link still opens Cash App, but with **no amount in it**. That is deliberate: filling in the deposit there would name the smaller of two figures as if it were the whole bill.
+  4. Go back to Settings and put a **space** in the middle of the tag, Save, reload the quote.
+  - **See:** no link at all — just your text, as before. A link that opens Cash App on a dead profile is worse than plain text, because the customer believes they have paid.
+  5. **Zelle** gets a **sentence**, not a button: *"open your own banking app and send to the address above."* Zelle publishes no link that can open anything, so a button there would be a dead control.
+
+- [ ] **The lead form reaches you.** It used to be a dead end.
+  1. Open your public website's contact form in a normal browser tab.
+  2. Fill it in with your **own** name and email and submit.
+  3. Office → **Jobs** tab (and **Pipeline**).
+  - **See:** a new job from that submission, with what you typed in it.
+
+- [ ] **The crew's plan draws the house as a house.** It drew every site marker as a plain dot.
+  1. Open a real job that has a **house, tree or pool** marked on its drawing. **LOOK, DO NOT PRESS.**
+  2. Open its **crew plan** (or the PDF you would send a crew).
+  - **See:** the house as a house-shaped marker with its label — not a dot, and not an empty box.
+
+- [ ] **A copied side gets its own identity.** Duplicating a side used to share the original's, so deleting one killed the other on every phone.
+  1. On **TEST - delete me**, duplicate a side.
+  2. Delete the **copy**.
+  3. Reload the office page, and pull to refresh on the phone.
+  - **See:** the original side is still there, on both.
 
 ---
 
@@ -144,8 +183,21 @@ you saw on anything that does not match.
 
 - [ ] **Rescheduling to any date.** I checked both date pickers and the office save: there is no limit in either, and the office does send the date when you have Schedule & Assign. So I could not reproduce a block. Tell me exactly what you see — does the picker refuse the date, or does it save and come back wrong?
 
-- [ ] **Cash App / Zelle on the quote.** Written, not shipped: the Cash App link needs your $cashtag before it can open the app with the amount in it. Zelle has no link that can open anything, so it gets a line telling the customer to use their own banking app.
-
-- [ ] **Follow-ups sent nothing in 48 hours** with two due and the mailbox connected. Still looking.
+- [ ] **Follow-ups sent nothing in 48 hours** — answered below, under "Needs you".
 
 - [ ] **"The website and the app are not showing the same amounts."** Tell me which two figures you compared and on which job and I will label each one with where it came from.
+
+---
+
+## Needs you — I cannot finish these
+
+- [ ] **Follow-up emails have never sent. Not once, ever.** Not "stopped working": the log that records every send is empty for all time, with one company switched on and two emails due.
+  - The switch in the app is real and so is the function behind it. What is missing is the **hourly caller**. It is a GitHub Action, and it checks for a secret called `FOLLOWUPS_TRIGGER_SECRET`; when that is missing it writes a notice and **exits green having sent nothing**. So every hour for weeks it has reported success and done nothing.
+  - That green exit was deliberate — before it, GitHub emailed you a "run failed" notice every hour for a scheduler you had not switched on. The side effect is that there was no signal either way.
+  - **This one is yours, and I should not do it:** it needs a secret generated and pasted into GitHub's repository secrets, matched to the `NOTIFY_TRIGGER_SECRET` already set in Supabase. Steps are in `docs/FOLLOW_UPS_SCHEDULER.md`. **Do not paste the value into a chat with me.**
+  - Until then: nothing has gone to any customer, so nothing has gone wrong outward. The opt-out checkbox shipped first on purpose, so when you do switch it on, a customer who asks to stop can be stopped.
+
+- [ ] **There is no overtime anywhere in the app.** Found by the pay gate during this release, not by a complaint.
+  - The phone pays hours × rate with no weekly threshold and no multiplier. The office's "estimated pay" card does have an overtime notion, so for the same 45-hour week the two halves can show different pay.
+  - The office card is labelled an estimate, so this may be exactly what you intend. But it means pay is **not** a figure with one true answer across the two halves the way price, tax and deposit now are.
+  - **Tell me which is right** and I will make the other agree. Do not let anyone treat app-side payroll as a small job until this is settled.
