@@ -124,6 +124,7 @@ import com.fenceestimator.app.estimate.ScaleBasis
 import com.fenceestimator.app.geometry.FenceCodec
 import com.fenceestimator.app.geometry.FenceGeometryEngine
 import com.fenceestimator.app.geometry.FencePoint
+import com.fenceestimator.app.geometry.markerGrabDistance
 import com.fenceestimator.app.geometry.GateMarker
 import com.fenceestimator.app.geometry.GateMounting
 import com.fenceestimator.app.geometry.GateSpan
@@ -415,6 +416,9 @@ fun SurveyDrawScreen(
     }
     var markerDialogPoint by remember { mutableStateOf<FencePoint?>(null) }
     val siteMarkers by viewModel.siteMarkers.collectAsState()
+    // Read by the drag handler without being a pointerInput key -- see the
+    // comment on that call. A key would restart the gesture; this does not.
+    val markersLive = rememberUpdatedState(siteMarkers)
 
     val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri != null) viewModel.importImage(context, uri)
@@ -932,6 +936,9 @@ fun SurveyDrawScreen(
             if (activeRun != null && job2 != null) {
                 val committedPoints = remember(activeRun.pointsEncoded) { FenceCodec.decodePoints(activeRun.pointsEncoded) }
                 val gates = remember(activeRun.gatesEncoded) { FenceCodec.decodeGates(activeRun.gatesEncoded) }
+                // Same reason as markersLive: the gate hit-test needs the
+                // current list, not a reason to tear the gesture down.
+                val gatesLive = rememberUpdatedState(gates)
                 var draftPoints by remember(activeRun.id) { mutableStateOf<List<FencePoint>?>(null) }
                 // Which vertex the arrow pad nudges. A finger covers the point
                 // it is moving, so fine adjustment by dragging is guesswork --
@@ -1281,7 +1288,31 @@ fun SurveyDrawScreen(
                                     }
                                 }
                             }
-                            .pointerInput(mode, committedPoints, bmp, activeRun.id, usingGrid, gates, siteMarkers, fitActive) {
+                            // gates and siteMarkers are NOT keys here, on purpose.
+                            //
+                            // THEY WERE, AND IT CANCELLED THE DRAG. Compose
+                            // cancels and restarts a pointerInput block the
+                            // moment any key changes, and a sync pull writes
+                            // site markers on EVERY pass -- markers go up
+                            // wholesale, every marker of every job, and this
+                            // phone's own push then fires a realtime event
+                            // that asks for another pass. So a pull landing
+                            // mid-drag tore down the gesture before
+                            // onDragEnd, and onDragEnd is the only place a
+                            // moved marker is persisted (there is no draft
+                            // for a marker the way there is for a vertex).
+                            //
+                            // Nothing was saved and nothing said so: the
+                            // house just sat where it started. That is one of
+                            // the things "the house marker keeps reverting"
+                            // means, and the one that happens with no network
+                            // round trip at all -- it never moved, so there
+                            // was nothing to revert.
+                            //
+                            // rememberUpdatedState gives the handler the
+                            // CURRENT list without restarting it, which is
+                            // what the keys were being used for.
+                            .pointerInput(mode, committedPoints, bmp, activeRun.id, usingGrid, fitActive) {
                                 // FITTING the survey photo: one finger slides the photo
                                 // under the drawing, and nothing else on this layer may
                                 // act -- a tap must not drop a corner while somebody is
@@ -1340,12 +1371,43 @@ fun SurveyDrawScreen(
                                                 // the line, so they win a tie --
                                                 // otherwise a gate placed on a
                                                 // vertex could never be grabbed.
-                                                val gateHit = gates.withIndex()
+                                                val gateHit = gatesLive.value.withIndex()
                                                     .minByOrNull { (_, g) -> distTo(g.x, g.y) }
                                                     ?.takeIf { (_, g) -> distTo(g.x, g.y) <= VERTEX_HIT_RADIUS_PX }
-                                                val markerHit = siteMarkers
-                                                    .minByOrNull { m -> distTo(m.x, m.y) }
-                                                    ?.takeIf { m -> distTo(m.x, m.y) <= VERTEX_HIT_RADIUS_PX }
+                                                // A HOUSE IS GRABBED BY ITS BODY.
+                                                //
+                                                // This measured to the stored
+                                                // POINT, which was the whole
+                                                // truth while a marker was a
+                                                // dot. Once a house carried a
+                                                // size and drew as a box, a 40
+                                                // px circle about its centre
+                                                // left the body and the edges
+                                                // ungrabbable -- and a drag
+                                                // that grabs nothing is
+                                                // discarded with no else
+                                                // branch and no message.
+                                                //
+                                                // Same half-extents the box is
+                                                // DRAWN from, so the area that
+                                                // responds is the area he can
+                                                // see. markerGrabDistance is
+                                                // pure and tested off device.
+                                                val markerHit = markersLive.value
+                                                    .mapNotNull { m ->
+                                                        val c = transform.toCanvas(FencePoint(m.x, m.y))
+                                                        val halfW = (m.widthFt * gridPxPerFt / 2f) * transform.scale
+                                                        val halfH = (m.heightFt * gridPxPerFt / 2f) * transform.scale
+                                                        markerGrabDistance(
+                                                            cx = c.x, cy = c.y,
+                                                            halfW = halfW, halfH = halfH,
+                                                            rotationDeg = m.rotationDeg,
+                                                            tapX = startOffset.x, tapY = startOffset.y,
+                                                            slopPx = VERTEX_HIT_RADIUS_PX,
+                                                        )?.let { d -> m to d }
+                                                    }
+                                                    .minByOrNull { (_, d) -> d }
+                                                    ?.first
 
                                                 when {
                                                     gateHit != null -> draggingGate = gateHit.index

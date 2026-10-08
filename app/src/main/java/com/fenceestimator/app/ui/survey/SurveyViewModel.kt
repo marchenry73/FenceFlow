@@ -2635,11 +2635,21 @@ class SurveyViewModel(
         }
     }
 
-    /** Moves a site marker, for the same reason gates can be moved. */
+    /**
+     * Moves a site marker, for the same reason gates can be moved.
+     *
+     * NonCancellable, like the marker writes in [fitSurvey] and for the same
+     * reason: this is a bare viewModelScope.launch, so a drag finished as the
+     * screen is closing could be cancelled at the Room suspension point and
+     * the move silently lost. He reported the house "reverting"; a move that
+     * was never written looks identical to one that was overwritten.
+     */
     fun moveSiteMarker(marker: SiteMarker, x: Float, y: Float) {
         if (viewerIsGuestDemo()) return
         viewModelScope.launch {
-            repository.updateSiteMarker(marker.copy(x = x, y = y))
+            withContext(NonCancellable) {
+                repository.updateSiteMarker(marker.copy(x = x, y = y))
+            }
         }
     }
 
