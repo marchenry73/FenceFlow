@@ -337,6 +337,7 @@ const L = {
     pmCard: 'Credit or debit card',
     pmCardHow: 'Pay online with the payment button below.',
     pmCashApp: 'Cash App',
+    pmZelleHow: 'For Zelle, open your own banking app and send to the address above.',
     pmZelle: 'Zelle',
     pmWire: 'Wire transfer',
     pmCash: 'Cash',
@@ -436,6 +437,7 @@ const L = {
     pmCard: 'Tarjeta de crédito o débito',
     pmCardHow: 'Pague en línea con el botón de pago de abajo.',
     pmCashApp: 'Cash App',
+    pmZelleHow: 'Para Zelle, abra la aplicación de su banco y envíe a la dirección de arriba.',
     pmZelle: 'Zelle',
     pmWire: 'Transferencia bancaria',
     pmCash: 'Efectivo',
@@ -533,6 +535,7 @@ const L = {
     pmCard: 'Carte de crédit ou de débit',
     pmCardHow: 'Payez en ligne avec le bouton de paiement ci-dessous.',
     pmCashApp: 'Cash App',
+    pmZelleHow: 'Pour Zelle, ouvrez l’application de votre banque et envoyez à l’adresse ci-dessus.',
     pmZelle: 'Zelle',
     pmWire: 'Virement bancaire',
     pmCash: 'Espèces',
@@ -1112,6 +1115,46 @@ const PAY_IN_KEY={cashapp:'pmCashAppIn',zelle:'pmZelleIn',wire:'pmWireIn',cash:'
  * copy; for cash it is null, because "we take cash" is a fact with nothing to
  * copy. */
 const PAY_FIELD={cashapp:'cashApp',zelle:'zelle',wire:'wire',cash:'cash'};
+/** A tappable Cash App link, or null when one cannot honestly be made.
+ *
+ * "I want the customer to be able to click and for it to automatically open
+ * the cash app app to pay."
+ *
+ * https://cash.app/$tag/12.34 opens the Cash App app on a phone with the
+ * amount already in it, and falls back to the web profile on a desktop. The
+ * amount is optional in the format; it is included here because he asked for
+ * it, and because a figure typed by hand at a kerbside is a figure that can be
+ * wrong.
+ *
+ * THE AMOUNT COMES FROM dueNow(), the same source the card button uses, and it
+ * is the DEPOSIT or nothing -- never a second opinion about what is owed. This
+ * file's rule is that no figure is restated ("a second copy of the total in a
+ * second place is how the two come to disagree") and a link is a second place.
+ *
+ * The two cases that matter, both honest:
+ *   - a deposit is due: dueNow() is that deposit, so the link asks for exactly
+ *     what the card button beside it asks for.
+ *   - the deposit is paid and a balance remains (the panel still shows, see
+ *     payHowModel's balance test): dueNow() is 0, so the link carries NO
+ *     amount and the customer types it. Pre-filling the deposit there would
+ *     name the smaller of two figures as if it were the bill.
+ *
+ * Returns null rather than a broken link when the tag is not a tag. A link
+ * that opens Cash App on a 404 is worse than the copyable text it replaced:
+ * the customer thinks they have paid the wrong person.
+ */
+function cashAppLink(tag, amount){
+  if(typeof tag!=='string') return null;
+  // Cash App tags are letters, digits and underscores, 1-20, optionally
+  // written with the leading $. Anything else is not something to build a
+  // payment URL out of.
+  const clean=tag.trim().replace(/^\$/,'');
+  if(!/^[A-Za-z0-9_]{1,20}$/.test(clean)) return null;
+  const n=Number(amount);
+  const money=(Number.isFinite(n) && n>0.005) ? n.toFixed(2) : null;
+  return 'https://cash.app/$'+clean+(money ? '/'+money : '');
+}
+
 function payMethodsFrom(q){
   const src=(q && q.paymentMethods && typeof q.paymentMethods==='object') ? q.paymentMethods : {};
   const out=[];
@@ -1210,7 +1253,21 @@ function renderHowToPay(q, balance){
     return '<div class="pm" data-method="'+p.key+'">'
       +'<div class="pm-name">'+esc(name)+'</div>'
       +'<div class="pm-line">'
-        +'<div class="pm-val" id="pmv'+i+'">'+esc(p.value)+'</div>'
+        +(()=>{
+          // Cash App gets a link; everything else stays plain text. The tag is
+          // still shown and still copyable, because a link that does not open
+          // (a desktop with no Cash App, a blocked scheme) must leave the
+          // customer exactly where they were, not stranded.
+          //
+          // Built ONCE and held, rather than called in the test and again in
+          // the href: two calls are two chances for the figure in the link to
+          // stop being the figure that was checked.
+          const tap = (p.key==='cashapp') ? cashAppLink(p.value, dueNow()) : null;
+          return '<div class="pm-val" id="pmv'+i+'">'
+            + (tap ? '<a href="'+esc(tap)+'" target="_blank" rel="noopener">'+esc(p.value)+'</a>'
+                   : esc(p.value))
+          +'</div>';
+        })()
         +'<button type="button" class="pm-copy" id="pmb'+i+'" data-i="'+i+'" aria-label="'
           +esc(tr('pmCopyAria', name))+'">'+esc(tr('pmCopy'))+'</button>'
       +'</div>'
@@ -1221,6 +1278,10 @@ function renderHowToPay(q, balance){
   let notes='';
   if(m.skipCard) notes+='<p class="sub paynote">'+esc(tr('pmSkipCard', payNameList(m.methods.map(p=>p.key))))+'</p>';
   if(m.nameNote) notes+='<p class="sub paynote">'+esc(tr('pmNameNote'))+'</p>';
+  // Zelle runs inside each bank's own app and has no link that can open
+  // anything, so there is no button for it and this says why. Shown only when
+  // Zelle is actually offered.
+  if(m.methods.some(p=>p.key==='zelle')) notes+='<p class="sub paynote">'+esc(tr('pmZelleHow'))+'</p>';
   $('payNotes').innerHTML=notes;
   $('payHow').style.display='';
 }

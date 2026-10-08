@@ -76,6 +76,7 @@ const PIECES = [
   grabL(),
   grabFn('tr'),
   grabLine('const PAY_ORDER='), grabLine('const PAY_NAME_KEY='), grabLine('const PAY_IN_KEY='), grabLine('const PAY_FIELD='),
+  grabFn('cashAppLink'),
   grabFn('payMethodsFrom'), grabFn('payHowModel'), grabFn('payNameList'),
   grabFn('payCopyOutcome'), grabFn('selectNodeContents'),
   'let payList=[];', grabFn('renderHowToPay'), grabFn('copyPayRow'),
@@ -442,7 +443,8 @@ test('FEE TRUTH: no percentage or surcharge figure appears in the new copy', () 
 });
 
 const NEW_KEYS = ['howToPayHead', 'howToPayLead', 'pmCard', 'pmCardHow', 'pmCashApp', 'pmZelle', 'pmWire', 'pmCash', 'pmCashHow',
-  'pmCashAppIn', 'pmZelleIn', 'pmWireIn', 'pmCashIn', 'pmCopy', 'pmCopied', 'pmCopyAria', 'pmSelected', 'pmSkipCard', 'pmNameNote'];
+  'pmCashAppIn', 'pmZelleIn', 'pmWireIn', 'pmCashIn', 'pmCopy', 'pmCopied', 'pmCopyAria', 'pmSelected', 'pmSkipCard', 'pmNameNote',
+  'pmZelleHow'];
 // Proper nouns that are legitimately identical in every language. Everything
 // else must actually be translated -- compared by KEY, never by looking for a
 // particular word inside the text.
@@ -504,6 +506,127 @@ test('three languages: the static heading and lead go through the page\'s own da
   assert.match(src, /<h2 data-t="howToPayHead">/);
   assert.match(src, /<p class="sub" data-t="howToPayLead">/);
   assert.match(grabFn('applyStaticText'), /querySelectorAll\('\[data-t\]'\)/);
+});
+
+/* ---- the tappable Cash App link ------------------------------------------
+
+   "I want the customer to be able to click and for it to automatically open
+   the cash app app to pay, and also the same thing with Zelle if Available,
+   if not don't worry about it."
+
+   Cash App can: https://cash.app/$tag/12.34 opens the app with the amount in
+   it. Zelle cannot -- it runs inside each bank's own app and publishes no URL
+   scheme -- so Zelle gets a sentence instead of a button, and these tests pin
+   that the sentence appears only when Zelle is actually offered.
+
+   The thing most worth catching is a link carrying the WRONG figure. The
+   panel shows whenever a balance remains, but dueNow() is the DEPOSIT, so on
+   a quote whose deposit is already paid the link must carry no amount at all
+   rather than naming the deposit as if it were the bill. */
+
+const LINK_WITH_DEPOSIT = /href="https:\/\/cash\.app\/\$TestFenceCo\/3100\.00"/;
+
+test('the Cash App value is a link that opens the app at his tag', () => {
+  const p = page({ dueNow: 3100 });
+  p.renderHowToPay(quoteWith({ cashapp: '$TestFenceCo' }), 12400);
+  const html = p.els.payMethods.innerHTML;
+  assert.match(html, LINK_WITH_DEPOSIT, 'no Cash App link with the deposit in it: ' + html);
+  // Still readable and still copyable: a link that does not open must leave
+  // her exactly where she was.
+  assert.match(html, />\$TestFenceCo</, 'the tag is no longer shown as text');
+  assert.match(html, /id="pmb0"/, 'the Copy button went missing');
+  assert.match(html, /target="_blank"/);
+  assert.match(html, /rel="noopener"/);
+});
+
+test('THE FIGURE: with the deposit already paid the link carries NO amount, never the deposit', () => {
+  // dueNow() is 0 here -- the card button is not offered -- but the panel is
+  // still shown because a balance remains. Naming the deposit in the link
+  // would state the smaller of two figures as the amount owed.
+  const p = page({ dueNow: 0 });
+  p.renderHowToPay(quoteWith({ cashapp: '$TestFenceCo' }), 9300);
+  const html = p.els.payMethods.innerHTML;
+  assert.match(html, /href="https:\/\/cash\.app\/\$TestFenceCo"/,
+    'the link should be the bare profile when nothing specific is due: ' + html);
+  assert.ok(!/cash\.app\/\$TestFenceCo\//.test(html),
+    'an amount appeared in the link when dueNow() was 0: ' + html);
+  // And the panel still restates no figure of its own.
+  assert.ok(!/9,?300/.test(html) && !/3,?100/.test(html), 'a figure was restated: ' + html);
+});
+
+test('CONTROL: the amount in the link is dueNow(), not a constant this test cannot move', () => {
+  const a = page({ dueNow: 3100 });
+  a.renderHowToPay(quoteWith({ cashapp: '$TestFenceCo' }), 12400);
+  const b = page({ dueNow: 1250.5 });
+  b.renderHowToPay(quoteWith({ cashapp: '$TestFenceCo' }), 12400);
+  assert.match(a.els.payMethods.innerHTML, /\/3100\.00"/);
+  assert.match(b.els.payMethods.innerHTML, /\/1250\.50"/);
+  assert.notEqual(a.els.payMethods.innerHTML, b.els.payMethods.innerHTML);
+});
+
+test('a tag that is not a tag gets no link at all, rather than a link to nowhere', () => {
+  // A link that opens Cash App on a 404 is worse than the plain text it
+  // replaced: she believes she has paid, and she has paid nobody.
+  const BAD = ['not a tag', '$has space', 'has/slash', '$way_too_long_a_tag_for_cashapp',
+               '$', 'pay@example.com', '$tag?x=1', '<script>'];
+  for (const bad of BAD) {
+    const p = page({ dueNow: 3100 });
+    p.renderHowToPay(quoteWith({ cashapp: bad }), 12400);
+    const html = p.els.payMethods.innerHTML;
+    assert.ok(!/<a /.test(html), JSON.stringify(bad) + ' produced a link: ' + html);
+    // ...and the text he typed is still shown, escaped, so he can see it is wrong.
+    assert.ok(html.includes(esc(bad.trim())), JSON.stringify(bad) + ': his own text vanished');
+  }
+});
+
+test('the tag works with or without the leading dollar sign', () => {
+  for (const spelling of ['$TestFenceCo', 'TestFenceCo']) {
+    const p = page({ dueNow: 3100 });
+    p.renderHowToPay(quoteWith({ cashapp: spelling }), 12400);
+    assert.match(p.els.payMethods.innerHTML, LINK_WITH_DEPOSIT,
+      spelling + ' did not produce the link: ' + p.els.payMethods.innerHTML);
+  }
+});
+
+test('only Cash App gets a link: Zelle, wire and cash stay plain text', () => {
+  const p = page({ dueNow: 3100 });
+  p.renderHowToPay(quoteWith(FULL), 12400);
+  const html = p.els.payMethods.innerHTML;
+  assert.equal((html.match(/<a /g) || []).length, 1,
+    'exactly one method can be opened by a link: ' + html);
+  assert.match(html, /cash\.app/);
+  // The Zelle row is shown and is NOT wrapped in an anchor.
+  const zelleStart = html.indexOf('data-method="zelle"');
+  assert.ok(zelleStart > 0, 'no Zelle row at all: ' + html);
+  const zelleRow = html.slice(zelleStart, html.indexOf('data-method=', zelleStart + 1) + 1 || undefined);
+  assert.ok(!/<a /.test(zelleRow), 'Zelle was given a link it cannot honour: ' + zelleRow);
+});
+
+test('Zelle gets a sentence saying to use her own banking app, and only when Zelle is offered', () => {
+  const withZelle = page({ dueNow: 3100 });
+  withZelle.renderHowToPay(quoteWith({ zelle: 'pay@testfence.example' }), 12400);
+  assert.ok(withZelle.els.payNotes.innerHTML.includes(esc(LTABLE.en.pmZelleHow)),
+    'no Zelle sentence: ' + withZelle.els.payNotes.innerHTML);
+
+  const withoutZelle = page({ dueNow: 3100 });
+  withoutZelle.renderHowToPay(quoteWith({ cashapp: '$TestFenceCo' }), 12400);
+  assert.ok(!withoutZelle.els.payNotes.innerHTML.includes(esc(LTABLE.en.pmZelleHow)),
+    'the Zelle sentence appeared on a quote that does not offer Zelle');
+});
+
+test('three languages: the Zelle sentence is translated, and the link is language-independent', () => {
+  for (const lang of ['en', 'es', 'fr']) {
+    const p = page({ lang, dueNow: 3100 });
+    p.renderHowToPay(quoteWith(FULL), 12400);
+    assert.ok(p.els.payNotes.innerHTML.includes(esc(LTABLE[lang].pmZelleHow)),
+      lang + ': the Zelle sentence is not in that language');
+    // A URL is not prose. The same link whatever she reads the page in.
+    assert.match(p.els.payMethods.innerHTML, LINK_WITH_DEPOSIT, lang + ': the link changed with the language');
+  }
+  // CONTROL: the three sentences are genuinely different text, so the loop
+  // above compared translations and not the same English three times.
+  const seen = new Set(['en', 'es', 'fr'].map((l) => LTABLE[l].pmZelleHow));
+  assert.equal(seen.size, 3, 'two languages share the same Zelle sentence');
 });
 
 test('the Copy button\'s accessible name says what it copies, in the reader\'s language', () => {
