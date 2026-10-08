@@ -33,12 +33,44 @@ eq('never priced', M.pricedByReadout({}), 'Not priced yet.');
 eq('null job', M.pricedByReadout(null), 'Not priced yet.');
 eq('empty priced_by string (the DB default)', M.pricedByReadout({ priced_by: '' }), 'Not priced yet.');
 
-eq('priced on the phone', M.pricedByReadout({ priced_by: 'APP' }), 'Priced on the phone.');
-// APP does not report a date or engine version today -- the wording must not
-// invent one just because the fields happen to be present too.
-eq('priced on the phone ignores a stray priced_at',
-  M.pricedByReadout({ priced_by: 'APP', priced_at: '2026-09-01T00:00:00Z' }),
-  'Priced on the phone.');
+/* THIS USED TO ASSERT THE OPPOSITE, and the reason it gave was wrong.
+   It said "APP does not report a date or engine version today -- the wording
+   must not invent one just because the fields happen to be present too", and
+   pinned "Priced on the phone." with nothing after it.
+
+   They do not happen to be present. Every one of the nine app-priced jobs on
+   the live database carries both priced_at and pricing_engine_version, and
+   they span five engine versions (2026.09.1 through 2026.10.13). Withholding
+   the date was withholding the one fact that explains a real complaint: where
+   no accepted price stands, the office shows the stored contract_total -- the
+   last figure a phone pushed -- while the phone recomputes live. Three real
+   jobs sit in that state with gaps of $2,795, $9,686 and $16,506. */
+
+{
+  const job = { priced_by: 'APP', priced_at: '2026-10-05T12:00:00Z', pricing_engine_version: '2026.10.11' };
+  const when = new Date(job.priced_at).toLocaleDateString();
+  eq('priced on the phone names the date and engine, exactly as the office branch does',
+    M.pricedByReadout(job),
+    'Priced on the phone on ' + when + ', engine 2026.10.11.');
+}
+eq('an app-priced job with no engine recorded falls back rather than saying "undefined"',
+  M.pricedByReadout({ priced_by: 'APP', priced_at: '2026-10-05T12:00:00Z' }),
+  'Priced on the phone on ' + new Date('2026-10-05T12:00:00Z').toLocaleDateString() + ', engine unknown.');
+// new Date(null) is 1 January 1970, which reads as a real date and a very old
+// one. A job with no stamp has to say it has no stamp.
+eq('an app-priced job with no timestamp says so instead of reading as 1970',
+  M.pricedByReadout({ priced_by: 'APP', pricing_engine_version: '2026.10.11' }),
+  'Priced on the phone on an unknown date, engine 2026.10.11.');
+// CONTROL: the two halves differ ONLY in where. A rewrite that collapsed them
+// into one sentence for both would pass every assertion above.
+{
+  const at = '2026-10-05T12:00:00Z', v = '2026.10.11';
+  const app = M.pricedByReadout({ priced_by: 'APP', priced_at: at, pricing_engine_version: v });
+  const office = M.pricedByReadout({ priced_by: 'OFFICE', priced_at: at, pricing_engine_version: v });
+  eq('the phone and the office are still told apart', app === office, false);
+  eq('the phone says on the phone', /on the phone/.test(app), true);
+  eq('the office says at the office', /at the office/.test(office), true);
+}
 
 {
   const job = { priced_by: 'OFFICE', priced_at: '2026-09-04T15:00:00Z', pricing_engine_version: '2026.09.1' };

@@ -21394,14 +21394,47 @@ async function saveSatelliteRun(){
 /** What the Pricing panel's readout says about who last priced this job,
     from jobs.priced_by / priced_at / pricing_engine_version. A pure function
     (no DOM, no fetch) so it is covered by tests/office-pricing.test.mjs. */
+/* WHEN this figure was worked out, and by which engine. Both halves, not just
+   the office's.
+
+   This said only "Priced on the phone." for an app-priced job, and that
+   omission is the whole of a complaint that took a day to pin down: "the
+   website and the app are not showing the same amounts in money."
+
+   They are allowed to differ, and here is exactly when. Once a customer has
+   accepted, both halves bill the ACCEPTED price -- same rule, same arithmetic
+   (anchoredTotalOf here, JobMoney.anchoredTotal on the phone). But where no
+   accepted price stands -- never accepted, or a drawing change withdrew the
+   approval -- the two fall back differently and nothing said so:
+
+     the PHONE recomputes the estimate live, from the drawing and today's
+       catalog, every time the screen opens;
+     the OFFICE reads contract_total, which is a stored copy of the last
+       figure a phone pushed.
+
+   So the office's number is as old as the last time somebody priced that job,
+   and three real jobs are in that state right now with gaps of $2,795, $9,686
+   and $16,506. The office cannot price a job itself by design -- one engine,
+   deliberately, because two formulas is how the halves disagreed in the first
+   place -- so it cannot close the gap. It can say how old its number is, and
+   that is the honest version.
+
+   The date and engine were NOT reported for APP before, on the stated reason
+   that the columns only "happen to be present". They do not happen to be: all
+   nine app-priced jobs on the live database carry both, and they span FIVE
+   engine versions (2026.09.1, 2026.10.2, 2026.10.8, 2026.10.11, 2026.10.13).
+   A job still showing 2026.09.1 is a job no current phone would price that
+   way, and the version is what makes that visible. */
 function pricedByReadout(job){
   if(!job || !job.priced_by) return 'Not priced yet.';
-  if(job.priced_by==='OFFICE'){
-    const when = job.priced_at ? new Date(job.priced_at).toLocaleDateString() : 'an unknown date';
-    return 'Priced at the office on '+when+', engine '+(job.pricing_engine_version||'unknown')+'.';
-  }
-  if(job.priced_by==='APP') return 'Priced on the phone.';
-  return 'Not priced yet.';
+  const where = job.priced_by==='OFFICE' ? 'at the office'
+              : job.priced_by==='APP'    ? 'on the phone'
+              : null;
+  if(where === null) return 'Not priced yet.';
+  // Guarded rather than assumed: new Date(null) is 1 January 1970, which would
+  // read as a real date and a very old one. A job with no stamp says so.
+  const when = job.priced_at ? new Date(job.priced_at).toLocaleDateString() : 'an unknown date';
+  return 'Priced '+where+' on '+when+', engine '+(job.pricing_engine_version||'unknown')+'.';
 }
 
 /** Turns a price-job response into one sentence a contractor can act on.
