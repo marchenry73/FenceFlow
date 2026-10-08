@@ -54,13 +54,21 @@ select
     true,
     mi.color_or_finish,         -- White
     mi.manufacturer_sync_id,    -- same maker as the rest of the 4 ft family
-    -- NOT the sibling's 'Confirmed'. $16.75 is inferred from the three other
-    -- posts in this family, and copying "Confirmed" onto it would state that
-    -- a supplier gave us this number when none has. This exact wording is
-    -- what isSeededUnverifiedPrice() matches, so the office flags the price
-    -- as a placeholder until the supplier answers -- which is precisely what
-    -- docs/SUPPLIER_PRICE_REQUEST asks them.
-    'Placeholder — verify with your supplier'
+    -- CONFIRMED BY THE OWNER, 6 Oct 2026: "The 4ft corner post is $16.75,
+    -- apply it." So this is no longer a placeholder and must not read as one.
+    --
+    -- isSeededUnverifiedPrice() in the office matches
+    -- /^(Starting price|Placeholder)/, so a source_doc starting with either of
+    -- those words keeps the row flagged as an unverified price -- and the
+    -- quote-ready gate holds Makayla's quote behind exactly that flag. This
+    -- wording clears it.
+    --
+    -- It says PRICE deliberately. He confirmed $16.75; he did not confirm what
+    -- the supplier calls the part. The name below still follows the pattern of
+    -- the other three posts in the 4 ft family, and the name is what somebody
+    -- reads off a materials list at a counter -- so it is worth correcting in
+    -- Catalog if the invoice says something different.
+    'Price confirmed by owner 2026-10-06; part name inferred from the 4 ft family'
 from public.material_items mi
 -- Copied from the END post of the SAME family, so company_id, maker, unit and
 -- colour come from a row that really exists rather than being typed in here.
