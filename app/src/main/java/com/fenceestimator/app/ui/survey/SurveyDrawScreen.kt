@@ -265,6 +265,15 @@ fun SurveyDrawScreen(
     val runDefaults by app.settingsStore.profile.collectAsState(
         initial = com.fenceestimator.app.data.BusinessProfile()
     )
+
+    // The hours follow the footage while he draws, not only when he opens the
+    // job. Same permission the job screen uses, and the same function, so a
+    // hand-typed duration is still never overwritten and merely opening a
+    // drawing never moves the number -- only a change made while it is open.
+    val maySetDuration = session.canEditJobs || session.canScheduleAndAssign
+    LaunchedEffect(runDefaults, maySetDuration) {
+        viewModel.followComputedDuration(runDefaults, mayWrite = maySetDuration)
+    }
     val pendingCalibration by viewModel.pendingCalibrationPoints.collectAsState()
     val curveTaps by viewModel.curveTaps.collectAsState()
     val curvePreview by viewModel.curvePreview.collectAsState()

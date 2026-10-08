@@ -99,7 +99,45 @@ class EstimateViewModel(
                     // the app contradicting itself on the same screen. Reused
                     // rather than re-derived, so this can never drift from
                     // the rule the stored takeoff already follows.
-                    if (TakeoffRefresher.blockedByUncalibratedPhoto(currentJob, r)) {
+                    if (r.isTeardown) {
+                        // THE OLD FENCE IS FOOTAGE, NOT A BILL OF MATERIALS.
+                        //
+                        // "The old fence does not need things to remove, just
+                        // the footage and we charge a certain amount per ft,
+                        // but there is nothing about line, end post etc...
+                        // NO need for that. Just the $/ft, that's it."
+                        //
+                        // He is right, and the engine already agrees:
+                        // TakeoffRefresher.refreshRun clears a teardown run's
+                        // generated lines, and computeTotals charges it as
+                        // teardownFlatFee + teardownRatePerFt * feet + haul.
+                        // Nobody buys panels for a fence they are pulling out.
+                        //
+                        // This readout did not know that. It called
+                        // suggestQuantities for EVERY run, so the old fence
+                        // listed posts, panels and concrete in "What this job
+                        // needs" while correctly billing none of them -- the
+                        // screen contradicting itself about the same run.
+                        //
+                        // The comment below says this is reused rather than
+                        // re-derived "so this can never drift from the rule the
+                        // stored takeoff already follows". It reused the
+                        // uncalibrated-photo rule and missed the teardown one,
+                        // which is the same drift arriving by the same door.
+                        //
+                        // The footage still shows, because that IS the
+                        // quantity: it is what the charge is worked out from,
+                        // and he asked for it to appear on its own.
+                        val feet = EstimateEngine.teardownLinearFeet(currentJob, listOf(r))
+                        if (feet > 0f) listOf(
+                            TakeoffLine(
+                                label = "Old fence to take out",
+                                quantity = feet.toDouble(),
+                                unit = "ft",
+                                group = com.fenceestimator.app.estimate.TakeoffGroup.SITE,
+                            )
+                        ) else emptyList()
+                    } else if (TakeoffRefresher.blockedByUncalibratedPhoto(currentJob, r)) {
                         emptyList<TakeoffLine>()
                     } else {
                         EstimateEngine.suggestQuantities(

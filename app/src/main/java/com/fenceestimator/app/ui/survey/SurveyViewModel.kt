@@ -5,6 +5,8 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fenceestimator.app.data.BusinessProfile
+import com.fenceestimator.app.ui.jobs.durationFollowStep
+import com.fenceestimator.app.ui.jobs.durationRatesOf
 import com.fenceestimator.app.data.FenceRun
 import com.fenceestimator.app.data.FenceType
 import com.fenceestimator.app.data.FieldChange
@@ -40,6 +42,7 @@ import com.fenceestimator.app.estimate.DrawingFit
 import com.fenceestimator.app.estimate.DrawingScale
 import com.fenceestimator.app.estimate.GridBackdropPlan
 import com.fenceestimator.app.estimate.PhotoFit
+import com.fenceestimator.app.estimate.DurationEstimator
 import com.fenceestimator.app.estimate.TakeoffRefresher
 import com.fenceestimator.app.ui.runs.RunTypeChange
 import kotlinx.coroutines.NonCancellable
@@ -219,6 +222,52 @@ class SurveyViewModel(
      * the app has no session to ask, and guessing generously is how a crew
      * phone briefly became an owner.
      */
+    /**
+     * Keeps the estimated hours following the footage WHILE HE IS DRAWING.
+     *
+     * "Calculated hours should also auto update for the estimated hrs when the
+     * fence is being drawn."
+     *
+     * The hours already followed the footage -- on the JOB screen, through
+     * JobDetailViewModel.followComputedDuration. The drawing screen had a
+     * watcher for the price and nothing for the hours, so a side drawn here
+     * left them frozen until he opened the job. Same shape as the materials
+     * not following a newly drawn side.
+     *
+     * It reuses durationFollowStep rather than deciding again, and the first
+     * rule there is the one that matters: a null baseline writes NOTHING, it
+     * only remembers. So opening a drawing never moves the hours -- only a
+     * change made while it is open does. That rule exists because a crew
+     * handset once pushed 93.33 hours over the office's 4 simply by opening
+     * the job, and a second copy of this logic here would have been a second
+     * chance to lose it.
+     *
+     * [mayWrite] is the caller's own permission check, as on the job screen:
+     * EDIT_JOBS or SCHEDULE_AND_ASSIGN. A hand-typed duration is never
+     * overwritten -- durationFollowStep refuses when durationManuallySet.
+     */
+    suspend fun followComputedDuration(profile: BusinessProfile, mayWrite: Boolean) {
+        val rates = durationRatesOf(profile)
+        var baseline: Double? = null
+        combine(job, runs, siteMarkers) { j, r, m ->
+            if (j == null) null else DurationEstimator.estimate(
+                j, r, j.calibrationPixelsPerFoot ?: PIXELS_PER_FOOT_GRID, rates, m,
+            ).totalHours
+        }.collect { hours ->
+            if (hours == null) return@collect
+            val current = repository.getJob(jobId) ?: return@collect
+            val step = durationFollowStep(
+                baseline = baseline,
+                computed = hours,
+                stored = current.estimatedDurationHours,
+                manuallySet = current.durationManuallySet,
+                mayWrite = mayWrite,
+            )
+            baseline = step.baseline
+            step.write?.let { repository.updateJob(current.copy(estimatedDurationHours = it)) }
+        }
+    }
+
     private fun viewerMayReprice(): Boolean {
         val session = (appContext.applicationContext as? com.fenceestimator.app.FenceEstimatorApp)
             ?.session?.state?.value
