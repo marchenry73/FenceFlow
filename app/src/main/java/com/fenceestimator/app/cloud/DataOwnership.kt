@@ -66,7 +66,12 @@ class DataOwnership(
         repository.clearAllLocalData()
         settingsStore?.clearAll()
 
-        listOf("surveys", "signatures", "photos", "job_photos").forEach { name ->
+        listOf(
+            "surveys", "signatures", "photos", "job_photos",
+            // The per-job undo history. By the constant rather than the
+            // string, so this list cannot drift away from the store.
+            com.fenceestimator.app.data.DrawingHistoryStore.DIR,
+        ).forEach { name ->
             runCatching { java.io.File(context.filesDir, name).deleteRecursively() }
         }
         runCatching { java.io.File(context.cacheDir, "pdfs").deleteRecursively() }

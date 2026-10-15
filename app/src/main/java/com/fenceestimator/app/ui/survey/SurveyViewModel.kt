@@ -5,6 +5,7 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fenceestimator.app.data.BusinessProfile
+import com.fenceestimator.app.data.DrawingHistoryStore
 import com.fenceestimator.app.ui.jobs.durationFollowStep
 import com.fenceestimator.app.ui.jobs.durationRatesOf
 import com.fenceestimator.app.data.FenceRun
@@ -342,8 +343,73 @@ class SurveyViewModel(
 
     init {
         // The crew plan reads the drawing and must never re-price it; see
-        // [repriceOnDrawingChange].
-        if (repriceOnDrawingChange) watchDrawingForRepricing()
+        // [repriceOnDrawingChange]. The same flag gates the undo history: a
+        // read-only plan cannot edit, so it has nothing to remember and no
+        // business writing a file for it.
+        if (repriceOnDrawingChange) {
+            watchDrawingForRepricing()
+            restoreDrawingHistory()
+            persistDrawingHistory()
+        }
+    }
+
+    /**
+     * UNDO REACHES BACK PAST THIS VISIT.
+     *
+     * [_undo] and [_redo] are StateFlows on this view model, so they died
+     * every time the drawing screen closed: walk out to the estimate and back
+     * and the mistake you wanted back was unreachable, though the drawing it
+     * belongs to had not moved. [DrawingHistoryStore] keeps them in a file per
+     * job, and this reads it once on open.
+     *
+     * Pruned against the runs that EXIST now, read directly rather than from
+     * the [runs] flow -- its first emissions arrive before Room has answered,
+     * and pruning against an empty set would throw the whole history away.
+     *
+     * Refuses to overwrite anything recorded since the screen opened. An edit
+     * made while Room was still answering is newer than the file, and the file
+     * winning would take back a change the drawing already shows.
+     */
+    private fun restoreDrawingHistory() {
+        if (viewerIsGuestDemo()) return
+        viewModelScope.launch {
+            val live = withContext(Dispatchers.IO) {
+                runCatching { repository.getFenceRuns(jobId).map { it.id }.toSet() }.getOrNull()
+            } ?: return@launch
+            if (live.isEmpty()) return@launch
+            if (_undo.value.stacks.isNotEmpty() || _redo.value.stacks.isNotEmpty()) return@launch
+            val (u, r) = withContext(Dispatchers.IO) {
+                DrawingHistoryStore.load(appContext, jobId, live)
+            }
+            // Checked again: the read above suspended, and an edit may have
+            // landed in between.
+            if (_undo.value.stacks.isEmpty() && _redo.value.stacks.isEmpty()) {
+                _undo.value = u
+                _redo.value = r
+            }
+        }
+    }
+
+    /**
+     * Writes the history back as it changes.
+     *
+     * Debounced because a single drag records one step per gesture and a burst
+     * of them should cost one write, not one per frame. NonCancellable for the
+     * same reason [moveSiteMarker] and [fitSurvey] are: the last step must
+     * reach the disk even when the screen is closing, which is exactly the
+     * moment this exists to survive.
+     */
+    private fun persistDrawingHistory() {
+        if (viewerIsGuestDemo()) return
+        viewModelScope.launch {
+            combine(_undo, _redo) { u, r -> u to r }
+                .debounce(400)
+                .collect { (u, r) ->
+                    withContext(NonCancellable + Dispatchers.IO) {
+                        DrawingHistoryStore.save(appContext, jobId, u, r)
+                    }
+                }
+        }
     }
 
     private val _selectedRunId = MutableStateFlow<Long?>(null)
