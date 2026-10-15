@@ -639,6 +639,9 @@
     <string name="jd_gates">Gates</string>
     <string name="jd_gate_rate">Gate rate ($ per foot of opening)</string>
     <string name="jd_gate_note">Charged on the gate opening only, not the whole fence. A 5 ft gate at $%1$s/ft is $%2$s. Gates are the slowest work on a job per foot, so pricing them at the fence rate loses money on every one.</string>
+    <string name="jd_schedule_checking">Checking what this account may change…</string>
+    <string name="jd_schedule_offline">Cannot check this account’s permissions just now, so the schedule stays locked. It unlocks once this phone reaches the server.</string>
+    <string name="jd_schedule_no_permission">This account cannot change the date or the crew. An owner or a foreman can.</string>
     <string name="jd_scheduled_on">Scheduled: %1$s</string>
     <string name="jd_set_job_date">Set Job Date</string>
     <string name="jd_est_duration">Estimated duration (hours)</string>

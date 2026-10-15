@@ -607,6 +607,9 @@
     <string name="jd_gates">Portones</string>
     <string name="jd_gate_rate">Tarifa de portón ($ por pie de abertura)</string>
     <string name="jd_gate_note">Se cobra solo por la abertura del portón, no por toda la cerca. Un portón de 5 pies a $%1$s/pie son $%2$s. Los portones son el trabajo más lento por pie, así que cobrarlos a la tarifa de la cerca pierde dinero en cada uno.</string>
+    <string name="jd_schedule_checking">Comprobando qué puede cambiar esta cuenta…</string>
+    <string name="jd_schedule_offline">No se pueden comprobar los permisos de esta cuenta ahora mismo, así que la programación queda bloqueada. Se desbloquea cuando el teléfono alcance el servidor.</string>
+    <string name="jd_schedule_no_permission">Esta cuenta no puede cambiar la fecha ni la cuadrilla. Un propietario o un capataz sí.</string>
     <string name="jd_scheduled_on">Programado: %1$s</string>
     <string name="jd_set_job_date">Fijar fecha del trabajo</string>
     <string name="jd_est_duration">Duración estimada (horas)</string>

@@ -720,6 +720,18 @@ fun JobDetailScreen(
                         // -- so offering it there changed one phone.
                         canMoveDate = session.canScheduleAndAssign,
                         canSetDuration = session.canEditJobs || session.canScheduleAndAssign,
+                        // WHY the date will not move, when it will not. A
+                        // signed-in phone whose profile has not been read is
+                        // given no permissions at all (SessionManager), so an
+                        // OWNER sees this greyed out until it arrives -- and
+                        // for as long as it cannot be fetched. Three very
+                        // different situations that used to look identical.
+                        scheduleLock = scheduleLockReason(
+                            canSchedule = session.canScheduleAndAssign,
+                            signedIn = session.signedIn,
+                            accessKnown = session.accessKnown,
+                            accessUnavailable = session.accessUnavailable,
+                        ),
                         viewModel = viewModel
                     )
                     // Who leads it: SCHEDULE_AND_ASSIGN, the foreman's and the
@@ -1701,6 +1713,8 @@ private fun ScheduleFields(
     profile: BusinessProfile,
     canMoveDate: Boolean,
     canSetDuration: Boolean,
+    /** Why the schedule is locked, or null when it is not. See [ScheduleLock]. */
+    scheduleLock: ScheduleLockReason?,
     viewModel: JobDetailViewModel
 ) {
     val context = LocalContext.current
@@ -1727,6 +1741,24 @@ private fun ScheduleFields(
     ) {
         Icon(Icons.Filled.Event, contentDescription = null)
         Text("  " + dateButtonLabel)
+    }
+
+    // A grey button that explains nothing is what sent him looking for a date
+    // limit that does not exist. Shown only when locked: a note that is always
+    // there is a note nobody reads.
+    scheduleLock?.let { why ->
+        Text(
+            stringResource(
+                when (why) {
+                    ScheduleLockReason.CHECKING -> R.string.jd_schedule_checking
+                    ScheduleLockReason.NOT_CONNECTED -> R.string.jd_schedule_offline
+                    ScheduleLockReason.NO_PERMISSION -> R.string.jd_schedule_no_permission
+                }
+            ),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.padding(top = 4.dp)
+        )
     }
 
     val pxPerFt = job.calibrationPixelsPerFoot

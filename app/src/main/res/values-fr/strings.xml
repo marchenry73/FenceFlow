@@ -607,6 +607,9 @@
     <string name="jd_gates">Portails</string>
     <string name="jd_gate_rate">Tarif portail ($ par pied d\'ouverture)</string>
     <string name="jd_gate_note">Facturé sur l\'ouverture du portail seulement, pas sur toute la clôture. Un portail de 5 pi à %1$s $/pi revient à %2$s $. Les portails sont le travail le plus lent au pied, donc les facturer au tarif de la clôture fait perdre de l\'argent sur chacun.</string>
+    <string name="jd_schedule_checking">Vérification de ce que ce compte peut modifier…</string>
+    <string name="jd_schedule_offline">Impossible de vérifier les droits de ce compte pour l’instant, le planning reste verrouillé. Il se déverrouille dès que ce téléphone joint le serveur.</string>
+    <string name="jd_schedule_no_permission">Ce compte ne peut pas changer la date ni l’équipe. Un propriétaire ou un chef d’équipe peut le faire.</string>
     <string name="jd_scheduled_on">Prévu : %1$s</string>
     <string name="jd_set_job_date">Fixer la date du chantier</string>
     <string name="jd_est_duration">Durée estimée (heures)</string>
