@@ -509,14 +509,29 @@ object JobSync {
      * Never bumps updated_at -- all four columns it writes are on the
      * server's quiet list.
      */
-    private suspend fun pushContractTotal(companyId: String, jobSyncId: String, total: Double) {
-        runCatching {
+    /**
+     * What [pushContractTotal] stamped, so the row push later in the same pass
+     * can carry it instead of the copy it read before the stamp existed.
+     */
+    private data class PricedStamp(val by: String, val at: String, val engine: String)
+
+    private suspend fun pushContractTotal(
+        companyId: String,
+        jobSyncId: String,
+        total: Double,
+    ): PricedStamp? {
+        val stamp = PricedStamp(
+            by = "APP",
+            at = Instant.now().toString(),
+            engine = EstimateEngine.PRICING_ENGINE_VERSION,
+        )
+        return runCatching {
             SupabaseModule.client.postgrest.from("jobs").update(
                 buildJsonObject {
                     put("contract_total", total)
-                    put("priced_by", "APP")
-                    put("priced_at", Instant.now().toString())
-                    put("pricing_engine_version", EstimateEngine.PRICING_ENGINE_VERSION)
+                    put("priced_by", stamp.by)
+                    put("priced_at", stamp.at)
+                    put("pricing_engine_version", stamp.engine)
                 }
             ) {
                 filter {
@@ -524,7 +539,10 @@ object JobSync {
                     eq("sync_id", jobSyncId)
                 }
             }
-        }
+            // Returned only on success: a failed stamp must not be re-asserted
+            // over whatever the cloud still holds.
+            stamp
+        }.getOrNull()
     }
 
     /**
@@ -1015,6 +1033,17 @@ object JobSync {
                 // is always CloudJob's bare default, which would otherwise
                 // read as "nobody has priced this" on every single pass.
                 var decidedTotal: Double? = null
+
+                // The stamp this pass wrote, if it wrote one. Without it the
+                // row push further down re-asserted cloudJob's pricing
+                // metadata -- read from a snapshot taken BEFORE
+                // pushContractTotal ran -- straight over the stamp that had
+                // just been written. The total moved and the "priced on" date
+                // and engine stayed frozen at whatever they were, so the
+                // office's new readout said a fresh figure was worked out by
+                // an old engine on an old date. Same shape as decidedTotal
+                // above, and for the same reason.
+                var decidedStamp: PricedStamp? = null
                 // Accepted, with an accepted figure on record: the price the
                 // customer agreed to (plus extra work they have signed since)
                 // is the only total this phone may assert. The branches below
@@ -1035,7 +1064,7 @@ object JobSync {
                     if (cloudJob != null && cloudJob.deletedAt == null &&
                         (cloudJob.contractTotal == null || kotlin.math.abs(cloudJob.contractTotal - anchored) > 0.005)
                     ) {
-                        pushContractTotal(companyId, job.syncId, anchored)
+                        decidedStamp = pushContractTotal(companyId, job.syncId, anchored)
                         decidedTotal = anchored
                     }
                 } else if (scope == MoneyScope.ALLOWED) {
@@ -1130,7 +1159,7 @@ object JobSync {
                                 // phone's fresher figure still wins, same as
                                 // always.
                                 if (cloudJob.quoteSentAt == null) {
-                                    pushContractTotal(companyId, job.syncId, freshTotal)
+                                    decidedStamp = pushContractTotal(companyId, job.syncId, freshTotal)
                                     decidedTotal = freshTotal
                                 }
                             }
@@ -1138,7 +1167,7 @@ object JobSync {
                             // last price on it was the phone's own -- unchanged
                             // from before this feature existed.
                             else -> {
-                                pushContractTotal(companyId, job.syncId, freshTotal)
+                                decidedStamp = pushContractTotal(companyId, job.syncId, freshTotal)
                                 decidedTotal = freshTotal
                             }
                         }
@@ -1329,9 +1358,13 @@ object JobSync {
                             // The office's number, once sent, survives an
                             // edit to the notes.
                             contractTotal = decidedTotal ?: cloudJob.contractTotal,
-                            pricedBy = cloudJob.pricedBy,
-                            pricedAt = cloudJob.pricedAt,
-                            pricingEngineVersion = cloudJob.pricingEngineVersion,
+                            // Whatever this pass stamped, else whatever the
+                            // cloud already holds. cloudJob was read before
+                            // the stamp was written, so using it alone put the
+                            // old date and engine back over the new one.
+                            pricedBy = decidedStamp?.by ?: cloudJob.pricedBy,
+                            pricedAt = decidedStamp?.at ?: cloudJob.pricedAt,
+                            pricingEngineVersion = decidedStamp?.engine ?: cloudJob.pricingEngineVersion,
                             quoteSentAt = cloudJob.quoteSentAt,
                             // An update never moves when the job was created.
                             // Pulls used to stamp createdAt with the moment of

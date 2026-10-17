@@ -1409,13 +1409,39 @@ fun SurveyDrawScreen(
                                                     .minByOrNull { (_, d) -> d }
                                                     ?.first
 
+                                                // A FENCE CORNER BEATS A MARKER BOX IT SITS INSIDE.
+                                                //
+                                                // The marker used to be a 40 px
+                                                // circle about its centre, so it
+                                                // could not swallow much. It is
+                                                // now the whole drawn footprint
+                                                // plus 40 px on every side, and a
+                                                // fence almost always ties INTO
+                                                // the house -- so its end corner
+                                                // lies inside that box. Giving
+                                                // the marker the first word made
+                                                // those corners impossible to
+                                                // grab: pressing one picked up
+                                                // the house and dragged the
+                                                // building instead.
+                                                //
+                                                // A corner is a precise target
+                                                // and the box is a large one, so
+                                                // a press within a corner's own
+                                                // radius was meant for the corner.
+                                                // The house is still draggable
+                                                // from anywhere else inside it.
+                                                val nearestVertex = committedPoints.withIndex()
+                                                    .minByOrNull { (_, p) -> (transform.toCanvas(p) - startOffset).getDistance() }
+                                                    ?.takeIf { (_, p) ->
+                                                        (transform.toCanvas(p) - startOffset).getDistance() <= VERTEX_HIT_RADIUS_PX
+                                                    }
+
                                                 when {
                                                     gateHit != null -> draggingGate = gateHit.index
+                                                    nearestVertex != null -> draggingIndex = nearestVertex.index
                                                     markerHit != null -> draggingMarker = markerHit
-                                                    else -> {
-                                                        val nearest = committedPoints.withIndex().minByOrNull { (_, p) -> (transform.toCanvas(p) - startOffset).getDistance() }
-                                                        draggingIndex = nearest?.takeIf { (_, p) -> (transform.toCanvas(p) - startOffset).getDistance() <= VERTEX_HIT_RADIUS_PX }?.index
-                                                    }
+                                                    else -> draggingIndex = null
                                                 }
                                             },
                                             onDragEnd = {
@@ -1597,7 +1623,20 @@ fun SurveyDrawScreen(
                                                 // Tap a gate that is already
                                                 // there to take it off; tap
                                                 // open ground to add one.
-                                                val hit = gates.minByOrNull { g ->
+                                                //
+                                                // gatesLive, not gates: `gates`
+                                                // came out of the pointerInput
+                                                // keys, so the captured list is
+                                                // the one from when this block
+                                                // last restarted. Entering GATE
+                                                // mode restarts it, so the list
+                                                // was empty of every gate added
+                                                // since -- tapping one to remove
+                                                // it found nothing and opened the
+                                                // add dialog on top of it instead.
+                                                // The drag handler above already
+                                                // reads gatesLive for this reason.
+                                                val hit = gatesLive.value.minByOrNull { g ->
                                                     val c = transform.toCanvas(FencePoint(g.x, g.y))
                                                     (c - tapOffset).getDistance()
                                                 }?.takeIf { g ->

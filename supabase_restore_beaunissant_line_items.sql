@@ -91,8 +91,15 @@ declare
   moved int;
 begin
   update estimate_line_items li
+     -- deleted_by is `text NOT NULL default ''`, not a nullable column
+     -- (fingerprint-prod.txt:231). Writing null here raised
+     -- "null value in column deleted_by violates not-null constraint",
+     -- the DO block rolled back, and the restore moved nothing while
+     -- looking like it had run. The empty string is what a live row
+     -- carries and what supabase_a64_restore_tombstoned_line_items.sql:824
+     -- wrote on the 64-row restore that did work.
      set deleted_at = null,
-         deleted_by = null
+         deleted_by = ''
    where li.job_sync_id = '10b0407f-2322-476f-af96-0520dd84aea1'
      and li.deleted_at is not null
      -- Belt and braces: never clear a tombstone a PERSON set, even if one of

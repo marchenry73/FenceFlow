@@ -37,6 +37,7 @@ import com.fenceestimator.app.geometry.RedoPlan
 import com.fenceestimator.app.geometry.UndoHistory
 import com.fenceestimator.app.geometry.UndoNoneReason
 import com.fenceestimator.app.geometry.UndoPlan
+import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import com.fenceestimator.app.cloud.CrashReporter
 import com.fenceestimator.app.estimate.DrawingFit
@@ -343,13 +344,23 @@ class SurveyViewModel(
 
     init {
         // The crew plan reads the drawing and must never re-price it; see
-        // [repriceOnDrawingChange]. The same flag gates the undo history: a
-        // read-only plan cannot edit, so it has nothing to remember and no
-        // business writing a file for it.
+        // [repriceOnDrawingChange].
+        //
+        // Only the re-pricing watcher starts here. The two undo-history calls
+        // used to sit in this block and crashed the screen for every real
+        // user: they read [_undo] and [_redo], which are declared further down
+        // this file, so during the constructor their backing fields are still
+        // null. viewModelScope is Dispatchers.Main.immediate, which does not
+        // dispatch when it is already on the main thread, so the launch body
+        // ran INLINE inside the constructor and combine() was handed two
+        // nulls. They now start from a second init block below those
+        // declarations. See the comment there.
+        //
+        // Everything this watcher touches -- repository, jobId,
+        // _repriceFailed -- is a constructor parameter or declared above, so
+        // it was always safe. That is why the old code looked fine.
         if (repriceOnDrawingChange) {
             watchDrawingForRepricing()
-            restoreDrawingHistory()
-            persistDrawingHistory()
         }
     }
 
@@ -373,19 +384,27 @@ class SurveyViewModel(
     private fun restoreDrawingHistory() {
         if (viewerIsGuestDemo()) return
         viewModelScope.launch {
-            val live = withContext(Dispatchers.IO) {
-                runCatching { repository.getFenceRuns(jobId).map { it.id }.toSet() }.getOrNull()
-            } ?: return@launch
-            if (live.isEmpty()) return@launch
-            if (_undo.value.stacks.isNotEmpty() || _redo.value.stacks.isNotEmpty()) return@launch
-            val (u, r) = withContext(Dispatchers.IO) {
-                DrawingHistoryStore.load(appContext, jobId, live)
-            }
-            // Checked again: the read above suspended, and an edit may have
-            // landed in between.
-            if (_undo.value.stacks.isEmpty() && _redo.value.stacks.isEmpty()) {
-                _undo.value = u
-                _redo.value = r
+            // try/finally, and the gate is completed on EVERY exit: the two
+            // early returns below and the thrown case included. If any path
+            // left it uncompleted, [persistDrawingHistory] would wait on it
+            // for ever and nothing would be saved for the rest of the visit.
+            try {
+                val live = withContext(Dispatchers.IO) {
+                    runCatching { repository.getFenceRuns(jobId).map { it.id }.toSet() }.getOrNull()
+                } ?: return@launch
+                if (live.isEmpty()) return@launch
+                if (_undo.value.stacks.isNotEmpty() || _redo.value.stacks.isNotEmpty()) return@launch
+                val (u, r) = withContext(Dispatchers.IO) {
+                    DrawingHistoryStore.load(appContext, jobId, live)
+                }
+                // Checked again: the read above suspended, and an edit may have
+                // landed in between.
+                if (_undo.value.stacks.isEmpty() && _redo.value.stacks.isEmpty()) {
+                    _undo.value = u
+                    _redo.value = r
+                }
+            } finally {
+                historyRestored.complete(Unit)
             }
         }
     }
@@ -402,6 +421,16 @@ class SurveyViewModel(
     private fun persistDrawingHistory() {
         if (viewerIsGuestDemo()) return
         viewModelScope.launch {
+            // WAIT FOR THE RESTORE BEFORE WRITING ANYTHING.
+            //
+            // _undo and _redo are StateFlows that start empty, so combine
+            // emits an empty pair the moment this collects. Debounced, that
+            // empty pair reached save() 400 ms later and wrote an empty
+            // history over the file -- so a slow Room read, or a restore that
+            // bailed out, destroyed the very history it was about to load.
+            // The gate is completed on every exit path of
+            // [restoreDrawingHistory], including its early returns.
+            historyRestored.await()
             combine(_undo, _redo) { u, r -> u to r }
                 .debounce(400)
                 .collect { (u, r) ->
@@ -482,15 +511,54 @@ class SurveyViewModel(
      * What Undo can put back, per run. See [UndoHistory].
      *
      * Every change to a run's drawing goes through [commitEdit], which records
-     * the run as it was a moment before; Undo restores exactly that. Held in
-     * this view model and nowhere else, so it starts empty each time the
-     * drawing screen opens -- reopening a job cannot restore a drawing from an
-     * earlier visit, or from another run, over what is there now.
+     * the run as it was a moment before; Undo restores exactly that.
+     *
+     * It is no longer lost when the screen closes: [DrawingHistoryStore] keeps
+     * it in a file per job and [restoreDrawingHistory] reads it back on open,
+     * pruned against the runs that still exist. A history from an earlier
+     * visit can therefore reach this flow, but only for runs that are still
+     * there, and never from another job.
      */
     private val _undo = MutableStateFlow(UndoHistory())
 
     /** What Redo can put back, per run. See [RedoHistory]. */
     private val _redo = MutableStateFlow(RedoHistory())
+
+    /**
+     * Completed once [restoreDrawingHistory] has finished, however it finished.
+     *
+     * [persistDrawingHistory] waits on this before it writes, so the empty
+     * starting value of [_undo] and [_redo] can never be saved over a real
+     * history on disk. Declared here, above the init block that starts both,
+     * for the same reason they are.
+     */
+    private val historyRestored = CompletableDeferred<Unit>()
+
+    /**
+     * THE UNDO HISTORY STARTS HERE, NOT IN THE INIT BLOCK AT THE TOP.
+     *
+     * Both calls read [_undo] and [_redo], declared immediately above. Kotlin
+     * runs property initialisers and init blocks in the order they are
+     * written, so from the first init block those two fields are still null.
+     * That alone would be harmless if the launch were posted for later -- but
+     * viewModelScope is Dispatchers.Main.immediate, whose isDispatchNeeded is
+     * false when it is already on the main thread, so launch runs its body
+     * INLINE, inside the constructor, and combine(_undo, _redo) dereferenced
+     * two nulls. Nothing caught it: the crash went to the default handler and
+     * killed the process, so the drawing screen could not be opened at all by
+     * a real user. Guests escaped the early return and the crew plan passes
+     * repriceOnDrawingChange = false, which is why the demo still worked.
+     *
+     * Keep this block BELOW the two declarations. If a future call here needs
+     * another field, check that field is declared above this point --
+     * `tests/a94-viewmodel-init-order.test.mjs` fails the build if it is not.
+     */
+    init {
+        if (repriceOnDrawingChange) {
+            restoreDrawingHistory()
+            persistDrawingHistory()
+        }
+    }
 
     /**
      * Whether Redo would do something right now, so the button can look
