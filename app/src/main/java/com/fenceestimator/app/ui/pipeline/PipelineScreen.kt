@@ -8,9 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -30,6 +28,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.fenceestimator.app.R
@@ -67,80 +66,105 @@ fun PipelineScreen(onOpenJob: (Long) -> Unit, onBack: () -> Unit) {
             )
         }
     ) { padding ->
-        LazyRow(
+        // ONE COLUMN, SCROLLED UP AND DOWN.
+        //
+        // This was a kanban board: a LazyRow of 260 dp stage columns, each
+        // with its own LazyColumn of cards, dragged sideways. That is the
+        // right shape on the office's wide screen and the wrong one in a
+        // hand -- on a phone it shows a stage and a half at a time, and
+        // finding a job means swiping across eight of them. The website
+        // keeps the sideways board; this is the same pipeline read top to
+        // bottom, which is the direction a phone already scrolls.
+        //
+        // Flat, not a list of lists: a LazyColumn inside a LazyColumn is
+        // measured with an infinite height constraint and throws. The stage
+        // name is an item, its jobs are items after it.
+        val sections = PipelineStage.flow + if (lost.isNotEmpty()) listOf(PipelineStage.LOST) else emptyList()
+
+        LazyColumn(
             modifier = Modifier.fillMaxSize().padding(padding),
             contentPadding = PaddingValues(Space.md),
-            horizontalArrangement = Arrangement.spacedBy(Space.md)
+            verticalArrangement = Arrangement.spacedBy(Space.sm)
         ) {
-            items(PipelineStage.flow) { stage ->
-                StageColumn(
-                    stage = stage,
-                    jobs = grouped[stage].orEmpty(),
-                    onOpenJob = onOpenJob
-                )
-            }
-            if (lost.isNotEmpty()) {
-                item {
-                    StageColumn(
-                        stage = PipelineStage.LOST,
-                        jobs = lost,
-                        onOpenJob = onOpenJob
+            sections.forEachIndexed { index, stage ->
+                val stageJobs = if (stage == PipelineStage.LOST) lost else grouped[stage].orEmpty()
+
+                // Keys are unique across the whole list: a job's id is a Long
+                // and these are Strings, so a header can never collide with a
+                // card.
+                item(key = "stage-${stage.name}") {
+                    StageHeader(
+                        stage = stage,
+                        count = stageJobs.size,
+                        // Air above every stage but the first, so the sections
+                        // read as sections rather than one long run of cards.
+                        topSpace = if (index == 0) 0.dp else Space.md
                     )
+                }
+
+                if (stageJobs.isEmpty()) {
+                    item(key = "empty-${stage.name}") {
+                        EmptyState(stringResource(R.string.misc_pipeline_nothing_here))
+                    }
+                } else {
+                    items(stageJobs, key = { it.id }) { job ->
+                        JobCard(job = job, onOpenJob = onOpenJob)
+                    }
                 }
             }
         }
     }
 }
 
+/** A stage's name and how many jobs are sitting in it. */
 @Composable
-private fun StageColumn(
+private fun StageHeader(
     stage: PipelineStage,
-    jobs: List<Job>,
+    count: Int,
+    topSpace: Dp
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth().padding(top = topSpace, bottom = Space.xs),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(stage.label(), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+        Text(
+            count.toString(),
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.primary
+        )
+    }
+}
+
+/** One job in the pipeline. Full width now that the stages are stacked. */
+@Composable
+private fun JobCard(
+    job: Job,
     onOpenJob: (Long) -> Unit
 ) {
-    Column(modifier = Modifier.width(260.dp)) {
-        Row(
-            modifier = Modifier.fillMaxWidth().padding(bottom = Space.sm),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(stage.label(), fontWeight = FontWeight.Bold, style = MaterialTheme.typography.titleMedium)
+    Card(
+        modifier = Modifier.fillMaxWidth().clickable { onOpenJob(job.id) },
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(Modifier.padding(Space.md)) {
             Text(
-                jobs.size.toString(),
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
+                job.customerName.ifBlank { stringResource(R.string.jobs_untitled) },
+                fontWeight = FontWeight.Medium,
+                style = MaterialTheme.typography.bodyMedium
             )
-        }
-        if (jobs.isEmpty()) {
-            EmptyState(stringResource(R.string.misc_pipeline_nothing_here))
-        }
-        LazyColumn(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
-            items(jobs, key = { it.id }) { job ->
-                Card(
-                    modifier = Modifier.fillMaxWidth().clickable { onOpenJob(job.id) },
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
-                ) {
-                    Column(Modifier.padding(Space.md)) {
-                        Text(
-                            job.customerName.ifBlank { stringResource(R.string.jobs_untitled) },
-                            fontWeight = FontWeight.Medium,
-                            style = MaterialTheme.typography.bodyMedium
-                        )
-                        if (job.address.isNotBlank()) {
-                            Text(
-                                job.address,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        if (JobMoney.netPaid(job) > 0.0) {
-                            Text(
-                                stringResource(R.string.misc_pipeline_paid, Money.format(JobMoney.netPaid(job))),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                        }
-                    }
-                }
+            if (job.address.isNotBlank()) {
+                Text(
+                    job.address,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            if (JobMoney.netPaid(job) > 0.0) {
+                Text(
+                    stringResource(R.string.misc_pipeline_paid, Money.format(JobMoney.netPaid(job))),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
             }
         }
     }
