@@ -1081,6 +1081,8 @@
     <string name="jd_send_quote_to_customer">Envoyer le devis au client</string>
     <string name="jd_send_quote_chooser">Envoyer le devis</string>
     <string name="jd_quote_link_body">Bonjour %1$s, voici le devis de votre clôture. Vous pouvez voir votre clôture en 3D et l\'approuver directement sur la page : %2$s</string>
+    <string name="jd_quote_emailed_at">Envoyé au client par e-mail le %1$s</string>
+    <string name="jd_quote_not_emailed">Pas encore envoyé par e-mail. (Un devis envoyé par SMS n’est pas enregistré : rien ne peut dire à l’application que le message est parti.)</string>
     <string name="jd_quote_email_sent">Devis envoyé au client par e-mail.</string>
     <string name="jd_quote_email_failed">Le devis n’a pas été envoyé.</string>
     <string name="jd_quote_link_failed">Impossible d\'obtenir le lien du devis — vérifiez votre réseau et réessayez.</string>

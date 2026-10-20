@@ -1114,6 +1114,8 @@
     <string name="jd_send_quote_to_customer">Send quote to customer</string>
     <string name="jd_send_quote_chooser">Send the quote</string>
     <string name="jd_quote_link_body">Hi %1$s — here is your fence quote. You can see your fence in 3D, and approve it right on the page: %2$s</string>
+    <string name="jd_quote_emailed_at">Emailed to the customer %1$s</string>
+    <string name="jd_quote_not_emailed">Not emailed yet. (A quote sent by text is not recorded — nothing can tell the app the message left.)</string>
     <string name="jd_quote_email_sent">Quote emailed to the customer.</string>
     <string name="jd_quote_email_failed">The quote was not sent.</string>
     <string name="jd_quote_link_failed">Could not fetch the quote link — check your signal and try again.</string>

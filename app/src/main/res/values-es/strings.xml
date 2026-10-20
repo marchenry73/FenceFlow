@@ -1081,6 +1081,8 @@
     <string name="jd_send_quote_to_customer">Enviar presupuesto al cliente</string>
     <string name="jd_send_quote_chooser">Enviar el presupuesto</string>
     <string name="jd_quote_link_body">Hola %1$s, aquí tienes el presupuesto de tu cerca. Puedes ver tu cerca en 3D y aprobarlo directamente en la página: %2$s</string>
+    <string name="jd_quote_emailed_at">Enviado al cliente por correo el %1$s</string>
+    <string name="jd_quote_not_emailed">Aún no se ha enviado por correo. (Un presupuesto enviado por mensaje de texto no queda registrado: nada puede decirle a la app que el mensaje salió.)</string>
     <string name="jd_quote_email_sent">Presupuesto enviado al cliente por correo.</string>
     <string name="jd_quote_email_failed">No se envió el presupuesto.</string>
     <string name="jd_quote_link_failed">No se pudo obtener el enlace del presupuesto — revisa tu señal e intenta de nuevo.</string>

@@ -441,6 +441,34 @@ fun JobDetailScreen(
                                     },
                                     android.widget.Toast.LENGTH_LONG
                                 ).show()
+                            } else if (j.phone.isNotBlank() &&
+                                com.fenceestimator.app.ui.components.IntentHelpers.openSmsDraft(
+                                    context,
+                                    j.phone,
+                                    bodyTemplate.format(j.customerName.ifBlank { "there" }, url),
+                                )
+                            ) {
+                                // STRAIGHT TO A TEXT, addressed to this customer.
+                                //
+                                // Most of these go out as a text. The share sheet
+                                // put a list of apps in the way and then, in the
+                                // messaging app, an empty To field to type the
+                                // number into again -- a number this job already
+                                // has. smsto: fills it in.
+                                //
+                                // IT DOES NOT STAMP quote_sent_at, and that is the
+                                // same rule the whole screen keeps: opening a
+                                // messaging app is not a message sent, and the
+                                // share sheet below waits for a chosen component
+                                // precisely because it cannot know either. Only
+                                // the email path stamps, because mail-send answers
+                                // for the provider having taken it. A text that
+                                // really went out leaves the quote looking unsent
+                                // here -- the honest version of not knowing.
+                                //
+                                // Falls through to the share sheet when the job has
+                                // no phone number, or when nothing on this device
+                                // handles smsto: (a tablet with no SIM).
                             } else {
                                 // Not "the sheet opened" -- "they picked
                                 // somewhere to send it".
@@ -617,6 +645,35 @@ fun JobDetailScreen(
                             else qeQuestions.format(company, companyPhone)
                         ).joinToString("\n")
                     }
+                    // WHEN IT WENT. quote_sent_at was being written and never
+                    // shown, so the one thing the stamp exists to tell somebody --
+                    // "this customer has had it, since Tuesday" -- was only
+                    // visible by opening the office. Shown as a date and a time,
+                    // because "did I send it this morning or last week" is the
+                    // actual question.
+                    //
+                    // Absence says so out loud rather than leaving a blank, which
+                    // on this screen would read as "sent, and nobody wrote it
+                    // down". Note the asymmetry it is honest about: a quote sent
+                    // by TEXT never sets this, because nothing can tell this phone
+                    // the message left.
+                    val sentAtMillis = j.quoteSentAt
+                    Text(
+                        text = if (sentAtMillis != null) {
+                            stringResource(
+                                R.string.jd_quote_emailed_at,
+                                remember(sentAtMillis) {
+                                    java.text.SimpleDateFormat("MMM d, yyyy 'at' h:mm a", java.util.Locale.US)
+                                        .format(java.util.Date(sentAtMillis))
+                                }
+                            )
+                        } else {
+                            stringResource(R.string.jd_quote_not_emailed)
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = 6.dp, bottom = 2.dp)
+                    )
                     OutlinedButton(
                         onClick = {
                             scope.launch {

@@ -18770,7 +18770,12 @@ async function bizRender(seq){
     shiftsByJob.get(t.job_sync_id).push(t);
   });
   const contractOf = j => contractTotalOf(j);
-  const feetOf = (r, j) => runBuiltFeet(r, Number(j && j.calibration_pixels_per_foot) || 20);
+  // jobDrawingScale, not `calibration || 20`: this measures the FOOTAGE a
+  // report shows for a job, and `|| 20` is right only on a 400ft grid. The
+  // `|| 20` that remains is for an uncalibrated photo, which has no scale at
+  // all -- the report shows the same number it always did for that case
+  // rather than dropping the job out of a total with no explanation.
+  const feetOf = (r, j) => runBuiltFeet(r, jobDrawingScale(j) || 20);
   const feetOfJob = j => (runsByJob.get(j.sync_id) || []).filter(r => !r.is_teardown && !r.deleted_at)
     .reduce((s, r) => s + feetOf(r, j), 0);
   const ledger = seeMoney ? ledgerByJob(uPayments) : new Map();
