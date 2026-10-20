@@ -5,7 +5,7 @@ for you.
 
 | | |
 |---|---|
-| APK | **1.697**, built, signed, verified from the artifact |
+| APK | built from HEAD, signed, verified from the artifact |
 | Pushed | yes, `main` |
 | Website tests | **207 of 209**; the two are the joining specs, red on purpose |
 | Kotlin tests | 1,442, no failures |
@@ -13,7 +13,7 @@ for you.
 | SQL | one additive file applied, 13 proof rows all true |
 | Published | **no** — see "What needs you" |
 
-The APK was checked by reading the file, not the build log: versionCode 697
+The APK was checked by reading the file, not the build log: versionCode
 matches the commit count (or the update prompt never clears), it carries the
 install permission that makes it the link build, it is signed with the key
 backed up on Drive, and the new code is in the shipped dex — `company-logos`,
@@ -118,9 +118,19 @@ a failure, and it is worth not reading it as one.)
 
 ## What needs you
 
-1. **Publish, when you want it.** The APK is built and verified at **1.697**.
+1. **Publish, when you want it.** The APK is built, signed and verified.
    I did not publish it — that reaches the other companies' phones, and you
-   have not seen this build. One command when you are ready.
+   have not seen this build.
+
+   ```
+   bash scripts/verify-link-apk.sh
+   node scripts/publish-release.mjs "Your logo on quotes, the quote email now really sends, and admin from the phone"
+   ```
+
+   The verifier prints the version; it is the commit count, and the publish
+   script takes it from the same place, so the two cannot disagree. If the
+   verifier refuses because the count has moved, something was committed after
+   the build — rebuild with `./gradlew assembleLink` and run it again.
 2. **Upload your logo** once, in the office: Settings → Business Settings →
    Company logo. Everything above is waiting on that one file; until it is
    there, every surface behaves exactly as it did before.
