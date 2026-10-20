@@ -178,9 +178,24 @@ function buildEmail(
 Deno.serve(async (req) => {
   const startedAt = Date.now();
   try {
-    const expected = Deno.env.get("NOTIFY_TRIGGER_SECRET");
+    // Its OWN secret first, NOTIFY_TRIGGER_SECRET only as a fallback.
+    //
+    // The GitHub Action sends secrets.FOLLOWUPS_TRIGGER_SECRET, and this
+    // function used to compare it against NOTIFY_TRIGGER_SECRET -- a value
+    // four other functions also read (attention-sweep, notify-job-change,
+    // quote-approval-email, quote-view). Matching them up meant either
+    // knowing that shared value to paste into GitHub, or rotating it for all
+    // five. Neither happened, so the scheduler was never switched on and
+    // nothing was sent to any customer, ever: the hourly run exited green
+    // with "not configured" and said so to nobody.
+    //
+    // Now the scheduler has a secret of its own, set on both sides on
+    // 19 October 2026. The fallback keeps an older deployment working if the
+    // new one is ever missing.
+    const expected = Deno.env.get("FOLLOWUPS_TRIGGER_SECRET")
+      ?? Deno.env.get("NOTIFY_TRIGGER_SECRET");
     if (!expected) {
-      console.error("send-follow-ups: NOTIFY_TRIGGER_SECRET is not set; refusing to run.");
+      console.error("send-follow-ups: neither FOLLOWUPS_TRIGGER_SECRET nor NOTIFY_TRIGGER_SECRET is set; refusing to run.");
       return json({ error: "not configured" }, 503);
     }
     if (!secretMatches(req.headers.get("x-fenceflow-trigger"), expected)) {

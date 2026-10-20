@@ -557,14 +557,19 @@ fun JobDetailScreen(
             // here would be wrong in her inbox while the page beside it was
             // right. The page owns every figure; see the template's header.
             //
-            // IT DOES NOT MARK THE QUOTE AS SENT, and that is deliberate. All
-            // this can know is that a mail app opened with a draft in it. The
-            // share button above waits for a chosen component for exactly this
-            // reason and its own comment records why stamping on a mere launch
-            // is wrong. The OFFICE's "Email the quote" button does stamp
-            // quote_sent_at, because mail-send tells it the provider took the
-            // message. Marking it from here would be a claim this screen
-            // cannot support.
+            // IT SENDS, rather than opening a mail app with a draft in it.
+            // This goes through mail-send with from_account_id "fenceflow" --
+            // the office's own path -- so the letter leaves under this
+            // company's name with replies coming back to them, and the phone
+            // is told whether the provider took it.
+            //
+            // THAT is what lets it stamp quote_sent_at, where the old intent
+            // could not: the share button beside it still has to wait for a
+            // chosen component and even then cannot know send was pressed, and
+            // its comment records why stamping on a mere launch would be a
+            // claim the screen could not support. Here the send is answered
+            // for, so the stamp is a fact. On a failure nothing is stamped and
+            // no mail app is quietly opened instead.
             if (session.canSeeMoney) item {
                 val j = job ?: return@item
                 if (j.email.isNotBlank()) {
@@ -574,6 +579,8 @@ fun JobDetailScreen(
                     // stringResource is composable, so the words are read here
                     // and formatted inside the coroutine -- the same split the
                     // share button's bodyTemplate already makes.
+                    val quoteEmailSent = stringResource(R.string.jd_quote_email_sent)
+                    val quoteEmailFailed = stringResource(R.string.jd_quote_email_failed)
                     val qeSubject = stringResource(R.string.quote_email_subject)
                     val qeHello = stringResource(R.string.quote_email_hello)
                     val qeHelloBlank = stringResource(R.string.quote_email_hello_blank)
@@ -632,16 +639,65 @@ fun JobDetailScreen(
                                         android.widget.Toast.LENGTH_LONG
                                     ).show()
                                 } else {
-                                    val opened = IntentHelpers.openEmailDraft(
-                                        context,
-                                        j.email,
-                                        qeSubject.format(company),
-                                        quoteEmailBody(url)
+                                    // SENT BY FENCEFLOW, NOT HANDED TO A MAIL
+                                    // APP. mail-send with from_account_id
+                                    // "fenceflow" is the office's own path:
+                                    // Resend, under this company's name, with
+                                    // replies coming back to them. It answers
+                                    // only once the provider has taken the
+                                    // message, which is what makes the stamp
+                                    // below honest -- the old intent could
+                                    // only ever know that a mail app opened.
+                                    val result = com.fenceestimator.app.cloud.QuoteEmailApi.send(
+                                        jobSyncId = j.syncId,
+                                        to = j.email,
+                                        subject = qeSubject.format(company),
+                                        body = quoteEmailBody(url),
                                     )
-                                    if (!opened) {
-                                        android.widget.Toast.makeText(
-                                            context, shareFailed, android.widget.Toast.LENGTH_LONG
-                                        ).show()
+                                    when (result) {
+                                        is com.fenceestimator.app.cloud.QuoteEmailApi.Result.Sent -> {
+                                            // Only now, and only once: an
+                                            // existing stamp is left alone so
+                                            // re-sending does not rewrite when
+                                            // the customer first got it, which
+                                            // is what the follow-up and stale
+                                            // quote rules count from.
+                                            val sentAt = markQuoteSent(
+                                                context, j.syncId, j.quoteSentAt
+                                            )
+                                            if (sentAt != null) {
+                                                // Same reason as the share
+                                                // button: the local row takes
+                                                // the millis the cloud write
+                                                // recorded, through the update
+                                                // this screen saves everything
+                                                // else through, so this phone's
+                                                // edit clock moves with the
+                                                // server's instead of lagging
+                                                // it by a second.
+                                                viewModel.update { current ->
+                                                    current.copy(
+                                                        quoteSentAt = current.quoteSentAt ?: sentAt,
+                                                        status = JobStatus.SENT
+                                                    )
+                                                }
+                                            }
+                                            android.widget.Toast.makeText(
+                                                context, quoteEmailSent, android.widget.Toast.LENGTH_LONG
+                                            ).show()
+                                        }
+                                        is com.fenceestimator.app.cloud.QuoteEmailApi.Result.Failed -> {
+                                            // Say why, and do NOT quietly open
+                                            // a mail app instead: he has just
+                                            // been told it did not send, and a
+                                            // draft appearing would read as it
+                                            // having gone after all.
+                                            android.widget.Toast.makeText(
+                                                context,
+                                                quoteEmailFailed + " " + result.why.take(140),
+                                                android.widget.Toast.LENGTH_LONG
+                                            ).show()
+                                        }
                                     }
                                 }
                             }

@@ -17,6 +17,13 @@ object Routes {
     const val TIME_APPROVAL = "time_approval"
     const val REPORTS = "reports"
     const val PIPELINE = "pipeline"
+
+    /**
+     * The platform console. Hidden from every account that is not a
+     * FenceFlow platform admin, and refused by the database to any session
+     * that has not done the authenticator -- see AdminGate.
+     */
+    const val ADMIN = "admin"
     const val HELP = "help"
     const val FEEDBACK = "feedback"
 

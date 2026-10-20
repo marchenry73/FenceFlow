@@ -692,6 +692,17 @@ fun FenceEstimatorNavHost(startDestination: String = Routes.JOBS) {
             )
           }
         }
+        // No AccessGuard here, deliberately. Every other guarded route refuses
+        // on a company PERMISSION this phone already knows. Being a FenceFlow
+        // platform admin is not one of those -- it is a fact about the account
+        // that only the server holds -- so the screen reads it itself and
+        // shows nothing until it has. The database refuses the powers either
+        // way; see AdminGate.
+        composable(Routes.ADMIN) {
+            com.fenceestimator.app.ui.admin.AdminScreen(
+                onBack = { navController.popBackStack() }
+            )
+        }
         composable(Routes.HELP) {
             com.fenceestimator.app.ui.help.HelpScreen(onBack = { navController.popBackStack() })
         }
@@ -852,9 +863,14 @@ fun FenceEstimatorNavHost(startDestination: String = Routes.JOBS) {
                     onOpenEmployees = { navController.navigate(Routes.EMPLOYEES) },
                     onOpenAccount = { navController.navigate(Routes.ACCOUNT) },
                     onOpenHelp = { navController.navigate(Routes.HELP) },
-                    onOpenFeedback = { navController.navigate(Routes.FEEDBACK) }
+                    onOpenFeedback = { navController.navigate(Routes.FEEDBACK) },
+                    onOpenAdmin = { navController.navigate(Routes.ADMIN) }
                 )
             } else {
+                // PersonalSettingsScreen is the CREW's settings. No admin
+                // entry here on purpose: a platform admin signed in as crew
+                // has the wrong session for it anyway, and a crew phone must
+                // never show that the console exists.
                 com.fenceestimator.app.ui.settings.PersonalSettingsScreen(
                     onBack = { navController.popBackStack() },
                     onOpenAccount = { navController.navigate(Routes.ACCOUNT) },

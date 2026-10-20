@@ -105,7 +105,9 @@ fun SettingsScreen(
     onOpenEmployees: () -> Unit,
     onOpenAccount: () -> Unit,
     onOpenHelp: () -> Unit,
-    onOpenFeedback: () -> Unit
+    onOpenFeedback: () -> Unit,
+    /** The platform console. Only ever reached by a FenceFlow platform admin. */
+    onOpenAdmin: () -> Unit
 ) {
     val app = currentApp()
     val viewModel: SettingsViewModel = viewModel(
@@ -423,6 +425,31 @@ fun SettingsScreen(
                     )
                     OutlinedButton(onClick = onOpenAccount, modifier = Modifier.fillMaxWidth()) {
                         Text(stringResource(R.string.set_manage_account))
+                    }
+
+                    // THE PLATFORM CONSOLE, AND ONLY FOR THE PEOPLE WHO RUN
+                    // FENCEFLOW. Not drawn at all unless the server has said
+                    // this account is a platform admin -- not greyed out, not
+                    // explained. Every other locked control in this app says
+                    // why; this one must not, because a fence company's owner
+                    // or crew learning that a console exists over all the
+                    // companies is itself the leak. See AdminGate.
+                    //
+                    // The read is per-visit and deliberately not cached: it
+                    // costs one small query, and an admin flag that went stale
+                    // in a saved preference is the kind of thing nobody
+                    // notices until it is wrong.
+                    var isAdmin by remember { mutableStateOf(false) }
+                    LaunchedEffect(Unit) {
+                        // A failure leaves it false: showing nothing is the
+                        // safe way to be wrong here.
+                        isAdmin = com.fenceestimator.app.cloud.AdminRepository
+                            .isPlatformAdmin().getOrDefault(false)
+                    }
+                    if (isAdmin) {
+                        OutlinedButton(onClick = onOpenAdmin, modifier = Modifier.fillMaxWidth()) {
+                            Text(stringResource(R.string.set_open_admin))
+                        }
                     }
                     // This lived under "Ordering", between the preferred
                     // manufacturer and the order-email template, because it sat

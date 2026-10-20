@@ -401,6 +401,7 @@
     <string name="set_how_to_use">How to Use the App + Fence Basics</string>
     <string name="set_send_suggestion">Send a Suggestion or Complaint</string>
     <string name="set_account_explain">Sign in to share jobs with your crew across phones, with separate access levels for field and office. Optional -- the app works offline without it.</string>
+    <string name="set_open_admin">FenceFlow admin console</string>
     <string name="set_manage_account">Manage Account &amp; Team</string>
     <string name="set_business_name">Business name</string>
     <string name="set_owner_name">Owner name</string>
@@ -1093,6 +1094,8 @@
     <string name="jd_send_quote_to_customer">Send quote to customer</string>
     <string name="jd_send_quote_chooser">Send the quote</string>
     <string name="jd_quote_link_body">Hi %1$s — here is your fence quote. You can see your fence in 3D, and approve it right on the page: %2$s</string>
+    <string name="jd_quote_email_sent">Quote emailed to the customer.</string>
+    <string name="jd_quote_email_failed">The quote was not sent.</string>
     <string name="jd_quote_link_failed">Could not fetch the quote link — check your signal and try again.</string>
     <string name="jd_quote_link_signed_out">This phone is signed out of the cloud, so it can\'t fetch the customer link. Sign out and sign back in, then try again.</string>
     <string name="jd_quote_link_unsynced">This job hasn\'t reached the cloud yet, so it has no customer link. Let it sync once, then try again.</string>

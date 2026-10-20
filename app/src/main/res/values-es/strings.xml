@@ -371,6 +371,7 @@
     <string name="set_how_to_use">Cómo usar la app + Nociones de cercas</string>
     <string name="set_send_suggestion">Enviar una sugerencia o queja</string>
     <string name="set_account_explain">Inicia sesión para compartir trabajos con tu cuadrilla entre teléfonos, con niveles de acceso distintos para campo y oficina. Opcional: la app funciona sin conexión sin esto.</string>
+    <string name="set_open_admin">Consola de administración de FenceFlow</string>
     <string name="set_manage_account">Administrar cuenta y equipo</string>
     <string name="set_business_name">Nombre del negocio</string>
     <string name="set_owner_name">Nombre del dueño</string>
@@ -1060,6 +1061,8 @@
     <string name="jd_send_quote_to_customer">Enviar presupuesto al cliente</string>
     <string name="jd_send_quote_chooser">Enviar el presupuesto</string>
     <string name="jd_quote_link_body">Hola %1$s, aquí tienes el presupuesto de tu cerca. Puedes ver tu cerca en 3D y aprobarlo directamente en la página: %2$s</string>
+    <string name="jd_quote_email_sent">Presupuesto enviado al cliente por correo.</string>
+    <string name="jd_quote_email_failed">No se envió el presupuesto.</string>
     <string name="jd_quote_link_failed">No se pudo obtener el enlace del presupuesto — revisa tu señal e intenta de nuevo.</string>
     <string name="jd_quote_link_signed_out">Este teléfono tiene la sesión de la nube cerrada, así que no puede obtener el enlace para el cliente. Cierra sesión y vuelve a iniciarla, luego intenta de nuevo.</string>
     <string name="jd_quote_link_unsynced">Este trabajo todavía no ha llegado a la nube, así que no tiene enlace para el cliente. Deja que se sincronice una vez y luego intenta de nuevo.</string>

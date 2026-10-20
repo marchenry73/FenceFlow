@@ -371,6 +371,7 @@
     <string name="set_how_to_use">Utiliser l\'application + Bases des clôtures</string>
     <string name="set_send_suggestion">Envoyer une suggestion ou une réclamation</string>
     <string name="set_account_explain">Connectez-vous pour partager les chantiers avec votre équipe sur plusieurs téléphones, avec des niveaux d\'accès distincts pour le terrain et le bureau. Facultatif : l\'application fonctionne hors ligne sans cela.</string>
+    <string name="set_open_admin">Console d’administration FenceFlow</string>
     <string name="set_manage_account">Gérer le compte et l\'équipe</string>
     <string name="set_business_name">Nom de l\'entreprise</string>
     <string name="set_owner_name">Nom du propriétaire</string>
@@ -1060,6 +1061,8 @@
     <string name="jd_send_quote_to_customer">Envoyer le devis au client</string>
     <string name="jd_send_quote_chooser">Envoyer le devis</string>
     <string name="jd_quote_link_body">Bonjour %1$s, voici le devis de votre clôture. Vous pouvez voir votre clôture en 3D et l\'approuver directement sur la page : %2$s</string>
+    <string name="jd_quote_email_sent">Devis envoyé au client par e-mail.</string>
+    <string name="jd_quote_email_failed">Le devis n’a pas été envoyé.</string>
     <string name="jd_quote_link_failed">Impossible d\'obtenir le lien du devis — vérifiez votre réseau et réessayez.</string>
     <string name="jd_quote_link_signed_out">Ce téléphone est déconnecté du cloud, donc il ne peut pas obtenir le lien pour le client. Déconnectez-vous puis reconnectez-vous, ensuite réessayez.</string>
     <string name="jd_quote_link_unsynced">Ce chantier n\'a pas encore atteint le cloud, donc il n\'a pas de lien pour le client. Laissez-le se synchroniser une fois, puis réessayez.</string>
