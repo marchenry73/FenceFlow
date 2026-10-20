@@ -964,6 +964,20 @@
   <a class="logo" href="#" id="brandHome" data-t-title="brandHomeTitle"
      title="Back to your dashboard"
      >Fence<span>Flow</span> <span style="font-weight:400;font-size:13px;color:#8A93A3">Office</span></a>
+  <!-- THE COMPANY'S OWN LOGO, beside the product's name rather than instead of
+       it: this is FenceFlow, and it is THEIR office. Hidden until there is one
+       to show, so a company that has not uploaded a logo gets exactly the
+       header it had before.
+
+       White behind it, always. A logo drawn for paper is usually dark on
+       nothing, and the office has a dark theme -- without the tile a black
+       wordmark would be invisible here while printing perfectly on the PDF. -->
+  <span id="hdrLogoWrap" style="display:none;align-items:center;gap:10px;margin-left:4px">
+    <span aria-hidden="true" style="width:1px;height:22px;background:var(--line);display:inline-block"></span>
+    <span style="display:inline-flex;align-items:center;background:#fff;border-radius:6px;padding:3px 6px">
+      <img id="hdrLogo" alt="" style="max-height:26px;max-width:120px;width:auto;display:block;object-fit:contain">
+    </span>
+  </span>
   <!-- Hidden until somebody is signed in. There is nothing to search and
        nothing to create before then, and the spec's own rule is that a visible
        control either works or is not there. Shown by the same line that reveals
@@ -10482,6 +10496,9 @@ async function boot(){
     $('showTestToggle').checked = showTestPref();
   }
   $('who').textContent=`${user.email} · ${profile.role}`;
+  // Not awaited: the header's logo is the last thing that should hold up the
+  // office opening, and it catches its own failures.
+  renderHeaderLogo();
 
   if(!canEdit()){
     const n='<div class="note">Crew-level access: financials and settings are read-only here.</div>';
@@ -26875,6 +26892,53 @@ async function saveSettings(){
 let companyLogoPath = '';
 
 /**
+ * The company's logo as a URL this page can render, signed once and kept.
+ *
+ * TWO PLACES NEED IT -- the header on every page load, and the preview in
+ * Business Settings -- and signing it twice would be two round trips for one
+ * picture. `force` is for after an upload or a removal, where the whole point
+ * is that the answer has changed.
+ *
+ * Answers null for "no logo", "could not read the company row" and "could not
+ * sign it" alike, because every caller does the same thing with all three:
+ * shows no logo. Nothing on this page fails over a picture.
+ */
+let companyLogoUrlCache;
+async function companyLogoUrl(force){
+  if (!force && companyLogoUrlCache !== undefined) return companyLogoUrlCache;
+  companyLogoUrlCache = null;
+  try {
+    const { data } = await db.from('companies').select('logo_path')
+      .eq('id', profile.company_id).maybeSingle();
+    const path = String(data?.logo_path ?? '').trim();
+    if (!path) return companyLogoUrlCache;
+    const signed = await db.storage.from('company-logos').createSignedUrl(path, 3600);
+    companyLogoUrlCache = signed.data?.signedUrl ?? null;
+  } catch (e) {
+    console.error('company logo', e);
+  }
+  return companyLogoUrlCache;
+}
+
+/**
+ * Puts it in the header, or leaves the header as it was.
+ *
+ * onerror hides it again: a URL that has expired, or an object somebody
+ * deleted from the bucket by hand, must leave the bar looking deliberate
+ * rather than showing a broken image frame next to the product's own name.
+ */
+async function renderHeaderLogo(force){
+  const wrap = $('hdrLogoWrap'), img = $('hdrLogo');
+  if (!wrap || !img) return;
+  const url = await companyLogoUrl(force);
+  if (!url) { wrap.style.display = 'none'; return; }
+  img.onerror = () => { wrap.style.display = 'none'; };
+  img.alt = '';
+  img.src = url;
+  wrap.style.display = 'inline-flex';
+}
+
+/**
  * Shows the logo (or says there isn't one), and decides what the controls may
  * do.
  *
@@ -26899,21 +26963,29 @@ async function renderCompanyLogo(path){
     if (box) box.style.display = 'none';
     if (none) none.style.display = '';
     if (rm) rm.style.display = 'none';
+    // The bar at the top as well, or a logo just removed stays up there until
+    // the page is reloaded -- which reads as the removal not having worked.
+    renderHeaderLogo(true);
     return;
   }
   if (none) none.style.display = 'none';
   if (rm) rm.style.display = isOwner ? '' : 'none';
-  const { data, error } = await db.storage.from('company-logos')
-    .createSignedUrl(companyLogoPath, 3600);
-  if (error || !data?.signedUrl) {
+  // force: this runs right after an upload or a removal, where the cached
+  // answer is the one thing that is certainly stale.
+  const signedUrl = await companyLogoUrl(true);
+  if (!signedUrl) {
     // A path recorded against an object that is not there any more. Say so
     // rather than showing a broken image frame: the fix is to upload again.
     if (box) box.style.display = 'none';
     if (none) { none.style.display = ''; none.textContent = tr('settingsLogoMissing'); }
     return;
   }
-  if (img) img.src = data.signedUrl;
+  if (img) img.src = signedUrl;
   if (box) box.style.display = 'flex';
+  // ...and the bar at the top follows the panel, so an upload shows up without
+  // a page reload. NOT forced: the call above has just refreshed the cache,
+  // and forcing again would sign the same object twice for one render.
+  renderHeaderLogo();
 }
 
 /**

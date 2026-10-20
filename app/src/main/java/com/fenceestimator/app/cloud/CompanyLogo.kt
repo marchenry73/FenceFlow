@@ -52,6 +52,27 @@ object CompanyLogo {
     private const val SUBDIR = "company-logo"
 
     /**
+     * Bumped every time the cached file changes -- downloaded, replaced or
+     * cleared.
+     *
+     * WHY A SCREEN CANNOT JUST READ THE FOLDER. [cachedFile] is a directory
+     * listing, so a composable has to decide WHEN to look again, and the only
+     * honest answer from inside the screen is "whenever something else it
+     * happens to be keyed on changes". The app's own header was keyed on the
+     * business NAME, which meant a logo uploaded on this phone did not appear
+     * up there until something renamed the company or the app was restarted.
+     *
+     * A counter is the smallest thing that says "look again" truthfully: every
+     * writer here bumps it, and a screen keyed on it re-reads exactly when
+     * there is something new to read.
+     */
+    val generation = kotlinx.coroutines.flow.MutableStateFlow(0)
+
+    private fun bump() {
+        generation.value = generation.value + 1
+    }
+
+    /**
      * The cached logo, or null. Safe to call from the PDF thread: it is a
      * directory listing and nothing more.
      */
@@ -99,7 +120,9 @@ object CompanyLogo {
 
         if (path.isEmpty()) {
             // Answered, and the answer is that there is no logo.
+            val had = dir.listFiles()?.any { it.isFile } == true
             dir.listFiles()?.forEach { runCatching { it.delete() } }
+            if (had) bump()
             return@withContext
         }
 
@@ -128,6 +151,7 @@ object CompanyLogo {
         // Only once the new one is written: a prune that ran first would leave
         // the phone with no logo at all if the write then failed.
         dir.listFiles()?.forEach { if (it.name != wanted) runCatching { it.delete() } }
+        bump()
         Unit
     }
 
@@ -292,7 +316,10 @@ object CompanyLogo {
      * person to use this phone is not necessarily the same company.
      */
     fun clearCache(context: Context) {
-        File(context.filesDir, SUBDIR).listFiles()?.forEach { runCatching { it.delete() } }
+        val dir = File(context.filesDir, SUBDIR)
+        val had = dir.listFiles()?.any { it.isFile } == true
+        dir.listFiles()?.forEach { runCatching { it.delete() } }
+        if (had) bump()
     }
 
     @Serializable

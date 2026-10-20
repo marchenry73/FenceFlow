@@ -31,6 +31,10 @@ const KT_LOGO = "app/src/main/java/com/fenceestimator/app/cloud/CompanyLogo.kt";
 const KT_PDF = "app/src/main/java/com/fenceestimator/app/estimate/PdfExporter.kt";
 const KT_SETTINGS = "app/src/main/java/com/fenceestimator/app/ui/settings/SettingsScreen.kt";
 const KT_SESSION = "app/src/main/java/com/fenceestimator/app/cloud/SessionManager.kt";
+const KT_CROP = "app/src/main/java/com/fenceestimator/app/ui/settings/LogoCrop.kt";
+const KT_CROP_UI = "app/src/main/java/com/fenceestimator/app/ui/settings/LogoCropDialog.kt";
+const KT_JOBS = "app/src/main/java/com/fenceestimator/app/ui/jobs/JobsListScreen.kt";
+const WELCOME = "website/welcome.html";
 const MAIL_SEND = "supabase/functions/mail-send/index.ts";
 const CALLER = "supabase/functions/_shared/mail/caller.ts";
 const FOLLOW_UPS = "supabase/functions/send-follow-ups/index.ts";
@@ -628,4 +632,190 @@ test("CANARY: a phone upload that moved the column first turns that check red", 
   const sabotaged = colLine + "\n" + fn.replace(colLine, "");
   assert.ok(sabotaged.indexOf('set("logo_path", path)') < sabotaged.indexOf(".upload(path"),
     "THE CANARY DID NOT FAIL: a column write hoisted above the upload went unnoticed");
+});
+// ===========================================================================
+// 7. WHERE IT IS SHOWN -- the two headers
+// ===========================================================================
+
+test("the office header shows it, starts hidden, and hides a broken one", () => {
+  const src = read(DASH);
+  const at = src.indexOf('id="hdrLogo"');
+  assert.ok(at > 0, "the office header has no logo element");
+  const wrapAt = src.indexOf('id="hdrLogoWrap"');
+  assert.ok(wrapAt > 0, "the office header logo has no wrapper");
+  const wrapTag = src.slice(src.lastIndexOf("<", wrapAt), src.indexOf(">", wrapAt));
+  assert.ok(/display:none/.test(wrapTag),
+    "the header logo does not start hidden, so a company without one gets a gap");
+
+  const code = stripComments(src);
+  const fn = code.slice(code.indexOf("async function renderHeaderLogo"), code.indexOf("async function renderHeaderLogo") + 900);
+  assert.ok(/onerror/.test(fn),
+    "an expired URL would leave a broken image frame in the office bar");
+  // It must not replace the product's own name -- the brand link is still there.
+  assert.ok(/class="logo" href="#" id="brandHome"/.test(src),
+    "the company logo has replaced the FenceFlow wordmark rather than joining it");
+});
+
+test("the office header follows both an upload AND a removal", () => {
+  // The removal path used to return early without touching the bar, so a logo
+  // taken off in Settings stayed up there until the page was reloaded -- which
+  // reads as the removal not having worked.
+  const code = stripComments(read(DASH));
+  const at = code.indexOf("async function renderCompanyLogo");
+  assert.ok(at > 0, "renderCompanyLogo is gone");
+  const fn = code.slice(at, code.indexOf("async function uploadCompanyLogo", at));
+  const removalBranch = braced(fn, fn.indexOf("{", fn.indexOf("if (!companyLogoPath)")));
+  assert.ok(removalBranch.length > 20, "the no-logo branch could not be lifted out");
+  assert.ok(/renderHeaderLogo/.test(removalBranch),
+    "removing the logo does not update the header");
+  // And the upload path does too.
+  assert.ok(fn.slice(fn.indexOf("box.style.display = 'flex'")).includes("renderHeaderLogo"),
+    "uploading a logo does not update the header");
+});
+
+test("the app header reads the cache and never the network", () => {
+  const kt = stripComments(read(KT_JOBS));
+  const at = kt.indexOf("CompanyLogo.cachedFile");
+  assert.ok(at > 0, "the app's header does not show the logo");
+  const region = kt.slice(Math.max(0, at - 600), at + 2200);
+  assert.ok(!/createSignedUrl|downloadAuthenticated|suspend|await/.test(region),
+    "the app's header fetches something -- this is the screen the app opens on");
+  // The name stays. A logo is often a mark with no words in it, and a bar
+  // showing only that leaves a crew member nothing to read.
+  assert.ok(/shownName/.test(region), "the logo has replaced the business name in the app bar");
+  assert.ok(/logoBitmap != null/.test(region),
+    "nothing checks whether there is a logo before making room for one");
+});
+
+test("both previews follow the cache, not something they happen to be keyed on", () => {
+  // The app's header was keyed on the business NAME. A logo uploaded on this
+  // phone changes the folder and nothing else, so the bar kept showing the old
+  // one until something renamed the company or the app was restarted -- a
+  // staleness that reads exactly like the upload not having worked.
+  const logo = stripComments(read(KT_LOGO));
+  assert.ok(/val generation = kotlinx\.coroutines\.flow\.MutableStateFlow/.test(logo),
+    "CompanyLogo no longer publishes when its cache changes");
+  // Every writer bumps it: the download, the clear-on-empty, and the sign-out.
+  const bumps = [...logo.matchAll(/\bbump\(\)/g)];
+  assert.ok(bumps.length >= 3,
+    `only ${bumps.length} writers tell the screens the cache changed; the download, the clear and the sign-out all must`);
+
+  for (const [file, what] of [[KT_JOBS, "the app's header"], [KT_SETTINGS, "the settings preview"]]) {
+    const kt = stripComments(read(file));
+    const at = kt.indexOf("CompanyLogo.generation");
+    assert.ok(at > 0, `${what} does not follow the cache generation`);
+    const region = kt.slice(at, at + 400);
+    assert.ok(/collectAsState/.test(region), `${what} reads the generation without collecting it`);
+    assert.ok(/remember\(\s*(logoGeneration|generation)\s*\)/.test(kt),
+      `${what} re-reads the folder on something other than the generation`);
+  }
+  // And specifically NOT on the name any more.
+  assert.ok(!/remember\(profile\.businessName\)/.test(stripComments(read(KT_JOBS))),
+    "the app's header is keyed on the business name again");
+});
+
+// ===========================================================================
+// 8. A NEW COMPANY
+// ===========================================================================
+
+test("onboarding uploads the logo only AFTER the details have saved", () => {
+  // Both halves of the write are OWNER-only, and an invited owner only becomes
+  // the owner once the claim has run. Doing it first is a write a policy
+  // filters to zero rows with no error.
+  const code = stripComments(read(WELCOME));
+  const at = code.indexOf("$('saveDetails').addEventListener");
+  assert.ok(at > 0, "the details handler is gone");
+  const handler = code.slice(at, at + 1400);
+  const rpc = handler.indexOf("complete_company_details");
+  const upload = handler.indexOf("uploadWelcomeLogo");
+  assert.ok(rpc > 0, "the details RPC is gone");
+  assert.ok(upload > rpc, "the logo is uploaded before the company details exist");
+});
+
+test("a logo that will not upload never stops onboarding", () => {
+  const code = stripComments(read(WELCOME));
+  const at = code.indexOf("async function uploadWelcomeLogo");
+  assert.ok(at > 0, "uploadWelcomeLogo is gone");
+  const fn = braced(code, code.indexOf("{", at));
+  assert.ok(fn.length > 100, "uploadWelcomeLogo could not be lifted out");
+  // It returns a message; it does not throw and it does not reject the step.
+  assert.ok(/try\s*\{/.test(fn) && /catch/.test(fn), "uploadWelcomeLogo can throw out of the handler");
+  assert.ok(!/throw /.test(fn), "uploadWelcomeLogo throws");
+  // And the handler marks the step done regardless of what it answered.
+  const handler = code.slice(code.indexOf("$('saveDetails').addEventListener"));
+  const done = handler.indexOf("state.details = true");
+  const logo = handler.indexOf("uploadWelcomeLogo");
+  assert.ok(done > logo,
+    "the step is marked done before the logo is attempted, or not at all");
+  const between = handler.slice(logo, done);
+  assert.ok(!/\breturn\b/.test(between),
+    "a failed logo upload returns out of the handler, leaving onboarding stuck on step 1");
+  // It reads the rows back, like every other write on these pages.
+  assert.ok(/\.select\('id'\)/.test(fn),
+    "the column write is judged on error alone -- a policy-filtered UPDATE is zero rows with no error");
+  assert.ok(/remove\(\[path\]\)/.test(fn),
+    "a failed column write leaves the uploaded object orphaned in the bucket");
+});
+
+// ===========================================================================
+// 9. THE CROP
+// ===========================================================================
+
+test("every picked file goes through the crop dialog", () => {
+  // Not a nicety: the picker is asked for image/*, so a heic, a gif or a bmp
+  // can be chosen. What the dialog hands back is a PNG this app encoded, so
+  // the type sent to a bucket with an allow-list is known rather than taken
+  // from whatever the picker claimed the file was.
+  const kt = stripComments(read(KT_SETTINGS));
+  const at = kt.indexOf("rememberLauncherForActivityResult");
+  assert.ok(at > 0, "the picker is gone");
+  const picker = kt.slice(at, kt.indexOf("Column(verticalArrangement", at));
+  assert.ok(/decodeForLogo/.test(picker), "the picked file is no longer decoded for cropping");
+  assert.ok(/cropping = bitmap/.test(picker), "the picked file no longer opens the crop dialog");
+  assert.ok(!/CompanyLogo\.upload\(/.test(picker.slice(0, picker.indexOf("LogoCropDialog"))),
+    "the picker uploads straight from the file, bypassing the crop");
+  assert.ok(/mimeType = mime/.test(kt),
+    "the upload no longer uses the type the dialog produced");
+  assert.ok(/onUse = \{ bytes, mime/.test(kt), "the dialog's output is not what is uploaded");
+});
+
+test("the crop is decoded small, encoded as PNG, and capped", () => {
+  const kt = stripComments(read(KT_CROP_UI));
+  assert.ok(/inSampleSize/.test(kt),
+    "a twelve-megapixel photo would be decoded whole -- 48 MB of bitmap");
+  assert.ok(/CompressFormat\.PNG/.test(kt),
+    "a logo encoded as JPEG loses its hard edges and gains a black background where it was transparent");
+  assert.ok(/MAX_OUTPUT_SIDE/.test(kt), "the uploaded image is no longer capped");
+  // And the decode answers null rather than throwing.
+  assert.ok(/getOrNull\(\)/.test(kt), "a file that will not decode throws instead of being answered");
+});
+
+test("what is drawn and what is saved are the same rectangle", () => {
+  // The alternative -- draw with a transform, then invert it to crop -- is
+  // where the one-pixel slivers live.
+  const kt = stripComments(read(KT_CROP_UI));
+  const draw = kt.indexOf("drawImage(");
+  assert.ok(draw > 0, "the preview no longer draws the image");
+  const call = kt.slice(draw, draw + 500);
+  assert.ok(/srcOffset = IntOffset\(rect\.left, rect\.top\)/.test(call),
+    "the preview draws from somewhere other than the crop rectangle");
+  assert.ok(/srcSize = IntSize\(rect\.width/.test(call),
+    "the preview draws a different size from the crop rectangle");
+  // The encode uses the same rect.
+  assert.ok(/encodePng\(bmp, r\)/.test(kt), "the encode no longer uses the rectangle on screen");
+});
+
+test("the crop arithmetic clamps LAST, which is the only order that holds", () => {
+  const kt = stripComments(read(KT_CROP));
+  const at = kt.indexOf("fun transform(");
+  assert.ok(at > 0, "LogoCrop.transform is gone");
+  const fn = kt.slice(at, kt.indexOf("fun outputSize(", at));
+  const pan = fn.indexOf("+ panX");
+  const clamp = fn.indexOf("coerceIn(0f");
+  assert.ok(pan > 0 && clamp > pan,
+    "the rectangle is clamped before the pan is applied, so a drag at the edge escapes it");
+  // And nothing is ever enlarged on the way out.
+  const out = kt.slice(kt.indexOf("fun outputSize("));
+  assert.ok(/longSide <= maxLongSide\) return width to height/.test(out),
+    "a small logo would be enlarged to the cap, which makes it blurrier and bigger");
 });

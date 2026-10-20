@@ -405,6 +405,13 @@
     <string name="set_manage_account">Manage Account &amp; Team</string>
     <string name="set_business_name">Business name</string>
     <string name="set_owner_name">Owner name</string>
+    <string name="set_logo_crop_title">Position your logo</string>
+    <string name="set_logo_crop_hint">Drag to move it and pinch to zoom. Pick a shape, or keep the picture as it is.</string>
+    <string name="set_logo_shape_original">As it is</string>
+    <string name="set_logo_shape_wide">Wide</string>
+    <string name="set_logo_shape_square">Square</string>
+    <string name="set_logo_rotate">Rotate</string>
+    <string name="set_logo_use">Use this</string>
     <string name="set_logo_label">Company logo</string>
     <string name="set_logo_note">Printed on your PDF quotes and contracts, shown on the quote page your customer opens, and at the top of the emails FenceFlow sends them. PNG, JPG or WEBP, up to 2 MB.</string>
     <string name="set_logo_none">No logo yet.</string>

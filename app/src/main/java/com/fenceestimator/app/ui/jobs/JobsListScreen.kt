@@ -63,6 +63,9 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
@@ -299,6 +302,33 @@ fun JobsListScreen(
         topBar = {
             TopAppBar(
                 title = {
+                    // THE COMPANY'S LOGO, when this phone has one cached.
+                    //
+                    // Beside the name, not instead of it. A logo is often a
+                    // mark with no words in it, and a bar that shows only that
+                    // leaves a crew member with nothing to read -- and nothing
+                    // at all for the many companies that have not uploaded one.
+                    // The name stays; the logo is added in front of it, and
+                    // takes its room out of the name's by shrinking it one more
+                    // step, rather than out of the six action icons.
+                    //
+                    // Read from the cache, so this is a file check and never a
+                    // network call on the screen the app opens on.
+                    val logoContext = androidx.compose.ui.platform.LocalContext.current
+                    // Keyed on the cache's own generation, not on the business
+                    // name: a logo uploaded on this phone changes the folder
+                    // and nothing else, and keying on the name meant the bar
+                    // kept the old one until something renamed the company.
+                    val logoGeneration by com.fenceestimator.app.cloud.CompanyLogo.generation
+                        .collectAsState()
+                    val logoFile = remember(logoGeneration) {
+                        runCatching { com.fenceestimator.app.cloud.CompanyLogo.cachedFile(logoContext) }.getOrNull()
+                    }
+                    val logoBitmap = remember(logoFile?.absolutePath, logoFile?.length()) {
+                        logoFile?.let { f ->
+                            runCatching { android.graphics.BitmapFactory.decodeFile(f.absolutePath) }.getOrNull()
+                        }
+                    }
                     // A trading name is often longer than one word, and six
                     // action icons left almost no room for it. Two of those
                     // moved into the overflow menu below; the rest of the fix
@@ -306,18 +336,43 @@ fun JobsListScreen(
                     // being cut off mid-word.
                     val shownName =
                         if (profile.businessName.isBlank()) "FenceFlow" else profile.businessName
-                    Text(
-                        shownName,
-                        fontWeight = FontWeight.Bold,
-                        maxLines = 1,
-                        overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
-                        fontSize = when {
-                            shownName.length <= 16 -> 22.sp
-                            shownName.length <= 24 -> 19.sp
-                            shownName.length <= 32 -> 17.sp
-                            else -> 15.sp
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (logoBitmap != null) {
+                            // White behind it: a logo drawn for paper is dark
+                            // on nothing, and this bar follows the phone's dark
+                            // theme. Without the tile a black wordmark would be
+                            // invisible here while printing perfectly.
+                            androidx.compose.foundation.Image(
+                                bitmap = logoBitmap.asImageBitmap(),
+                                contentDescription = null,
+                                contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                                modifier = Modifier
+                                    .heightIn(max = 28.dp)
+                                    .widthIn(max = 86.dp)
+                                    .background(
+                                        androidx.compose.ui.graphics.Color.White,
+                                        androidx.compose.foundation.shape.RoundedCornerShape(5.dp)
+                                    )
+                                    .padding(horizontal = 4.dp, vertical = 2.dp)
+                            )
+                            Spacer(Modifier.width(8.dp))
                         }
-                    )
+                        Text(
+                            shownName,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis,
+                            fontSize = when {
+                                // One step smaller throughout when a logo is
+                                // sharing the bar, so a long name still fits
+                                // beside it instead of being cut off.
+                                shownName.length <= 16 -> if (logoBitmap != null) 19.sp else 22.sp
+                                shownName.length <= 24 -> if (logoBitmap != null) 17.sp else 19.sp
+                                shownName.length <= 32 -> if (logoBitmap != null) 15.sp else 17.sp
+                                else -> if (logoBitmap != null) 14.sp else 15.sp
+                            }
+                        )
+                    }
                 },
                 // Quiet on purpose: the dashboard's hero card is the one block
                 // of colour on this screen, and a coloured bar above it made

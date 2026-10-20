@@ -375,6 +375,13 @@
     <string name="set_manage_account">Gérer le compte et l\'équipe</string>
     <string name="set_business_name">Nom de l\'entreprise</string>
     <string name="set_owner_name">Nom du propriétaire</string>
+    <string name="set_logo_crop_title">Placez votre logo</string>
+    <string name="set_logo_crop_hint">Faites glisser pour le déplacer et pincez pour zoomer. Choisissez une forme, ou gardez l’image telle quelle.</string>
+    <string name="set_logo_shape_original">Telle quelle</string>
+    <string name="set_logo_shape_wide">Large</string>
+    <string name="set_logo_shape_square">Carré</string>
+    <string name="set_logo_rotate">Pivoter</string>
+    <string name="set_logo_use">Utiliser</string>
     <string name="set_logo_label">Logo de l’entreprise</string>
     <string name="set_logo_note">Imprimé sur vos devis et contrats PDF, affiché sur la page de devis que votre client ouvre, et en haut des courriels que FenceFlow lui envoie. PNG, JPG ou WEBP, jusqu’à 2 Mo.</string>
     <string name="set_logo_none">Pas encore de logo.</string>

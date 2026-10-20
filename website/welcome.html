@@ -157,6 +157,20 @@
       <input id="bEmail" type="email" autocomplete="email">
       <label for="bLicense"><span data-t="labelLicense">Contractor licence number</span> <span style="text-transform:none;font-weight:400" data-t="optional">(optional)</span></label>
       <input id="bLicense">
+      <!-- THE LOGO, here rather than only in Settings later.
+           This card is the one place a new business is already telling us what
+           its customers see, and the logo is the same answer. Optional, and
+           optional means it can never block the button: a file that will not
+           upload leaves the details saved and says so, because the details are
+           what the next step needs and a picture is not. -->
+      <label for="bLogo"><span data-t="labelLogo">Your logo</span> <span style="text-transform:none;font-weight:400" data-t="optional">(optional)</span></label>
+      <p class="sub" style="margin:2px 0 8px" data-t="logoSub">It goes on your quotes, your contracts and the emails your customers get. PNG, JPG or WEBP, up to 2&nbsp;MB. You can add or change it later in Settings.</p>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <span id="bLogoBox" style="display:none;align-items:center;justify-content:center;width:150px;height:60px;background:#fff;border:1px solid var(--line);border-radius:8px;padding:5px">
+          <img id="bLogoImg" alt="" style="max-width:100%;max-height:100%;object-fit:contain">
+        </span>
+        <input type="file" id="bLogo" accept="image/png,image/jpeg,image/webp">
+      </div>
       <div style="margin-top:16px"><button class="btn" id="saveDetails" data-t="saveContinue">Save and continue</button></div>
       <div class="msg" id="detailsMsg"></div>
     </div>
@@ -240,6 +254,12 @@ const L = {
     detailsSub: 'This is what appears on the quotes and invoices you send, so use the name your customers know.',
     labelBizName: 'Business name', labelPhone: 'Phone', labelReplyEmail: 'Email customers should reply to',
     labelLicense: 'Contractor licence number', optional: '(optional)', saveContinue: 'Save and continue',
+    labelLogo: 'Your logo',
+    logoSub: 'It goes on your quotes, your contracts and the emails your customers get. PNG, JPG or WEBP, up to 2 MB. You can add or change it later in Settings.',
+    logoSaved: 'Logo saved.',
+    logoWrongType: 'That file is not a PNG, JPG or WEBP image, so it was not saved. You can add one later in Settings.',
+    logoTooBig: 'That image is over 2 MB, so it was not saved. You can add a smaller one later in Settings.',
+    logoLater: 'Your details are saved. The logo did not go up — you can add it in Settings.',
     agreementHead: 'Service agreement', agreementSub: 'Short, and worth reading. Typing your name signs it.',
     term1H: '1. What FenceFlow is',
     term1P: 'FenceFlow is software for estimating and running fencing work. It is a tool you use; the fencing work, the quotes you send and the contracts you sign with your own customers remain entirely yours.',
@@ -296,6 +316,12 @@ const L = {
     detailsSub: 'Esto es lo que aparece en los presupuestos y facturas que envía, así que use el nombre que sus clientes conocen.',
     labelBizName: 'Nombre de la empresa', labelPhone: 'Teléfono', labelReplyEmail: 'Correo al que deben responder los clientes',
     labelLicense: 'Número de licencia de contratista', optional: '(opcional)', saveContinue: 'Guardar y continuar',
+    labelLogo: 'Su logotipo',
+    logoSub: 'Aparece en sus presupuestos, sus contratos y los correos que reciben sus clientes. PNG, JPG o WEBP, hasta 2 MB. Puede agregarlo o cambiarlo después en Ajustes.',
+    logoSaved: 'Logotipo guardado.',
+    logoWrongType: 'Ese archivo no es una imagen PNG, JPG ni WEBP, así que no se guardó. Puede agregar uno después en Ajustes.',
+    logoTooBig: 'Esa imagen supera los 2 MB, así que no se guardó. Puede agregar una más pequeña después en Ajustes.',
+    logoLater: 'Sus datos se guardaron. El logotipo no se subió — puede agregarlo en Ajustes.',
     agreementHead: 'Contrato de servicio', agreementSub: 'Breve, y vale la pena leerlo. Escribir su nombre lo firma.',
     term1H: '1. Qué es FenceFlow',
     term1P: 'FenceFlow es software para cotizar y llevar el trabajo de cercas. Es una herramienta que usted usa; el trabajo de cercas, los presupuestos que envía y los contratos que firma con sus propios clientes siguen siendo enteramente suyos.',
@@ -352,6 +378,12 @@ const L = {
     detailsSub: 'C’est ce qui apparaît sur les devis et factures que vous envoyez, utilisez donc le nom que vos clients connaissent.',
     labelBizName: 'Nom de l’entreprise', labelPhone: 'Téléphone', labelReplyEmail: 'E-mail auquel les clients doivent répondre',
     labelLicense: 'Numéro de licence d’entrepreneur', optional: '(facultatif)', saveContinue: 'Enregistrer et continuer',
+    labelLogo: 'Votre logo',
+    logoSub: 'Il figure sur vos devis, vos contrats et les courriels que reçoivent vos clients. PNG, JPG ou WEBP, jusqu’à 2 Mo. Vous pourrez l’ajouter ou le changer plus tard dans les Paramètres.',
+    logoSaved: 'Logo enregistré.',
+    logoWrongType: 'Ce fichier n’est pas une image PNG, JPG ou WEBP, il n’a donc pas été enregistré. Vous pourrez en ajouter un plus tard dans les Paramètres.',
+    logoTooBig: 'Cette image dépasse 2 Mo, elle n’a donc pas été enregistrée. Vous pourrez en ajouter une plus petite plus tard dans les Paramètres.',
+    logoLater: 'Vos informations sont enregistrées. Le logo n’est pas passé — vous pouvez l’ajouter dans les Paramètres.',
     agreementHead: 'Contrat de service', agreementSub: 'Court, et qui mérite d’être lu. Saisir votre nom le signe.',
     term1H: '1. Ce qu’est FenceFlow',
     term1P: 'FenceFlow est un logiciel pour chiffrer et gérer le travail de clôture. C’est un outil que vous utilisez ; le travail de clôture, les devis que vous envoyez et les contrats que vous signez avec vos propres clients restent entièrement les vôtres.',
@@ -612,6 +644,12 @@ async function boot() {
 
   // Prefill from whatever the admin already recorded, so the common case is
   // reading and pressing a button rather than typing.
+  // Read AFTER any claim above, so an invited owner who has just claimed the
+  // company has one. Used only by the logo upload, which needs the first path
+  // segment to be the company id -- and which simply does not run without it.
+  const { data: meNow } = await db.from('profiles').select('company_id').eq('id', user.id).maybeSingle();
+  myCompanyId = meNow?.company_id ?? prof?.company_id ?? null;
+
   const { data: co } = await db.from('companies').select('name, phone, email, license_no').maybeSingle();
   if (co) {
     $('bName').value = co.name || '';
@@ -660,6 +698,51 @@ function renderPlans() {
     b.addEventListener('click', () => choosePlan(PLANS[+b.dataset.plan])));
 }
 
+/** The company this account belongs to, once the claim above has settled. */
+let myCompanyId = null;
+
+/**
+ * Puts the picked logo in the bucket and on the company, if there is one.
+ *
+ * AFTER the details have saved, never before: company_logos_insert and
+ * companies_update are both OWNER-only, and an invited owner only becomes the
+ * owner once the claim has run. Doing it first would be a write that a policy
+ * filters to zero rows with no error -- the quiet failure this whole file is
+ * careful about elsewhere.
+ *
+ * Returns a message to append, or '' -- NEVER throws and never stops the step.
+ * The details are what the agreement and the plan need; a picture is not, and
+ * an onboarding that refuses to continue over a logo is an onboarding somebody
+ * abandons.
+ */
+async function uploadWelcomeLogo(){
+  const f = $('bLogo')?.files?.[0];
+  if (!f) return '';
+  if (!myCompanyId) return ' ' + tr('logoLater');
+  const kinds = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' };
+  const ext = kinds[f.type];
+  if (!ext) return ' ' + tr('logoWrongType');
+  if (f.size > 2 * 1024 * 1024) return ' ' + tr('logoTooBig');
+  try {
+    const path = myCompanyId + '/logo-' + crypto.randomUUID() + '.' + ext;
+    const { error: upErr } = await db.storage.from('company-logos')
+      .upload(path, f, { contentType: f.type, upsert: false });
+    if (upErr) return ' ' + tr('logoLater');
+    // .select('id') because companies_update is a USING-only policy: a row it
+    // filters out is zero rows changed with error null, which is exactly what
+    // success looks like without this.
+    const { data: rows, error } = await db.from('companies')
+      .update({ logo_path: path }).eq('id', myCompanyId).select('id');
+    if (error || !rows || !rows.length) {
+      await db.storage.from('company-logos').remove([path]);
+      return ' ' + tr('logoLater');
+    }
+    return ' ' + tr('logoSaved');
+  } catch (e) {
+    return ' ' + tr('logoLater');
+  }
+}
+
 $('saveDetails').addEventListener('click', async () => {
   const name = $('bName').value.trim();
   if (!name) return say('detailsMsg', tr('bizNeedsName'), 'err');
@@ -671,9 +754,24 @@ $('saveDetails').addEventListener('click', async () => {
     license_no: $('bLicense').value.trim()
   });
   if (error) return say('detailsMsg', error.message, 'err');
+  // Only now: see uploadWelcomeLogo for why the order is not a preference.
+  const logoNote = await uploadWelcomeLogo();
   state.details = true;
-  say('detailsMsg', '');
+  say('detailsMsg', logoNote.trim(), logoNote.includes(tr('logoSaved')) ? '' : 'err');
   render();
+});
+
+// A preview the moment a file is chosen, so nobody presses Save wondering
+// whether the picker took it. Local only -- nothing is uploaded here.
+$('bLogo').addEventListener('change', () => {
+  const f = $('bLogo').files?.[0];
+  const box = $('bLogoBox'), img = $('bLogoImg');
+  if (!f || !box || !img) { if (box) box.style.display = 'none'; return; }
+  const url = URL.createObjectURL(f);
+  img.onload = () => URL.revokeObjectURL(url);
+  img.onerror = () => { URL.revokeObjectURL(url); box.style.display = 'none'; };
+  img.src = url;
+  box.style.display = 'inline-flex';
 });
 
 $('signBtn').addEventListener('click', async () => {

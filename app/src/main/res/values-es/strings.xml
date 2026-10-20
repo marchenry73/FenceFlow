@@ -375,6 +375,13 @@
     <string name="set_manage_account">Administrar cuenta y equipo</string>
     <string name="set_business_name">Nombre del negocio</string>
     <string name="set_owner_name">Nombre del dueño</string>
+    <string name="set_logo_crop_title">Coloque su logotipo</string>
+    <string name="set_logo_crop_hint">Arrastre para moverlo y pellizque para acercar. Elija una forma o deje la imagen tal cual.</string>
+    <string name="set_logo_shape_original">Tal cual</string>
+    <string name="set_logo_shape_wide">Ancho</string>
+    <string name="set_logo_shape_square">Cuadrado</string>
+    <string name="set_logo_rotate">Girar</string>
+    <string name="set_logo_use">Usar esta</string>
     <string name="set_logo_label">Logotipo de la empresa</string>
     <string name="set_logo_note">Se imprime en sus presupuestos y contratos en PDF, aparece en la página de presupuesto que abre su cliente y en la parte superior de los correos que FenceFlow le envía. PNG, JPG o WEBP, hasta 2 MB.</string>
     <string name="set_logo_none">Aún no hay logotipo.</string>

@@ -1548,9 +1548,10 @@ private fun CompanyLogoRow(
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
-    // Bumped after every change, so the preview re-reads the folder instead of
-    // showing the file that was there when this screen opened.
-    var generation by remember { mutableStateOf(0) }
+    // The cache's own generation, so the preview re-reads the folder whenever
+    // anything changes it -- this screen's upload, this screen's remove, or a
+    // sync that pulled down a logo somebody set at the office.
+    val generation by com.fenceestimator.app.cloud.CompanyLogo.generation.collectAsState()
     var busy by remember { mutableStateOf(false) }
     val cached = remember(generation) {
         runCatching { com.fenceestimator.app.cloud.CompanyLogo.cachedFile(context) }.getOrNull()
@@ -1578,7 +1579,9 @@ private fun CompanyLogoRow(
     fun answer(result: com.fenceestimator.app.cloud.CompanyLogo.Upload, onOk: String) {
         when (result) {
             is com.fenceestimator.app.cloud.CompanyLogo.Upload.Saved -> {
-                generation++
+                // No local counter to bump: CompanyLogo bumps the shared one
+                // when the cached file actually changes, which is also what
+                // tells the app's own header to look again.
                 say(onOk)
             }
             is com.fenceestimator.app.cloud.CompanyLogo.Upload.Failed ->
@@ -1588,41 +1591,53 @@ private fun CompanyLogoRow(
         }
     }
 
+    // What the crop dialog is working on, or null when it is closed. Held as
+    // the decoded bitmap rather than the Uri: the decode is the slow part and
+    // doing it once, before the dialog opens, is the difference between a
+    // dialog that appears and one that appears blank and fills in.
+    var cropping by remember { mutableStateOf<android.graphics.Bitmap?>(null) }
+
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        val company = session.companyId
-        if (uri == null || company.isNullOrBlank()) return@rememberLauncherForActivityResult
+        if (uri == null) return@rememberLauncherForActivityResult
         busy = true
         scope.launch {
-            // Read on the IO dispatcher: a 2 MB file off a content provider is
-            // not work for the frame the picker just returned on.
-            val read = withContext(Dispatchers.IO) {
-                runCatching {
-                    val type = context.contentResolver.getType(uri)
-                    val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
-                    type to bytes
-                }.getOrNull()
-            }
-            val bytes = read?.second
-            if (bytes == null) {
-                busy = false
-                say(unreadable)
-                return@launch
-            }
-            // The picker is asked for image/* so a heic or a gif can arrive;
-            // the type is checked here and again by CompanyLogo.upload, and the
-            // bucket's own allowed_mime_types is the one that actually holds.
-            val result = com.fenceestimator.app.cloud.CompanyLogo.upload(
-                context = context, companyId = company, bytes = bytes, mimeType = read.first,
-            )
+            // Decoded at a working size, never whole: a twelve-megapixel photo
+            // decoded in full is 48 MB of bitmap, which is how an image picker
+            // becomes an out-of-memory crash on the cheapest phone on the crew.
+            val bitmap = com.fenceestimator.app.ui.settings.decodeForLogo(context, uri)
             busy = false
-            if (result is com.fenceestimator.app.cloud.CompanyLogo.Upload.Failed &&
-                result.reasonRes == R.string.set_logo_wrong_type
-            ) {
-                say(wrongType)
-            } else {
-                answer(result, savedMsg)
-            }
+            if (bitmap == null) say(unreadable) else cropping = bitmap
         }
+    }
+
+    // ANYTHING that comes out of the crop dialog is a PNG this app encoded, so
+    // the type is known rather than taken from whatever the picker said the
+    // file was. A heic, a gif or a bmp can be picked and still arrive here as
+    // a logo, which is the whole reason the dialog is not optional.
+    cropping?.let { bmp ->
+        LogoCropDialog(
+            source = bmp,
+            onCancel = { cropping = null },
+            onUse = { bytes, mime ->
+                cropping = null
+                val company = session.companyId
+                if (company.isNullOrBlank()) return@LogoCropDialog
+                busy = true
+                scope.launch {
+                    val result = com.fenceestimator.app.cloud.CompanyLogo.upload(
+                        context = context, companyId = company, bytes = bytes, mimeType = mime,
+                    )
+                    busy = false
+                    if (result is com.fenceestimator.app.cloud.CompanyLogo.Upload.Failed &&
+                        result.reasonRes == R.string.set_logo_wrong_type
+                    ) {
+                        say(wrongType)
+                    } else {
+                        answer(result, savedMsg)
+                    }
+                }
+            },
+        )
     }
 
     Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
