@@ -5,11 +5,21 @@ for you.
 
 | | |
 |---|---|
-| HEAD | `7d03cbb`, 696 commits → the build is **1.696** |
+| APK | **1.697**, built, signed, verified from the artifact |
 | Pushed | yes, `main` |
+| Website tests | **207 of 209**; the two are the joining specs, red on purpose |
+| Kotlin tests | 1,442, no failures |
 | Edge functions | four deployed to production and smoke-tested |
 | SQL | one additive file applied, 13 proof rows all true |
 | Published | **no** — see "What needs you" |
+
+The APK was checked by reading the file, not the build log: versionCode 697
+matches the commit count (or the update prompt never clears), it carries the
+install permission that makes it the link build, it is signed with the key
+backed up on Drive, and the new code is in the shipped dex — `company-logos`,
+`logo_path`, `from_account_id`, `is_platform_admin`, and the new strings in the
+packaged resources, with a control string proving the search can tell absence
+from presence.
 
 ---
 
@@ -97,13 +107,18 @@ on changes that were **correct**. One mattered a great deal:
 
 It is fixed and now asserts the revert actually reverted. 51 of 51.
 
-**206 of 208 green**; the two are the joining specs, which say so themselves.
+**207 of 209 green**; the two are the joining specs, which say so themselves.
+
+(Three long integration suites timed out on the first pass — they were running
+beside the release build and the machine was starved. Re-run on a quiet machine
+they take 30, 43 and 58 seconds and all pass. A timeout under contention is not
+a failure, and it is worth not reading it as one.)
 
 ---
 
 ## What needs you
 
-1. **Publish, when you want it.** The APK is built and verified at **1.696**.
+1. **Publish, when you want it.** The APK is built and verified at **1.697**.
    I did not publish it — that reaches the other companies' phones, and you
    have not seen this build. One command when you are ready.
 2. **Upload your logo** once, in the office: Settings → Business Settings →
