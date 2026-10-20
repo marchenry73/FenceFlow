@@ -34,7 +34,8 @@
  * worktree has neither; copy them from the main checkout first.
  */
 import { spawnSync } from "node:child_process";
-import { resolve } from "node:path";
+import { existsSync } from "node:fs";
+import { join, resolve } from "node:path";
 
 const REPO_ROOT = resolve(import.meta.dirname, "..");
 const isWindows = process.platform === "win32";
@@ -44,10 +45,42 @@ const isWindows = process.platform === "win32";
 // says nothing about what went wrong. The POSIX form is what a Git Bash
 // user exports by hand; gradlew.bat needs the Windows spelling of the same
 // directory.
-const JDK_POSIX = "/c/Users/march/.jdks/jdk-17.0.20+8";
-const JDK_HOME = isWindows
-  ? JDK_POSIX.replace(/^\/([a-zA-Z])\//, (_, drive) => `${drive.toUpperCase()}:\\`).replace(/\//g, "\\")
-  : JDK_POSIX;
+//
+// FOUND, not hardcoded. This used to name one directory
+// (/c/Users/march/.jdks/jdk-17.0.20+8). That disk was replaced, the directory
+// went with it, and every publish then died on "JAVA_HOME is set to an
+// invalid directory" -- exporting JAVA_HOME by hand did not help, because
+// this constant overwrote it a line later. The gate was red for a reason
+// that had nothing to do with pricing.
+//
+// Order: what the caller exported, then the places a JDK 17 actually lives on
+// this machine. A directory only counts if it holds a java binary, so a stale
+// name can never be chosen over a real one.
+const toWindows = (p) =>
+  p.replace(/^\/([a-zA-Z])\//, (_, drive) => `${drive.toUpperCase()}:\\`).replace(/\//g, "\\");
+
+const JDK_CANDIDATES = [
+  process.env.JAVA_HOME,
+  "C:\\Program Files\\Eclipse Adoptium\\jdk-17.0.20.101-hotspot",
+  "C:\\Program Files\\Eclipse Adoptium\\jdk-17.0.20+8",
+  "C:\\Users\\march\\.jdks\\jdk-17.0.20+8",
+].filter(Boolean);
+
+function findJdk() {
+  for (const raw of JDK_CANDIDATES) {
+    const home = isWindows && raw.startsWith("/") ? toWindows(raw) : raw;
+    const java = join(home, "bin", isWindows ? "java.exe" : "java");
+    if (existsSync(java)) return home;
+  }
+  console.error("No JDK 17 found. Looked at:");
+  for (const c of JDK_CANDIDATES) console.error("  " + c);
+  console.error("");
+  console.error("Export JAVA_HOME to a JDK 17 and run again. Gradle rejects the JDK");
+  console.error("Android Studio bundles (Java 25) with a bare \"25.0.2\".");
+  process.exit(1);
+}
+
+const JDK_HOME = findJdk();
 
 /**
  * Runs one suite, prints one line, returns true when it passed. Output is

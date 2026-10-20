@@ -129,6 +129,13 @@ verify_jwt = false
 [functions.send-welcome-email]
 verify_jwt = false
 
+# Called only by the profiles_queue_signup_email trigger through pg_net, which
+# has no user session -- so verify_jwt is off and the Vault secret checked by
+# signup_email_trigger_ok() is the door instead, exactly as send-welcome-email
+# does it. See supabase_r17_signup_email.sql.
+[functions.send-signup-email]
+verify_jwt = false
+
 # ---- Company email (supabase_mail.sql). All five are verify_jwt = false. ----
 # None of them trusts the gateway, and three of them could not work with it:
 # the office's CORS preflight carries no token, and Resend and the GitHub
