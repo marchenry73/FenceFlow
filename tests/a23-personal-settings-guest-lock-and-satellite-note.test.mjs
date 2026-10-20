@@ -245,7 +245,22 @@ test("PLANTED FAILURE: a literal alongside the resource call would be caught", (
 
 test("untouched: the guest read-only gate, delete gating, and the uncalibrated-photo scale read are all still present", () => {
   assert.ok(surveySrc.includes("val editable = !session.isGuestDemo"), "the survey screen's own guest gate must be unchanged");
-  assert.strictEqual(count(surveySrc, "session.canDelete"), 2, "expected both existing canDelete checks (the run-erase button and its confirm) untouched");
+  // NOT an exact count any more, and the reason is worth keeping.
+  //
+  // This read `=== 2` -- the run-erase button and its confirm -- and went red
+  // at 5 when the long-press erase landed (A104) and correctly brought its own
+  // gates: the gesture layer, and the dialog re-reading the permission. A
+  // count pinned to the number of call sites on one afternoon fails on every
+  // later change that ADDS a permission check, which is the opposite of what
+  // this test is for. What it actually guards is that the two it knows about
+  // are still there and that nothing has dropped the gate altogether.
+  const deleteGates = count(surveySrc, "session.canDelete");
+  assert.ok(deleteGates >= 2,
+    `the survey screen has ${deleteGates} session.canDelete checks; the run-erase button and its confirm are the minimum`);
+  assert.ok(surveySrc.includes("pendingEraseRunId != null && session.canDelete"),
+    "the erase dialog no longer re-reads the delete permission");
+  assert.ok(/onClick = \{ pendingEraseRunId =/.test(surveySrc),
+    "the toolbar's run-erase button is gone");
   assert.ok(surveySrc.includes("val pxPerFt = SurveyViewModel.drawingScale(job2)"), "the uncalibrated-photo scale read (null pxPerFt drives the tap-to-calibrate prompt) must be unchanged");
 });
 

@@ -58,12 +58,25 @@ const out = join(tmpdir(), "website-test-report.txt");
 writeFileSync(out, report.join("\n") + "\n");
 console.log(`\npass=${pass} fail=${fail} timeout=${timeout} of ${tests.length}`);
 console.log(`full timings: ${out}`);
-// THREE files are red ON PURPOSE, so a clean run is 188 of 191, not 191:
+// TWO files are red ON PURPOSE, so a clean run is every file but these two:
 //
 //   a32-join-posts, a32-join-transition -- spec tests for joining work that
 //     has not landed, one of them marked as needing the owner's decision.
-//   a4-labour -- 22 of its 26 checks pass; the four that do not ARE its
-//     report, that can_see_pay() asks for SEE_MONEY rather than SEE_PAY. It
-//     should go green by FIXING THE FUNCTION (see
-//     supabase_a92_can_see_pay_checks_see_pay.sql), never by editing the test.
+//     Both print their own "Red on purpose:" line, so a run that does not
+//     say that about them is a different failure wearing the same name.
+//
+// a4-labour used to be the third. It is GREEN now: it was red because
+// can_see_pay() asked for SEE_MONEY rather than SEE_PAY, and that was fixed in
+// the function (supabase_a92_can_see_pay_checks_see_pay.sql) rather than in the
+// test, which is what the note here always said to do.
+//
+// ONE DEPENDENCY IS NOT IN THIS REPO. tests/a45-pdf-synthetic and
+// a45-pdf-real-files read real PDFs with PDF.js and look for it in
+// node_modules/pdfjs-dist/build, here or in the system temp directory, or
+// wherever A45_PDFJS_DIR points. Without it they fail with a message saying
+// exactly that -- which is a missing install, not a broken page:
+//
+//   cd "$TMP" && npm install pdfjs-dist@4.6.82
+//
+// (289 assertions between the two, so it is worth the one install.)
 process.exit(Math.min(255, fail + timeout));

@@ -85,8 +85,20 @@ const PIECES = [
   grabLine('const PAY_ORDER='), grabLine('const PAY_NAME_KEY='), grabLine('const PAY_IN_KEY='), grabLine('const PAY_FIELD='),
   grabFn('payMethodsFrom'), grabFn('payHowModel'), grabFn('payNameList'),
   grabFn('payCopyOutcome'), grabFn('selectNodeContents'),
+  // renderHowToPay calls this for the Cash App row (a tap-to-pay link with the
+  // amount in it). It was added to the page and not to this list, so every
+  // test in this file died on `cashAppLink is not defined` -- a lifted
+  // function is only as complete as what it is lifted WITH.
+  grabFn('cashAppLink'),
   'let payList=[];', grabFn('renderHowToPay'),
-  grabFn('payDocModel'), grabFn('buildQuoteDocument'), grabFn('downloadQuoteCopy'),
+  grabFn('payDocModel'), grabFn('buildQuoteDocument'),
+  // downloadQuoteCopy awaits this for the company's logo, which the saved copy
+  // inlines as a data: URI (A108). Stubbed rather than lifted, like
+  // signatureForDownload below it: both are a fetch, and this file has no
+  // network -- what it tests is what the DOCUMENT says, not how the two
+  // images got there.
+  'const logoForDownload=async()=>null;',
+  grabFn('downloadQuoteCopy'),
 ].join('\n');
 
 /* The day the page "runs" on, frozen so the as-of date is exact. */
@@ -194,8 +206,15 @@ function savedRows(doc, lang = 'en') {
 /** [{key, value}] for every method row the LIVE panel is showing. */
 function panelRows(p) {
   return p.els.payMethods.innerHTML.split('<div class="pm" data-method="').slice(1).map((chunk) => {
-    const v = chunk.match(/<div class="pm-val"[^>]*>([^<]*)<\/div>/);
-    return { key: chunk.slice(0, chunk.indexOf('"')), value: v ? decode(v[1]) : null };
+    // NOT [^<]* inside pm-val. The Cash App row wraps its tag in an <a> -- a
+    // tap-to-pay link with the amount in it -- so a pattern that demanded
+    // text with no markup in it read that row as `null` and this helper
+    // reported the live panel and the saved file disagreeing when they agreed
+    // perfectly. The LIVE panel may carry controls; the saved FILE may not,
+    // and that is what `DEAD` below is for.
+    const v = chunk.match(/<div class="pm-val"[^>]*>([\s\S]*?)<\/div>/);
+    const text = v ? decode(v[1].replace(/<[^>]*>/g, "")) : null;
+    return { key: chunk.slice(0, chunk.indexOf('"')), value: text };
   });
 }
 /** What makes a control in a saved file: something the saved file cannot run. */
@@ -609,7 +628,22 @@ test('every inline <script> of quote.html still compiles (a stray apostrophe onc
   assert.throws(() => new vm.Script("const s = 'it's';"));
 });
 
-test('quote.html still has one page script and the file is still CRLF throughout (no mixed line endings from the edit)', () => {
-  assert.equal((src.match(/(?<!\r)\n/g) || []).length, 0, 'a bare LF crept into a CRLF file');
+test('quote.html still has one page script and its line endings are not MIXED', () => {
+  // The name always said "no mixed line endings from the edit"; the assertion
+  // underneath it said something narrower -- zero bare LFs, i.e. CRLF
+  // throughout -- and that had been red for a while on a plain checkout,
+  // because this file is LF here and its committed blob carries no CR at all.
+  // Converting it to CRLF to satisfy that reading broke eight other suites
+  // that slice dashboard.html and the Kotlin screens with indexOf(";\n"), so
+  // LF is what this repo's tests expect and CRLF was the outlier.
+  //
+  // What is worth guarding is still real: an edit that writes back part of a
+  // file with the other convention leaves a mixture, and a mixture is what
+  // breaks a byte-offset reader. So this now asserts ONE convention, whichever
+  // the file is in.
+  const crlf = (src.match(/\r\n/g) || []).length;
+  const bareLf = (src.match(/(?<!\r)\n/g) || []).length;
+  assert.ok(crlf === 0 || bareLf === 0,
+    `quote.html has ${crlf} CRLF and ${bareLf} bare LF line endings -- an edit has left it mixed`);
   assert.equal((src.match(/<script(?![^>]*\bsrc=)[^>]*>/g) || []).length, 2);
 });

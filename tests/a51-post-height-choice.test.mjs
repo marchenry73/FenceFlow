@@ -422,7 +422,19 @@ test("the 85 recorded fixtures carry no catalog height at all, so regenerating t
 test("the fixture manifest is this engine's version, or the release the height work started from (stale, awaiting regeneration)", () => {
   const manifest = JSON.parse(readFileSync(join(ROOT, "fixtures/pricing/manifest.json"), "utf8"));
   const engine = REAL.version;
-  assert.equal(manifest.case_count, 85);
+  // NOT `=== 85`. The corpus had 85 cases the day this was written and has 90
+  // now, because cases get ADDED -- which is the point of a parity corpus and
+  // is not a reason for this file to go red. What is worth pinning is that the
+  // manifest agrees with what is on disk (a manifest that has lost count of
+  // its own cases is the one that would let a dropped fixture pass unnoticed)
+  // and that the corpus never SHRINKS below what it covered here.
+  const onDisk = readdirSync(join(ROOT, "fixtures/pricing"))
+    .filter((f) => f.endsWith(".json") && f !== "manifest.json").length;
+  assert.equal(manifest.case_count, onDisk,
+    `the manifest says ${manifest.case_count} cases and there are ${onDisk} fixture files -- ` +
+    "one of them has been added or removed without regenerating");
+  assert.ok(manifest.case_count >= 85,
+    `the parity corpus has shrunk to ${manifest.case_count} cases; it covered 85 when this was written`);
   assert.ok(manifest.version === engine || manifest.version === "2026.10.2",
     `the fixture manifest is ${manifest.version} and the engine is ${engine}. Regenerate in the same commit as the engine change:\n` +
     "  export JAVA_HOME=/c/Users/march/.jdks/jdk-17.0.20+8\n" +

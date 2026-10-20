@@ -42,14 +42,35 @@ test("the erase target is carried by ID, not keyed on the selection", () => {
     "the selection-keyed boolean is back; the dialog will never open for a long-pressed side");
 });
 
+/**
+ * Where the long-press hit test is, by what it DOES rather than by the name of
+ * the function it calls.
+ *
+ * This file pinned the literal `val hit = viewModel.runNearest(at, reach)` in
+ * two places. runNearest() became a one-line delegate to wallNearest() -- which
+ * also answers WHICH SIDE was hit, the thing pendingEraseWall needs -- and the
+ * screen was moved onto it. The behaviour did not change in any way; both
+ * assertions went red and reported "the hit test is gone" about a hit test
+ * sitting right there. A guard pinned to a name is a guard a rename silently
+ * turns off, so this accepts either name and is named once.
+ */
+function hitTestAt(src) {
+  const at = src.search(/val hit = viewModel\.(wallNearest|runNearest)\(at, reach\)/);
+  assert.ok(at > 0, "the long-press hit test is gone");
+  return at;
+}
+
 test("the long-press does not touch the selection", () => {
   // Selecting would reset pendingEraseRunId only if it were keyed -- but it
   // would still throw away viewZoom and viewPan, which ARE keyed.
-  const i = SCREEN.indexOf("val hit = viewModel.runNearest(at, reach)");
-  assert.ok(i > 0, "the long-press hit test is gone");
+  const i = hitTestAt(SCREEN);
   const branch = SCREEN.slice(i, i + 700);
   assert.ok(!/selectRun\(/.test(branch), "the long-press must not select the run it is about to erase");
-  assert.match(branch, /pendingEraseRunId = hit\.id/);
+  // hit is a (run, wallIndex) pair now that the hit test answers which SIDE
+  // was pressed, so the run id is hit.first.id. Either spelling is accepted
+  // for the same reason hitTestAt accepts either name: what matters is that
+  // the id comes from the thing that was pressed and not from the selection.
+  assert.match(branch, /pendingEraseRunId = hit(\.first)?\.id/);
 });
 
 test("the dialog erases the run it NAMED, not the selected one", () => {
@@ -103,8 +124,7 @@ test("the gesture is its own layer, so a slow tap still places a corner", () => 
     "the long press must not be bolted onto the shared tap detector");
   assert.match(SCREEN, /awaitLongPressOrCancellation\(down\.id\)/);
   // On a miss: nothing consumed, so every existing gesture behaves as before.
-  const i = SCREEN.indexOf("val hit = viewModel.runNearest(at, reach)");
-  assert.ok(i > 0, "the hit test is gone");
+  const i = hitTestAt(SCREEN);
   assert.match(SCREEN.slice(i, i + 900), /if \(hit != null\) \{/,
     "consuming must be conditional on a hit");
 });

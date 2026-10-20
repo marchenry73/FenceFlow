@@ -349,9 +349,30 @@ test("NOTHING else from the settings blob reaches the response, and the read ask
   const reads = w.db.log.filter((l) => l.table === "company_settings");
   assert.equal(reads.length, 1, "company_settings is read once");
   assert.equal(reads[0].cols, "payment_methods:settings->payment_methods");
-  // And the companies select did not grow: it still names only what the page shows.
+  // And the companies select still names only what the page shows -- as a SET,
+  // not as a string.
+  //
+  // This pinned the literal "name, phone, email" and went red when logo_path
+  // was added for the company's letterhead (A108), which is a column the page
+  // does show. What it is actually guarding is that nothing arrives here that
+  // the customer has no business with -- a billing column, a Stripe id, the
+  // leads token -- so it is spelled that way: an allow-list, checked per
+  // column, with the forbidden ones named so adding one is a failure rather
+  // than a quiet new entry in a string.
   const companyReads = w.db.log.filter((l) => l.table === "companies");
-  assert.deepEqual(companyReads.map((l) => l.cols), ["name, phone, email"]);
+  assert.equal(companyReads.length, 1, "companies is read once");
+  const cols = companyReads[0].cols.split(",").map((c) => c.trim()).sort();
+  const ALLOWED = ["email", "logo_path", "name", "phone"];
+  assert.deepEqual(cols, ALLOWED,
+    `the companies select is "${companyReads[0].cols}"; the quote page may read only ${ALLOWED.join(", ")}`);
+  // Said again from the other side, so a future widening cannot pass by being
+  // added to ALLOWED without anyone noticing what it is.
+  for (const forbidden of ["suspended", "monthly_price", "stripe_customer_id", "stripe_account_id",
+                           "leads_token", "admin_notes", "billing_email", "invited_email",
+                           "subscription_status", "pass_card_fee"]) {
+    assert.ok(!cols.includes(forbidden),
+      `the quote page now reads companies.${forbidden}, which is none of the customer's business`);
+  }
 });
 
 test("the response gained exactly one top-level key, paymentMethods", async () => {

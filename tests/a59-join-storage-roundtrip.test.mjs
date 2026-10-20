@@ -445,25 +445,77 @@ test("7. there is ONE write path, and the retired joint table is not touched", (
     "app/src/main/java/com/fenceestimator/app/ui/jobs/JobDetailViewModel.kt",
     "app/src/main/java/com/fenceestimator/app/ui/runs/FenceRunListViewModel.kt"];
 
-  // Every place a joint is ASSIGNED, with the file it is in. `copy(startJoint = ...)` and
-  // `startJoint = row...` both count; the entity's own declaration does not.
+  // WHAT THE RULE ACTUALLY IS, which this had to be rewritten to say.
+  //
+  // It counted every `startJoint =` / `endJoint =` anywhere and demanded the
+  // only two files be Repository and the sync. Then two correct changes landed
+  // -- duplicateRun() CLEARS both joints on a copy (an inherited id makes the
+  // engine deduct a post for a corner the copy does not stand at), and the
+  // cut/split in SurveyViewModel clears the cut end and carries the far end
+  // through -- and the test went red naming four files, with nothing wrong
+  // anywhere.
+  //
+  // The thing worth forbidding was never "mentioning a joint". It is giving an
+  // end a joint id that was decided somewhere other than the one place that
+  // decides them. So:
+  //
+  //   `= ""`                     ALLOWED anywhere -- clearing an end is the
+  //                              safe direction; it bills a post MORE, never
+  //                              one that is not in the ground.
+  //   `= run.startJoint/endJoint` ALLOWED anywhere -- carrying through what was
+  //                              already decided, not deciding it.
+  //   an if/else over only those  ALLOWED, same reason.
+  //   anything else              ONLY in Repository.setRunJointIds and the
+  //                              sync's pull.
+  const CLEAR_OR_CARRY = /^(""|run\.(startJoint|endJoint))$/;
+  const decidesAJoint = (rhs) => {
+    // Drop the conditions of any if/else chain and the keywords themselves;
+    // what is left is the leaves actually assigned.
+    const leaves = rhs
+      .replace(/\bif\s*\([^)]*\)/g, " ")
+      .replace(/\belse\b/g, " ")
+      .split(/\s+/)
+      .map((t) => t.trim())
+      .filter(Boolean);
+    if (!leaves.length) return true;
+    return !leaves.every((t) => CLEAR_OR_CARRY.test(t));
+  };
+
   const assigns = [];
   for (const f of files) {
     const text = read(f).replace(/^\s*(\/\/|\*|\/\*).*$/gm, "");
     for (const m of text.matchAll(/(startJoint|endJoint)\s*=/g)) {
       if (/val (startJoint|endJoint): String = ""/.test(text.slice(Math.max(0, m.index - 30), m.index + 30))) continue;
-      assigns.push(f);
+      // The right-hand side, to the end of its line, with a trailing comma or
+      // close-paren dropped.
+      const after = m.index + m[0].length;
+      const rhs = text.slice(after, text.indexOf("\n", after)).trim().replace(/[,)]\s*$/, "").trim();
+      if (decidesAJoint(rhs)) assigns.push(f);
     }
   }
   const owners = [...new Set(assigns)].sort();
   assert.deepEqual(owners, [P.repo, P.sync].sort(),
-    `a joint is assigned somewhere other than Repository.setRunJointIds and the sync's pull: ${owners.join(", ")}`);
+    `a joint id is DECIDED somewhere other than Repository.setRunJointIds and the sync's pull: ${owners.join(", ")}`);
 
-  // TEETH: the probe finds an assignment smuggled into a screen.
+  // TEETH: the probe finds a real id smuggled into a view model...
+  const planted = read(P.vm).replace("private fun jointIdsOf(",
+    "fun sneak(r: FenceRun) = r.copy(startJoint = other.syncId)\n    private fun jointIdsOf(");
   const smuggled = [];
-  const planted = read(P.vm).replace("private fun jointIdsOf(", "fun sneak(r: FenceRun) = r.copy(startJoint = \"x\")\n    private fun jointIdsOf(");
-  for (const m of planted.replace(/^\s*(\/\/|\*|\/\*).*$/gm, "").matchAll(/(startJoint|endJoint)\s*=/g)) smuggled.push(m.index);
-  assert.ok(smuggled.length > 0, "teeth: the one-write-path probe cannot see an assignment added to a view model");
+  for (const m of planted.replace(/^\s*(\/\/|\*|\/\*).*$/gm, "").matchAll(/(startJoint|endJoint)\s*=/g)) {
+    const after = m.index + m[0].length;
+    const rhs = planted.slice(after, planted.indexOf("\n", after)).trim().replace(/[,)]\s*$/, "").trim();
+    if (decidesAJoint(rhs)) smuggled.push(m.index);
+  }
+  assert.ok(smuggled.length > 0,
+    "teeth: the one-write-path probe cannot see a joint id decided inside a view model");
+
+  // ...and does NOT flag a clear or a carry-through, or the rule would forbid
+  // the correct code above and get itself deleted the next time it went red.
+  assert.ok(!decidesAJoint('""'), "control: clearing an end reads as deciding a joint");
+  assert.ok(!decidesAJoint("run.endJoint"), "control: carrying an end through reads as deciding a joint");
+  assert.ok(!decidesAJoint('if (cutsTheEnd) "" else run.endJoint'),
+    "control: an if/else over a clear and a carry reads as deciding a joint");
+  assert.ok(decidesAJoint("other.syncId"), "control: a real id does NOT read as deciding a joint");
 
   // SurveyViewModel goes through the repository and nowhere near a dao or the retired table.
   const write = bodyOf(SRC.vm, "private suspend fun writeJointIds(");

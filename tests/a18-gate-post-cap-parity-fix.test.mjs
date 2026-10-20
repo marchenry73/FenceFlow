@@ -248,11 +248,30 @@ let scratchRoot;
 
   const takeoffPath = join(scratchPricingDir, "takeoff.ts");
   const takeoffSrc = readFileSync(takeoffPath, "utf8");
-  const needle = 'const gatePosts = gates.reduce((sum, g) => sum + (g.mounting === "LINE_TO_WALL" ? 3 : 2), 0);';
-  const reverted = takeoffSrc.replace(needle, "const gatePosts = gateCount * 2; // REVERTED for this test only");
+  // THE NEEDLE IS A PATTERN, NOT A LINE, and this is the second spelling of
+  // the same rule it has had to match.
+  //
+  // It was the literal
+  //   const gatePosts = gates.reduce((sum, g) => sum + (g.mounting === "LINE_TO_WALL" ? 3 : 2), 0);
+  // and the rule was later pulled out into a named gatePostsFor(m) so a third
+  // mounting (LATCHES_TO_WALL, which takes ONE post) could join it. The
+  // literal stopped matching, the scratch copy was therefore IDENTICAL to the
+  // real engine, and every "reverting the fix removes exactly one cap" check
+  // compared the engine with itself and found no difference -- which reads
+  // exactly like "the fix does nothing". The one thing that saved it from
+  // reading as a passing file is the `ok(...)` below, which is why it is here:
+  // a revert that did not revert must be its own loud failure.
+  //
+  // What is reverted is still ONLY the LINE_TO_WALL rule. LATCHES_TO_WALL's
+  // single post stays, because it is not what this file is about and the
+  // frozen pre-fix figures were taken with it in place.
+  const needle = /(hasFenceLineForPosts\s*\?\s*)3(\s*:\s*2)/;
+  const reverted = takeoffSrc.replace(needle, "$1" + "2$2 /* REVERTED for this test only */");
 
   ok("found the exact rule to revert (if this fails, the scratch check below is not exercising the fix)",
     reverted !== takeoffSrc);
+  ok("the revert really removed the third post (the scratch engine is not a copy of the real one)",
+    !/hasFenceLineForPosts\s*\?\s*3/.test(reverted));
   writeFileSync(takeoffPath, reverted);
 
   const scratchIndex = await import(pathToFileURL(join(scratchPricingDir, "index.ts")).href);

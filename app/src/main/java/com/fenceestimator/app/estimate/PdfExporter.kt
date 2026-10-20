@@ -346,6 +346,10 @@ object PdfExporter {
         val logo = runCatching { CompanyLogo.cachedFile(context) }.getOrNull()
         val logoBitmap = logo?.let { f -> runCatching { BitmapFactory.decodeFile(f.absolutePath) }.getOrNull() }
         var leftX = MARGIN
+        // Where the drawn logo actually ENDS, not where a full-height one
+        // would: a wide, short mark scales to well under maxH, and reserving
+        // the full 46pt for it would open a band of white nobody asked for.
+        var logoBottom = y
         if (logoBitmap != null && logoBitmap.width > 0 && logoBitmap.height > 0) {
             val maxH = 46f
             val maxW = 130f
@@ -357,6 +361,7 @@ object PdfExporter {
                 android.graphics.RectF(MARGIN, y, MARGIN + w, y + h), null
             )
             leftX = MARGIN + w + 14f
+            logoBottom = y + h + 6f
         }
 
         // The name gets whatever is left, and shrinks rather than running into
@@ -384,11 +389,9 @@ object PdfExporter {
         if (business.licenseNumber.isNotBlank()) { canvas.drawText("${labels.licenseNo}${business.licenseNumber}", leftX, y, headerPaint); y += 14f }
 
         // Never let the rule cut through the logo either: a company with three
-        // blank contact fields and a 46pt logo would otherwise have the line
+        // blank contact fields and a tall logo would otherwise have the line
         // drawn across it. Costs nothing when there is no logo, because
-        // logoBottom is then y itself.
-        val logoBottom = if (logoBitmap != null && logoBitmap.width > 0)
-            MARGIN + 46f + 6f else y
+        // logoBottom is then the y the header started at.
         y = maxOf(y, logoBottom)
 
         // Never start the body above the date block on the right.
