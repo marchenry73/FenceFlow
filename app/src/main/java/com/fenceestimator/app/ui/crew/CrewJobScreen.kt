@@ -507,12 +507,19 @@ fun CrewJobScreen(
                 val assigned = crew.firstOrNull { !myProfileId.isNullOrBlank() && it.profileId == myProfileId }
                     ?: crew.firstOrNull { it.id == currentJob.assignedEmployeeId }
                 if (assigned != null) {
-                    val pxPerFt = currentJob.calibrationPixelsPerFoot
+                    // DrawingScale.of, not `calibration ?: 20`. Per-foot pay is
+                    // measured off this, and `?: 20` is right only on a 400ft
+                    // grid -- on a job drawn at 100ft it would pay a quarter of
+                    // the footage actually built. The same rule price-job, the
+                    // PDFs and (now) the office all measure by.
+                    val pxPerFt = com.fenceestimator.app.estimate.DrawingScale.of(currentJob)
                         ?: com.fenceestimator.app.ui.survey.SurveyViewModel.PIXELS_PER_FOOT_GRID
                     val pay = com.fenceestimator.app.estimate.CrewPay.forJob(
                         assigned, entries, runs, pxPerFt,
                         perFootCrewCount = perFootCrew ?: 1,
-                        jobCompleted = currentJob.status == com.fenceestimator.app.data.JobStatus.COMPLETED
+                        jobCompleted = currentJob.status == com.fenceestimator.app.data.JobStatus.COMPLETED,
+                        overtimeAfterHours = crewProfile.overtimeAfterHours,
+                        overtimeMultiplier = crewProfile.overtimeMultiplier,
                     )
                     // rateIsUnset is included here on purpose: without it, a
                     // crew member whose approved hours (or built feet) came

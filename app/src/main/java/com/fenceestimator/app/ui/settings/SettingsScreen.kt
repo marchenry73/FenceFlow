@@ -114,7 +114,13 @@ fun SettingsScreen(
 ) {
     val app = currentApp()
     val viewModel: SettingsViewModel = viewModel(
-        factory = GenericViewModelFactory { SettingsViewModel(app.settingsStore, app.repository, app.applicationScope) }
+        factory = GenericViewModelFactory {
+            // The guest answer is read at SAVE time, not captured here: a demo
+            // can end while this screen is open.
+            SettingsViewModel(app.settingsStore, app.repository, app.applicationScope) {
+                app.session.state.value.isGuestDemo
+            }
+        }
     )
     val session by app.session.state.collectAsState()
     // The demo predicate itself, never a permission -- same reasoning as

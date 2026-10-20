@@ -3960,6 +3960,7 @@ jobViewAll:'All', jobViewToday:'Today', jobViewWeek:'This week', jobViewUnschedu
     satNotPlacedErr:'Could not place that address. It usually needs the city and ZIP. Fix it on the job and try again.',
     satGateNeedsLineErr:'Draw at least two points on the fence line before placing a gate.',
     satSaving:'Saving…', satSaveErr:'It would not save: %s',
+    satNeedsCalibration:'This job is drawn over a survey photo that nobody has calibrated, so there is no scale to save a trace in. Calibrate it on the phone first, then trace it here.',
     satSavedRun:'%s ft saved as a fence run.', satSavedRunGateOne:'%s ft saved as a fence run with 1 gate.',
     satSavedRunGates:'%s ft saved as a fence run with %s gates.',
     satWalkItCaveat:'Open the job in the app to check the line against the ground — a satellite photo is a good measurement, not a survey, so walk it before you commit to a price.',
@@ -5740,6 +5741,7 @@ jobViewAll:'Todos', jobViewToday:'Hoy', jobViewWeek:'Esta semana', jobViewUnsche
     satNotPlacedErr:'No se pudo ubicar esa dirección. Normalmente hace falta la ciudad y el código postal. Corríjala en el trabajo e inténtelo de nuevo.',
     satGateNeedsLineErr:'Dibuje al menos dos puntos en la línea de la cerca antes de colocar un portón.',
     satSaving:'Guardando…', satSaveErr:'No se pudo guardar: %s',
+    satNeedsCalibration:'Este trabajo está dibujado sobre una foto de levantamiento que nadie ha calibrado, por lo que no hay escala para guardar un trazado. Calibórela primero en el teléfono y luego trace aquí.',
     satSavedRun:'%s pies guardados como tramo de cerca.', satSavedRunGateOne:'%s pies guardados como tramo de cerca con 1 portón.',
     satSavedRunGates:'%s pies guardados como tramo de cerca con %s portones.',
     satWalkItCaveat:'Abra el trabajo en la app para comprobar la línea sobre el terreno: una foto satelital es una buena medición, no un levantamiento, así que recórralo antes de comprometerse con un precio.',
@@ -7490,6 +7492,7 @@ jobViewAll:'Tous', jobViewToday:'Aujourdhui', jobViewWeek:'Cette semaine', jobVi
     satNotPlacedErr:'Impossible de localiser cette adresse. Il faut généralement la ville et le code postal. Corrigez-la sur le chantier et réessayez.',
     satGateNeedsLineErr:'Tracez au moins deux points sur la ligne de clôture avant de placer un portail.',
     satSaving:'Enregistrement…', satSaveErr:'Enregistrement impossible : %s',
+    satNeedsCalibration:'Ce chantier est dessiné sur une photo d’arpentage que personne n’a calibrée, il n’y a donc aucune échelle pour enregistrer un tracé. Calibrez-la d’abord sur le téléphone, puis tracez ici.',
     satSavedRun:'%s pi enregistrés comme section de clôture.', satSavedRunGateOne:'%s pi enregistrés comme section de clôture avec 1 portail.',
     satSavedRunGates:'%s pi enregistrés comme section de clôture avec %s portails.',
     satWalkItCaveat:'Ouvrez le chantier dans l’app pour vérifier la ligne sur le terrain — une photo satellite est une bonne mesure, pas un relevé, alors parcourez-la avant de vous engager sur un prix.',
@@ -11329,6 +11332,21 @@ const JOB_COLUMNS = [
   // honestly before: reading job.survey_storage_path with it missing here
   // would have read undefined on every job, silently never firing.
   'survey_storage_path',
+  // How wide the no-photo grid is, in feet -- the OTHER half of what decides
+  // a grid job's scale, and left off this list until now for the same reason
+  // survey_storage_path was: nothing here could read it, so every job looked
+  // like the 400ft default.
+  //
+  // It is not cosmetic. DrawingScale.of() on the phone is
+  // `calibration ?: (no photo ? 8000/grid_extent_ft : null)`, and this page
+  // assumed a flat 20 px/ft -- which is 8000/400 and therefore agrees ONLY at
+  // 400ft. The satellite tool writes a traced run's points in that assumed
+  // space and SAVES them, so a trace put on a job drawn at 100ft was stored
+  // at a quarter of its real length and priced that way. Live right now:
+  // three jobs are not at 400ft (50ft and 100ft), and three carry a
+  // calibration that is not 20. See jobDrawingScale() below, which is now the
+  // one rule, and tests/a109-office-drawing-scale.test.mjs.
+  'grid_extent_ft',
   'is_test_fixture','created_at','updated_at','deleted_at',
   'reapproval_required_at','reapproval_reason','reapproval_count',
   // The price the customer accepted (supabase_r6_price_stability.sql PART 1,
@@ -19922,6 +19940,41 @@ function unverifiedPricesOn(job){
    the office at all (the phone-local survey_image_path never does; see
    supabase/functions/_shared/pricing/load.ts's own comment on the same
    column). */
+/** THE SCALE A JOB'S DRAWING IS MEASURED AT, in canvas units per foot, or
+    null when it genuinely has none.
+
+    A transcription of DrawingScale.of() in
+    app/src/main/java/com/fenceestimator/app/estimate/DrawingScale.kt, which is
+    what the phone, price-job and every PDF already use. Three cases, in order:
+
+      1. a stored calibration always wins (a positive, finite number);
+      2. no survey photo -> the grid's own scale, 8000 / grid_extent_ft, where
+         8000 is GRID_CANVAS_SIZE and an unset extent means the 400ft default
+         (which is exactly 20, the number this page used to hardcode);
+      3. a photo nobody has calibrated -> null. The office cannot know how
+         many feet across a photograph is, and guessing is how a fence gets
+         priced off a made-up number.
+
+    WHY IT IS HERE AND NOT A CONSTANT. This page hardcoded 20 in four places.
+    That is right only at a 400ft grid, and the satellite tool does not merely
+    DISPLAY at that scale -- satPointsToRunSpace writes the points it saves in
+    it. A trace added to a job drawn at 100ft was therefore stored at a quarter
+    of its real length, and priced at a quarter.
+
+    Returns a number or null; never NaN, never 0, never Infinity. */
+function jobDrawingScale(job){
+  const cal = Number(job && job.calibration_pixels_per_foot);
+  if (Number.isFinite(cal) && cal > 0) return cal;
+  // survey_image_path is phone-local and never reaches the office; the stored
+  // path is the one that travels, exactly as DrawingScale.isPhotoJob reads it.
+  if (job && job.survey_storage_path) return null;
+  const extent = Number(job && job.grid_extent_ft);
+  if (Number.isFinite(extent) && extent > 0) return 8000 / extent;
+  // No extent recorded is the 400ft default, which is 20 -- the historical
+  // value, so a job that predates the column measures exactly as it always did.
+  return 20;
+}
+
 function jobHasUnmeasurablePhotoWork(job, allRuns){
   // isPhotoJob: DrawingScale.isPhotoJob(job) == survey_storage_path != null
   //   on the office (survey_image_path is phone-local only, never synced).
@@ -21173,11 +21226,14 @@ function snapPointToPrev(pt, prev, thresholdPx){
     of their own -- otherwise a gate's saved x/y would be relative to
     nothing the run itself uses. Everything else is satPointsToRunSpace's
     own math, called with that explicit origin instead of gates[0]. */
-function satGatesToRunSpace(gates, originLatLon, cLat, z){
+function satGatesToRunSpace(gates, originLatLon, cLat, z, pxPerFt){
   if(!gates || !gates.length || !originLatLon) return [];
   const f = satFeetPerPx(cLat, z);
   const o = satWorld(originLatLon.lat, originLatLon.lon, z);
-  const PX_PER_FT = 20;
+  // The JOB's scale, passed in, not a hardcoded 20 -- see jobDrawingScale().
+  // A gate in a different space from the line it sits on would be the same
+  // bug twice over, so this takes the same argument the points do.
+  const PX_PER_FT = pxPerFt;
   return gates.map(gt => {
     const w = satWorld(gt.lat, gt.lon, z);
     return { x:(w.x-o.x)*f*PX_PER_FT, y:(w.y-o.y)*f*PX_PER_FT,
@@ -21424,11 +21480,23 @@ async function saveSatelliteRun(){
   $('satSave').disabled = true;
   msg('satMsg', tr('satSaving'), 'working');
 
-  const encoded = encodePointsList(satPointsToRunSpace(SAT.pts, SAT.cLat, SAT.z));
+  // THE JOB'S OWN SCALE, and a refusal when it has none.
+  //
+  // null means an uncalibrated survey photo: the office cannot know how many
+  // feet across a photograph is, so there is no space to write these points
+  // into. Saving them in a guessed one is what this whole change exists to
+  // stop -- a trace stored at the wrong scale is a fence priced at the wrong
+  // length, silently, with nothing on screen saying so.
+  const pxPerFt = jobDrawingScale(j);
+  if (!pxPerFt) {
+    $('satSave').disabled = false;
+    return msg('satMsg', tr('satNeedsCalibration'), 'err');
+  }
+  const encoded = encodePointsList(satPointsToRunSpace(SAT.pts, SAT.cLat, SAT.z, pxPerFt));
   // Owner ask #4: gates placed on the trace are saved with the run, in the
   // same coordinate space as the points -- sharing the trace's own first
   // point as their origin, not one of their own.
-  const gatesEncoded = encodeGateMarkers(satGatesToRunSpace(SAT.gates, SAT.pts[0], SAT.cLat, SAT.z));
+  const gatesEncoded = encodeGateMarkers(satGatesToRunSpace(SAT.gates, SAT.pts[0], SAT.cLat, SAT.z, pxPerFt));
 
   const loop = $('satLoop').checked;
   const mine = runs.filter(r => r.job_sync_id === j.sync_id);
@@ -22348,7 +22416,13 @@ async function showJob(id){
   // unless this job carries its own calibration, exactly as FenceCodec.kt's
   // points are only ever meaningful against one or the other.
   const jr=runs.filter(r=>r.job_sync_id===sid).sort((a,b)=>(a.sort_order||0)-(b.sort_order||0));
-  const runPxPerFoot = Number(openJob.calibration_pixels_per_foot)||20;
+  // The same rule the phone, price-job and every PDF measure by -- not
+  // `calibration || 20`, which is right only on a 400ft grid and drew every
+  // other job's fence at the wrong size on this page. A photo nobody has
+  // calibrated has no scale at all; the canvas below falls back to the old
+  // number for drawing purposes only, and jobHasUnmeasurablePhotoWork is what
+  // actually stops such a job being priced.
+  const runPxPerFoot = jobDrawingScale(openJob) || 20;
   $('jobRuns').innerHTML = jobRunsHtml(jr, runPxPerFoot);
   jr.forEach((r,i)=>{
     const cvs = $('runCanvas_'+i);
@@ -22606,15 +22680,20 @@ function autoPlaceGateMarkers(points, closedLoop, gates){
 }
 
 /** The satellite tool measures in latitude/longitude; a fence run is stored
-    in the app's own drawing space (20 px/ft, first corner at the origin).
+    in the app's own drawing space (the JOB's own units per foot -- see
+    jobDrawingScale -- with the first corner at the origin).
     Split out of saveSatelliteRun so the wizard's "use this trace" path and
     the plain job-sheet save share one conversion instead of two that could
     drift apart. */
-function satPointsToRunSpace(pts, cLat, z){
+function satPointsToRunSpace(pts, cLat, z, pxPerFt){
   if(!pts || pts.length < 1) return [];
   const f = satFeetPerPx(cLat, z);
   const o = satWorld(pts[0].lat, pts[0].lon, z);
-  const PX_PER_FT = 20;
+  // The JOB's own scale. This was a hardcoded 20, which is 8000/400 and so
+  // right only on a 400ft grid; the points produced here are SAVED, so on a
+  // job drawn at any other size the fence was stored, measured and priced at
+  // the wrong length. See jobDrawingScale().
+  const PX_PER_FT = pxPerFt;
   return pts.map(p => {
     const w = satWorld(p.lat, p.lon, z);
     return { x:(w.x-o.x)*f*PX_PER_FT, y:(w.y-o.y)*f*PX_PER_FT };
@@ -23325,7 +23404,15 @@ function wizReturnFromSatellite(){
     there are still gates to collect, which is why the raw insert this used
     to do could never have carried them correctly. */
 function wizUseSatelliteTrace(){
-  wiz.currentRun.points = satPointsToRunSpace(SAT.pts, SAT.cLat, SAT.z);
+  // The wizard's job, at ITS scale. A wizard-made job is inserted with
+  // calibration_pixels_per_foot = 20 and has no survey photo, so this is 20
+  // today -- but reading it rather than assuming it is what keeps a REVISITED
+  // job (one the phone has since drawn on a different grid) from having its
+  // trace written in the wrong space. `|| 20` only for the one case
+  // jobDrawingScale answers null for, an uncalibrated photo, which a wizard
+  // job never is; the job sheet's own save refuses that case outright.
+  const wizPxPerFt = jobDrawingScale(wiz.job) || 20;
+  wiz.currentRun.points = satPointsToRunSpace(SAT.pts, SAT.cLat, SAT.z, wizPxPerFt);
   wiz.currentRun.closed_loop = $('satLoop').checked;
   wiz.currentRun.manual_linear_feet = '';
   wiz.currentRun.manual_corner_count = 0;
@@ -23336,7 +23423,7 @@ function wizUseSatelliteTrace(){
   // relative to *this* trace's first point, so leaving a prior trace's gates
   // in place when the new one has none would strand them at the wrong spot.
   wiz.currentRun.gates = SAT.gates.length
-    ? satGatesToRunSpace(SAT.gates, SAT.pts[0], SAT.cLat, SAT.z)
+    ? satGatesToRunSpace(SAT.gates, SAT.pts[0], SAT.cLat, SAT.z, wizPxPerFt)
         .map(g => ({ x:g.x, y:g.y, widthFt:g.widthFt, mounting:g.mounting, swing:g.swing, placed:true }))
     : [];
   if(!(wiz.currentRun.label||'').trim() && ($('satLabel').value||'').trim())

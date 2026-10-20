@@ -3456,11 +3456,15 @@ class SurveyViewModel(
          * turn into a falsely reassuring answer; [SatelliteExtentTest] pins
          * this specifically.
          */
-        fun satelliteTilesNeeded(extentFt: Float, siteLat: Double): Int {
+        fun satelliteTilesNeeded(
+            extentFt: Float,
+            siteLat: Double,
+            zoom: Int = SATELLITE_TILE_Z,
+        ): Int {
             if (extentFt <= 0f || !extentFt.isFinite()) return 0
             val feetPerTile = 256.0 *
                 com.fenceestimator.app.cloud.SatelliteMath.feetPerPx(
-                    siteLat, SATELLITE_TILE_Z
+                    siteLat, zoom
                 )
             if (feetPerTile <= 0.0 || !feetPerTile.isFinite()) return Int.MAX_VALUE
             val acrossExact = kotlin.math.ceil(extentFt / feetPerTile) + 1.0
@@ -3493,8 +3497,58 @@ class SurveyViewModel(
          * that calls this; this only matters once a grid zoomed out PAST
          * that default is asked to keep showing satellite too.
          */
-        fun satelliteCanFullyCover(extentFt: Float, siteLat: Double): Boolean =
-            satelliteTilesNeeded(extentFt, siteLat) <= MAX_SATELLITE_TILES_FOR_EXTENT
+        fun satelliteCanFullyCover(
+            extentFt: Float,
+            siteLat: Double,
+            zoom: Int = SATELLITE_TILE_Z,
+        ): Boolean =
+            satelliteTilesNeeded(extentFt, siteLat, zoom) <= MAX_SATELLITE_TILES_FOR_EXTENT
+
+        /**
+         * THE COARSEST IMAGERY THIS APP WILL ASK FOR.
+         *
+         * z=20 tiles are about 111ft of ground each at this latitude, so 64 of
+         * them reach roughly 776ft -- which a single press of the grid's own
+         * zoom-out button already passes. Dropping a zoom level doubles the
+         * ground each tile covers, so the SAME 64-tile budget reaches twice as
+         * far for half the detail, which is how every map in the world handles
+         * this and is what [satelliteZoomFor] now does.
+         *
+         * 15 is the floor because 64 tiles at z=15 already cover about 25,000
+         * feet -- nearly five miles, far past any fence -- and because the
+         * imagery below it stops being a picture of a property at all.
+         */
+        const val MIN_SATELLITE_TILE_Z = 15
+
+        /**
+         * WHICH IMAGERY ZOOM TO FETCH for a grid this wide.
+         *
+         * The highest (most detailed) zoom whose tiles still cover the whole
+         * grid inside the fetch budget, never finer than [SATELLITE_TILE_Z] and
+         * never coarser than [MIN_SATELLITE_TILE_Z].
+         *
+         * THE BUG THIS FIXES. The fetch zoom was pinned at 20. Zooming the grid
+         * out past about 776ft therefore ran out of tiles, and the picture
+         * simply stopped filling in -- the grid showed through the rest, with a
+         * note explaining it. On a commercial lot, which is what a 2,000ft grid
+         * is for, that meant satellite covered a third of the site and the rest
+         * was graph paper. Nothing was wrong with the maths; the app was just
+         * asking for imagery four times finer than the job needed.
+         *
+         * Detail is not lost where it matters: a 100ft back garden still gets
+         * z=20, because at that extent z=20 fits easily. The zoom only drops
+         * once the grid is big enough that it has to, and a coarser picture of
+         * the whole site beats a sharp picture of a corner of it.
+         *
+         * Pure: a loop over at most six integers, no Compose, no Android, so
+         * [SatelliteExtentTest] can pin every step of it.
+         */
+        fun satelliteZoomFor(extentFt: Float, siteLat: Double): Int {
+            for (z in SATELLITE_TILE_Z downTo MIN_SATELLITE_TILE_Z) {
+                if (satelliteCanFullyCover(extentFt, siteLat, z)) return z
+            }
+            return MIN_SATELLITE_TILE_Z
+        }
 
         /**
          * The largest extent, in feet, satellite imagery can fully cover at
@@ -3524,10 +3578,20 @@ class SurveyViewModel(
          * [satelliteTilesNeeded]) falls back to [SATELLITE_CANVAS_EXTENT_FT]
          * rather than handing a caller a number that cannot be drawn.
          */
-        fun maxSatelliteExtentFt(siteLat: Double): Float {
+        fun maxSatelliteExtentFt(
+            siteLat: Double,
+            /**
+             * Defaults to [SATELLITE_TILE_Z], NOT to the floor. Changing this
+             * default would quietly re-mean every existing caller and every
+             * test of them -- the reach at z=20 is about 776ft here and at the
+             * floor about five miles, and nothing about a call site says which
+             * it wanted. The one caller that means the floor passes it.
+             */
+            zoom: Int = SATELLITE_TILE_Z,
+        ): Float {
             val feetPerTile = 256.0 *
                 com.fenceestimator.app.cloud.SatelliteMath.feetPerPx(
-                    siteLat, SATELLITE_TILE_Z
+                    siteLat, zoom
                 )
             if (feetPerTile <= 0.0 || !feetPerTile.isFinite()) return SATELLITE_CANVAS_EXTENT_FT
             val maxAcross = kotlin.math.floor(kotlin.math.sqrt(MAX_SATELLITE_TILES_FOR_EXTENT.toDouble()))

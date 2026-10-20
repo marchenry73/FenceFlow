@@ -619,15 +619,29 @@ eq('no previous point, nothing to snap to',
   const degLon = side / FT_PER_M / (M_PER_DEG * Math.cos(LAT*Math.PI/180));
   const origin = { lat:LAT, lon:LON };
   const gate = { lat:LAT, lon:LON+degLon, widthFt:4, mounting:'WALL', swing:'OUT' };
-  const [converted] = M.satGatesToRunSpace([gate], origin, LAT, Z);
+  // The scale is now an ARGUMENT, not a constant inside the function: the job's
+  // own units per foot (jobDrawingScale), because a trace saved at a hardcoded
+  // 20 px/ft onto a job drawn at any other grid size was stored, and priced, at
+  // the wrong length. 20 here keeps this worked example exactly as it was.
+  const [converted] = M.satGatesToRunSpace([gate], origin, LAT, Z, 20);
   near('gate x matches the same-position trace point (1600 survey px)', converted.x, side*20, 1);
   near('and does not drift off the line', Math.abs(converted.y), 0, 1);
   eq('width/mounting/swing pass through untouched',
     [converted.widthFt, converted.mounting, converted.swing], [4,'WALL','OUT']);
+
+  // ...and the scale really is the scale. The same gate on a job drawn at
+  // 100ft (8000/100 = 80 units per foot) is four times further out in survey
+  // pixels, because a survey pixel is four times smaller. A function that
+  // ignored the argument would give 1600 both times.
+  const [atHundredFt] = M.satGatesToRunSpace([gate], origin, LAT, Z, 80);
+  near('a finer grid puts the same gate at four times the survey-pixel distance',
+    atHundredFt.x, side*80, 4);
+  ok('the two scales genuinely differ, so the check above discriminates',
+    Math.abs(atHundredFt.x - converted.x) > 1000);
 }
-eq('no gates converts to nothing', M.satGatesToRunSpace([], {lat:0,lon:0}, 0, 20), []);
+eq('no gates converts to nothing', M.satGatesToRunSpace([], {lat:0,lon:0}, 0, 20, 20), []);
 eq('no origin (no trace drawn yet) converts to nothing',
-  M.satGatesToRunSpace([{lat:1,lon:1,widthFt:4,mounting:'LINE',swing:'IN'}], null, 0, 20), []);
+  M.satGatesToRunSpace([{lat:1,lon:1,widthFt:4,mounting:'LINE',swing:'IN'}], null, 0, 20, 20), []);
 
 /* ---------- swSupplierFenceTypes ---------- */
 

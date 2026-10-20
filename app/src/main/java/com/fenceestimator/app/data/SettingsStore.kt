@@ -73,6 +73,28 @@ private const val DEFAULT_REVIEW_TEMPLATE_ES =
     "Hola {customerName}, ¡gracias por elegir a {businessName} para su cerca! " +
         "Si tiene un momento, una breve reseña significaría mucho para nosotros y ayuda a que otros nos encuentren. ¡Gracias!"
 
+/**
+ * WHAT A GUEST DEMO IS ALLOWED TO CHANGE, as an allow-list of THIS PHONE'S
+ * fields -- not a deny-list of the company's.
+ *
+ * The direction matters more than the contents. A deny-list means every field
+ * added later is writable by a guest until somebody remembers to add it; an
+ * allow-list means every field added later is refused until somebody decides
+ * otherwise. New code refused by default is the only version of this that
+ * stays true.
+ *
+ * These four are what SettingsSync's own merge already calls "this device's":
+ * the theme and the language belong to whoever is holding the phone, and the
+ * Square credentials are this phone's connection, not the company's record.
+ */
+fun BusinessProfile.guestEditableOver(stored: BusinessProfile): BusinessProfile =
+    stored.copy(
+        themeMode = themeMode,
+        language = language,
+        squareAccessToken = squareAccessToken,
+        squareLocationId = squareLocationId,
+    )
+
 data class BusinessProfile(
     val businessName: String = "",
     val ownerName: String = "",
@@ -98,6 +120,28 @@ data class BusinessProfile(
      */
     val defaultMinimumLaborCharge: Double = 0.0,
     val defaultToolsListCsv: String = "Post hole digger,4' level,Drill/driver,Circular saw,Tape measure,Post level,Wheelbarrow,Safety glasses,Gloves,String line",
+
+    // ---- Overtime, as THIS company has it ----
+    //
+    // The office has let a company set its own threshold and multiplier since
+    // the payroll panel was built (company_settings' ot_after_hours /
+    // ot_multiplier); the phone hardcoded the federal 40 and 1.5, in a comment
+    // that ended "if a settings-backed override is added later it must be
+    // threaded through here, not hardcoded a second time". This is that
+    // threading.
+    //
+    // Nothing disagrees TODAY: no company has set an override (checked live,
+    // with a control proving the probe can see a key that IS there). It would
+    // have disagreed the first time one did -- the office's estimated pay and
+    // the crew member's own pay card showing different money for the same
+    // week, with neither screen able to say why.
+    //
+    // The defaults are the federal rule, so a company that has never touched
+    // it is paid exactly as it was before this existed.
+    /** Hours in a week before overtime starts. */
+    val overtimeAfterHours: Double = 40.0,
+    /** What an overtime hour is multiplied by. */
+    val overtimeMultiplier: Double = 1.5,
 
     // ---- How fast this company actually works ----
     // Every crew is different, and a schedule built on someone else's numbers

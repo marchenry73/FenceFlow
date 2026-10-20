@@ -1092,9 +1092,20 @@ fun SurveyDrawScreen(
                 // is viewZoom/viewPan/FitTransform's job, layered on top. See
                 // the doc on SatelliteAnchor for why this must track the
                 // job's real scale rather than a hardcoded one.
-                val satelliteAnchor = remember(job2.siteLat, job2.siteLon, gridPxPerFt) {
+                val satelliteAnchor = remember(job2.siteLat, job2.siteLon, gridPxPerFt, job2.gridExtentFt) {
                     val lat = job2.siteLat; val lon = job2.siteLon
-                    if (lat != null && lon != null) SatelliteAnchor(lat, lon, gridPxPerFt) else null
+                    if (lat != null && lon != null) {
+                        // THE ZOOM NOW FOLLOWS THE GRID. It was pinned at 20,
+                        // whose tiles cover about 111ft each -- so 64 of them
+                        // reached roughly 776ft and the picture simply stopped
+                        // filling in past that, which one press of the grid's
+                        // own zoom-out button already passes. A coarser zoom
+                        // covers four times the ground per tile, so the same
+                        // budget reaches the whole site. See
+                        // SurveyViewModel.satelliteZoomFor.
+                        val z = SurveyViewModel.satelliteZoomFor(job2.gridExtentFt, lat)
+                        SatelliteAnchor(lat, lon, gridPxPerFt, z)
+                    } else null
                 }
 
                 // Which imagery tiles the current view needs, fetched (or
@@ -1116,14 +1127,14 @@ fun SurveyDrawScreen(
                         canvasContentSize.first, canvasContentSize.second, canvasSize, viewZoom, viewPan
                     )
                     visibleSatelliteTiles(anchor, transform, canvasSize).forEach { (tx, ty) ->
-                        val key = satelliteTileKey(tx, ty)
+                        val key = satelliteTileKey(anchor.zoom, tx, ty)
                         if (satelliteTiles.containsKey(key)) return@forEach
-                        val cached = Satellite.cachedTile(SATELLITE_TILE_Z, tx, ty)
+                        val cached = Satellite.cachedTile(anchor.zoom, tx, ty)
                         if (cached != null) {
                             satelliteTiles[key] = cached
                         } else {
                             launch {
-                                Satellite.fetchTile(SATELLITE_TILE_Z, tx, ty)?.let { satelliteTiles[key] = it }
+                                Satellite.fetchTile(anchor.zoom, tx, ty)?.let { satelliteTiles[key] = it }
                             }
                         }
                     }
@@ -3641,11 +3652,23 @@ private fun LayersDialog(
                         if (satelliteOn) {
                             val lat = job2.siteLat
                             val extent = job2.gridExtentFt
+                            // Asked of the COARSEST zoom this app will fetch,
+                            // not of z=20: the zoom now drops as the grid grows
+                            // (satelliteZoomFor), so the honest question is no
+                            // longer "does 776ft of z=20 imagery reach" but
+                            // "has even the widest view run out". At the floor
+                            // that is about five miles, so this note is now
+                            // the rarity it reads as, rather than something
+                            // most sites saw on their first zoom-out.
                             if (lat != null &&
                                 extent > SurveyViewModel.SATELLITE_CANVAS_EXTENT_FT &&
-                                !SurveyViewModel.satelliteCanFullyCover(extent, lat)
+                                !SurveyViewModel.satelliteCanFullyCover(
+                                    extent, lat, SurveyViewModel.MIN_SATELLITE_TILE_Z
+                                )
                             ) {
-                                val reachFt = SurveyViewModel.maxSatelliteExtentFt(lat).toInt()
+                                val reachFt = SurveyViewModel
+                                    .maxSatelliteExtentFt(lat, SurveyViewModel.MIN_SATELLITE_TILE_Z)
+                                    .toInt()
                                 Text(
                                     stringResource(R.string.sat_extent_note, reachFt),
                                     style = MaterialTheme.typography.bodySmall,
@@ -4545,7 +4568,10 @@ const val SATELLITE_TILE_Z = 20
  */
 const val MAX_SATELLITE_TILES = 64
 
-private fun satelliteTileKey(x: Int, y: Int) = "$SATELLITE_TILE_Z/$x/$y"
+/** Tiles from two zooms are different pictures of the same ground, so the
+ *  zoom is part of the key -- otherwise a tile fetched before the grid was
+ *  zoomed out would be drawn, at the new anchor, in the wrong place. */
+private fun satelliteTileKey(z: Int, x: Int, y: Int) = "$z/$x/$y"
 
 /**
  * Fixes the satellite imagery to the app's own survey-pixel canvas.
@@ -4594,10 +4620,10 @@ private fun satelliteTileKey(x: Int, y: Int) = "$SATELLITE_TILE_Z/$x/$y"
  * for how a person is told about it rather than left with a silently
  * cropped picture.
  */
-private class SatelliteAnchor(lat: Double, lon: Double, unitsPerFoot: Float) {
-    private val centerWorld = SatelliteMath.world(lat, lon, SATELLITE_TILE_Z)
+private class SatelliteAnchor(lat: Double, lon: Double, unitsPerFoot: Float, val zoom: Int) {
+    private val centerWorld = SatelliteMath.world(lat, lon, zoom)
     private val surveyPxPerWorldPx =
-        SatelliteMath.feetPerPx(lat, SATELLITE_TILE_Z) * unitsPerFoot
+        SatelliteMath.feetPerPx(lat, zoom) * unitsPerFoot
     private val centerContent = SurveyViewModel.GRID_CANVAS_SIZE / 2.0
 
     /** A Web Mercator pixel coordinate (e.g. a tile corner) -> survey-pixel content space. */
@@ -4616,14 +4642,15 @@ private class SatelliteAnchor(lat: Double, lon: Double, unitsPerFoot: Float) {
     fun tileContentSpan(): Double = 256.0 * surveyPxPerWorldPx
 }
 
-/** Which z=20 imagery tiles are needed to cover what [transform] currently shows, clamped to the valid tile grid. */
+/** Which of [anchor]'s imagery tiles are needed to cover what [transform]
+ *  currently shows, clamped to that zoom's own valid tile grid. */
 private fun visibleSatelliteTiles(anchor: SatelliteAnchor, transform: FitTransform, canvasSize: IntSize): List<Pair<Int, Int>> {
     if (canvasSize.width <= 0 || canvasSize.height <= 0) return emptyList()
     val topLeft = transform.toImage(Offset(0f, 0f))
     val bottomRight = transform.toImage(Offset(canvasSize.width.toFloat(), canvasSize.height.toFloat()))
     val (wx0, wy0) = anchor.contentToWorld(topLeft.x.toDouble(), topLeft.y.toDouble())
     val (wx1, wy1) = anchor.contentToWorld(bottomRight.x.toDouble(), bottomRight.y.toDouble())
-    val maxIndex = (1 shl SATELLITE_TILE_Z) - 1
+    val maxIndex = (1 shl anchor.zoom) - 1
     val tx0 = Math.floor(min(wx0, wx1) / 256.0).toInt().coerceIn(0, maxIndex)
     val tx1 = Math.floor(max(wx0, wx1) / 256.0).toInt().coerceIn(0, maxIndex)
     val ty0 = Math.floor(min(wy0, wy1) / 256.0).toInt().coerceIn(0, maxIndex)
@@ -4675,7 +4702,7 @@ private fun androidx.compose.ui.graphics.drawscope.DrawScope.drawSurveyBackgroun
     if (satelliteOn && satelliteAnchor != null) {
         val viewport = IntSize(size.width.toInt(), size.height.toInt())
         visibleSatelliteTiles(satelliteAnchor, transform, viewport).forEach { (tx, ty) ->
-            val tileBmp = satelliteTiles[satelliteTileKey(tx, ty)] ?: return@forEach
+            val tileBmp = satelliteTiles[satelliteTileKey(satelliteAnchor.zoom, tx, ty)] ?: return@forEach
             val topLeftContent = satelliteAnchor.worldToContent(tx * 256.0, ty * 256.0)
             val topLeftScreen = transform.toCanvas(FencePoint(topLeftContent.x, topLeftContent.y))
             val span = (satelliteAnchor.tileContentSpan() * transform.scale).toInt().coerceAtLeast(1)

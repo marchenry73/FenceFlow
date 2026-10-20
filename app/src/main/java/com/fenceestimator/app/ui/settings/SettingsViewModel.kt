@@ -15,6 +15,8 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import com.fenceestimator.app.data.guestEditableOver
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -30,7 +32,19 @@ import kotlinx.coroutines.withContext
 class SettingsViewModel(
     private val settingsStore: SettingsStore,
     private val repository: Repository,
-    private val appScope: CoroutineScope
+    private val appScope: CoroutineScope,
+    /**
+     * Whether the person using the app right now is in the guest demo.
+     *
+     * A function, read at save time, not a value captured when this view model
+     * was built: a demo can end while the settings screen is open, and a
+     * snapshot taken at construction would still be refusing (or still be
+     * allowing) afterwards.
+     *
+     * Defaults to "not a guest" so every existing construction site and test
+     * keeps its current meaning; the app passes the real answer.
+     */
+    private val guestDemo: () -> Boolean = { false },
 ) : ViewModel() {
     // Null until the real persisted value has loaded -- the screen must not seed its
     // edit buffer from a placeholder default, or a fast reload can make already-saved
@@ -48,8 +62,41 @@ class SettingsViewModel(
     private val _saved = MutableSharedFlow<Boolean>(extraBufferCapacity = 1)
     val saved: SharedFlow<Boolean> = _saved
 
+    /**
+     * THE ONE FUNNEL every settings edit goes through, which is why the guest
+     * rule lives here and not on the screen.
+     *
+     * THE GAP THIS CLOSES. Every other guest write in the app lands in Room,
+     * where the demo wipe can take it back. This one lands in DataStore, which
+     * the wipe does not touch and GuestWriteGuard does not cover -- so a
+     * business name, a labour rate or a set of contract terms typed during a
+     * demo SURVIVED the demo, and SettingsSync's null-coalescing merge would
+     * then let a real company adopt it as their own.
+     *
+     * It is not a blanket refusal, and that is the point: the theme and the
+     * language are this phone's, and a guest who cannot switch the app to
+     * Spanish has been broken rather than protected. [guestEditableOver] is
+     * the allow-list, and it is an allow-list so that a field added later is
+     * refused until somebody decides it should not be.
+     *
+     * Silent on purpose. The company controls on that screen are already
+     * disabled for a guest (`editable`), so nothing a guest can actually touch
+     * reaches this branch -- there is no action to report the refusal of. This
+     * is the backstop for the paths that gate did not cover, not a second
+     * place to tell somebody no.
+     *
+     * NOTE what this does NOT do: it does not arm [GuestWriteGuard]. That file
+     * states at length why flipping it on without per-screen work would trade
+     * "silently wrong" for "crashes, at random, per screen", and that reasoning
+     * is unchanged. This closes the one write that escapes the demo entirely.
+     */
     fun save(profile: BusinessProfile) {
         appScope.launch {
+            val profile = if (guestDemo()) {
+                profile.guestEditableOver(settingsStore.profile.first())
+            } else {
+                profile
+            }
             // Local write first and uncancellable: settings must survive even if
             // the cloud is unreachable or the user backs out immediately. This
             // write is never gated on the push below, so a dead connection

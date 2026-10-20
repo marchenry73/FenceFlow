@@ -1,6 +1,7 @@
 package com.fenceestimator.app.cloud
 
 import com.fenceestimator.app.data.BusinessProfile
+import com.fenceestimator.app.estimate.CrewOvertime
 import com.fenceestimator.app.data.SettingsStore
 import io.github.jan.supabase.postgrest.postgrest
 import kotlinx.coroutines.Dispatchers
@@ -45,6 +46,8 @@ import kotlinx.serialization.json.put
  */
 @Serializable
 data class CloudSettings(
+    @SerialName("ot_after_hours") val otAfterHours: Double? = null,
+    @SerialName("ot_multiplier") val otMultiplier: Double? = null,
     @SerialName("business_name") val businessName: String? = null,
     @SerialName("owner_name") val ownerName: String? = null,
     val phone: String? = null,
@@ -84,6 +87,13 @@ data class CloudSettings(
  */
 @Serializable
 private data class CrewSettings(
+    // crew_settings() is a server-side allowlist and does not return these
+    // today, so a crew phone keeps the federal default -- which is what it
+    // used before this existed. Declared anyway: the moment that allowlist
+    // grows, a crew member's own pay card follows the company's rule with no
+    // further app release, instead of silently staying on 40 and 1.5.
+    @SerialName("ot_after_hours") val otAfterHours: Double? = null,
+    @SerialName("ot_multiplier") val otMultiplier: Double? = null,
     @SerialName("business_name") val businessName: String? = null,
     @SerialName("owner_name") val ownerName: String? = null,
     val phone: String? = null,
@@ -198,6 +208,11 @@ private fun BusinessProfile.toCloud() = CloudSettings(
     phone = phone,
     email = email,
     licenseNumber = licenseNumber,
+    // Pushed as well as pulled: save_company_settings merges with `||`, so an
+    // absent key keeps whatever is stored, and sending this phone's copy keeps
+    // the two in step rather than letting a push quietly drop them.
+    otAfterHours = overtimeAfterHours,
+    otMultiplier = overtimeMultiplier,
     taxRate = defaultTaxRatePercent,
     markup = defaultMarkupPercent,
     laborRate = defaultLaborRatePerFt,
@@ -240,6 +255,11 @@ internal fun BusinessProfile.mergedWith(cloud: CloudSettings) = copy(
     phone = cloud.phone ?: phone,
     email = cloud.email ?: email,
     licenseNumber = cloud.licenseNumber ?: licenseNumber,
+    // A stored zero or a negative is not an overtime rule -- it would make
+    // every hour overtime, or pay a negative premium -- so it reads as absent,
+    // the same way DrawingScale treats a non-positive calibration.
+    overtimeAfterHours = CrewOvertime.afterHoursOf(cloud.otAfterHours),
+    overtimeMultiplier = CrewOvertime.multiplierOf(cloud.otMultiplier),
     defaultTaxRatePercent = cloud.taxRate ?: defaultTaxRatePercent,
     defaultMarkupPercent = cloud.markup ?: defaultMarkupPercent,
     defaultLaborRatePerFt = cloud.laborRate ?: defaultLaborRatePerFt,
@@ -272,6 +292,8 @@ private fun BusinessProfile.mergedWith(crew: CrewSettings) = copy(
     phone = crew.phone ?: phone,
     email = crew.email ?: email,
     licenseNumber = crew.licenseNumber ?: licenseNumber,
+    overtimeAfterHours = CrewOvertime.afterHoursOf(crew.otAfterHours),
+    overtimeMultiplier = CrewOvertime.multiplierOf(crew.otMultiplier),
     defaultPostSpacingFt = crew.postSpacing ?: defaultPostSpacingFt,
     defaultConcreteBagsPerPost = crew.concreteBags ?: defaultConcreteBagsPerPost,
     defaultPanelWidthFt = crew.panelWidth ?: defaultPanelWidthFt,

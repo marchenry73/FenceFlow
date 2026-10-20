@@ -207,11 +207,12 @@ class SatelliteExtentTest {
         val src = surveyDrawScreenSource()
         assertTrue(
             "SatelliteAnchor's constructor must accept the job's own current scale",
-            src.contains("private class SatelliteAnchor(lat: Double, lon: Double, unitsPerFoot: Float)")
+            src.contains("private class SatelliteAnchor(lat: Double, lon: Double, unitsPerFoot: Float, val zoom: Int)")
         )
         assertTrue(
-            "its world-to-survey-pixel scale must be built from that parameter",
-            src.contains("SatelliteMath.feetPerPx(lat, SATELLITE_TILE_Z) * unitsPerFoot")
+            "its world-to-survey-pixel scale must be built from that parameter and the anchor's own zoom " +
+                "-- the zoom is no longer pinned at 20, it follows the grid (satelliteZoomFor)",
+            src.contains("SatelliteMath.feetPerPx(lat, zoom) * unitsPerFoot")
         )
         assertFalse(
             "the planted failure this guards against -- the old hardcoded flat scale that silently " +
@@ -225,12 +226,17 @@ class SatelliteExtentTest {
         val src = surveyDrawScreenSource()
         assertTrue(
             "remember(...) must key on the job's current px/ft (gridPxPerFt) so zooming the grid while " +
-                "satellite is on actually re-anchors the imagery instead of leaving it at the old scale",
-            src.contains("remember(job2.siteLat, job2.siteLon, gridPxPerFt)")
+                "satellite is on actually re-anchors the imagery instead of leaving it at the old scale -- " +
+                "and on the extent too, which is what the fetch ZOOM is chosen from",
+            src.contains("remember(job2.siteLat, job2.siteLon, gridPxPerFt, job2.gridExtentFt)")
         )
         assertTrue(
-            "and must actually pass it to the constructor",
-            src.contains("SatelliteAnchor(lat, lon, gridPxPerFt)")
+            "and must actually pass the scale and the chosen zoom to the constructor",
+            src.contains("SatelliteAnchor(lat, lon, gridPxPerFt, z)")
+        )
+        assertTrue(
+            "the zoom must come from the extent, not be pinned",
+            src.contains("SurveyViewModel.satelliteZoomFor(job2.gridExtentFt, lat)")
         )
     }
 
@@ -245,4 +251,114 @@ class SatelliteExtentTest {
             src.contains("private const val SATELLITE_TILE_Z") || src.contains("private const val MAX_SATELLITE_TILES")
         )
     }
+
+    // ======================================================================
+    // THE ZOOM NOW FOLLOWS THE GRID -- satelliteZoomFor
+    //
+    // The fetch zoom used to be pinned at 20, whose tiles cover about 111ft of
+    // ground each here, so 64 of them reached roughly 776ft and the imagery
+    // simply stopped filling in past that -- which one press of the grid's own
+    // zoom-out button already passes. Nothing was wrong with the arithmetic;
+    // the app was asking for pictures four times finer than the job needed.
+    // ======================================================================
+
+    @Test
+    fun `a small garden still gets the finest imagery there is`() {
+        // The whole risk of this change is trading detail nobody asked to lose.
+        // At the extents a back garden is actually drawn at, the answer must
+        // still be 20.
+        for (extent in listOf(25f, 50f, 100f, 200f, 400f)) {
+            assertEquals(
+                "a ${extent}ft grid should still fetch z=20",
+                SATELLITE_TILE_Z,
+                SurveyViewModel.satelliteZoomFor(extent, lat)
+            )
+        }
+    }
+
+    @Test
+    fun `the 2000ft paddock that could not be covered at all now can be`() {
+        // The positive control above proves z=20 genuinely cannot cover 2000ft.
+        // This is the fix: SOME zoom can, and satelliteZoomFor finds it.
+        assertFalse(
+            "the premise has changed: z=20 now covers 2000ft, so this test proves nothing",
+            SurveyViewModel.satelliteCanFullyCover(2000f, lat, SATELLITE_TILE_Z)
+        )
+        val z = SurveyViewModel.satelliteZoomFor(2000f, lat)
+        assertTrue("fell back to the floor instead of finding a zoom", z > SurveyViewModel.MIN_SATELLITE_TILE_Z)
+        assertTrue(
+            "satelliteZoomFor chose z=$z, which cannot cover 2000ft either",
+            SurveyViewModel.satelliteCanFullyCover(2000f, lat, z)
+        )
+    }
+
+    @Test
+    fun `it always picks the FINEST zoom that fits, never a coarser one`() {
+        // A loop that returned the first thing that worked from the wrong end
+        // would give every site the blurriest picture available and still pass
+        // a "does it cover" check.
+        for (extent in listOf(100f, 400f, 777f, 1200f, 2000f, 5000f, 12000f)) {
+            val z = SurveyViewModel.satelliteZoomFor(extent, lat)
+            assertTrue("z=$z is outside the allowed range at ${extent}ft",
+                z in SurveyViewModel.MIN_SATELLITE_TILE_Z..SATELLITE_TILE_Z)
+            if (z < SATELLITE_TILE_Z) {
+                assertFalse(
+                    "at ${extent}ft it chose z=$z when z=${z + 1} would also have fitted",
+                    SurveyViewModel.satelliteCanFullyCover(extent, lat, z + 1)
+                )
+            }
+        }
+    }
+
+    @Test
+    fun `zooming the grid out never asks for a finer picture than before`() {
+        // Monotonic: a bigger grid can only ever need the same zoom or a
+        // coarser one. A non-monotonic answer would make the imagery flicker
+        // between detail levels as somebody stepped the grid out.
+        var previous = SATELLITE_TILE_Z + 1
+        var extent = 50f
+        while (extent <= 20000f) {
+            val z = SurveyViewModel.satelliteZoomFor(extent, lat)
+            assertTrue("at ${extent}ft the zoom went UP to $z from $previous", z <= previous)
+            previous = z
+            extent *= 1.5f
+        }
+    }
+
+    @Test
+    fun `the floor is a floor, and it reaches far past any fence`() {
+        // Past the floor the answer stops changing, by design -- and the floor
+        // itself has to be worth having.
+        assertEquals(
+            SurveyViewModel.MIN_SATELLITE_TILE_Z,
+            SurveyViewModel.satelliteZoomFor(1_000_000f, lat)
+        )
+        val reach = SurveyViewModel.maxSatelliteExtentFt(lat, SurveyViewModel.MIN_SATELLITE_TILE_Z)
+        assertTrue("the coarsest zoom only reaches ${reach}ft", reach > 20_000f)
+    }
+
+    @Test
+    fun `an unusable latitude falls back rather than answering nonsense`() {
+        for (badLat in listOf(90.0, -90.0, Double.NaN)) {
+            val z = SurveyViewModel.satelliteZoomFor(400f, badLat)
+            assertTrue("lat $badLat gave z=$z", z in SurveyViewModel.MIN_SATELLITE_TILE_Z..SATELLITE_TILE_Z)
+        }
+    }
+
+    @Test
+    fun `CANARY -- a budget of one tile forces the floor, so the search really searches`() {
+        // If satelliteZoomFor ignored the budget and always answered 20, every
+        // test above that expects 20 would still pass. This asks for an extent
+        // so large that no allowed zoom can cover it, and requires the floor.
+        val z = SurveyViewModel.satelliteZoomFor(500_000f, lat)
+        assertEquals(
+            "an extent nothing can cover did not fall back to the floor",
+            SurveyViewModel.MIN_SATELLITE_TILE_Z, z
+        )
+        assertFalse(
+            "500,000ft is apparently coverable, so this canary proves nothing",
+            SurveyViewModel.satelliteCanFullyCover(500_000f, lat, SurveyViewModel.MIN_SATELLITE_TILE_Z)
+        )
+    }
+
 }

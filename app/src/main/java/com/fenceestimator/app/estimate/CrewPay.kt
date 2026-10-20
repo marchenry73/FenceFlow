@@ -36,6 +36,18 @@ object CrewOvertime {
         return date.minusDays((date.dayOfWeek.value % 7).toLong())
     }
 
+    /**
+     * The company's own threshold, or the federal default when it has not set
+     * one. A non-positive or non-finite figure is not a rule -- it would make
+     * every hour overtime -- so it reads as "not set" rather than being obeyed.
+     */
+    fun afterHoursOf(companyAfterHours: Double?): Double =
+        companyAfterHours?.takeIf { it > 0.0 && it.isFinite() } ?: AFTER_HOURS
+
+    /** The company's own multiplier, or the federal default. Same rule. */
+    fun multiplierOf(companyMultiplier: Double?): Double =
+        companyMultiplier?.takeIf { it > 0.0 && it.isFinite() } ?: MULTIPLIER
+
     /** Regular vs. overtime hours for one week's total, split at [afterHours]. */
     fun split(totalHours: Double, afterHours: Double = AFTER_HOURS): Pair<Double, Double> {
         val regular = minOf(totalHours, afterHours)
@@ -148,7 +160,14 @@ object CrewPay {
         /** PER_FOOT workers sharing this job's footage (server: per_foot_crew_count). */
         perFootCrewCount: Int = 1,
         /** Job status is COMPLETED. Per-foot pay is only earned on a finished job. */
-        jobCompleted: Boolean = true
+        jobCompleted: Boolean = true,
+        /**
+         * This company's overtime rule, from its settings. Defaulting to the
+         * federal values keeps every existing caller and test meaning what it
+         * meant; the crew screen passes the company's.
+         */
+        overtimeAfterHours: Double = CrewOvertime.AFTER_HOURS,
+        overtimeMultiplier: Double = CrewOvertime.MULTIPLIER,
     ): Earnings {
         // THIS person's shifts, not the job's.
         //
@@ -208,7 +227,11 @@ object CrewPay {
                 // have this screen say "45 * rate" for a week the dashboard
                 // pays 40*rate + 5*rate*1.5, one real dollar figure per crew
                 // member disagreeing between the two surfaces.
-                amount = hourlyAmountWithOvertime(approved),
+                amount = hourlyAmountWithOvertime(
+                    approved,
+                    CrewOvertime.afterHoursOf(overtimeAfterHours),
+                    CrewOvertime.multiplierOf(overtimeMultiplier),
+                ),
                 hoursAwaitingApproval = awaitingApproval,
                 rateIsUnset = employee.hourlyRate <= 0.0 && hours > 0.0
             )
@@ -242,15 +265,19 @@ object CrewPay {
      * rate can't swing the whole week -- rather than a flat sum of
      * `laborCost`, which has no concept of a week at all.
      */
-    private fun hourlyAmountWithOvertime(approved: List<TimeEntry>): Double {
+    private fun hourlyAmountWithOvertime(
+        approved: List<TimeEntry>,
+        afterHours: Double,
+        multiplier: Double,
+    ): Double {
         if (approved.isEmpty()) return 0.0
         return approved.groupBy { CrewOvertime.weekStart(it.startedAt) }
             .values.sumOf { weekEntries ->
                 val totalHours = weekEntries.sumOf { it.payableHours }
                 if (totalHours <= 0.0) return@sumOf 0.0
                 val weightedRate = weekEntries.sumOf { it.payableHours * it.hourlyRate } / totalHours
-                val (regular, overtime) = CrewOvertime.split(totalHours)
-                regular * weightedRate + overtime * weightedRate * CrewOvertime.MULTIPLIER
+                val (regular, overtime) = CrewOvertime.split(totalHours, afterHours)
+                regular * weightedRate + overtime * weightedRate * multiplier
             }
     }
 
