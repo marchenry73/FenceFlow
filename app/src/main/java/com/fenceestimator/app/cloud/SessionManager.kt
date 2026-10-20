@@ -658,6 +658,11 @@ class SessionManager(private val scope: CoroutineScope) {
                 // remembered company and role outlive the account that earned
                 // them and the next person to sign in here inherits them.
                 appContext?.let { ctx -> runCatching { CachedIdentity.clear(ctx) } }
+                // ...and the company's logo, which is cached as a file for the
+                // PDF header. The next person to sign in here may work for
+                // somebody else, and a document headed with the last company's
+                // mark is the one mistake a logo can actually cause.
+                appContext?.let { ctx -> runCatching { CompanyLogo.clearCache(ctx) } }
                 // ...and which jobs it was allowed to see, for the same reason.
                 JobAccess.forget()
                 // Whether this phone belonged to an account before this moment,
@@ -776,6 +781,10 @@ class SessionManager(private val scope: CoroutineScope) {
                 // no company. Distinct from a failed read: nothing to remember,
                 // and anything remembered before is now wrong.
                 appContext?.let { ctx -> runCatching { CachedIdentity.clear(ctx) } }
+                // Same reasoning as the signed-out branch: an account that
+                // belongs to no company must not keep printing some company's
+                // letterhead.
+                appContext?.let { ctx -> runCatching { CompanyLogo.clearCache(ctx) } }
                 current = SessionState(
                     signedIn = true, email = email,
                     role = UserRole.CREW,
@@ -834,6 +843,13 @@ class SessionManager(private val scope: CoroutineScope) {
                 settingsStore?.let { store ->
                     runCatching { SettingsSync.pull(store, company) }
                 }
+                // And the company's logo, which does NOT travel in the settings
+                // blob -- it is companies.logo_path, so a crew phone can see it
+                // too (the blob is hidden from anyone without SEE_MONEY). Its
+                // own call because it fetches bytes into a file rather than
+                // merging values into the store, and because it must not be
+                // able to fail the settings pull beside it.
+                appContext?.let { ctx -> runCatching { CompanyLogo.sync(ctx, company) } }
             }
 
             // Register this phone for push once we know which company it belongs to.

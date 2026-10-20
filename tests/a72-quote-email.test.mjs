@@ -56,6 +56,7 @@ const DEPOSIT = "supabase/functions/_shared/quote-deposit.ts";
 const APPROVAL = "supabase/functions/quote-approval-email/email.ts";
 const DASH = "website/dashboard.html";
 const JOBSCREEN = "app/src/main/java/com/fenceestimator/app/ui/jobs/JobDetailScreen.kt";
+const QUOTE_EMAIL_API = "app/src/main/java/com/fenceestimator/app/cloud/QuoteEmailApi.kt";
 
 const server = await load(SERVER);
 const office = await load(OFFICE);
@@ -461,19 +462,77 @@ test("the phone formats those resources with the arguments they declare", () => 
   assert.ok(/\.joinToString\("\\n"\)/.test(kt), "the phone does not join the lines with a single newline");
 });
 
-test("the phone's quote email does NOT mark the quote as sent", () => {
-  // A mail app opening with a draft in it is not a quote sent. And a false
-  // stamp is expensive: once quote_sent_at is set, JobSync's officePriced
-  // branch stops pushing a fresh contract_total, which freezes a price.
+test("the phone marks the quote sent ONLY where mail-send confirmed it", () => {
+  // THIS TEST WAS INVERTED ON 2026-10-19, and the inversion is the point.
+  //
+  // It used to assert the opposite -- that the phone must NOT stamp
+  // quote_sent_at -- and it was right to, for as long as the button opened a
+  // mail app with a draft in it: all the screen could know was that something
+  // opened, and a false stamp is expensive, because once quote_sent_at is set
+  // JobSync's officePriced branch stops pushing a fresh contract_total and the
+  // price freezes.
+  //
+  // The button now SENDS, through mail-send with from_account_id "fenceflow"
+  // -- the office's own path -- so the provider's verdict comes back and the
+  // stamp is a fact rather than a guess. The old assertion would now forbid
+  // the correct behaviour, which is what a guard pinned to a workaround does
+  // once the workaround is gone. So it is replaced, not deleted: the rule that
+  // actually matters is the one the office has always been held to, and it is
+  // asserted here the same way -- stamp on the confirmed send, nowhere else.
   const kt = read(JOBSCREEN);
   const start = kt.indexOf("val quoteEmailBody: (String) -> String");
   assert.ok(start > 0, "the phone's quote-email block is gone");
   const end = kt.indexOf("R.string.field_email", start);
   assert.ok(end > start, "could not find the end of the phone's quote-email block");
   const block = kt.slice(start, end);
-  assert.ok(block.includes("IntentHelpers.openEmailDraft"), "the block no longer opens a mail draft");
-  assert.ok(!/markQuoteSent/.test(block),
-    "the phone's email draft button now stamps quote_sent_at -- it cannot know anything was sent");
+
+  // It goes through the sender, not a mail app.
+  assert.ok(block.includes("QuoteEmailApi.send("),
+    "the phone's email button no longer sends through FenceFlow");
+  assert.ok(!block.includes("IntentHelpers.openEmailDraft"),
+    "the phone still hands the letter to a mail app, which cannot report a send");
+
+  // Exactly one stamp, and it is inside the Sent branch.
+  const stamps = [...block.matchAll(/markQuoteSent\(/g)];
+  assert.equal(stamps.length, 1,
+    `markQuoteSent is called ${stamps.length} times in the block; exactly one (the Sent branch) is expected`);
+
+  const sentAt = block.indexOf("Result.Sent ->");
+  const failedAt = block.indexOf("Result.Failed ->");
+  assert.ok(sentAt > 0, "the Sent branch is gone");
+  assert.ok(failedAt > sentAt, "the Failed branch is gone, or now comes first");
+  assert.ok(stamps[0].index > sentAt && stamps[0].index < failedAt,
+    "the stamp is not inside the Sent branch");
+  assert.ok(!block.slice(failedAt).includes("markQuoteSent("),
+    "a failed send now marks the quote as sent");
+
+  // And a send that could not be confirmed is NOT a failure to send: mail-send's
+  // header says to say "check Sent", never "failed", because a retry would use
+  // a new client_send_id and could double it.
+  const api = read(QUOTE_EMAIL_API);
+  assert.ok(/state == "sending"/.test(api),
+    "QuoteEmailApi no longer answers mail-send's 'sending' state separately");
+  assert.ok(/Check Sent/i.test(api),
+    "the unconfirmed answer no longer tells him to check Sent before sending again");
+  // "sent" is the only thing that counts as sent -- not the HTTP code.
+  assert.ok(/state == "sent" -> Result\.Sent/.test(api),
+    "QuoteEmailApi no longer decides on mail-send's state");
+});
+
+test("CANARY: a stamp moved into the phone's Failed branch turns that check red", () => {
+  // Teeth for the test above, on a copy of the source -- the same canary the
+  // office's half of this file carries.
+  const kt = read(JOBSCREEN);
+  const start = kt.indexOf("val quoteEmailBody: (String) -> String");
+  const end = kt.indexOf("R.string.field_email", start);
+  const block = kt.slice(start, end);
+  const failedAt = block.indexOf("Result.Failed ->");
+  assert.ok(failedAt > 0, "the canary cannot find the Failed branch");
+  const sabotaged = block.slice(0, failedAt) +
+    block.slice(failedAt).replace("Result.Failed ->", "Result.Failed -> markQuoteSent(context, j.syncId, j.quoteSentAt);");
+  assert.notEqual(sabotaged, block, "the canary did not change the source");
+  assert.ok(sabotaged.slice(sabotaged.indexOf("Result.Failed ->")).includes("markQuoteSent("),
+    "THE CANARY DID NOT FAIL: a stamp inside the Failed branch went unnoticed");
 });
 
 test("the office marks the quote sent ONLY where mail-send confirmed it", () => {

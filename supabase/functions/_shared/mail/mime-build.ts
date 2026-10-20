@@ -439,6 +439,22 @@ function htmlInner(text: string): string {
     .join("<br>\n");
 }
 
+/**
+ * An https URL, or null. No repair, no other scheme: the one thing this guards
+ * is an src attribute, and a scheme that is not https there has no business in
+ * an email this product sends.
+ */
+function httpsOnly(raw: unknown): string | null {
+  const v = String(raw ?? "").trim();
+  if (!v) return null;
+  try {
+    const u = new URL(v);
+    return u.protocol === "https:" ? u.toString() : null;
+  } catch {
+    return null;
+  }
+}
+
 function htmlDocument(inner: string): string {
   return `<!doctype html><html><body><div style="font-family:Arial,Helvetica,sans-serif;font-size:14px;` +
     `line-height:1.5;color:#1a1a1a">${inner}</div></body></html>`;
@@ -463,16 +479,38 @@ export function fenceflowFooter(companyName: unknown): string {
 /**
  * The text and HTML that go out: what was typed, then the signature under
  * the standard "-- " separator, then the footer (FenceFlow mail only).
+ *
+ * logoUrl, when given, becomes the letterhead at the top of the HTML part and
+ * NOTHING in the plain-text part. That asymmetry is the point: a plain-text
+ * reader gets the letter, unchanged, with no line of URL where a picture would
+ * have been. The alt text is the company name, so the many mail clients that
+ * block remote images by default show the name rather than a broken frame --
+ * and the letter below it never depended on the picture arriving.
+ *
+ * It must be an https URL. Anything else is dropped rather than repaired: the
+ * only caller signs one from storage, and a data: or javascript: URI reaching
+ * an src attribute here is a bug worth refusing instead of escaping.
  */
-export function composeBody(input: { text: string; signature?: string | null; footer?: string | null }): {
+export function composeBody(input: {
+  text: string;
+  signature?: string | null;
+  footer?: string | null;
+  logoUrl?: string | null;
+  logoAlt?: string | null;
+}): {
   text: string;
   html: string;
 } {
   const body = normalizeNewlines(String(input.text ?? "")).replace(/\s+$/, "");
   const sig = capChars(normalizeNewlines(String(input.signature ?? "")).trim(), SIGNATURE_MAX_CHARS);
   const footer = cleanSubject(input.footer ?? "");
+  const logo = httpsOnly(input.logoUrl);
   let text = body;
-  let html = htmlInner(body);
+  let html = logo
+    ? `<img src="${escapeHtml(logo)}" alt="${escapeHtml(cleanDisplayName(input.logoAlt) || "")}" ` +
+      `style="display:block;max-height:56px;max-width:220px;width:auto;border:0;margin:0 0 14px">` +
+      htmlInner(body)
+    : htmlInner(body);
   if (sig) {
     text += `\n\n-- \n${sig}`;
     html += `<br>\n<br>\n-- <br>\n${htmlInner(sig)}`;

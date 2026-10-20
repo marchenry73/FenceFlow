@@ -248,6 +248,34 @@ async function approvedSignatureUrl(
 }
 
 /**
+ * The company's logo, as a URL the customer's browser can actually load.
+ *
+ * company-logos is private too (supabase_r18_company_logo.sql says why March
+ * chose that over a public bucket), so this is the same shape as the
+ * signature above: a path is useless to a browser, a short-lived signed URL is
+ * not. One hour, like the signature -- the page signs a fresh one every time
+ * it is opened, and nothing here is cached beyond that.
+ *
+ * A failure returns null and the page draws its header without a logo, which
+ * is what it did before this existed. A quote must never fail to open because
+ * a picture could not be signed.
+ */
+async function companyLogoUrl(
+  admin: ReturnType<typeof createClient>,
+  path: string | null | undefined,
+): Promise<string | null> {
+  const p = String(path ?? "").trim();
+  if (!p) return null;
+  try {
+    const { data } = await admin.storage.from("company-logos").createSignedUrl(p, 3600);
+    return data?.signedUrl ?? null;
+  } catch (e) {
+    console.error("quote-view logo", String((e as Error)?.message ?? e));
+    return null;
+  }
+}
+
+/**
  * A customer-drawn signature exactly as the page's canvas produces it via
  * `<canvas>.toDataURL()`: "data:image/png;base64,...". Nothing about the
  * client's claim is trusted -- the prefix, the length and the decoded bytes
@@ -1158,7 +1186,7 @@ Deno.serve(async (req) => {
   const [{ data: company }, figures, { data: runs }, { data: houseMarkers }, { data: conn },
          signatureUrl, paymentMethods] =
     await Promise.all([
-      admin.from("companies").select("name, phone, email").eq("id", job.company_id).single(),
+      admin.from("companies").select("name, phone, email, logo_path").eq("id", job.company_id).single(),
       pageFigures(admin, job),
       admin.from("fence_runs")
         .select("label, fence_type, color_or_finish, points_encoded, gates_encoded, " +
@@ -1225,8 +1253,21 @@ Deno.serve(async (req) => {
     (conn.processor === "stripe" && conn.external_id)
   ));
 
+  // Signed here rather than in the Promise.all above because it needs the
+  // company row that read answers with. One extra round trip on a page that
+  // already makes seven, and it cannot fail the response: companyLogoUrl
+  // swallows its own errors and answers null.
+  const logoUrl = await companyLogoUrl(admin, (company as { logo_path?: string } | null)?.logo_path);
+
   return json({
-    company: { name: company?.name ?? "", phone: company?.phone ?? "", email: company?.email ?? "" },
+    company: {
+      name: company?.name ?? "", phone: company?.phone ?? "", email: company?.email ?? "",
+      // null, not "", when there is no logo or it could not be signed: the
+      // page tests for a URL and draws nothing when there isn't one. The raw
+      // storage path is never sent -- it would be useless to a browser and is
+      // not the customer's business either way.
+      logoUrl,
+    },
     customerName: job.customer_name,
     address: job.address,
     // Deliberately NO line items. The parts list -- 103 bags of concrete at

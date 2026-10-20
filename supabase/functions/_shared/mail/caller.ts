@@ -119,6 +119,16 @@ export interface MailCaller {
   companyName: string;
   /** companies.email, trimmed, or null. FenceFlow mail's Reply-To. */
   companyEmail: string | null;
+  /**
+   * companies.logo_path -- an object path in the PRIVATE company-logos bucket,
+   * or "" for a company that has not uploaded one.
+   *
+   * A PATH, not a URL, because signing one needs a decision about how long it
+   * must live and only the sender knows: an hour is right for a page that
+   * reloads, and a letter sitting in an inbox needs a year. mail-send signs
+   * it; see logoUrlFor there.
+   */
+  companyLogoPath: string;
   /** The caller's own client: every read runs under their RLS. */
   userClient: SupabaseClient;
   /** Service role. Only ever handed out after the gate; every query made
@@ -180,7 +190,7 @@ export async function mailCaller(req: Request, opts: { requireOwner?: boolean } 
   if (opts.requireOwner && role !== "OWNER") throw new MailError("owner_only");
 
   const { data: company, error: companyError } = await userClient
-    .from("companies").select("name, email").eq("id", companyId).maybeSingle();
+    .from("companies").select("name, email, logo_path").eq("id", companyId).maybeSingle();
   if (companyError || !company) throw new MailError("server_error");
 
   const admin = createClient(env.url, env.serviceKey, NO_SESSION_PERSIST) as SupabaseClient;
@@ -192,6 +202,7 @@ export async function mailCaller(req: Request, opts: { requireOwner?: boolean } 
     isOwner: role === "OWNER",
     companyName: String(company.name ?? "").trim(),
     companyEmail: email || null,
+    companyLogoPath: String(company.logo_path ?? "").trim(),
     userClient,
     admin,
   };

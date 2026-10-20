@@ -337,11 +337,13 @@ interface Loaded {
   recipient: string;
   companyEmail: string | null;
   companyName: string;
+  /** companies.logo_path, or "" -- signed below for the letterhead. */
+  companyLogoPath: string;
 }
 
 async function loadFacts(db: Db, deps: Deps, job: Row): Promise<Loaded> {
   const [company, runs, settings, connection, followUps] = await Promise.all([
-    db.from("companies").select("name, phone, email, suspended").eq("id", job.company_id).maybeSingle(),
+    db.from("companies").select("name, phone, email, suspended, logo_path").eq("id", job.company_id).maybeSingle(),
     db.from("fence_runs")
       .select("label, fence_type, color_or_finish, points_encoded, gates_encoded, closed_loop, panel_height_ft, " +
         "manual_linear_feet, fabric_height_ft, is_teardown")
@@ -427,6 +429,7 @@ async function loadFacts(db: Db, deps: Deps, job: Row): Promise<Loaded> {
     recipient: String(job.email ?? "").trim(),
     companyEmail: String(co.email ?? "").trim() || null,
     companyName: facts.companyName,
+    companyLogoPath: String(co.logo_path ?? "").trim(),
   };
 }
 
@@ -543,7 +546,29 @@ async function sendViaFenceflow(
   await spendSend(db, String(job.company_id));
 
   const email = buildApprovalEmail(loaded.facts, lang);
-  const composed = composeBody({ text: email.text, footer: fenceflowFooter(loaded.companyName) });
+  // The company's letterhead on the contract copy, the same as every other
+  // letter this product sends -- signed for a year, because this one is kept.
+  // mail-send's logoUrlFor carries the full account of the expiry choice; this
+  // is the same decision with the same reasons, under the service role with
+  // the company id checked against the path for the same reason.
+  let logoUrl: string | null = null;
+  const logoPath = loaded.companyLogoPath;
+  if (logoPath && logoPath.startsWith(String(job.company_id) + "/")) {
+    try {
+      const { data: signed } = await db.storage.from("company-logos")
+        .createSignedUrl(logoPath, 60 * 60 * 24 * 365);
+      logoUrl = signed?.signedUrl ?? null;
+    } catch (e) {
+      // A contract copy that reaches her without a logo is a contract copy.
+      console.error("approval email logo", String((e as Error)?.message ?? e));
+    }
+  }
+  const composed = composeBody({
+    text: email.text,
+    footer: fenceflowFooter(loaded.companyName),
+    logoUrl,
+    logoAlt: loaded.companyName,
+  });
   const messageId = newMessageId(from.address, deps.uuid());
   const payload = buildResendEmail({
     from, to: [to], replyTo: reply.replyTo, subject: email.subject, text: composed.text, html: composed.html, messageId,

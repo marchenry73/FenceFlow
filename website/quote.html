@@ -235,6 +235,12 @@
 </head>
 <body>
 <header>
+  <!-- The contractor's own logo, when they have uploaded one. Hidden until a
+       URL arrives, so a company without one gets exactly the header it had
+       before this existed rather than a gap where a picture should be.
+       max-height, never a fixed height: a logo is whatever shape it is, and
+       squashing somebody's mark to fit a box is worse than not showing it. -->
+  <img id="coLogo" alt="" style="display:none;max-height:56px;max-width:220px;width:auto;margin:0 auto 10px;object-fit:contain">
   <div class="co" id="coName">&nbsp;</div>
   <div class="sub" id="coContact"></div>
 </header>
@@ -822,6 +828,22 @@ function render(){
   const q=quote;
   $('coName').textContent=q.company.name||tr('yourContractor');
   $('coContact').textContent=[q.company.phone,q.company.email].filter(Boolean).join(' · ');
+  // A signed URL from quote-view, good for an hour, which is longer than
+  // anyone reads a quote in one sitting -- and the page re-fetches it on every
+  // open. onerror hides it again: an expired or revoked URL must leave the
+  // header looking deliberate, not broken.
+  const logoEl=$('coLogo');
+  if(logoEl){
+    const url=q.company.logoUrl;
+    if(url){
+      logoEl.onerror=()=>{ logoEl.style.display='none'; };
+      logoEl.alt=q.company.name||'';
+      logoEl.src=url;
+      logoEl.style.display='block';
+    } else {
+      logoEl.style.display='none';
+    }
+  }
   $('quoteTitle').textContent=tr('quoteFor', q.customerName||tr('you'));
   $('quoteAddr').textContent=q.address||'';
 
@@ -1505,6 +1527,13 @@ function buildQuoteDocument(d){
     +'</head>'
     +'<body style="font-family:-apple-system,Segoe UI,Arial,sans-serif;color:#11151C;'
     +'max-width:640px;margin:32px auto;padding:0 18px;line-height:1.55">'
+    // ALWAYS a data: URI here, for the same reason as the signature below:
+    // the signed URL quote-view handed this page is good for an hour, and
+    // this file may be opened months later with no network. No logo in the
+    // file is fine; a broken image in a document she keeps is not.
+    +(d.logoDataUrl?'<img src="'+esc(d.logoDataUrl)+'" alt="'+esc(d.companyName)
+      +'" style="display:block;max-height:56px;max-width:220px;width:auto;margin:0 0 10px;'
+      +'object-fit:contain">':'')
     +'<h1 style="font-size:22px;margin:0 0 4px">'+esc(d.companyName)+'</h1>'
     +(d.companyContact?'<p style="color:#5C6672;margin:0 0 4px">'+esc(d.companyContact)+'</p>':'')
     +'<h2 '+h2+'>'+esc(d.customerHeading)+'</h2>'
@@ -1545,6 +1574,27 @@ function buildQuoteDocument(d){
    this GET, for a page reloaded after an earlier approval. Either way, a
    fetch that fails just means no image in the download -- never a broken
    download over a signature that is, after all, optional. */
+/* The logo as a data: URI for the saved copy, by the same rule and for the
+   same reason as signatureForDownload below -- the signed URL expires. There
+   is no locally drawn copy to prefer here, so it is always a fetch of the URL
+   this page load was given, and a failure means the file simply carries no
+   logo. */
+async function logoForDownload(){
+  const url=quote && quote.company && quote.company.logoUrl;
+  if(!url) return null;
+  try{
+    const res=await fetch(url);
+    if(!res.ok) return null;
+    const blob=await res.blob();
+    return await new Promise((resolve, reject)=>{
+      const fr=new FileReader();
+      fr.onload=()=>resolve(fr.result);
+      fr.onerror=()=>reject(fr.error);
+      fr.readAsDataURL(blob);
+    });
+  }catch(e){ return null; }
+}
+
 async function signatureForDownload(){
   if(lastDrawnSignatureDataUrl) return lastDrawnSignatureDataUrl;
   if(!quote || !quote.approvedSignatureUrl) return null;
@@ -1608,7 +1658,12 @@ function payDocModel(methods, asOf){
    itself is the one exception -- see signatureForDownload() above). */
 async function downloadQuoteCopy(){
   if(!quote) return;
-  const signatureDataUrl=await signatureForDownload();
+  // Both images are fetched together: each is independent, each answers null
+  // on failure, and neither can hold the download up for longer than the
+  // other already does.
+  const [signatureDataUrl, logoDataUrl]=await Promise.all([
+    signatureForDownload(), logoForDownload(),
+  ]);
   const doc=buildQuoteDocument({
     lang: LANG,
     title: tr('downloadTitle', quote.customerName||tr('you')),
@@ -1625,6 +1680,7 @@ async function downloadQuoteCopy(){
     nextStepsText: $('nextSteps').textContent||'',
     signatureDataUrl,
     signatureAlt: tr('signatureAlt'),
+    logoDataUrl,
     pay: payDocModel(payList, new Date().toLocaleDateString(LANG)),
   });
   const fileBase=(quote.customerName||'fence-quote').toLowerCase()

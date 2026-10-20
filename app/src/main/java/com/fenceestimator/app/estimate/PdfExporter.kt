@@ -6,6 +6,7 @@ import android.graphics.Paint
 import android.graphics.Typeface
 import android.graphics.pdf.PdfDocument
 import androidx.core.content.FileProvider
+import com.fenceestimator.app.cloud.CompanyLogo
 import com.fenceestimator.app.data.AppLanguage
 import com.fenceestimator.app.data.BusinessProfile
 import com.fenceestimator.app.data.ChangeOrder
@@ -326,16 +327,49 @@ object PdfExporter {
         val dateText = dateFormat.format(Date())
         canvas.drawText(dateText, rightX - headerPaint.measureText(dateText), topRightY + 36f, headerPaint)
 
+        // THE COMPANY'S LOGO, when this phone has one cached.
+        //
+        // Drawn to the LEFT of the name, with the whole text block indented
+        // past it, so the header reads as letterhead rather than as a picture
+        // dropped on top of the words. A company with no logo gets exactly the
+        // header it had before this existed: leftX stays at MARGIN and not one
+        // measurement below changes.
+        //
+        // Scaled to fit a box, never stretched to fill it: a logo is whatever
+        // shape it is, and squashing somebody's mark is worse than leaving it
+        // off. The height is capped at the three contact lines the block can
+        // hold, so a tall logo cannot push the body of the document down.
+        //
+        // CompanyLogo.cachedFile is a directory listing -- no network, which
+        // matters because this runs in the yard. A file that will not decode
+        // (a truncated download) is simply not drawn.
+        val logo = runCatching { CompanyLogo.cachedFile(context) }.getOrNull()
+        val logoBitmap = logo?.let { f -> runCatching { BitmapFactory.decodeFile(f.absolutePath) }.getOrNull() }
+        var leftX = MARGIN
+        if (logoBitmap != null && logoBitmap.width > 0 && logoBitmap.height > 0) {
+            val maxH = 46f
+            val maxW = 130f
+            val scale = minOf(maxW / logoBitmap.width, maxH / logoBitmap.height)
+            val w = logoBitmap.width * scale
+            val h = logoBitmap.height * scale
+            canvas.drawBitmap(
+                logoBitmap, null,
+                android.graphics.RectF(MARGIN, y, MARGIN + w, y + h), null
+            )
+            leftX = MARGIN + w + 14f
+        }
+
         // The name gets whatever is left, and shrinks rather than running into
         // the title. A company called "Legacy Solutions Fencing & Landscaping"
-        // should still fit on its own document.
+        // should still fit on its own document. Measured from leftX, so a logo
+        // takes its room out of the name's rather than out of the title's.
         val name = business.businessName.ifBlank { "FenceFlow" }
-        val nameRoom = titleX - MARGIN - 24f
+        val nameRoom = titleX - leftX - 24f
         val namePaint = Paint(titlePaint)
         while (namePaint.measureText(name) > nameRoom && namePaint.textSize > 12f) {
             namePaint.textSize -= 1f
         }
-        canvas.drawText(name, MARGIN, y + 20f, namePaint)
+        canvas.drawText(name, leftX, y + 20f, namePaint)
 
         // The next baseline sits below the name's descenders AND above the
         // phone number's full height -- measured from the fonts themselves.
@@ -345,9 +379,17 @@ object PdfExporter {
         // every document. descent() is how far this font actually drops;
         // -ascent() is how far the next line actually rises.
         y += 20f + namePaint.descent() - headerPaint.ascent() + 2f
-        if (business.phone.isNotBlank()) { canvas.drawText(business.phone, MARGIN, y, headerPaint); y += 14f }
-        if (business.email.isNotBlank()) { canvas.drawText(business.email, MARGIN, y, headerPaint); y += 14f }
-        if (business.licenseNumber.isNotBlank()) { canvas.drawText("${labels.licenseNo}${business.licenseNumber}", MARGIN, y, headerPaint); y += 14f }
+        if (business.phone.isNotBlank()) { canvas.drawText(business.phone, leftX, y, headerPaint); y += 14f }
+        if (business.email.isNotBlank()) { canvas.drawText(business.email, leftX, y, headerPaint); y += 14f }
+        if (business.licenseNumber.isNotBlank()) { canvas.drawText("${labels.licenseNo}${business.licenseNumber}", leftX, y, headerPaint); y += 14f }
+
+        // Never let the rule cut through the logo either: a company with three
+        // blank contact fields and a 46pt logo would otherwise have the line
+        // drawn across it. Costs nothing when there is no logo, because
+        // logoBottom is then y itself.
+        val logoBottom = if (logoBitmap != null && logoBitmap.width > 0)
+            MARGIN + 46f + 6f else y
+        y = maxOf(y, logoBottom)
 
         // Never start the body above the date block on the right.
         y = maxOf(y, topRightY + 48f)

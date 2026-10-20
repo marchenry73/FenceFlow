@@ -405,6 +405,19 @@
     <string name="set_manage_account">Manage Account &amp; Team</string>
     <string name="set_business_name">Business name</string>
     <string name="set_owner_name">Owner name</string>
+    <string name="set_logo_label">Company logo</string>
+    <string name="set_logo_note">Printed on your PDF quotes and contracts, shown on the quote page your customer opens, and at the top of the emails FenceFlow sends them. PNG, JPG or WEBP, up to 2 MB.</string>
+    <string name="set_logo_none">No logo yet.</string>
+    <string name="set_logo_upload">Add a logo</string>
+    <string name="set_logo_replace">Replace</string>
+    <string name="action_remove">Remove</string>
+    <string name="set_logo_saved">Logo saved. It is on your quotes from now on.</string>
+    <string name="set_logo_removed">Logo removed.</string>
+    <string name="set_logo_wrong_type">That file is not a PNG, JPG or WEBP image.</string>
+    <string name="set_logo_too_big">That image is over 2 MB. Save it smaller and try again.</string>
+    <string name="set_logo_unreadable">That file could not be read.</string>
+    <string name="set_logo_owner_only">Only the company owner can change the logo.</string>
+    <string name="set_logo_no_cloud">Sign in to FenceFlow to set a logo.</string>
     <string name="set_license_number">License number</string>
     <!-- Contract terms, edited here and printed on the contract PDF -->
     <string name="set_contract_terms">Contract terms</string>

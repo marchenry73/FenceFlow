@@ -871,7 +871,16 @@ async function viaMailbox(caller: MailCaller, deps: SendDeps, req: SendRequest, 
   const now = new Date(deps.now());
   const messageId = newMessageId(from.address, deps.uuid());
   const threading = threadingFor(req, parent);
-  const composed = composeBody({ text: fields.text, signature: typeof account.signature === "string" ? account.signature : null });
+  // The letterhead goes on the company's own mailbox sends too, not only on
+  // FenceFlow mail: it is their logo on their letter either way, and a quote
+  // that looks like the company's paperwork from one address and like software
+  // output from the other would be the odder of the two.
+  const composed = composeBody({
+    text: fields.text,
+    signature: typeof account.signature === "string" ? account.signature : null,
+    logoUrl: await logoUrlFor(caller),
+    logoAlt: caller.companyName,
+  });
   const built = buildMime({
     from,
     to: fields.to,
@@ -1024,6 +1033,51 @@ async function postToResend(deps: SendDeps, url: string, key: string, payload: R
 
 /** The company's FenceFlow-mail account, created on first use by the RPC
  *  (race-safe; PostgREST cannot upsert against a partial unique index). */
+/**
+ * The company's letterhead as a URL an inbox can load, or null.
+ *
+ * A YEAR, where the quote page signs for an hour, and the difference is the
+ * medium: a page re-fetches its own URL every time it opens, and a letter does
+ * not. An email read in March carrying a URL signed in October must still show
+ * the logo, and nothing can re-sign it after it has been sent. One year is the
+ * honest trade -- long enough that nobody meets a broken image, short enough
+ * that a URL out of an old forwarded email does not work for ever.
+ *
+ * The URL is a capability, which is the one thing worth saying out loud about
+ * a private bucket: anyone holding it can fetch that image. It is the company's
+ * own logo -- the thing they print on a yard sign -- so that is the intended
+ * audience anyway.
+ *
+ * Signed with the SERVICE ROLE but scoped by the caller's own company id,
+ * which is the rule every other admin read in this function keeps: the path
+ * came from caller.companyLogoPath, and that was read under the caller's RLS
+ * in mailCaller().
+ *
+ * Never throws and never blocks a send. A letter that goes without its
+ * letterhead is a letter; a letter refused because a picture could not be
+ * signed is a job that stalls.
+ */
+const LOGO_URL_TTL_SECONDS = 60 * 60 * 24 * 365;
+
+async function logoUrlFor(caller: MailCaller): Promise<string | null> {
+  const path = String(caller.companyLogoPath ?? "").trim();
+  if (!path) return null;
+  // Belt and braces on top of the policy: the first segment of the path is the
+  // company, and the service role does not enforce that for us.
+  if (!path.startsWith(caller.companyId + "/")) {
+    console.error("mail-send logo: path is not inside the caller's company folder");
+    return null;
+  }
+  try {
+    const { data } = await caller.admin.storage
+      .from("company-logos").createSignedUrl(path, LOGO_URL_TTL_SECONDS);
+    return data?.signedUrl ?? null;
+  } catch (e) {
+    console.error("mail-send logo", String((e as Error)?.message ?? e));
+    return null;
+  }
+}
+
 async function fenceflowAccount(caller: MailCaller, address: string): Promise<string> {
   const { data, error } = await caller.admin.rpc("mail_fenceflow_account", { p_company: caller.companyId, p_email: address });
   if (error || !isUuid(data)) throw new MailError("server_error");
@@ -1086,7 +1140,12 @@ async function viaFenceflow(caller: MailCaller, deps: SendDeps, req: SendRequest
   const now = new Date(deps.now());
   const messageId = newMessageId(from.address, deps.uuid());
   const threading = threadingFor(req, parent);
-  const composed = composeBody({ text: fields.text, footer: fenceflowFooter(caller.companyName) });
+  const composed = composeBody({
+    text: fields.text,
+    footer: fenceflowFooter(caller.companyName),
+    logoUrl: await logoUrlFor(caller),
+    logoAlt: caller.companyName,
+  });
   const payload = buildResendEmail({
     from,
     to: fields.to,

@@ -92,6 +92,9 @@ import com.fenceestimator.app.ui.components.currentApp
 import com.fenceestimator.app.ui.components.explains
 import com.fenceestimator.app.ui.components.label
 import kotlinx.coroutines.flow.first
+import androidx.compose.ui.graphics.asImageBitmap
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -273,6 +276,24 @@ fun SettingsScreen(
                     DraftTextField(stableKey = "biz_phone", initialValue = local.phone, label = stringResource(R.string.field_phone), keyboardType = KeyboardType.Phone, modifier = Modifier.fillMaxWidth(), enabled = editable) { local = local.copy(phone = it) }
                     DraftTextField(stableKey = "biz_email", initialValue = local.email, label = stringResource(R.string.field_email), keyboardType = KeyboardType.Email, modifier = Modifier.fillMaxWidth(), enabled = editable) { local = local.copy(email = it) }
                     DraftTextField(stableKey = "biz_license", initialValue = local.licenseNumber, label = stringResource(R.string.set_license_number), modifier = Modifier.fillMaxWidth(), enabled = editable) { local = local.copy(licenseNumber = it) }
+                    // THE COMPANY'S LOGO, on the PDF quote and contract this
+                    // phone prints, on the quote page the customer opens, and
+                    // at the top of the emails FenceFlow sends them.
+                    //
+                    // Not a DraftTextField and not saved by Save Settings: it is
+                    // a file, it goes up the moment it is picked, and a picker
+                    // whose result only lands if you remember to press Save
+                    // somewhere else is a control people lose work to.
+                    //
+                    // OWNER ONLY, and that is the server's rule, not this
+                    // screen's politeness: company_logos_insert and
+                    // companies_update are both OWNER-only, and a
+                    // policy-filtered UPDATE comes back as zero rows with no
+                    // error -- so a MANAGER allowed to pick a file would be
+                    // told nothing at all. CompanyLogo.upload reads the rows
+                    // back and names that case; this hides the control so it
+                    // does not arise.
+                    CompanyLogoRow(editable = editable, session = session)
                 }
             }
             item {
@@ -1509,4 +1530,158 @@ internal fun GroupHeading(text: String) {
         color = MaterialTheme.colorScheme.primary,
         modifier = Modifier.padding(start = 4.dp, top = 10.dp, bottom = 2.dp)
     )
+}
+
+
+/**
+ * Pick, show, replace or remove the company's logo.
+ *
+ * Reads the cached file rather than the cloud, which is what makes this honest
+ * offline: the preview is the very image a PDF made right now would carry,
+ * because both read [CompanyLogo.cachedFile]. A logo uploaded at the office
+ * appears here on the next session refresh, when CompanyLogo.sync downloads it.
+ */
+@Composable
+private fun CompanyLogoRow(
+    editable: Boolean,
+    session: com.fenceestimator.app.cloud.SessionState,
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+    // Bumped after every change, so the preview re-reads the folder instead of
+    // showing the file that was there when this screen opened.
+    var generation by remember { mutableStateOf(0) }
+    var busy by remember { mutableStateOf(false) }
+    val cached = remember(generation) {
+        runCatching { com.fenceestimator.app.cloud.CompanyLogo.cachedFile(context) }.getOrNull()
+    }
+    val bitmap = remember(cached?.absolutePath, cached?.length()) {
+        cached?.let { f ->
+            runCatching { android.graphics.BitmapFactory.decodeFile(f.absolutePath) }.getOrNull()
+        }
+    }
+
+    val isOwner = session.signedIn &&
+        session.role == com.fenceestimator.app.cloud.UserRole.OWNER &&
+        !session.companyId.isNullOrBlank()
+    val canChange = editable && isOwner && !busy
+
+    val wrongType = stringResource(R.string.set_logo_wrong_type)
+    val unreadable = stringResource(R.string.set_logo_unreadable)
+    val savedMsg = stringResource(R.string.set_logo_saved)
+    val removedMsg = stringResource(R.string.set_logo_removed)
+
+    fun say(text: String) {
+        android.widget.Toast.makeText(context, text, android.widget.Toast.LENGTH_LONG).show()
+    }
+
+    fun answer(result: com.fenceestimator.app.cloud.CompanyLogo.Upload, onOk: String) {
+        when (result) {
+            is com.fenceestimator.app.cloud.CompanyLogo.Upload.Saved -> {
+                generation++
+                say(onOk)
+            }
+            is com.fenceestimator.app.cloud.CompanyLogo.Upload.Failed ->
+                say(context.getString(result.reasonRes))
+            is com.fenceestimator.app.cloud.CompanyLogo.Upload.FailedWith ->
+                say(result.why.take(160))
+        }
+    }
+
+    val picker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
+        val company = session.companyId
+        if (uri == null || company.isNullOrBlank()) return@rememberLauncherForActivityResult
+        busy = true
+        scope.launch {
+            // Read on the IO dispatcher: a 2 MB file off a content provider is
+            // not work for the frame the picker just returned on.
+            val read = withContext(Dispatchers.IO) {
+                runCatching {
+                    val type = context.contentResolver.getType(uri)
+                    val bytes = context.contentResolver.openInputStream(uri)?.use { it.readBytes() }
+                    type to bytes
+                }.getOrNull()
+            }
+            val bytes = read?.second
+            if (bytes == null) {
+                busy = false
+                say(unreadable)
+                return@launch
+            }
+            // The picker is asked for image/* so a heic or a gif can arrive;
+            // the type is checked here and again by CompanyLogo.upload, and the
+            // bucket's own allowed_mime_types is the one that actually holds.
+            val result = com.fenceestimator.app.cloud.CompanyLogo.upload(
+                context = context, companyId = company, bytes = bytes, mimeType = read.first,
+            )
+            busy = false
+            if (result is com.fenceestimator.app.cloud.CompanyLogo.Upload.Failed &&
+                result.reasonRes == R.string.set_logo_wrong_type
+            ) {
+                say(wrongType)
+            } else {
+                answer(result, savedMsg)
+            }
+        }
+    }
+
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Text(stringResource(R.string.set_logo_label), style = MaterialTheme.typography.labelLarge)
+        Text(
+            stringResource(R.string.set_logo_note),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            if (bitmap != null) {
+                // White behind it, always: a logo drawn for paper is usually
+                // dark on nothing, and on a dark theme it would otherwise be
+                // invisible here while printing perfectly on the PDF.
+                androidx.compose.foundation.Image(
+                    bitmap = bitmap.asImageBitmap(),
+                    contentDescription = null,
+                    contentScale = androidx.compose.ui.layout.ContentScale.Fit,
+                    modifier = Modifier
+                        .size(width = 120.dp, height = 48.dp)
+                        .background(androidx.compose.ui.graphics.Color.White)
+                        .padding(4.dp)
+                )
+            } else {
+                Text(
+                    stringResource(R.string.set_logo_none),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            OutlinedButton(onClick = { picker.launch("image/*") }, enabled = canChange) {
+                Text(stringResource(
+                    if (bitmap != null) R.string.set_logo_replace else R.string.set_logo_upload
+                ))
+            }
+            if (bitmap != null) {
+                OutlinedButton(
+                    onClick = {
+                        val company = session.companyId ?: return@OutlinedButton
+                        busy = true
+                        scope.launch {
+                            val result = com.fenceestimator.app.cloud.CompanyLogo.remove(context, company)
+                            busy = false
+                            answer(result, removedMsg)
+                        }
+                    },
+                    enabled = canChange
+                ) { Text(stringResource(R.string.action_remove)) }
+            }
+        }
+        if (!isOwner && editable) {
+            Text(
+                stringResource(R.string.set_logo_owner_only),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
 }

@@ -129,6 +129,14 @@ function buildEmail(
   job: { customer_name?: string | null },
   companyName: string,
   quoteUrl: string | null,
+  /**
+   * A signed https URL for the company's logo, or null. The HTML part gets it
+   * as a letterhead; the plain-text part is untouched, so a text-only reader
+   * sees the letter and not a line of URL. The alt text is the company name,
+   * because most mail clients block remote images by default and the name is
+   * what should appear in its place.
+   */
+  logoUrl: string | null = null,
 ): { subject: string; html: string; text: string } {
   const name = (job.customer_name || "").trim().split(" ")[0] || "there";
   const company = companyName || "your fence contractor";
@@ -166,6 +174,10 @@ function buildEmail(
     `BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;color:#12151A">` +
     `<div style="max-width:34rem;margin:0 auto;padding:28px 20px">` +
     `<div style="background:#fff;border:1px solid #E3E7ED;border-radius:12px;padding:26px">` +
+    (logoUrl
+      ? `<img src="${escapeHtml(logoUrl)}" alt="${escapeHtml(companyName || "")}" ` +
+        `style="display:block;max-height:52px;max-width:200px;width:auto;border:0;margin:0 0 16px">`
+      : "") +
     `<p>${escapeHtml(body)}</p>${linkHtml}` +
     `<p style="font-size:12px;color:#8A93A0;margin-top:20px">` +
     `If you'd rather not receive these, just reply and let us know.</p>` +
@@ -268,7 +280,29 @@ Deno.serve(async (req) => {
       }
 
       const { data: company } = await db
-        .from("companies").select("name, email").eq("id", companyId).maybeSingle();
+        .from("companies").select("name, email, logo_path").eq("id", companyId).maybeSingle();
+
+      // One signature per company per run, not one per job: every follow-up
+      // this company sends in this run carries the same letterhead, and
+      // signing it four times would be four round trips for one URL. A year,
+      // the same as mail-send's letterhead -- an email is read when it is
+      // read, and nothing can re-sign a URL after it has gone out.
+      let companyLogoUrl: string | null = null;
+      {
+        const path = String(company?.logo_path ?? "").trim();
+        // The company id must be the first path segment, checked here because
+        // this is the service role and no policy is doing it for us.
+        if (path && path.startsWith(companyId + "/")) {
+          try {
+            const { data: signed } = await db.storage.from("company-logos")
+              .createSignedUrl(path, 60 * 60 * 24 * 365);
+            companyLogoUrl = signed?.signedUrl ?? null;
+          } catch (e) {
+            // A follow-up without a logo is still a follow-up.
+            console.error("send-follow-ups logo", String((e as Error)?.message ?? e));
+          }
+        }
+      }
 
       // Candidate jobs: not deleted, not a test fixture, not opted out, has
       // an email, and touches at least one of the timestamps any kind cares
@@ -313,7 +347,7 @@ Deno.serve(async (req) => {
         if (!claimed) continue; // 23505 = already sent for this stage
 
         const quoteUrl = j.quote_token ? `${siteUrl}/quote.html?t=${j.quote_token}` : null;
-        const { subject, html, text } = buildEmail(due.kind, j, company?.name ?? "", quoteUrl);
+        const { subject, html, text } = buildEmail(due.kind, j, company?.name ?? "", quoteUrl, companyLogoUrl);
         const replyTo = (company?.email ?? "").trim();
 
         const payload = JSON.stringify({

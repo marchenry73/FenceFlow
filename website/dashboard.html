@@ -2237,6 +2237,36 @@
           <div><label data-t="settingsLabelMinCharge">Minimum job charge ($)</label><input id="s_min" type="number" step="1"></div>
           <div><label data-t="settingsLabelMinLaborCharge">Minimum labor charge ($)</label><input id="s_min_labor" type="number" step="1"></div>
         </div>
+        <!-- THE COMPANY'S LOGO. Its own block rather than a box in the grid
+             above, because it is not text and it does not save with the Save
+             Settings button: an upload is finished the moment it lands, and a
+             file input that only takes effect when you remember to press Save
+             somewhere else is a control people lose work to.
+
+             OWNER ONLY, and disabled until loadSettings() has confirmed it --
+             the same reasoning as the company email box above. Both halves of
+             this (the object in company-logos, and companies.logo_path) are
+             OWNER-only by policy, and an UPDATE a policy filters out is zero
+             rows with NO error. Disabled-by-default means a manager cannot
+             pick a file, upload it, and be told nothing. -->
+        <div style="margin:14px 0;padding:12px;border:1px solid var(--line);border-radius:10px">
+          <label data-t="settingsLabelLogo">Company logo</label>
+          <p style="font-size:11px;color:var(--muted);margin:2px 0 8px" data-t="settingsLogoNote">Printed on your PDF quotes and contracts, shown on the quote page your customer opens, and at the top of the emails FenceFlow sends them. PNG, JPG or WEBP, up to 2&nbsp;MB. A wide logo on a light background reads best.</p>
+          <p id="s_logoOwnerNote" style="display:none;font-size:11px;color:var(--muted);margin:0 0 8px" data-t="settingsLogoOwnerOnly">Only the owner can change the logo.</p>
+          <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+            <!-- A checkered-ish neutral tile behind it, so a white logo with a
+                 transparent background is still visible here instead of
+                 looking like a failed load. -->
+            <div id="s_logoBox" style="display:none;width:180px;height:70px;border:1px solid var(--line);border-radius:8px;background:#fff;align-items:center;justify-content:center;padding:6px">
+              <img id="s_logoImg" alt="" style="max-width:100%;max-height:100%;object-fit:contain">
+            </div>
+            <span id="s_logoNone" style="font-size:12px;color:var(--muted)" data-t="settingsLogoNone">No logo yet.</span>
+            <input type="file" id="s_logoFile" accept="image/png,image/jpeg,image/webp" disabled>
+            <button class="btn" id="s_logoUpload" disabled data-t="settingsLogoUploadBtn">Upload</button>
+            <button class="btn secondary" id="s_logoRemove" style="display:none" disabled data-t="settingsLogoRemoveBtn">Remove</button>
+          </div>
+          <div class="msg" id="s_logoMsg"></div>
+        </div>
         <label data-t="settingsLabelOrderTpl">Order email template</label><textarea id="s_order"></textarea>
         <label data-t="settingsLabelHoaTpl">HOA email template</label><textarea id="s_hoa"></textarea>
         <label data-t="settingsLabelReviewTpl">Review request message</label><textarea id="s_review"></textarea>
@@ -4181,6 +4211,21 @@ jobViewAll:'All', jobViewToday:'Today', jobViewWeek:'This week', jobViewUnschedu
     settingsEmailBlankMsg:'The other settings saved, but the company email was left as it was — the box was empty, and an empty address would break outgoing mail, the customer-facing quote, and crew invitations. Type an address to change it.',
     settingsEmailInvalidMsg:'The other settings saved, but the company email was left as it was — "%s" does not look like a full email address (name@domain.tld). Fix it and save again.',
     settingsCompanySaveNoRowsMsg:'The other settings saved, but your business name, phone and license number did not reach the company record your customers see — the write matched no row. The most likely cause is that this account is no longer the company owner (someone changed your role while this page was open). Sign out, sign back in, and check Settings again.',
+    settingsLabelLogo:'Company logo',
+    settingsLogoNote:'Printed on your PDF quotes and contracts, shown on the quote page your customer opens, and at the top of the emails FenceFlow sends them. PNG, JPG or WEBP, up to 2 MB. A wide logo on a light background reads best.',
+    settingsLogoOwnerOnly:'Only the owner can change the logo.',
+    settingsLogoNone:'No logo yet.',
+    settingsLogoUploadBtn:'Upload',
+    settingsLogoRemoveBtn:'Remove',
+    settingsLogoMissing:'The logo file is missing. Upload it again.',
+    settingsLogoPickFirst:'Choose an image file first.',
+    settingsLogoWrongType:'That file is not a PNG, JPG or WEBP image.',
+    settingsLogoTooBig:'That file is over 2 MB. Save it smaller and try again.',
+    settingsLogoUploading:'Uploading…',
+    settingsLogoSaved:'Logo saved. It is on your quotes from now on.',
+    settingsLogoRemoved:'Logo removed.',
+    settingsLogoRemoveConfirm:'Take the logo off your quotes, contracts and customer emails? You can upload it again later.',
+    settingsLogoNoRowsMsg:'The image uploaded, but the company record did not accept it — the write matched no row. The most likely cause is that this account is no longer the company owner (someone changed your role while this page was open). Sign out, sign back in, and try again.',
     settingsEmailSaveNoRowsMsg:'The other settings saved, but the company email did not — the write matched no row. The most likely cause is that this account is no longer the company owner (someone changed your role while this page was open). Sign out, sign back in, and check Settings again.',
     settingsVinylUpdateFailedMsg:'Settings saved, but your standard Vinyl build did not update: %s',
     settingsLoadFailed:'Couldn\'t load your business settings just now — the boxes below are blank because the load failed, not because nothing is set. Switch tabs and back, or refresh, to try again.',
@@ -5946,6 +5991,21 @@ jobViewAll:'Todos', jobViewToday:'Hoy', jobViewWeek:'Esta semana', jobViewUnsche
     settingsEmailBlankMsg:'Los demás ajustes se guardaron, pero el correo de la empresa se dejó como estaba — el campo estaba vacío, y una dirección vacía interrumpiría el correo saliente, la cotización que ve el cliente y las invitaciones al equipo. Escriba una dirección para cambiarla.',
     settingsEmailInvalidMsg:'Los demás ajustes se guardaron, pero el correo de la empresa se dejó como estaba — "%s" no parece una dirección de correo completa (nombre@dominio.tld). Corríjala y guarde de nuevo.',
     settingsCompanySaveNoRowsMsg:'Los demás ajustes se guardaron, pero el nombre del negocio, el teléfono y el número de licencia no llegaron al registro de la empresa que ven sus clientes — la escritura no coincidió con ninguna fila. La causa más probable es que esta cuenta ya no es la propietaria de la empresa (alguien cambió su rol mientras esta página estaba abierta). Cierre sesión, vuelva a iniciarla y revise Ajustes de nuevo.',
+    settingsLabelLogo:'Logotipo de la empresa',
+    settingsLogoNote:'Se imprime en sus presupuestos y contratos en PDF, aparece en la página de presupuesto que abre su cliente y en la parte superior de los correos que FenceFlow le envía. PNG, JPG o WEBP, hasta 2 MB. Un logotipo ancho sobre fondo claro se ve mejor.',
+    settingsLogoOwnerOnly:'Solo el propietario puede cambiar el logotipo.',
+    settingsLogoNone:'Aún no hay logotipo.',
+    settingsLogoUploadBtn:'Subir',
+    settingsLogoRemoveBtn:'Quitar',
+    settingsLogoMissing:'Falta el archivo del logotipo. Súbalo de nuevo.',
+    settingsLogoPickFirst:'Elija primero un archivo de imagen.',
+    settingsLogoWrongType:'Ese archivo no es una imagen PNG, JPG ni WEBP.',
+    settingsLogoTooBig:'Ese archivo supera los 2 MB. Guárdelo más pequeño e inténtelo de nuevo.',
+    settingsLogoUploading:'Subiendo…',
+    settingsLogoSaved:'Logotipo guardado. Desde ahora aparece en sus presupuestos.',
+    settingsLogoRemoved:'Logotipo quitado.',
+    settingsLogoRemoveConfirm:'¿Quitar el logotipo de sus presupuestos, contratos y correos a clientes? Podrá subirlo de nuevo más adelante.',
+    settingsLogoNoRowsMsg:'La imagen se subió, pero el registro de la empresa no la aceptó — la escritura no coincidió con ninguna fila. La causa más probable es que esta cuenta ya no es la propietaria de la empresa (alguien cambió su rol mientras esta página estaba abierta). Cierre sesión, vuelva a iniciarla e inténtelo de nuevo.',
     settingsEmailSaveNoRowsMsg:'Los demás ajustes se guardaron, pero el correo de la empresa no — la escritura no coincidió con ninguna fila. La causa más probable es que esta cuenta ya no es la propietaria de la empresa (alguien cambió su rol mientras esta página estaba abierta). Cierre sesión, vuelva a iniciarla y revise Ajustes de nuevo.',
     settingsVinylUpdateFailedMsg:'Ajustes guardados, pero su plantilla estándar de Vinyl no se actualizó: %s',
     settingsLoadFailed:'No se pudieron cargar los ajustes de la empresa en este momento — los campos de abajo están en blanco porque falló la carga, no porque no haya nada configurado. Cambie de pestaña y vuelva, o actualice la página, para intentarlo de nuevo.',
@@ -7681,6 +7741,21 @@ jobViewAll:'Tous', jobViewToday:'Aujourdhui', jobViewWeek:'Cette semaine', jobVi
     settingsEmailBlankMsg:'Les autres paramètres ont été enregistrés, mais l’adresse courriel de l’entreprise n’a pas été modifiée — le champ était vide, et une adresse vide empêcherait l’envoi de courriels, la soumission vue par le client et les invitations à l’équipe. Saisissez une adresse pour la changer.',
     settingsEmailInvalidMsg:'Les autres paramètres ont été enregistrés, mais l’adresse courriel de l’entreprise n’a pas été modifiée — « %s » ne ressemble pas à une adresse courriel complète (nom@domaine.tld). Corrigez-la et enregistrez de nouveau.',
     settingsCompanySaveNoRowsMsg:'Les autres paramètres ont été enregistrés, mais le nom de l’entreprise, le téléphone et le numéro de licence n’ont pas atteint la fiche d’entreprise que vos clients voient — l’écriture n’a touché aucune ligne. La cause la plus probable est que ce compte n’est plus propriétaire de l’entreprise (quelqu’un a changé votre rôle pendant que cette page était ouverte). Déconnectez-vous, reconnectez-vous, puis vérifiez de nouveau les Paramètres.',
+    settingsLabelLogo:'Logo de l’entreprise',
+    settingsLogoNote:'Imprimé sur vos devis et contrats PDF, affiché sur la page de devis que votre client ouvre, et en haut des courriels que FenceFlow lui envoie. PNG, JPG ou WEBP, jusqu’à 2 Mo. Un logo large sur fond clair se lit le mieux.',
+    settingsLogoOwnerOnly:'Seul le propriétaire peut changer le logo.',
+    settingsLogoNone:'Pas encore de logo.',
+    settingsLogoUploadBtn:'Téléverser',
+    settingsLogoRemoveBtn:'Retirer',
+    settingsLogoMissing:'Le fichier du logo est introuvable. Téléversez-le de nouveau.',
+    settingsLogoPickFirst:'Choisissez d’abord un fichier image.',
+    settingsLogoWrongType:'Ce fichier n’est pas une image PNG, JPG ou WEBP.',
+    settingsLogoTooBig:'Ce fichier dépasse 2 Mo. Enregistrez-le plus petit et réessayez.',
+    settingsLogoUploading:'Téléversement…',
+    settingsLogoSaved:'Logo enregistré. Il figure désormais sur vos devis.',
+    settingsLogoRemoved:'Logo retiré.',
+    settingsLogoRemoveConfirm:'Retirer le logo de vos devis, contrats et courriels aux clients ? Vous pourrez le téléverser de nouveau plus tard.',
+    settingsLogoNoRowsMsg:'L’image a été téléversée, mais la fiche d’entreprise ne l’a pas acceptée — l’écriture n’a touché aucune ligne. La cause la plus probable est que ce compte n’est plus propriétaire de l’entreprise (quelqu’un a changé votre rôle pendant que cette page était ouverte). Déconnectez-vous, reconnectez-vous, puis réessayez.',
     settingsEmailSaveNoRowsMsg:'Les autres paramètres ont été enregistrés, mais pas l’adresse courriel de l’entreprise — l’écriture n’a touché aucune ligne. La cause la plus probable est que ce compte n’est plus propriétaire de l’entreprise (quelqu’un a changé votre rôle pendant que cette page était ouverte). Déconnectez-vous, reconnectez-vous, puis vérifiez de nouveau les Paramètres.',
     settingsVinylUpdateFailedMsg:'Paramètres enregistrés, mais votre modèle Vinyle standard n’a pas été mis à jour : %s',
     settingsLoadFailed:'Impossible de charger les paramètres de l’entreprise pour l’instant — les champs ci-dessous sont vides parce que le chargement a échoué, pas parce que rien n’est configuré. Changez d’onglet et revenez, ou actualisez la page, pour réessayer.',
@@ -10411,7 +10486,12 @@ async function boot(){
   if(!canEdit()){
     const n='<div class="note">Crew-level access: financials and settings are read-only here.</div>';
     $('jobReadonly').innerHTML=n; $('setNote').innerHTML=n;
-    ['saveJob','deleteJob','saveSettings','newJob','newEmp','saveEmp','deleteEmp']
+    ['saveJob','deleteJob','saveSettings','newJob','newEmp','saveEmp','deleteEmp',
+     // The logo controls start disabled in the markup and are only enabled by
+     // renderCompanyLogo() for a confirmed OWNER, so this is belt and braces
+     // rather than the gate -- but it keeps the read-only sweep honest: every
+     // control this branch claims to have turned off is named in one list.
+     's_logoFile','s_logoUpload','s_logoRemove']
       .forEach(id=>{const b=$(id); if(b) b.disabled=true;});
   }
   // Before loadAll, so the seat table knows whether to draw its "Company
@@ -26548,7 +26628,7 @@ async function loadSettings(){
       // quote-view, invite-crew, send-follow-ups). Loading the blob's copy
       // showed the office a value that was not the one actually in effect,
       // which is how this field went stale for months with no error anywhere.
-      db.from('companies').select('email, name, phone, license_no').eq('id',profile.company_id).maybeSingle(),
+      db.from('companies').select('email, name, phone, license_no, logo_path').eq('id',profile.company_id).maybeSingle(),
     ]);
     if(error) throw error;
     if(company.error) throw company.error;
@@ -26613,6 +26693,12 @@ async function loadSettings(){
     const bizLicEl=$('s_license');       if(bizLicEl)   bizLicEl.value  =pick('license_no','license_number');
     const companyOwnerNote=$('s_companyOwnerNote');
     if(companyOwnerNote) companyOwnerNote.style.display = profile.role === 'OWNER' ? 'none' : '';
+
+    // The logo. companies.logo_path, one store -- deliberately NOT mirrored
+    // into the settings blob the three boxes above are mirrored into; see
+    // supabase_r18_company_logo.sql PART 2 for why a column with no legacy
+    // reader should not inherit that problem.
+    await renderCompanyLogo(String(company.data?.logo_path ?? ''));
   } catch(e) {
     console.error('loadSettings failed:', e);
     if(note){
@@ -26771,6 +26857,148 @@ async function saveSettings(){
   const sp = await db.rpc('my_setup_progress');
   setupSteps = sp.error ? [] : (sp.data || []);
   renderSetup();
+}
+
+/* ---------- the company's logo ----------
+   ONE store: companies.logo_path, holding an object path in the PRIVATE
+   company-logos bucket. supabase_r18_company_logo.sql has the whole account --
+   the short version is that companies_read has no role test, so a crew phone
+   can read the path, while company_settings is hidden from anyone without
+   SEE_MONEY and would have made the logo invisible to exactly the phones that
+   print documents on site.
+
+   Private means nothing renders the path directly: every surface signs a URL
+   for it. Here, for a preview; quote-view, for the customer's page; the mail
+   functions, for the letter. */
+
+/** What this office currently has, so Remove knows what object to delete. */
+let companyLogoPath = '';
+
+/**
+ * Shows the logo (or says there isn't one), and decides what the controls may
+ * do.
+ *
+ * A signed URL, not a public one -- the bucket is private. One hour is ample
+ * for a settings panel; the page signs a fresh one every time it loads.
+ */
+async function renderCompanyLogo(path){
+  companyLogoPath = String(path ?? '').trim();
+  const box = $('s_logoBox'), img = $('s_logoImg'), none = $('s_logoNone');
+  const file = $('s_logoFile'), up = $('s_logoUpload'), rm = $('s_logoRemove');
+  const isOwner = profile.role === 'OWNER';
+  const ownerNote = $('s_logoOwnerNote');
+  if (ownerNote) ownerNote.style.display = isOwner ? 'none' : '';
+  // Enabled ONLY once this function has run with a confirmed role, which is
+  // only from loadSettings() succeeding. Every other path -- first paint, a
+  // failed load -- leaves the markup's own `disabled` in place.
+  if (file) file.disabled = !isOwner;
+  if (up) up.disabled = !isOwner;
+  if (rm) rm.disabled = !isOwner;
+
+  if (!companyLogoPath) {
+    if (box) box.style.display = 'none';
+    if (none) none.style.display = '';
+    if (rm) rm.style.display = 'none';
+    return;
+  }
+  if (none) none.style.display = 'none';
+  if (rm) rm.style.display = isOwner ? '' : 'none';
+  const { data, error } = await db.storage.from('company-logos')
+    .createSignedUrl(companyLogoPath, 3600);
+  if (error || !data?.signedUrl) {
+    // A path recorded against an object that is not there any more. Say so
+    // rather than showing a broken image frame: the fix is to upload again.
+    if (box) box.style.display = 'none';
+    if (none) { none.style.display = ''; none.textContent = tr('settingsLogoMissing'); }
+    return;
+  }
+  if (img) img.src = data.signedUrl;
+  if (box) box.style.display = 'flex';
+}
+
+/**
+ * Uploads the picked file and points the company at it.
+ *
+ * ORDER MATTERS, and this is the order: upload the new object, THEN move the
+ * column, THEN delete the old object. Any other order has a window where
+ * logo_path names something that is not there -- and the quote page and the
+ * customer's email are both reading that column.
+ *
+ * A NEW NAME every time, never a fixed logo.png. Overwriting one path leaves
+ * every browser cache, every email client and every CDN edge holding the
+ * previous image with nothing able to tell them it changed; a new name means
+ * the new logo is a new URL and appears at once.
+ */
+async function uploadCompanyLogo(){
+  if (profile.role !== 'OWNER') return msg('s_logoMsg', tr('settingsLogoOwnerOnly'), 'err');
+  const input = $('s_logoFile');
+  const f = input?.files?.[0];
+  if (!f) return msg('s_logoMsg', tr('settingsLogoPickFirst'), 'err');
+
+  // Checked here as well as by the bucket. The bucket's own limits are the
+  // ones that actually hold (a page cannot be trusted to enforce anything),
+  // but a 9 MB photo refused after the whole upload has gone over a phone
+  // tether is a worse way to learn the rule.
+  const kinds = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' };
+  const ext = kinds[f.type];
+  if (!ext) return msg('s_logoMsg', tr('settingsLogoWrongType'), 'err');
+  if (f.size > 2 * 1024 * 1024) return msg('s_logoMsg', tr('settingsLogoTooBig'), 'err');
+
+  msg('s_logoMsg', tr('settingsLogoUploading'), 'ok');
+  const previous = companyLogoPath;
+  const path = profile.company_id + '/logo-' + crypto.randomUUID() + '.' + ext;
+  const { error: upErr } = await db.storage.from('company-logos')
+    .upload(path, f, { contentType: f.type, upsert: false });
+  if (upErr) return msg('s_logoMsg', upErr.message, 'err');
+
+  // .select('id') for the same reason every other write on this page does it:
+  // companies_update is a USING-only policy, so a row it filters out is zero
+  // rows changed with error null -- indistinguishable from success unless the
+  // affected rows are read back. The one case that reaches it here is an owner
+  // demoted by someone else while this page sits open.
+  const { data: rows, error: colErr } = await db.from('companies')
+    .update({ logo_path: path }).eq('id', profile.company_id).select('id');
+  if (colErr || !rows || !rows.length) {
+    // The column still names the OLD object, which is still there, so the
+    // company is exactly as it was. Clear up the orphan we just made rather
+    // than leaving it in the bucket for ever.
+    await db.storage.from('company-logos').remove([path]);
+    return msg('s_logoMsg', colErr ? colErr.message : tr('settingsLogoNoRowsMsg'), 'err');
+  }
+
+  // Only now, and failure here is not worth telling him about: the logo is
+  // live and correct, and the worst case is one stale file in a bucket only
+  // this company can read.
+  if (previous && previous !== path) {
+    await db.storage.from('company-logos').remove([previous]);
+  }
+  if (input) input.value = '';
+  await renderCompanyLogo(path);
+  msg('s_logoMsg', tr('settingsLogoSaved'), 'ok');
+}
+
+/**
+ * Takes the logo off the documents.
+ *
+ * Confirmed, because it is one click away from every quote page and PDF this
+ * company sends and there is no undo short of uploading the file again. The
+ * column is cleared FIRST: a deleted object with the path still recorded is
+ * a broken image on a customer's quote, which is worse than a logo that is
+ * gone on purpose.
+ */
+async function removeCompanyLogo(){
+  if (profile.role !== 'OWNER') return msg('s_logoMsg', tr('settingsLogoOwnerOnly'), 'err');
+  if (!companyLogoPath) return;
+  if (!confirm(tr('settingsLogoRemoveConfirm'))) return;
+  const gone = companyLogoPath;
+  const { data: rows, error } = await db.from('companies')
+    .update({ logo_path: '' }).eq('id', profile.company_id).select('id');
+  if (error || !rows || !rows.length) {
+    return msg('s_logoMsg', error ? error.message : tr('settingsLogoNoRowsMsg'), 'err');
+  }
+  await db.storage.from('company-logos').remove([gone]);
+  await renderCompanyLogo('');
+  msg('s_logoMsg', tr('settingsLogoRemoved'), 'ok');
 }
 
 /* ---------- how customers can pay ----------
@@ -29720,6 +29948,11 @@ $('e_pay_type').addEventListener('change',syncEmpPayNote);
 $('deleteEmp').addEventListener('click',deleteEmp);
 $('saveSettings').addEventListener('click',saveSettings);
 $('savePayMethods').addEventListener('click',()=>{ savePaymentMethods().catch(e=>msg('payMethMsg', tr('payMethSaveFailed', e?.message ?? e), 'err')); });
+// The logo's own two buttons. Caught here rather than left to float, the same
+// way savePayMethods above is: an upload that throws mid-way must say so in
+// the panel, not only in the console.
+$('s_logoUpload').addEventListener('click',()=>{ uploadCompanyLogo().catch(e=>msg('s_logoMsg', String(e?.message ?? e), 'err')); });
+$('s_logoRemove').addEventListener('click',()=>{ removeCompanyLogo().catch(e=>msg('s_logoMsg', String(e?.message ?? e), 'err')); });
 $('catFilter').addEventListener('input',renderCatalog);
 
 // Report filters
