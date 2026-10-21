@@ -799,6 +799,89 @@ export interface ResendMailInput {
  * MAX_RECIPIENTS_RESEND in total, one-line subject, threading headers, and
  * attachments as base64 within the same caps.
  */
+/**
+ * The same message, shaped for Brevo's transactional API.
+ *
+ * WHY A SECOND BUILDER AND NOT A TRANSLATION of the Resend one: the two differ
+ * in more than field names. Brevo takes sender and recipients as objects
+ * rather than strings, its attachments key is singular (`attachment`, with
+ * `name` not `filename`), and its reply-to is an object. Translating one
+ * payload into the other at the last moment is where a field quietly stops
+ * being sent -- a missing Message-ID header does not fail, it just breaks
+ * threading for every reply afterwards.
+ *
+ * WHAT IS DELIBERATELY IDENTICAL: every check. The address parsing, the
+ * de-duplication across To/Cc/Bcc, the recipient cap, the Message-ID and
+ * References handling and the attachment limits are the SAME functions
+ * buildResendEmail calls, so a message that one provider would refuse is
+ * refused by the other for the same reason. Which service carries the mail is
+ * not an invitation to validate it differently.
+ *
+ * The recipient cap is Resend's deliberately. Brevo allows more, but a cap
+ * that moved when the platform admin flipped a setting would mean a message
+ * accepted yesterday is refused today with nothing on screen explaining it.
+ */
+export function buildBrevoEmail(input: ResendMailInput): Record<string, unknown> {
+  const fromAddress = normalizeAddress(input?.from?.address);
+  const fromName = cleanDisplayName(input.from.name);
+  const seen = new Set<string>();
+  const to = dedupeAgainst(addressList(input.to, "To"), seen);
+  const cc = dedupeAgainst(addressList(input.cc ?? [], "Cc"), seen);
+  const bcc = dedupeAgainst(addressList(input.bcc ?? [], "Bcc"), seen);
+  if (to.length === 0) throw new MailError("bad_request", "Add at least one recipient.");
+  if (to.length + cc.length + bcc.length > MAX_RECIPIENTS_RESEND) {
+    throw new MailError("bad_request", `At most ${MAX_RECIPIENTS_RESEND} recipients with FenceFlow mail.`);
+  }
+  const messageId = cleanMessageId(input.messageId);
+  if (!messageId || !messageId.includes("@")) throw new MailError("bad_request", "Invalid Message-ID.");
+  const inReplyTo = input.inReplyTo ? cleanMessageId(input.inReplyTo) : null;
+  const references = referencesHeaderValue(capIds(dedupeIds((input.references ?? []).map(cleanMessageId)), REFERENCES_OUT_MAX));
+  const attachments = checkedAttachments(
+    (input.attachments ?? []).map((a) => ({ filename: a.filename, contentType: "application/octet-stream", content: a.content })),
+  );
+
+  const headers: Record<string, string> = { "Message-ID": `<${messageId}>` };
+  if (inReplyTo) headers["In-Reply-To"] = `<${inReplyTo}>`;
+  if (references) headers["References"] = references;
+
+  const box = (address: string) => ({ email: address });
+
+  return {
+    sender: fromName ? { email: fromAddress, name: fromName } : { email: fromAddress },
+    to: to.map(box),
+    ...(cc.length ? { cc: cc.map(box) } : {}),
+    ...(bcc.length ? { bcc: bcc.map(box) } : {}),
+    ...(input.replyTo ? { replyTo: box(normalizeAddress(input.replyTo)) } : {}),
+    subject: checkedSubject(input.subject),
+    textContent: String(input.text ?? ""),
+    htmlContent: String(input.html ?? ""),
+    headers,
+    ...(attachments.length
+      ? { attachment: attachments.map((a) => ({ name: cleanFilename(a.filename), content: base64(a.content) })) }
+      : {}),
+  };
+}
+
+/**
+ * Put the final Reply-To on a payload whichever provider built it.
+ *
+ * A brand-new thread has no reply token until the message has been claimed, so
+ * the address is completed after the claim -- and the two providers spell that
+ * field differently. Said once, here, because the alternative is an `if` at
+ * the call site that is easy to update for one provider and forget for the
+ * other, and a missing Reply-To sends the customer's answer to an address
+ * nobody reads.
+ */
+export function setPayloadReplyTo(
+  payload: Record<string, unknown>,
+  provider: "resend" | "brevo",
+  address: string,
+): void {
+  const clean = normalizeAddress(address);
+  if (provider === "brevo") payload.replyTo = { email: clean };
+  else payload.reply_to = clean;
+}
+
 export function buildResendEmail(input: ResendMailInput): Record<string, unknown> {
   const fromAddress = normalizeAddress(input?.from?.address);
   const fromName = cleanDisplayName(input.from.name);

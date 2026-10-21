@@ -340,6 +340,8 @@ private fun CompaniesTab() {
         )
     }
 
+    MailSenderRow()
+
     Section(state, "No companies.") { c ->
         AdminCard(
             title = c.name.ifBlank { "(unnamed)" },
@@ -428,6 +430,108 @@ private fun CompaniesTab() {
             },
             dismissButton = {
                 TextButton(enabled = !busy, onClick = { pending = null }) { Text("Cancel") }
+            },
+        )
+    }
+}
+
+/**
+ * Which service carries FenceFlow mail, and the switch for it.
+ *
+ * Here rather than in Settings because it is a PLATFORM decision: one row,
+ * every company at once. A company that has connected its own mailbox is
+ * unaffected -- this only decides what "FenceFlow mail" means for everyone
+ * who has not.
+ *
+ * It asks before it flips, and names the consequence rather than the setting:
+ * what somebody needs to know is that the next quote goes out through a
+ * different service, not that a column changed.
+ */
+@Composable
+private fun MailSenderRow() {
+    val scope = rememberCoroutineScope()
+    var current by remember { mutableStateOf<String?>(null) }
+    var asking by remember { mutableStateOf<String?>(null) }
+    var busy by remember { mutableStateOf(false) }
+    var error by remember { mutableStateOf<String?>(null) }
+
+    suspend fun load() {
+        AdminRepository.mailSender()
+            .onSuccess { current = it }
+            .onFailure { error = it.message ?: "Could not read the mail sender." }
+    }
+    LaunchedEffect(Unit) { load() }
+
+    Card(
+        modifier = Modifier.fillMaxWidth().padding(bottom = Space.sm),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
+    ) {
+        Column(Modifier.padding(Space.md)) {
+            Text("FenceFlow mail goes through", fontWeight = FontWeight.Medium,
+                style = MaterialTheme.typography.bodyMedium)
+            Text(
+                "Every company that has not connected its own mailbox. " +
+                    "A company's own inbox is unaffected.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+            error?.let {
+                Text(it, color = MaterialTheme.colorScheme.error,
+                    style = MaterialTheme.typography.bodySmall)
+            }
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(Space.sm),
+                modifier = Modifier.padding(top = Space.sm)
+            ) {
+                for (p in listOf("resend", "brevo")) {
+                    val selected = current == p
+                    OutlinedButton(
+                        enabled = !busy && current != null && !selected,
+                        onClick = { error = null; asking = p },
+                    ) {
+                        Text(if (selected) "${p.replaceFirstChar { it.uppercase() }} (in use)"
+                             else p.replaceFirstChar { it.uppercase() })
+                    }
+                }
+            }
+        }
+    }
+
+    asking?.let { want ->
+        AlertDialog(
+            onDismissRequest = { if (!busy) asking = null },
+            title = { Text("Send through ${want.replaceFirstChar { it.uppercase() }}?") },
+            text = {
+                Text(
+                    if (want == "brevo")
+                        "Every company's next quote, follow-up and reply goes out through Brevo. " +
+                            "It needs BREVO_API_KEY set on the server and the sending address " +
+                            "verified in Brevo -- without those, sending stops with " +
+                            "\"not set up on the server\" until you switch back."
+                    else
+                        "Every company's mail goes back through Resend, which is what it used before."
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !busy,
+                    onClick = {
+                        busy = true
+                        scope.launch {
+                            AdminRepository.setMailSender(want)
+                                .onFailure { error = it.message ?: "That did not go through." }
+                            // Re-read rather than assume: the server decides,
+                            // and a refusal must not leave the screen showing
+                            // a switch that never happened.
+                            load()
+                            busy = false
+                            asking = null
+                        }
+                    }
+                ) { Text("Switch") }
+            },
+            dismissButton = {
+                TextButton(enabled = !busy, onClick = { asking = null }) { Text("Cancel") }
             },
         )
     }

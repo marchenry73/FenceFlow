@@ -132,6 +132,7 @@ import {
   buildResendEmail,
   cleanDisplayName,
   cleanFilename,
+  buildBrevoEmail,
   composeBody,
   fenceflowFooter,
   fenceflowFrom,
@@ -140,6 +141,7 @@ import {
   validateSendFields,
 } from "../_shared/mail/mime-build.ts";
 import type { SendFields } from "../_shared/mail/mime-build.ts";
+import { setPayloadReplyTo } from "../_shared/mail/mime-build.ts";
 import { fenceflowReplyTo, newMessageId, replyThreading } from "../_shared/mail/reply.ts";
 import { isUnconfirmed, sendMessage, SmtpClient } from "../_shared/mail/smtp-client.ts";
 import { connectTls } from "../_shared/mail/tls-transport.ts";
@@ -150,6 +152,8 @@ type Row = Record<string, unknown>;
 const FN = "mail-send";
 const BUCKET = "mail-files";
 const DEFAULT_MAIL_API_URL = "https://api.resend.com/emails";
+/** Brevo's transactional endpoint. Overridable by BREVO_API_URL for tests. */
+const DEFAULT_BREVO_API_URL = "https://api.brevo.com/v3/smtp/email";
 
 // ---------------------------------------------------------------------------
 // Numbers that belong to this function alone. Everything shared is in
@@ -1031,6 +1035,113 @@ async function postToResend(deps: SendDeps, url: string, key: string, payload: R
   throw new MailError("send_rejected", said);
 }
 
+/**
+ * Which service carries FenceFlow mail today.
+ *
+ * One row, read per send. 'resend' is the default and is what was hardcoded
+ * before this existed, so a database that has never been touched sends exactly
+ * as it always did -- and a read that FAILS answers 'resend' for the same
+ * reason: the fallback has to be the provider that is already configured and
+ * already paid for, never the one that might have no key.
+ */
+async function senderProvider(caller: MailCaller): Promise<"resend" | "brevo"> {
+  try {
+    const { data, error } = await caller.admin
+      .from("mail_platform_settings").select("sender_provider").eq("id", 1).maybeSingle();
+    if (error) return "resend";
+    const v = String((data as Row | null)?.sender_provider ?? "").trim();
+    return v === "brevo" ? "brevo" : "resend";
+  } catch {
+    return "resend";
+  }
+}
+
+/**
+ * Brevo's transactional API, with the same promises postToResend makes.
+ *
+ * THE PROMISES, because they are what the caller's error handling is built on
+ * and they matter more than the field names:
+ *
+ *  - No answer at all (a timeout, a dropped connection) throws DeliveryUnknown,
+ *    NOT a failure. The message may be on its way, and "failed" would invite a
+ *    retry that sends it twice. mail-send leaves such a message 'sending' and
+ *    the office says "check Sent".
+ *  - A 5xx is also DeliveryUnknown for the same reason.
+ *  - A refused key is not_configured, so it reads as the server being set up
+ *    wrong rather than as the user doing something wrong.
+ *  - Anything else is send_rejected with Brevo's own words, which is what
+ *    reaches the person who pressed the button.
+ *
+ * Brevo has no idempotency key, which Resend does. It is not needed here: the
+ * message is claimed in mail_messages under (company, client_send_id) BEFORE
+ * this is called, so a retried REQUEST never reaches this function twice. The
+ * window it would cover -- this function being called twice for one claim --
+ * does not exist.
+ */
+async function postToBrevo(deps: SendDeps, url: string, key: string, payload: Row): Promise<string | null> {
+  let res: Response;
+  try {
+    res = await deps.fetch(url, {
+      method: "POST",
+      headers: {
+        "api-key": key,
+        "Content-Type": "application/json",
+        accept: "application/json",
+      },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(RESEND_TIMEOUT_MS),
+    });
+  } catch (e) {
+    const name = String((e as { name?: unknown })?.name ?? "");
+    throw new DeliveryUnknown(/timeout|abort/i.test(name) ? "timeout" : "connect_failed", "No answer from FenceFlow mail.");
+  }
+  let answer: unknown = null;
+  try {
+    answer = JSON.parse((await res.text()).slice(0, RESEND_ANSWER_MAX_CHARS));
+  } catch {
+    // The status decides; the body only adds detail.
+  }
+  if (res.ok) {
+    // Brevo answers with a MESSAGE-ID, not an opaque token: something like
+    // <201705101337.3487@smtp-relay.mailin.fr>. PROVIDER_ID_RE was written for
+    // Resend's UUIDs and rejects the angle brackets and the @, so taking it as
+    // it comes stored NULL every time -- and provider_message_id is how a
+    // bounce or a complaint is later traced back to the message that caused
+    // it. Unwrapped and checked for the shape it actually has.
+    const raw = (answer as Row | null)?.messageId;
+    const id = typeof raw === "string" ? raw.trim().replace(/^<|>$/g, "") : "";
+    return id && BREVO_ID_RE.test(id) ? id : null;
+  }
+  const said = brevoSaid(answer);
+  if (res.status >= 500) {
+    console.error(`${FN}: Brevo answered ${res.status}`);
+    throw new DeliveryUnknown("server_busy", said);
+  }
+  if (res.status === 401 || res.status === 403) {
+    console.error(`${FN}: Brevo refused the server's key (${res.status})`);
+    throw new MailError("not_configured", "FenceFlow mail refused the server's key.");
+  }
+  if (res.status === 429) throw new MailError("rate_limited", "FenceFlow mail is busy. Try again in a minute.");
+  if (res.status === 413) throw new MailError("too_large", said);
+  throw new MailError("send_rejected", said);
+}
+
+/**
+ * A Message-ID as Brevo returns one, with the brackets already off: local part,
+ * @, domain. Deliberately not PROVIDER_ID_RE, which is Resend's shape, and
+ * deliberately not "anything": this is stored and later shown, so it is checked.
+ */
+const BREVO_ID_RE = /^[A-Za-z0-9._:+=/-]{1,180}@[A-Za-z0-9.-]{1,60}$/;
+
+/** Brevo's own words about a refusal, capped. Its errors are {code, message}. */
+function brevoSaid(answer: unknown): string {
+  const a = answer as { message?: unknown; code?: unknown } | null;
+  const m = typeof a?.message === "string" ? a.message : "";
+  const c = typeof a?.code === "string" ? a.code : "";
+  const said = (m || c).trim();
+  return said ? said.slice(0, 300) : "The mail service refused the message.";
+}
+
 /** The company's FenceFlow-mail account, created on first use by the RPC
  *  (race-safe; PostgREST cannot upsert against a partial unique index). */
 /**
@@ -1096,9 +1207,25 @@ async function inboundState(caller: MailCaller, deps: SendDeps): Promise<{ ready
 }
 
 async function viaFenceflow(caller: MailCaller, deps: SendDeps, req: SendRequest, body: Row, secrets: string[]): Promise<Response> {
-  const key = envOf(deps, "MAIL_API_KEY");
+  // WHICH SERVICE CARRIES IT. Everything else in this function is the same
+  // either way -- where replies go, the claim, the de-duplication, the rate
+  // limit, the attachments, the threading. Only the last step differs, which
+  // is the whole reason the choice lives here and not in a second copy of all
+  // of it.
+  const provider = await senderProvider(caller);
+  const key = provider === "brevo" ? envOf(deps, "BREVO_API_KEY") : envOf(deps, "MAIL_API_KEY");
   const mailFrom = envOf(deps, "MAIL_FROM");
-  if (!key || !mailFrom) throw new MailError("not_configured", "FenceFlow mail is not set up on the server.");
+  if (!key || !mailFrom) {
+    // Named, because "not set up" for a provider somebody deliberately
+    // switched to is a different thing to fix than a server that was never
+    // configured at all.
+    throw new MailError(
+      "not_configured",
+      provider === "brevo"
+        ? "Brevo is selected as the sender but BREVO_API_KEY is not set on the server."
+        : "FenceFlow mail is not set up on the server.",
+    );
+  }
   secrets.push(key);
   const from = fenceflowFrom(caller.companyName, mailFrom, envOf(deps, "MAIL_FROM_NAME") || "FenceFlow");
   const fields = validateSendFields(body, MAX_RECIPIENTS_RESEND);
@@ -1146,7 +1273,7 @@ async function viaFenceflow(caller: MailCaller, deps: SendDeps, req: SendRequest
     logoUrl: await logoUrlFor(caller),
     logoAlt: caller.companyName,
   });
-  const payload = buildResendEmail({
+  const mail = {
     from,
     to: fields.to,
     cc: fields.cc,
@@ -1159,7 +1286,11 @@ async function viaFenceflow(caller: MailCaller, deps: SendDeps, req: SendRequest
     inReplyTo: threading.inReplyTo,
     references: threading.references,
     attachments: attachments.map((a) => ({ filename: a.filename, content: a.content })),
-  });
+  };
+  // The SAME checks either way: both builders call the same address parsing,
+  // the same recipient cap and the same attachment limits, so a message one
+  // provider would refuse is refused by the other for the same reason.
+  const payload = provider === "brevo" ? buildBrevoEmail(mail) : buildResendEmail(mail);
   // A brand-new thread has no reply_token until the claim makes it, so an
   // inbound Reply-To is completed after the claim.
   const finalReplyLater = reply.mode === "inbound" && !parentToken;
@@ -1188,7 +1319,9 @@ async function viaFenceflow(caller: MailCaller, deps: SendDeps, req: SendRequest
       const token = await threadToken(caller.admin, caller.companyId, claimed.threadId);
       replyTo = fenceflowReplyTo({ ...replyInput, replyToken: token }).replyTo;
       if (!replyTo) throw new MailError("server_error", "No address for replies.");
-      payload.reply_to = normalizeAddress(replyTo);
+      // The two providers spell this field differently; said once, in
+      // mime-build, so neither can be updated and the other forgotten.
+      setPayloadReplyTo(payload, provider, replyTo);
     }
   } catch (e) {
     return await failed(caller, claimed, e instanceof MailError ? e : new MailError("server_error"), secrets);
@@ -1196,7 +1329,9 @@ async function viaFenceflow(caller: MailCaller, deps: SendDeps, req: SendRequest
 
   let providerId: string | null;
   try {
-    providerId = await postToResend(deps, envOf(deps, "MAIL_API_URL") || DEFAULT_MAIL_API_URL, key, payload, `fenceflow-mail-${claimed.messageId}`);
+    providerId = provider === "brevo"
+      ? await postToBrevo(deps, envOf(deps, "BREVO_API_URL") || DEFAULT_BREVO_API_URL, key, payload)
+      : await postToResend(deps, envOf(deps, "MAIL_API_URL") || DEFAULT_MAIL_API_URL, key, payload, `fenceflow-mail-${claimed.messageId}`);
   } catch (e) {
     if (e instanceof DeliveryUnknown) return await unconfirmed(caller, claimed, e, secrets);
     return await failed(caller, claimed, e instanceof MailError ? e : new MailError("server_error"), secrets);

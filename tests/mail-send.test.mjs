@@ -1511,6 +1511,126 @@ test("fenceflow: sends as the company's name on MAIL_FROM's address, replies to 
   assertNothingLeaked();
 });
 
+test("brevo: the platform sender can be switched, and the SAME message goes out in Brevo's shape", async () => {
+  resetWorld();
+  fenceflowEnv();
+  ENV.BREVO_API_KEY = "brevo-test-key";
+  world.db.mail_platform_settings[0].sender_provider = "brevo";
+  const { deps, log } = makeDeps({
+    // Brevo answers 201 with messageId, not 200 with id.
+    fetchImpl: async () => new Response(JSON.stringify({ messageId: "<201705101337.3487@smtp-relay.mailin.fr>" }), { status: 201 }),
+  });
+  const res = await call(sendBody("fenceflow", { cc: ["bob@example.org"], bcc: ["partner@supplier.example.com"] }), deps);
+  assert.equal(res.status, 200, res.text);
+  assert.equal(res.json.state, "sent");
+
+  assert.equal(log.fetches.length, 1);
+  const f = log.fetches[0];
+  assert.equal(f.url, "https://api.brevo.com/v3/smtp/email");
+  // Brevo's key header, and NOT Resend's bearer -- a leftover Authorization
+  // header would send the wrong account's credential to a third party.
+  assert.equal(f.headers["api-key"], "brevo-test-key");
+  assert.equal(f.headers.Authorization, undefined);
+
+  // Brevo's own field names. A payload in Resend's shape is accepted by
+  // nothing, and a half-translated one loses whichever field was forgotten.
+  assert.deepEqual(f.body.sender, { email: MAIL_FROM_BARE, name: "Acme Fence Co" });
+  assert.deepEqual(f.body.to, [{ email: "jane@example.org" }]);
+  assert.deepEqual(f.body.cc, [{ email: "bob@example.org" }]);
+  assert.deepEqual(f.body.bcc, [{ email: "partner@supplier.example.com" }]);
+  assert.deepEqual(f.body.replyTo, { email: "office@acmefence.com" });
+  assert.equal(typeof f.body.htmlContent, "string");
+  assert.equal(typeof f.body.textContent, "string");
+  assert.match(f.body.textContent, /Sent by Acme Fence Co using FenceFlow/);
+  // Threading survives the change of provider. Without this header every
+  // reply starts a new conversation.
+  assert.match(f.body.headers["Message-ID"], /^<[0-9a-f-]{36}@send\.fenceflowapp\.com>$/);
+  assert.ok(!Object.keys(f.body.headers).some((h) => /bcc/i.test(h)));
+  // Resend's spellings must not be there at all.
+  for (const stale of ["from", "html", "text", "reply_to", "attachments"]) {
+    assert.equal(f.body[stale], undefined, `the Brevo payload still carries Resend's \`${stale}\``);
+  }
+
+  // The rest of the pipeline is untouched: claimed, settled, counted, linked.
+  const [row] = sends();
+  assert.equal(row.send_state, "sent");
+  // Stored WITHOUT the angle brackets: Brevo answers with a Message-ID, and
+  // the column holds the id, not the header syntax.
+  assert.equal(row.provider_message_id, "201705101337.3487@smtp-relay.mailin.fr");
+  assert.deepEqual(world.events.map((e) => e.kind), ["send_resend"]);
+  assertNothingLeaked();
+
+  delete ENV.BREVO_API_KEY;
+});
+
+test("brevo: the same refusals mean the same things, and no answer is never 'failed'", async () => {
+  // The caller's whole error handling rests on these. A 5xx or a timeout must
+  // leave the message 'sending' -- it may have gone, and calling it failed
+  // invites a retry that sends it twice.
+  for (const [status, expectState] of [[500, "sending"], [503, "sending"]]) {
+    resetWorld();
+    fenceflowEnv();
+    ENV.BREVO_API_KEY = "brevo-test-key";
+    world.db.mail_platform_settings[0].sender_provider = "brevo";
+    const { deps } = makeDeps({
+      fetchImpl: async () => new Response(JSON.stringify({ code: "server_error", message: "upstream" }), { status }),
+    });
+    const res = await call(sendBody("fenceflow"), deps);
+    assert.equal(res.json.state, expectState, `brevo ${status}: ${res.text}`);
+    assert.equal(res.json.unconfirmed, true, `brevo ${status} must read as unconfirmed`);
+    assert.equal(sends()[0].send_state, "sending");
+  }
+
+  // A refused key is the server's problem, said as such.
+  resetWorld();
+  fenceflowEnv();
+  ENV.BREVO_API_KEY = "brevo-test-key";
+  world.db.mail_platform_settings[0].sender_provider = "brevo";
+  const { deps } = makeDeps({
+    fetchImpl: async () => new Response(JSON.stringify({ code: "unauthorized", message: "Key not found" }), { status: 401 }),
+  });
+  const res = await call(sendBody("fenceflow"), deps);
+  assert.equal(res.json.state, "failed", res.text);
+  assert.equal(res.json.error_code, "not_configured");
+  // Brevo's key must never be echoed back to the caller.
+  assert.ok(!res.text.includes("brevo-test-key"));
+  assertNothingLeaked();
+
+  delete ENV.BREVO_API_KEY;
+});
+
+test("brevo: selected but unconfigured is refused BEFORE anything is recorded or spent, and says which key is missing", async () => {
+  resetWorld();
+  fenceflowEnv();
+  delete ENV.BREVO_API_KEY;
+  world.db.mail_platform_settings[0].sender_provider = "brevo";
+  const { deps, log } = makeDeps();
+  const res = await call(sendBody("fenceflow"), deps);
+  // 503, which is what not_configured maps to -- the server is not ready, not
+  // the request being wrong.
+  assert.equal(res.status, 503, res.text);
+  assert.equal(res.json.error_code, "not_configured");
+  assert.match(res.json.message + (res.json.detail ?? ""), /BREVO_API_KEY/);
+  assert.equal(log.fetches.length, 0, "it tried to send with no key");
+  assert.equal(sends().length, 0, "a message was recorded for a send that could not happen");
+  assert.equal(world.events.length, 0, "the rate budget was spent on a send that could not happen");
+});
+
+test("CONTROL: with the setting absent or unreadable, mail still goes out through Resend", async () => {
+  // The fallback must be the provider that is already configured and already
+  // paid for. A setting nobody has touched, or a read that fails, must not
+  // route mail to a service with no key.
+  resetWorld();
+  fenceflowEnv();
+  delete world.db.mail_platform_settings[0].sender_provider;
+  const { deps, log } = makeDeps();
+  const res = await call(sendBody("fenceflow"), deps);
+  assert.equal(res.json.state, "sent", res.text);
+  assert.equal(log.fetches[0].url, "https://api.resend.com/emails");
+  assert.equal(log.fetches[0].headers.Authorization, `Bearer ${API_KEY}`);
+  assertNothingLeaked();
+});
+
 test("PLANTED: FenceFlow mail sends one client_send_id at most once -- a retry, and a request that loses the race to the claim, fetch nothing", async () => {
   resetWorld();
   fenceflowEnv();

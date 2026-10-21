@@ -231,6 +231,41 @@ object AdminRepository {
         Unit
     }
 
+    // ------------------------------------------------- which service sends
+    //
+    // PLATFORM-WIDE, one row, and a change here moves every company's
+    // FenceFlow mail at once -- which is why it is an admin function with the
+    // second factor behind it, and why the screen asks before it flips.
+    // A company's OWN connected mailbox is untouched either way; this only
+    // decides what "FenceFlow mail" means.
+
+    /** Which service carries FenceFlow mail: "resend" or "brevo". */
+    suspend fun mailSender(): Result<String> = io {
+        SupabaseModule.client.postgrest.from("mail_platform_settings")
+            .select(io.github.jan.supabase.postgrest.query.Columns.list("sender_provider")) {
+                filter { eq("id", 1) }
+            }
+            .decodeSingleOrNull<SenderRow>()?.senderProvider ?: "resend"
+    }
+
+    /**
+     * Switch it. The server refuses anything but the two it knows, and refuses
+     * anyone who is not a platform admin on an AAL2 session -- so this cannot
+     * quietly do nothing the way a policy-filtered UPDATE would.
+     */
+    suspend fun setMailSender(provider: String): Result<Unit> = io {
+        SupabaseModule.client.postgrest.rpc(
+            "admin_set_mail_sender",
+            buildJsonObject { put("provider", provider) }
+        )
+        Unit
+    }
+
+    @Serializable
+    private data class SenderRow(
+        @SerialName("sender_provider") val senderProvider: String = "resend"
+    )
+
     /** Stop a group of errors being reported again until it recurs. */
     suspend fun markErrorsSeen(message: String, whereAt: String): Result<Unit> = io {
         SupabaseModule.client.postgrest.rpc(
