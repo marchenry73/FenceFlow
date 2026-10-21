@@ -1712,7 +1712,46 @@
     </div>
 
     <div id="tab-time" style="display:none">
-      <div class="panel">
+      <!-- ONE FILTER BAR FOR THE WHOLE TAB.
+           Until 21 October 2026 this tab had no filter anywhere: it was a
+           lifetime worksheet, every shift the company had ever logged, three
+           tables deep. "The time is too unorganized."
+           The range below drives all three views, so they cannot disagree
+           about which shifts they are talking about -- the single most
+           common fault in other products' reporting screens. -->
+      <div class="panel filters">
+        <div class="chips" id="timePresets">
+          <button class="chip" data-range="week" data-t="timeRangeThisWeek">This week</button>
+          <button class="chip" data-range="lastweek" data-t="timeRangeLastWeek">Last week</button>
+          <button class="chip" data-range="30" data-t="timeRange30">Last 30 days</button>
+          <button class="chip" data-range="90" data-t="timeRange90">Last 90 days</button>
+          <!-- ALL TIME IS THE DEFAULT, against the research, and on purpose.
+               Every employer product opens on the current pay week, because
+               they assume a week of shifts exists. This company has twelve
+               shifts in its whole history; opening on "This week" would show
+               an empty tab and read as broken. The week is one click away,
+               and when a company logs enough hours for a week to be the
+               obvious unit, this default is the thing to change. -->
+          <button class="chip on" data-range="all" data-t="timeRangeAll">All time</button>
+        </div>
+        <div class="range">
+          <div><label data-t="timeFilterWho">Who</label>
+            <select id="timeWho"><option value="" data-t="reportsFilterAll">All</option></select></div>
+          <div><label data-t="timeFilterJob">Job</label>
+            <select id="timeJob"><option value="" data-t="reportsFilterAll">All</option></select></div>
+        </div>
+        <div id="timeRangeLabel" class="range-label"></div>
+      </div>
+
+      <!-- WHAT NEEDS LOOKING AT, counted and clickable. Every time-keeping
+           product an employer actually uses leads with this; a flat list
+           leaves the owner to find a missing clock-out by reading. -->
+      <div class="chips" id="timeFlags" style="margin-bottom:10px"></div>
+
+      <!-- One view at a time, the same shape as the Reports tab. -->
+      <div class="chips reptabs" id="timeViewTabs"></div>
+
+      <div class="panel" data-tview="entries">
         <h2 data-t="timeHead">Clock In / Out</h2>
         <div class="scroll"><table>
           <thead><tr><th data-t="timeColWho">Who</th><th data-t="timeColJob">Job</th><th data-t="timeColStarted">Started</th><th data-t="timeColEnded">Ended</th><th data-t="timeColHours">Hours</th><th data-t="timeColLabor">Labor cost</th><th></th></tr></thead>
@@ -1722,7 +1761,7 @@
         <div class="msg" id="timeMsg"></div>
       </div>
 
-      <div class="panel">
+      <div class="panel" data-tview="weekly">
         <h2 data-t="timesheetHead">Weekly timesheet</h2>
         <p class="sub"><span data-t="timesheetBody1a">Who worked what, by week, so a shift that looks wrong is easy to
           spot. A day marked </span><i data-t="timesheetBodyCorrectedWord">corrected</i><span data-t="timesheetBody1b"> means the hours shown are not what the clock
@@ -1741,7 +1780,7 @@
         <div class="empty" id="timesheetEmpty" style="display:none" data-t="timesheetEmptyMsg">No finished shifts yet.</div>
       </div>
 
-      <div class="panel">
+      <div class="panel" data-tview="pay">
         <h2 data-t="payHead">Estimated pay</h2>
         <p class="sub" data-t="payBody">What these hours come to, by person and by week. This is an
           estimate from the hours in FenceFlow &mdash; it is not payroll, nothing is
@@ -4178,6 +4217,16 @@ jobViewAll:'All', jobViewToday:'Today', jobViewWeek:'This week', jobViewUnschedu
     timeEmptyMsg:'No time logged yet. Crews clock in from the phone app.',
     timeClockSaid:'clock said %s', timeBreakNote:'&minus; %sm unpaid break',
     timeCorrectBtn:'Correct', timeTotalsLine:'Total: %s hours · %s labor',
+    timeRangeThisWeek:'This week', timeRangeLastWeek:'Last week',
+    timeRange30:'Last 30 days', timeRange90:'Last 90 days', timeRangeAll:'All time',
+    timeFilterWho:'Who', timeFilterJob:'Job',
+    timeRangeLabelLine:'%s shifts \u00b7 %s hours',
+    timeRangeEmptyLine:'Nothing in this range. %s shifts in total \u2014 try All time.',
+    timeFlagRunning:'%s still clocked in', timeFlagOverlap:'%s overlapping',
+    timeFlagNoWorker:'%s with no worker', timeFlagNoJob:'%s with no job',
+    timeFlagLong:'%s over 14 hours', timeFlagCorrected:'%s corrected',
+    timeFlagWaiting:'%s waiting for approval',
+    payrollExcludedLine:'%s finished shifts were left out \u2014 they are not approved yet.',
     timesheetHead:'Weekly timesheet',
     timesheetBody1a:'Who worked what, by week, so a shift that looks wrong is easy to spot. A day marked ',
     timesheetBodyCorrectedWord:'corrected',
@@ -5966,6 +6015,16 @@ jobViewAll:'Todos', jobViewToday:'Hoy', jobViewWeek:'Esta semana', jobViewUnsche
     timeEmptyMsg:'Todavía no hay horas registradas. Las cuadrillas marcan entrada desde el celular.',
     timeClockSaid:'el reloj marcó %s', timeBreakNote:'&minus; %s min de descanso sin pagar',
     timeCorrectBtn:'Corregir', timeTotalsLine:'Total: %s horas · %s de mano de obra',
+    timeRangeThisWeek:'Esta semana', timeRangeLastWeek:'Semana pasada',
+    timeRange30:'\u00daltimos 30 d\u00edas', timeRange90:'\u00daltimos 90 d\u00edas', timeRangeAll:'Todo el tiempo',
+    timeFilterWho:'Qui\u00e9n', timeFilterJob:'Trabajo',
+    timeRangeLabelLine:'%s turnos \u00b7 %s horas',
+    timeRangeEmptyLine:'Nada en este rango. %s turnos en total \u2014 pruebe Todo el tiempo.',
+    timeFlagRunning:'%s a\u00fan marcados', timeFlagOverlap:'%s superpuestos',
+    timeFlagNoWorker:'%s sin trabajador', timeFlagNoJob:'%s sin trabajo',
+    timeFlagLong:'%s de m\u00e1s de 14 horas', timeFlagCorrected:'%s corregidos',
+    timeFlagWaiting:'%s esperando aprobaci\u00f3n',
+    payrollExcludedLine:'%s turnos terminados quedaron fuera \u2014 todav\u00eda no est\u00e1n aprobados.',
     timesheetHead:'Hoja de horas semanal',
     timesheetBody1a:'Quién trabajó qué, por semana, para que un turno que se ve raro sea fácil de detectar. Un día marcado ',
     timesheetBodyCorrectedWord:'corregido',
@@ -7724,6 +7783,16 @@ jobViewAll:'Tous', jobViewToday:'Aujourdhui', jobViewWeek:'Cette semaine', jobVi
     timeEmptyMsg:'Aucune heure enregistrée pour l’instant. Les équipes pointent depuis le téléphone.',
     timeClockSaid:'l’horloge indiquait %s', timeBreakNote:'&minus; %s min de pause non payée',
     timeCorrectBtn:'Corriger', timeTotalsLine:'Total : %s heures · %s de main-d’œuvre',
+    timeRangeThisWeek:'Cette semaine', timeRangeLastWeek:'Semaine derni\u00e8re',
+    timeRange30:'30 derniers jours', timeRange90:'90 derniers jours', timeRangeAll:'Depuis toujours',
+    timeFilterWho:'Qui', timeFilterJob:'Chantier',
+    timeRangeLabelLine:'%s quarts \u00b7 %s heures',
+    timeRangeEmptyLine:'Rien dans cette p\u00e9riode. %s quarts au total \u2014 essayez Depuis toujours.',
+    timeFlagRunning:'%s encore point\u00e9s', timeFlagOverlap:'%s qui se chevauchent',
+    timeFlagNoWorker:'%s sans employ\u00e9', timeFlagNoJob:'%s sans chantier',
+    timeFlagLong:'%s de plus de 14 heures', timeFlagCorrected:'%s corrig\u00e9s',
+    timeFlagWaiting:'%s en attente d\u2019approbation',
+    payrollExcludedLine:'%s quarts termin\u00e9s ont \u00e9t\u00e9 exclus \u2014 ils ne sont pas encore approuv\u00e9s.',
     timesheetHead:'Feuille de temps hebdomadaire',
     timesheetBody1a:'Qui a travaillé quoi, par semaine, pour repérer facilement un quart qui semble anormal. Un jour marqué ',
     timesheetBodyCorrectedWord:'corrigé',
@@ -15089,14 +15158,221 @@ function shiftWhoName(t){
   return tr(shiftNeedsAWorker(t) ? 'timeWhoNobody' : 'timeWhoGone');
 }
 
+/* ---------- the Time tab's one filter --------------------------------
+ *
+ * Three tables on this tab, and before today all three read every shift the
+ * company had ever logged. The range, the person and the job below are read
+ * by all three, because three panels answering the same question about
+ * different sets of shifts is how an owner stops trusting the numbers.
+ *
+ * THE WEEKLY TABLES TAKE WHOLE WEEKS. Regular and overtime are split by the
+ * week's total, so half a week of shifts would report overtime that is
+ * simply wrong -- not rounded, wrong, and it is pay. So the two weekly
+ * views widen the range to every week the range touches, and the label says
+ * so. The entry list below stays exactly on the dates asked for.
+ */
+let timeFilter = { range: 'all', who: '', job: '' };
+let timeFilterWired = false;
+
+/* Wired once, from renderTime, because the markup is in the page from the
+   start but renderTime is the only thing that knows the tab is in use. */
+function wireTimeFilter(){
+  if (timeFilterWired) return;
+  timeFilterWired = true;
+  document.querySelectorAll('#timePresets .chip').forEach(b =>
+    b.addEventListener('click', () => {
+      timeFilter.range = b.dataset.range;
+      document.querySelectorAll('#timePresets .chip').forEach(o => o.classList.toggle('on', o === b));
+      renderTime();
+    }));
+  const who = $('timeWho'), job = $('timeJob');
+  if (who) who.addEventListener('change', () => { timeFilter.who = who.value; renderTime(); });
+  if (job) job.addEventListener('change', () => { timeFilter.job = job.value; renderTime(); });
+}
+
+function timeRangeBounds(){
+  const now = new Date();
+  if (timeFilter.range === 'all') return { from: null, to: null };
+  if (timeFilter.range === 'week' || timeFilter.range === 'lastweek') {
+    const ws = weekStart(timeFilter.range === 'week' ? now : new Date(now.getTime() - 7 * 864e5));
+    return { from: ws.getTime(), to: ws.getTime() + 7 * 864e5 };
+  }
+  const days = Number(timeFilter.range) || 30;
+  return { from: now.getTime() - days * 864e5, to: now.getTime() + 864e5 };
+}
+
+/* Person and job only. The date is applied separately, because the weekly
+   views need whole weeks and the entry list does not. */
+function timesByWhoAndJob(){
+  return times.filter(t => {
+    if (timeFilter.who && shiftWhoName(t) !== timeFilter.who) return false;
+    if (timeFilter.job && t.job_sync_id !== timeFilter.job) return false;
+    return true;
+  });
+}
+
+function timesInRange(){
+  const { from, to } = timeRangeBounds();
+  if (from === null) return timesByWhoAndJob();
+  return timesByWhoAndJob().filter(t => {
+    const ms = d(t.started_at).getTime();
+    return ms >= from && ms < to;
+  });
+}
+
+/* Every WHOLE week the range touches -- see the note above about overtime. */
+function timesInWholeWeeks(){
+  const { from } = timeRangeBounds();
+  if (from === null) return timesByWhoAndJob();
+  const weeks = new Set(timesInRange().map(t => weekStart(t.started_at).toISOString().slice(0, 10)));
+  return timesByWhoAndJob().filter(t => weeks.has(weekStart(t.started_at).toISOString().slice(0, 10)));
+}
+
+/* WHAT NEEDS LOOKING AT. Each is a real fault an employer has to chase, and
+   each is counted from the shifts currently in view rather than from all of
+   time, so a count of zero means zero HERE and the label says which range. */
+/* TWO SHIFTS FOR THE SAME PERSON THAT OVERLAP ARE HOURS PAID TWICE.
+   Toggl and ServiceTitan both flag this and nothing here did; there is one
+   such pair in the live data today. Computed once per render over the
+   shifts in view rather than per row, which would be quadratic on every
+   cell. Only ended shifts: a running one has no end to overlap with. */
+let timeOverlapIds = new Set();
+function findTimeOverlaps(pool){
+  const ids = new Set();
+  const byWho = new Map();
+  for (const t of pool) {
+    if (!t.ended_at || !t.employee_sync_id) continue;
+    const list = byWho.get(t.employee_sync_id) || [];
+    list.push(t);
+    byWho.set(t.employee_sync_id, list);
+  }
+  for (const list of byWho.values()) {
+    list.sort((a, b) => d(a.started_at) - d(b.started_at));
+    for (let i = 1; i < list.length; i++) {
+      const prev = list[i - 1], cur = list[i];
+      if (d(cur.started_at) < d(prev.ended_at)) { ids.add(prev.id); ids.add(cur.id); }
+    }
+  }
+  return ids;
+}
+
+const TIME_FLAGS = [
+  { key: 'running',  labelKey: 'timeFlagRunning',  test: t => !t.ended_at },
+  { key: 'overlap',  labelKey: 'timeFlagOverlap',  test: t => timeOverlapIds.has(t.id) },
+  { key: 'noworker', labelKey: 'timeFlagNoWorker', test: t => shiftNeedsAWorker(t) },
+  { key: 'nojob',    labelKey: 'timeFlagNoJob',    test: t => !t.job_sync_id },
+  { key: 'long',     labelKey: 'timeFlagLong',     test: t => !!t.ended_at && hoursOf(t) > 14 },
+  { key: 'corrected',labelKey: 'timeFlagCorrected',test: t => !!(t.original_started_at || t.original_ended_at) },
+  { key: 'waiting',  labelKey: 'timeFlagWaiting',  test: t => !!t.ended_at && !t.approved_at && !t.rejected_at },
+];
+let timeFlag = '';
+
+function renderTimeFlags(pool){
+  const host = $('timeFlags');
+  if (!host) return;
+  host.innerHTML = '';
+  for (const f of TIME_FLAGS) {
+    const n = pool.filter(f.test).length;
+    // A flag with nothing wrong is not shown. Six permanent zeroes is
+    // another wall to read past, which is the thing being fixed.
+    if (!n) continue;
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'chip' + (timeFlag === f.key ? ' on' : '');
+    b.textContent = tr(f.labelKey, n);
+    b.addEventListener('click', () => { timeFlag = (timeFlag === f.key) ? '' : f.key; renderTime(); });
+    host.appendChild(b);
+  }
+}
+
+function showTimeView(name){
+  const panels = Array.from(document.querySelectorAll('#tab-time [data-tview]'));
+  if (!panels.length) return;
+  const chosen = panels.some(p => p.dataset.tview === name) ? name : panels[0].dataset.tview;
+  panels.forEach(p => { p.style.display = p.dataset.tview === chosen ? '' : 'none'; });
+  document.querySelectorAll('#timeViewTabs .chip').forEach(b =>
+    b.classList.toggle('on', b.dataset.tview === chosen));
+  try { localStorage.setItem('ff-time-view', chosen); } catch (e) {}
+}
+
+function buildTimeViewTabs(){
+  const host = $('timeViewTabs');
+  if (!host || host.children.length) return;
+  document.querySelectorAll('#tab-time [data-tview]').forEach(p => {
+    const head = p.querySelector('h2[data-t]');
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'chip';
+    b.dataset.tview = p.dataset.tview;
+    if (head) { b.setAttribute('data-t', head.getAttribute('data-t')); b.textContent = head.textContent; }
+    else b.textContent = p.dataset.tview;
+    b.addEventListener('click', () => showTimeView(p.dataset.tview));
+    host.appendChild(b);
+  });
+  let saved = null;
+  try { saved = localStorage.getItem('ff-time-view'); } catch (e) {}
+  // WEEKLY FIRST, not the flat entry list. Every employer time-keeping
+  // product reviewed -- QuickBooks Time, Jobber, ClockShark, Toggl, When I
+  // Work, ServiceTitan -- opens its review screen as one row per person per
+  // week; the flat list of entries is the CORRECTION layer, reached from it.
+  // FenceFlow already had that table. It was simply third on the page,
+  // under the lifetime entry list, which is most of what made this tab
+  // 'too unorganized'.
+  showTimeView(saved || 'weekly');
+}
+
+/* The two pickers are filled from what is actually on the shifts, not from
+   the whole employee and job lists: an option that selects nothing is a
+   dead end, and on this tab it reads as lost hours. */
+function fillTimePickers(){
+  const who = $('timeWho'), job = $('timeJob');
+  if (who && who.options.length <= 1) {
+    const names = [...new Set(times.map(shiftWhoName))].sort();
+    for (const n of names) {
+      const o = document.createElement('option');
+      o.value = n; o.textContent = n;
+      who.appendChild(o);
+    }
+  }
+  if (job && job.options.length <= 1) {
+    const ids = [...new Set(times.map(t => t.job_sync_id).filter(Boolean))];
+    for (const id of ids) {
+      const j = jobBySync(id);
+      if (!j) continue;
+      const o = document.createElement('option');
+      o.value = id; o.textContent = j.customer_name || id.slice(0, 8);
+      job.appendChild(o);
+    }
+  }
+}
+
 async function renderTime(){
-  // No date filter anywhere on this tab -- it is a lifetime worksheet, every
-  // shift the company has ever logged, with a "Total" at the bottom that
-  // means exactly that. loadAll() only bounds the first paint's slice of
-  // time_entries, so this has to pull in the rest before it draws anything,
-  // the same way Reports does for its own "All time" figure.
+  // loadAll() only bounds the first paint's slice of time_entries, so this
+  // pulls in the rest before drawing -- the same way Reports does for its
+  // own "All time" figure. The filter above then decides what is shown; it
+  // used to be every shift the company had ever logged, with no way to look
+  // at one week or one person.
   await ensureFullTimes();
-  const done=times.filter(t=>t.ended_at);
+  wireTimeFilter();
+  fillTimePickers();
+  buildTimeViewTabs();
+  const inRange = timesInRange();
+  timeOverlapIds = findTimeOverlaps(inRange);
+  renderTimeFlags(inRange);
+  const flag = TIME_FLAGS.find(f => f.key === timeFlag);
+  // A flag that has gone to zero since it was clicked must not leave the
+  // table silently filtered to nothing.
+  const shown = flag && inRange.some(flag.test) ? inRange.filter(flag.test) : inRange;
+  if (flag && !inRange.some(flag.test)) timeFlag = '';
+  const done = shown.filter(t => t.ended_at);
+  // AN EMPTY RANGE MUST NOT READ AS A QUIET WEEK. If the range caught
+  // nothing while the company has hours elsewhere, say so and name the way
+  // out, rather than showing the same empty table either way.
+  const anyAtAll = times.some(t => t.ended_at);
+  $('timeRangeLabel').textContent = (!done.length && anyAtAll)
+    ? tr('timeRangeEmptyLine', times.filter(t => t.ended_at).length)
+    : tr('timeRangeLabelLine', done.length,
+        done.reduce((s, t) => s + hoursOf(t), 0).toFixed(1));
   $('timeEmpty').style.display=done.length?'none':'block';
   $('timeRows').innerHTML=done.map(t=>{
     const j=jobBySync(t.job_sync_id), h=hoursOf(t);
@@ -15163,7 +15439,10 @@ async function getOtSettings(){
    the same `times` array -- no separate read -- by person and by week. */
 function renderTimesheet(ot){
   if(!$('timesheetRows')) return;
-  const done = times.filter(t=>t.ended_at);
+  // Whole weeks, deliberately -- regular and overtime are split by the
+  // week's total, so a half week would report an overtime figure that is
+  // wrong rather than partial, and it is pay.
+  const done = timesInWholeWeeks().filter(t=>t.ended_at);
   const buckets = new Map();
   for(const t of done){
     const who = shiftWhoName(t);
@@ -15288,7 +15567,8 @@ function perFootByWeek(credits){
 
 function renderPay(ot){
   if (!$('payWeekRows')) return;
-  const done = times.filter(t => t.ended_at);
+  // Whole weeks, same reason as renderTimesheet above.
+  const done = timesInWholeWeeks().filter(t => t.ended_at);
   const buckets = new Map();
   for (const t of done) {
     const who = shiftWhoName(t);
@@ -30584,7 +30864,12 @@ $('exportPayroll').addEventListener('click',()=>{
       + 'yet. Approve the shifts in the phone app under Time, then export again.';
     return;
   }
-  $('payrollNote').textContent = '';
+  // WHAT IT LEFT BEHIND, in numbers. Payroll pays approved hours only --
+  // that is the point of approving -- but an export that silently drops
+  // four unapproved shifts looks exactly like an export that had nothing
+  // to drop, and the difference is somebody's week.
+  const skipped = (window._repExport?.times||[]).filter(t => t.ended_at && !t.approved_at).length;
+  $('payrollNote').textContent = skipped ? tr('payrollExcludedLine', skipped) : '';
   const byWho={};
   approved.forEach(t=>{
     const emp=employees.find(e=>e.sync_id===t.employee_sync_id);
