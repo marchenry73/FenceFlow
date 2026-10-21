@@ -119,7 +119,22 @@ echo "signing key present"
 echo
 
 # --- build. NOTHING after this line, and no pipe. ----------------------------
-export JAVA_HOME=/c/Users/march/.jdks/jdk-17.0.20+8
+# The JDK. Pinned deliberately: Android Studio's bundled JBR is Java 25 and
+# this build dies against it with a bare "25.0.2" and no explanation. Until
+# 21 October 2026 this was one hardcoded path that no longer existed, so the
+# export named a missing directory and the build went hunting for a compiler
+# elsewhere. Candidates in order, first one that is there wins.
+JAVA_HOME=""
+for CAND in "/c/Program Files/Eclipse Adoptium/jdk-17.0.20.101-hotspot" "/c/Users/march/.jdks/jdk-17.0.20+8"; do
+  if [ -d "$CAND/bin" ]; then JAVA_HOME="$CAND"; break; fi
+done
+if [ -z "$JAVA_HOME" ]; then
+  echo "REFUSING: no JDK 17 found in any known location, and the bundled JBR is"
+  echo "Java 25, which this build cannot use. Install Temurin 17 or add the path"
+  echo "to the list in this script."
+  exit 7
+fi
+export JAVA_HOME
 echo "JAVA_HOME   $JAVA_HOME"
 echo "building... (this is the slow part; watch $LOG)"
 cd "$WT" || exit 1
