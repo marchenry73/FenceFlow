@@ -52,9 +52,11 @@
  * own login rather than a key stored anywhere.
  */
 import { execFileSync, spawnSync } from "node:child_process";
-import { writeFileSync, rmSync, existsSync, readdirSync, copyFileSync, statSync } from "node:fs";
+import { writeFileSync, rmSync, existsSync, readdirSync, copyFileSync, statSync, mkdirSync, renameSync, createReadStream, createWriteStream } from "node:fs";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
+import { createGzip } from "node:zlib";
+import { pipeline } from "node:stream/promises";
 
 const PROJECT_REF = "newcrgafcptspmapacrx";
 const REPO_ROOT = resolve(import.meta.dirname, "..");
@@ -690,6 +692,69 @@ select version_code, version_name, is_mandatory, download_url, audience from pub
 order by version_code desc limit 1;
 `;
 
+// KEEPING THIS BUILD'S MAPPING, SO THE NEXT CRASH HAS NAMES IN IT
+//
+// The link build renames every class, so a crash report reads
+// "r4.j cannot be cast to c0.a". The only thing that turns that back into
+// source is the mapping.txt R8 wrote during THAT build, and Gradle overwrites
+// it on the next one. On 21 October 2026 a fatal crash on the jobs screen --
+// reported seven times across 1.519, 1.532, 1.577 and 1.687, so five months of
+// it -- could not be read for exactly that reason: the only mapping left on
+// disk belonged to a build eighteen commits later, where even the obfuscated
+// package letters had moved. The bug class was identifiable, the line was not.
+//
+// So each published version keeps its own copy: compressed, outside git,
+// newest few only. After the row goes in, because a mapping for a version
+// nobody is running is just disk.
+const MAPPING_REL = "app/build/outputs/mapping/link/mapping.txt";
+const MAPPING_DIR = join(REPO_ROOT, "build-archive", "mappings");
+const MAPPINGS_KEPT = 8;
+
+async function archiveMapping(versionCode) {
+  const src = join(REPO_ROOT, ...MAPPING_REL.split("/"));
+  if (!existsSync(src)) {
+    console.warn("");
+    console.warn("No " + MAPPING_REL + " to keep, so a crash in " + versionCode);
+    console.warn("would arrive as scrambled class names with nothing to read it against.");
+    return;
+  }
+  // The mapping has to belong to the APK that was just published. Both are
+  // written by the same assembleLink, so a mapping much older than the APK is
+  // a leftover from an earlier build -- worse than none, because it looks
+  // authoritative and names the wrong classes.
+  if (existsSync(apk) && statSync(src).mtimeMs < statSync(apk).mtimeMs - 30 * 60 * 1000) {
+    console.warn("");
+    console.warn(MAPPING_REL + " is older than the APK, so it belongs to an");
+    console.warn("earlier build and would name the wrong classes. Not kept.");
+    return;
+  }
+  const out = join(MAPPING_DIR, "mapping-" + versionCode + ".txt.gz");
+  if (existsSync(out)) return;
+  mkdirSync(MAPPING_DIR, { recursive: true });
+  // Written to .part and renamed, so an interrupted compress cannot leave a
+  // truncated file sitting there under the name of a complete one.
+  const part = out + ".part";
+  try {
+    await pipeline(createReadStream(src), createGzip({ level: 9 }), createWriteStream(part));
+    renameSync(part, out);
+  } catch (e) {
+    rmSync(part, { force: true });
+    console.warn("");
+    console.warn("Could not keep the mapping: " + String(e.message).split(". ")[0]);
+    return;
+  }
+  const mb = (statSync(out).size / 1048576).toFixed(1);
+  console.log("");
+  console.log("Kept this build's mapping: build-archive/mappings/mapping-" + versionCode + ".txt.gz (" + mb + " MB)");
+  console.log("A crash reported from " + versionCode + " can be read back against it.");
+
+  const kept = readdirSync(MAPPING_DIR)
+    .map((f) => ({ f, m: /^mapping-([0-9]+)[.]txt[.]gz$/.exec(f) }))
+    .filter((e) => e.m !== null)
+    .sort((a, b) => Number(b.m[1]) - Number(a.m[1]));
+  for (const e of kept.slice(MAPPINGS_KEPT)) rmSync(join(MAPPING_DIR, e.f), { force: true });
+}
+
 const file = join(tmpdir(), `ff-release-${process.pid}.sql`);
 writeFileSync(file, sql);
 
@@ -727,6 +792,8 @@ try {
     ? "\nOnly signed-in phones at the named companies will prompt next time the app is opened."
     : "\nEvery phone will prompt next time the app is opened.");
   console.log("Make sure the APK in that folder is this build.");
+
+  await archiveMapping(code);
 } finally {
   rmSync(file, { force: true });
 }

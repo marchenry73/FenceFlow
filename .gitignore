@@ -81,3 +81,8 @@ dashboard.html.bak-office-recipient
 # Deploy and publish logs, named rather than globbed (see the block above).
 deploy-[0-9]*.log
 publish-[0-9]*.log
+
+# R8 mapping files kept per published version by scripts/publish-release.mjs, so a
+# crash report from a release can be read back into real class names. Megabytes
+# of generated build output, named rather than globbed (see the block above).
+build-archive/
