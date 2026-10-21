@@ -1055,6 +1055,16 @@
   </div>
 </header>
 
+<!-- WHY YOU CANNOT EDIT, said once, across the whole width.
+     The header has always shown `email - ROLE`, and under the Settings tab
+     there was a grey note about crew-level access. Both were missed: on
+     21 October 2026 the owner of the business reported being restricted
+     everywhere and unable to save, and the database proved his OWNER
+     account could do all of it. A page that refuses has to say who it is
+     refusing, where the refusal is -- not in a panel further down. -->
+<div id="roleStrip" style="display:none;padding:10px 14px;font-size:13px;line-height:1.4;
+     border-bottom:1px solid var(--line);text-align:center"></div>
+
 <div id="booting" data-t="bootLoadingMsg">Loading your office…</div>
 
 <!-- The only warning anywhere in the product was a red strip on the PHONE in
@@ -3608,7 +3618,11 @@ jobViewAll:'All', jobViewToday:'Today', jobViewWeek:'This week', jobViewUnschedu
     loadWarningPrefix:'Some data didn\'t load and is being shown as empty:',
     errNetwork:'Could not reach FenceFlow. Check your internet connection and try again.',
     errSession:'Your sign-in has expired. Reload the page and sign in again.',
-    errPermission:'Your account is not allowed to make this change. Ask the owner if it should be.',
+    errPermission:'Your account is not allowed to make this change. You are signed in as %s. Ask the owner if it should be.',
+    errGrantMissing:'FenceFlow is missing a database permission for %s. That is a fault on our side, not with your account -- send this message on and it can be fixed.',
+    roleStripReadOnly:'Read-only. You are signed in as %s, and that role cannot change anything here. Sign in as the owner to make changes.',
+    roleStripLoadFailed:'Your account could not be read, so nothing on this page can be saved: %s',
+    roleStripSignOut:'Sign out',
     errDuplicate:'That already exists, so it was not added again.',
     errLinked:'Other records still depend on this, so it cannot be changed that way.',
     errInvalid:'One of the values is not valid. Check the fields and try again.',
@@ -5390,7 +5404,11 @@ jobViewAll:'Todos', jobViewToday:'Hoy', jobViewWeek:'Esta semana', jobViewUnsche
     loadWarningPrefix:'Algunos datos no se cargaron y se muestran como vacíos:',
     errNetwork:'No se pudo conectar con FenceFlow. Revise su conexión a internet e inténtelo de nuevo.',
     errSession:'Su sesión expiró. Recargue la página e inicie sesión de nuevo.',
-    errPermission:'Su cuenta no tiene permiso para hacer este cambio. Pregúntele al propietario si debería tenerlo.',
+    errPermission:'Su cuenta no tiene permiso para hacer este cambio. Ha iniciado sesión como %s. Pregúntele al propietario si debería tenerlo.',
+    errGrantMissing:'A FenceFlow le falta un permiso de base de datos para %s. Es una falla de nuestro lado, no de su cuenta -- envíe este mensaje y se puede corregir.',
+    roleStripReadOnly:'Solo lectura. Ha iniciado sesión como %s, y ese rol no puede cambiar nada aquí. Inicie sesión como propietario para hacer cambios.',
+    roleStripLoadFailed:'No se pudo leer su cuenta, así que nada en esta página se puede guardar: %s',
+    roleStripSignOut:'Cerrar sesión',
     errDuplicate:'Eso ya existe, así que no se agregó de nuevo.',
     errLinked:'Otros registros todavía dependen de esto, así que no se puede cambiar de esa forma.',
     errInvalid:'Uno de los valores no es válido. Revise los campos e inténtelo de nuevo.',
@@ -7142,7 +7160,11 @@ jobViewAll:'Tous', jobViewToday:'Aujourdhui', jobViewWeek:'Cette semaine', jobVi
     loadWarningPrefix:'Certaines données n\'ont pas pu être chargées et sont affichées comme vides :',
     errNetwork:'Impossible de joindre FenceFlow. Vérifiez votre connexion internet et réessayez.',
     errSession:'Votre session a expiré. Rechargez la page et reconnectez-vous.',
-    errPermission:'Votre compte n’est pas autorisé à faire cette modification. Demandez au propriétaire si c’est normal.',
+    errPermission:'Votre compte n’est pas autorisé à faire cette modification. Vous êtes connecté en tant que %s. Demandez au propriétaire si c’est normal.',
+    errGrantMissing:'Il manque à FenceFlow une permission de base de données pour %s. C’est une panne de notre côté, pas un problème de votre compte -- transmettez ce message et cela pourra être corrigé.',
+    roleStripReadOnly:'Lecture seule. Vous êtes connecté en tant que %s, et ce rôle ne peut rien modifier ici. Connectez-vous comme propriétaire pour faire des modifications.',
+    roleStripLoadFailed:'Votre compte n’a pas pu être lu, donc rien sur cette page ne peut être enregistré : %s',
+    roleStripSignOut:'Se déconnecter',
     errDuplicate:'Cet élément existe déjà, il n’a donc pas été ajouté une seconde fois.',
     errLinked:'D’autres enregistrements en dépendent encore, cela ne peut donc pas être modifié ainsi.',
     errInvalid:'Une des valeurs n’est pas valide. Vérifiez les champs et réessayez.',
@@ -10109,11 +10131,51 @@ function msg(el,text,kind){
    msg() can run before this line of the module has been reached (the
    password-recovery panel is put up in the module's first tick), and a
    top-level const read that early throws instead of saying anything. */
+/* Who the page thinks you are, for any refusal that mentions the account.
+   The header carries the same two facts; a refusal that repeats them is
+   the difference between "this is broken" and "I am on the wrong login". */
+function whoAmI(){
+  const email = (typeof user !== 'undefined' && user && user.email) ? user.email : '?';
+  const role = (profile && profile.role) ? profile.role : '?';
+  return email + ' (' + role + ')';
+}
+
+/* The strip under the header. 'warn' for a role that cannot edit, 'err' for
+   a page that could not find out what the role is. */
+function showRoleStrip(kind, text){
+  const el = $('roleStrip');
+  if (!el) return;
+  el.style.display = '';
+  el.style.background = kind === 'err' ? '#fdecea' : '#fff6e0';
+  el.style.color = kind === 'err' ? '#7a1c12' : '#6b4b00';
+  el.textContent = text + '  ';
+  const out = document.createElement('button');
+  out.className = 'btn btn-sm';
+  out.type = 'button';
+  out.textContent = tr('roleStripSignOut');
+  out.addEventListener('click', () => { try { db.auth.signOut(); } finally { location.reload(); } });
+  el.appendChild(out);
+}
+
+function hideRoleStrip(){
+  const el = $('roleStrip');
+  if (el) { el.style.display = 'none'; el.textContent = ''; }
+}
+
 function plainError(text){
   const TECH_ERRORS = [
     [/failed to fetch|networkerror|load failed|network request failed|fetch failed/i, 'errNetwork'],
     [/jwt expired|invalid jwt|refresh token not found|auth session missing/i, 'errSession'],
-    [/row-level security|permission denied for|insufficient_privilege|\b42501\b/i, 'errPermission'],
+    // SPLIT, 21 October 2026, and the order matters: the specific one
+    // first. "permission denied for column logo_path" is a GRANT that was
+    // never issued -- our bug -- and calling that "your account is not
+    // allowed to make this change" sent the owner looking at his own
+    // permissions for an hour. A row-level refusal really is about the
+    // account, so that one keeps the old wording and now names the login.
+    [/permission denied for (?:table|column|relation|function|schema|sequence|type)\s+"?([A-Za-z0-9_.]+)"?/i,
+      'errGrantMissing', (m) => [m[1] || '?']],
+    [/permission denied for/i, 'errGrantMissing', () => ['the database']],
+    [/row-level security|insufficient_privilege|\b42501\b/i, 'errPermission', () => [whoAmI()]],
     [/duplicate key value|violates unique constraint|\b23505\b/i, 'errDuplicate'],
     [/violates foreign key constraint|\b23503\b/i, 'errLinked'],
     [/violates check constraint|invalid input syntax|violates not-null constraint|\b22P02\b|\b23514\b|\b23502\b/i, 'errInvalid'],
@@ -10124,7 +10186,10 @@ function plainError(text){
   const hit = TECH_ERRORS.find(([re]) => re.test(s));
   if (!hit) return s;
   console.warn('Error shown in plain words (' + hit[1] + '):', s);
-  return tr(hit[1]);
+  // A third element supplies the %s arguments from the match, so a message
+  // can name the thing that was refused instead of being generic.
+  const args = hit[2] ? hit[2](s.match(hit[0]) || []) : [];
+  return tr(hit[1], ...args);
 }
 
 /* "When I click save changes, it should save and close." A dialog that
@@ -10415,8 +10480,26 @@ async function boot(){
     if(authMode==='signin') { try { ($('email').value ? $('password') : $('email')).focus(); } catch (e) {} }
     return;
   }
-  const {data:prof}=await db.from('profiles').select('*').eq('id',user.id).maybeSingle();
+  const {data:prof, error:profErr}=await db.from('profiles').select('*').eq('id',user.id).maybeSingle();
   profile=prof;
+  // THE READ THAT FAILED USED TO LOOK LIKE A NEW SIGN-UP.
+  //
+  // This error was discarded. A failed profile read leaves `profile` null,
+  // which falls into the branch below -- "no company yet" -- so a network
+  // blip or one ungranted column could offer to create a company for
+  // somebody who already has one, and otherwise leaves the whole office
+  // silently read-only, because canEdit() reads profile.role. That is
+  // exactly the complaint of 21 October 2026: restricted everywhere, with
+  // nothing on screen saying why.
+  //
+  // Now it stops here and says so. Nothing is created and nothing is
+  // guessed from an answer the database never gave.
+  if(profErr){
+    $('auth').style.display='none';
+    showRoleStrip('err', tr('roleStripLoadFailed', plainError(profErr.message || String(profErr))));
+    console.error('profile read failed:', profErr);
+    return;
+  }
   if(!profile||!profile.company_id){
     // An invited owner belongs on welcome.html, not here.
     //
@@ -10506,6 +10589,12 @@ async function boot(){
   // office opening, and it catches its own failures.
   renderHeaderLogo();
 
+  // Said across the top, where it cannot be scrolled past, as well as in the
+  // two panels below. The panels explain what is read-only; the strip
+  // explains WHICH LOGIN is being refused, which is the part that was
+  // costing hours.
+  if(canEdit()) hideRoleStrip();
+  else showRoleStrip('warn', tr('roleStripReadOnly', whoAmI()));
   if(!canEdit()){
     const n='<div class="note">Crew-level access: financials and settings are read-only here.</div>';
     $('jobReadonly').innerHTML=n; $('setNote').innerHTML=n;

@@ -33,6 +33,10 @@ const PROVIDED = new Set([
   "prompt", "console", "document", "window", "localStorage", "sessionStorage",
   "navigator", "location", "history", "URL", "URLSearchParams", "Blob", "File",
   "FileReader", "FormData", "Image", "Audio", "Notification", "Option",
+  // Added 21 October 2026 with the logo shrink: a standard browser API
+  // (decodes a File off the disk without an <img> round trip), and the
+  // call site already falls back to Image when it is missing.
+  "createImageBitmap",
   "atob", "btoa", "crypto", "AbortController", "TextEncoder", "TextDecoder",
   "MutationObserver", "IntersectionObserver", "ResizeObserver", "Event",
   "CustomEvent", "getComputedStyle", "matchMedia", "print", "open", "close",
