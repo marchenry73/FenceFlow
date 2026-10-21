@@ -2265,7 +2265,7 @@
              pick a file, upload it, and be told nothing. -->
         <div style="margin:14px 0;padding:12px;border:1px solid var(--line);border-radius:10px">
           <label data-t="settingsLabelLogo">Company logo</label>
-          <p style="font-size:11px;color:var(--muted);margin:2px 0 8px" data-t="settingsLogoNote">Printed on your PDF quotes and contracts, shown on the quote page your customer opens, and at the top of the emails FenceFlow sends them. PNG, JPG or WEBP, up to 2&nbsp;MB. A wide logo on a light background reads best.</p>
+          <p style="font-size:11px;color:var(--muted);margin:2px 0 8px" data-t="settingsLogoNote">Printed on your PDF quotes and contracts, shown on the quote page your customer opens, and at the top of the emails FenceFlow sends them. PNG, JPG or WEBP, up to 20&nbsp;MB -- it is shrunk here before it is sent, so a big file straight off a camera is fine. A wide logo on a light background reads best.</p>
           <p id="s_logoOwnerNote" style="display:none;font-size:11px;color:var(--muted);margin:0 0 8px" data-t="settingsLogoOwnerOnly">Only the owner can change the logo.</p>
           <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
             <!-- A checkered-ish neutral tile behind it, so a white logo with a
@@ -4227,15 +4227,16 @@ jobViewAll:'All', jobViewToday:'Today', jobViewWeek:'This week', jobViewUnschedu
     settingsEmailInvalidMsg:'The other settings saved, but the company email was left as it was — "%s" does not look like a full email address (name@domain.tld). Fix it and save again.',
     settingsCompanySaveNoRowsMsg:'The other settings saved, but your business name, phone and license number did not reach the company record your customers see — the write matched no row. The most likely cause is that this account is no longer the company owner (someone changed your role while this page was open). Sign out, sign back in, and check Settings again.',
     settingsLabelLogo:'Company logo',
-    settingsLogoNote:'Printed on your PDF quotes and contracts, shown on the quote page your customer opens, and at the top of the emails FenceFlow sends them. PNG, JPG or WEBP, up to 2 MB. A wide logo on a light background reads best.',
+    settingsLogoNote:'Printed on your PDF quotes and contracts, shown on the quote page your customer opens, and at the top of the emails FenceFlow sends them. PNG, JPG or WEBP, up to 20 MB -- it is shrunk here before it is sent, so a big file straight off a camera is fine. A wide logo on a light background reads best.',
     settingsLogoOwnerOnly:'Only the owner can change the logo.',
+    settingsLogoWhoYouAre:'You are signed in as %s, whose role here is %s.',
     settingsLogoNone:'No logo yet.',
     settingsLogoUploadBtn:'Upload',
     settingsLogoRemoveBtn:'Remove',
     settingsLogoMissing:'The logo file is missing. Upload it again.',
     settingsLogoPickFirst:'Choose an image file first.',
     settingsLogoWrongType:'That file is not a PNG, JPG or WEBP image.',
-    settingsLogoTooBig:'That file is over 2 MB. Save it smaller and try again.',
+    settingsLogoTooBig:'That file is over 20 MB, which is bigger than a photograph. Check it is the right file.',
     settingsLogoUploading:'Uploading…',
     settingsLogoSaved:'Logo saved. It is on your quotes from now on.',
     settingsLogoRemoved:'Logo removed.',
@@ -6008,15 +6009,16 @@ jobViewAll:'Todos', jobViewToday:'Hoy', jobViewWeek:'Esta semana', jobViewUnsche
     settingsEmailInvalidMsg:'Los demás ajustes se guardaron, pero el correo de la empresa se dejó como estaba — "%s" no parece una dirección de correo completa (nombre@dominio.tld). Corríjala y guarde de nuevo.',
     settingsCompanySaveNoRowsMsg:'Los demás ajustes se guardaron, pero el nombre del negocio, el teléfono y el número de licencia no llegaron al registro de la empresa que ven sus clientes — la escritura no coincidió con ninguna fila. La causa más probable es que esta cuenta ya no es la propietaria de la empresa (alguien cambió su rol mientras esta página estaba abierta). Cierre sesión, vuelva a iniciarla y revise Ajustes de nuevo.',
     settingsLabelLogo:'Logotipo de la empresa',
-    settingsLogoNote:'Se imprime en sus presupuestos y contratos en PDF, aparece en la página de presupuesto que abre su cliente y en la parte superior de los correos que FenceFlow le envía. PNG, JPG o WEBP, hasta 2 MB. Un logotipo ancho sobre fondo claro se ve mejor.',
+    settingsLogoNote:'Se imprime en sus presupuestos y contratos en PDF, aparece en la página de presupuesto que abre su cliente y en la parte superior de los correos que FenceFlow le envía. PNG, JPG o WEBP, hasta 20 MB -- se reduce aquí antes de enviarlo, así que un archivo grande de una cámara no es problema. Un logotipo ancho sobre fondo claro se ve mejor.',
     settingsLogoOwnerOnly:'Solo el propietario puede cambiar el logotipo.',
+    settingsLogoWhoYouAre:'Ha iniciado sesión como %s, cuyo rol aquí es %s.',
     settingsLogoNone:'Aún no hay logotipo.',
     settingsLogoUploadBtn:'Subir',
     settingsLogoRemoveBtn:'Quitar',
     settingsLogoMissing:'Falta el archivo del logotipo. Súbalo de nuevo.',
     settingsLogoPickFirst:'Elija primero un archivo de imagen.',
     settingsLogoWrongType:'Ese archivo no es una imagen PNG, JPG ni WEBP.',
-    settingsLogoTooBig:'Ese archivo supera los 2 MB. Guárdelo más pequeño e inténtelo de nuevo.',
+    settingsLogoTooBig:'Ese archivo supera los 20 MB, más que una fotografía. Verifique que sea el archivo correcto.',
     settingsLogoUploading:'Subiendo…',
     settingsLogoSaved:'Logotipo guardado. Desde ahora aparece en sus presupuestos.',
     settingsLogoRemoved:'Logotipo quitado.',
@@ -7759,15 +7761,16 @@ jobViewAll:'Tous', jobViewToday:'Aujourdhui', jobViewWeek:'Cette semaine', jobVi
     settingsEmailInvalidMsg:'Les autres paramètres ont été enregistrés, mais l’adresse courriel de l’entreprise n’a pas été modifiée — « %s » ne ressemble pas à une adresse courriel complète (nom@domaine.tld). Corrigez-la et enregistrez de nouveau.',
     settingsCompanySaveNoRowsMsg:'Les autres paramètres ont été enregistrés, mais le nom de l’entreprise, le téléphone et le numéro de licence n’ont pas atteint la fiche d’entreprise que vos clients voient — l’écriture n’a touché aucune ligne. La cause la plus probable est que ce compte n’est plus propriétaire de l’entreprise (quelqu’un a changé votre rôle pendant que cette page était ouverte). Déconnectez-vous, reconnectez-vous, puis vérifiez de nouveau les Paramètres.',
     settingsLabelLogo:'Logo de l’entreprise',
-    settingsLogoNote:'Imprimé sur vos devis et contrats PDF, affiché sur la page de devis que votre client ouvre, et en haut des courriels que FenceFlow lui envoie. PNG, JPG ou WEBP, jusqu’à 2 Mo. Un logo large sur fond clair se lit le mieux.',
+    settingsLogoNote:'Imprimé sur vos devis et contrats PDF, affiché sur la page de devis que votre client ouvre, et en haut des courriels que FenceFlow lui envoie. PNG, JPG ou WEBP, jusqu’à 20 Mo -- il est réduit ici avant l’envoi, donc un gros fichier d’appareil photo ne pose pas de problème. Un logo large sur fond clair se lit le mieux.',
     settingsLogoOwnerOnly:'Seul le propriétaire peut changer le logo.',
+    settingsLogoWhoYouAre:'Vous êtes connecté en tant que %s, dont le rôle ici est %s.',
     settingsLogoNone:'Pas encore de logo.',
     settingsLogoUploadBtn:'Téléverser',
     settingsLogoRemoveBtn:'Retirer',
     settingsLogoMissing:'Le fichier du logo est introuvable. Téléversez-le de nouveau.',
     settingsLogoPickFirst:'Choisissez d’abord un fichier image.',
     settingsLogoWrongType:'Ce fichier n’est pas une image PNG, JPG ou WEBP.',
-    settingsLogoTooBig:'Ce fichier dépasse 2 Mo. Enregistrez-le plus petit et réessayez.',
+    settingsLogoTooBig:'Ce fichier dépasse 20 Mo, plus qu’une photographie. Vérifiez qu’il s’agit du bon fichier.',
     settingsLogoUploading:'Téléversement…',
     settingsLogoSaved:'Logo enregistré. Il figure désormais sur vos devis.',
     settingsLogoRemoved:'Logo retiré.',
@@ -23839,12 +23842,23 @@ let sw = null; // non-null only while swOverlay is open
 
 async function openSetupWizard(){
   if(!canEdit()) return;
-  const { data: settingsRow } = await db.from('company_settings').select('settings')
-    .eq('company_id', profile.company_id).maybeSingle();
+  const [{ data: settingsRow }, { data: companyRow }] = await Promise.all([
+    db.from('company_settings').select('settings').eq('company_id', profile.company_id).maybeSingle(),
+    // THE OTHER STORE. business_name, phone and license_number live in the
+    // settings blob AND in companies.name / phone / license_no, and which one
+    // holds the real value depends on where it was last typed. The Settings
+    // tab has always preferred the live companies row; this wizard read only
+    // the blob, so a company whose name is in companies and blank in the blob
+    // opened these boxes EMPTY -- and then step-save wrote the empty string
+    // into the blob on the way past. 21 October 2026: "whatever was already
+    // input, it should stay on there, it cannot be empty."
+    db.from('companies').select('name, phone, license_no, email').eq('id', profile.company_id).maybeSingle(),
+  ]);
   sw = {
     steps: setupWizardSteps(planName),
     stepIndex: 0,
     settings: (settingsRow && settingsRow.settings) || {},
+    company: companyRow || {},
     spec: {},           // step 'build's chosen/edited template spec
     templateSyncId: null,
   };
@@ -23918,16 +23932,24 @@ async function swNext(){
 
 /* ---------- step: business ---------- */
 
+/* Whichever store actually has the value, blob first, then the companies
+   row -- the same precedence loadSettings() uses for the same three fields. */
+function swBizValue(blobKey, companyCol){
+  const fromBlob = String((sw.settings || {})[blobKey] ?? '').trim();
+  if (fromBlob !== '') return fromBlob;
+  return String((sw.company || {})[companyCol] ?? '').trim();
+}
+
 function swBusinessHtml(){
   const s = sw.settings;
   return `<div class="panel"><h2>Business</h2>
     <p class="sub" style="margin-top:0">Shown on quotes, and how a customer reaches you back.</p>
     <div class="wiz-row2">
-      <div><label>Business name</label><input id="sw_business_name" value="${esc(s.business_name||'')}"></div>
+      <div><label>Business name</label><input id="sw_business_name" value="${esc(swBizValue('business_name','name'))}"></div>
       <div><label>Owner name</label><input id="sw_owner_name" value="${esc(s.owner_name||'')}"></div>
-      <div><label>Phone</label><input id="sw_phone" value="${esc(s.phone||'')}"></div>
-      <div><label>Email</label><input id="sw_email" value="${esc(s.email||'')}"></div>
-      <div><label>License number</label><input id="sw_license" value="${esc(s.license_number||'')}"></div>
+      <div><label>Phone</label><input id="sw_phone" value="${esc(swBizValue('phone','phone'))}"></div>
+      <div><label>Email</label><input id="sw_email" value="${esc(swBizValue('email','email'))}"></div>
+      <div><label>License number</label><input id="sw_license" value="${esc(swBizValue('license_number','license_no'))}"></div>
     </div>
     <p class="sub" style="margin-top:8px">Optional -- Next moves on even with this blank, and
       "Your business details" stays on your setup checklist as a reminder until a business name
@@ -23938,14 +23960,30 @@ function swBusinessHtml(){
 function swWireBusiness(){
   $('sw_skip_business').addEventListener('click', swNext);
 }
+/* A BLANK BOX MEANS "LEAVE IT", NOT "ERASE IT".
+ *
+ * This step is explicitly skippable -- its own paragraph says Next moves on
+ * with the boxes empty -- so an empty box is somebody passing through, not
+ * somebody asking for the business name to be deleted. It used to send the
+ * empty string anyway, and save_company_settings merges, so the blank won:
+ * a company could lose its name and licence number by clicking Next.
+ *
+ * Clearing a field on purpose is still possible, on the Settings tab, where
+ * the boxes are the record rather than a step in a wizard.
+ */
 async function swSaveBusiness(){
-  const payload = {
+  const typed = {
     business_name: $('sw_business_name').value.trim(),
     owner_name: $('sw_owner_name').value.trim(),
     phone: $('sw_phone').value.trim(),
     email: $('sw_email').value.trim(),
     license_number: $('sw_license').value.trim(),
   };
+  const payload = {};
+  for (const [k, v] of Object.entries(typed)) if (v !== '') payload[k] = v;
+  // Nothing typed and nothing to write: the step is a no-op rather than a
+  // round trip that saves {} and reports success.
+  if (!Object.keys(payload).length) return true;
   Object.assign(sw.settings, payload);
   const { error } = await db.rpc('save_company_settings', { new_settings: payload });
   if(error){ msg('swMsg', error.message, 'err'); return false; }
@@ -27043,7 +27081,20 @@ async function renderCompanyLogo(path){
   const file = $('s_logoFile'), up = $('s_logoUpload'), rm = $('s_logoRemove');
   const isOwner = profile.role === 'OWNER';
   const ownerNote = $('s_logoOwnerNote');
-  if (ownerNote) ownerNote.style.display = isOwner ? 'none' : '';
+  // NAMING THE ACCOUNT, not just the rule. On 21 October 2026 this panel told
+  // the owner of the business that he was not allowed to change his own logo,
+  // and it was right: he was signed in on the second account in his company,
+  // which is CREW. A bare "only the owner can do this", shown to somebody who
+  // IS the owner, reads as a broken permission check -- and that is where the
+  // next hour goes. The role is already in the header; it belongs in the
+  // refusal too.
+  if (ownerNote) {
+    ownerNote.style.display = isOwner ? 'none' : '';
+    if (!isOwner) {
+      ownerNote.textContent = tr('settingsLogoOwnerOnly') + ' ' +
+        tr('settingsLogoWhoYouAre', user?.email || '?', profile.role || '?');
+    }
+  }
   // Enabled ONLY once this function has run with a confirmed role, which is
   // only from loadSettings() succeeding. Every other path -- first paint, a
   // failed load -- leaves the markup's own `disabled` in place.
@@ -27080,6 +27131,73 @@ async function renderCompanyLogo(path){
   renderHeaderLogo();
 }
 
+/* THE PICKED FILE IS SHRUNK BEFORE IT IS SENT.
+ *
+ * The bucket took 2 MB until 21 October 2026, and the refusal it produced
+ * ("save it smaller and try again") asked a fencing contractor to go and learn
+ * an image editor before they could put their own name on a quote. What they
+ * actually have is whatever came back from whoever drew their sign: a 4000px
+ * export, or a photograph of the sign itself. So the bucket now takes 20 MB
+ * (supabase_r22_logo_size.sql) and this makes what lands in it small.
+ *
+ * 1024px on the long edge, which is more than the PDF header can use -- a
+ * three-inch logo at 300 dpi is 900px -- and a few hundred KB once encoded.
+ *
+ * PNG IS KEPT WHEN THE IMAGE HAS TRANSPARENCY, which a logo usually does.
+ * Flattening that onto white would print a white box around the logo on every
+ * quote. JPEG is only used when the image is solid anyway, where it is several
+ * times smaller for the same result.
+ *
+ * Every failure path returns the ORIGINAL file. A shrink that does not happen
+ * means a larger upload, not a broken one -- the bucket still accepts it, and
+ * its own limits are the ones that actually hold.
+ */
+const LOGO_MAX_EDGE = 1024;
+const LOGO_MAX_BYTES = 20 * 1024 * 1024;
+
+async function shrinkLogo(file){
+  try {
+    const bmp = await (window.createImageBitmap
+      ? createImageBitmap(file)
+      : new Promise((ok, no) => {
+          const img = new Image();
+          img.onload = () => ok(img);
+          img.onerror = () => no(new Error('could not decode the image'));
+          img.src = URL.createObjectURL(file);
+        }));
+    const w0 = bmp.width, h0 = bmp.height;
+    if (!w0 || !h0) return file;
+    const scale = Math.min(1, LOGO_MAX_EDGE / Math.max(w0, h0));
+    // Already small in both senses: leave it byte for byte. Re-encoding a
+    // hand-made PNG can only lose to it.
+    if (scale === 1 && file.size <= 400 * 1024) return file;
+    const w = Math.max(1, Math.round(w0 * scale));
+    const h = Math.max(1, Math.round(h0 * scale));
+    const canvas = document.createElement('canvas');
+    canvas.width = w; canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return file;
+    ctx.imageSmoothingEnabled = true;
+    ctx.imageSmoothingQuality = 'high';
+    ctx.drawImage(bmp, 0, 0, w, h);
+    let transparent = true;   // the careful answer, used if the test cannot run
+    try {
+      const px = ctx.getImageData(0, 0, w, h).data;
+      transparent = false;
+      for (let i = 3; i < px.length; i += 4) { if (px[i] < 255) { transparent = true; break; } }
+    } catch (e) { /* keep PNG */ }
+    const type = transparent ? 'image/png' : 'image/jpeg';
+    const blob = await new Promise((ok) => canvas.toBlob(ok, type, 0.9));
+    // Only if it actually helped. A tiny crisp PNG re-encoded at 1024px can
+    // come out BIGGER, and sending the bigger one would be a silly thing to do
+    // in the name of saving space.
+    return (blob && blob.size && blob.size < file.size) ? blob : file;
+  } catch (e) {
+    console.warn('logo shrink failed, sending the original file:', e);
+    return file;
+  }
+}
+
 /**
  * Uploads the picked file and points the company at it.
  *
@@ -27106,13 +27224,22 @@ async function uploadCompanyLogo(){
   const kinds = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' };
   const ext = kinds[f.type];
   if (!ext) return msg('s_logoMsg', tr('settingsLogoWrongType'), 'err');
-  if (f.size > 2 * 1024 * 1024) return msg('s_logoMsg', tr('settingsLogoTooBig'), 'err');
+  if (f.size > LOGO_MAX_BYTES) return msg('s_logoMsg', tr('settingsLogoTooBig'), 'err');
 
+  // Said before the shrink, not after: resizing a 15 MB photograph takes a
+  // visible moment and a page that looks like it ignored the click gets
+  // clicked again.
   msg('s_logoMsg', tr('settingsLogoUploading'), 'ok');
+  const body = await shrinkLogo(f);
+  // From the file that is ACTUALLY being sent -- shrinkLogo may have turned a
+  // solid PNG into a JPEG, and a path ending .png holding JPEG bytes is the
+  // kind of thing that works until something reads the extension.
+  const sendType = body.type || f.type;
+  const sendExt = kinds[sendType] || ext;
   const previous = companyLogoPath;
-  const path = profile.company_id + '/logo-' + crypto.randomUUID() + '.' + ext;
+  const path = profile.company_id + '/logo-' + crypto.randomUUID() + '.' + sendExt;
   const { error: upErr } = await db.storage.from('company-logos')
-    .upload(path, f, { contentType: f.type, upsert: false });
+    .upload(path, body, { contentType: sendType, upsert: false });
   if (upErr) return msg('s_logoMsg', upErr.message, 'err');
 
   // .select('id') for the same reason every other write on this page does it:

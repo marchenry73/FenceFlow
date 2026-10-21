@@ -915,7 +915,7 @@ const TL = {
     driftHead:'Pricing drift',
     driftSub:'Where the office\'s price and the phone\'s on-site price disagreed on the same job.',
     colJob:'Job', colHowFarApart:'How far apart', colEngines:'Engines', colNoted:'Noted',
-    driftNoteBody:'Full cross-company visibility needs a platform-admin read policy on %s (something like %s, the same shape as the one on %s), or a SECURITY DEFINER %s RPC the way crashes and companies already have. Neither exists yet -- %s is scoped to %s, so this table can only ever show rows your own account happens to be allowed to see, typically none.',
+    driftNoteBody:'You can see every company\'s rows here -- %s grants a platform admin %s. So an empty table means no disagreement has ever been recorded, NOT that one is being hidden from you. A row is written only when the phone re-prices a job the OFFICE priced and gets a different total, so nothing can appear here until jobs are priced from the office: on 21 October 2026 none ever had been, every job reading %s instead. Marking a row seen is still company-scoped (%s, the OWNER or MANAGER of that company), so another company\'s row can be read here but not changed.',
     driftNoneVisible:'Nothing visible to this account.', driftApart:'%s apart',
     driftMarkFailed:'Could not mark it: %s',
     driftMarkNoRowsMsg:'Not marked -- the write matched no row. pricing_drift has no admin update policy yet, only one scoped to that company\'s own owner or manager, so a platform admin can see this row but cannot change it (see the note above). It needs that policy added before this button can work on another company\'s row.',
@@ -1154,7 +1154,7 @@ const TL = {
     driftHead:'Diferencia de precios',
     driftSub:'Dónde el precio de la oficina y el precio del teléfono en el sitio no coincidieron en el mismo trabajo.',
     colJob:'Trabajo', colHowFarApart:'Qué tan lejos', colEngines:'Motores', colNoted:'Notado',
-    driftNoteBody:'La visibilidad completa entre empresas necesita una política de lectura de administrador de plataforma sobre %s (algo como %s, con la misma forma que la que existe sobre %s), o una RPC %s con SECURITY DEFINER de la misma forma que ya tienen los fallos y las empresas. Ninguna existe todavía -- %s está limitada a %s, así que esta tabla solo puede mostrar las filas que su propia cuenta tenga permiso de ver, típicamente ninguna.',
+    driftNoteBody:'Aquí puede ver las filas de todas las empresas -- %s le concede a un administrador de plataforma %s. Por eso una tabla vacía significa que nunca se ha registrado ningún desacuerdo, NO que se le esté ocultando alguno. Una fila se escribe solo cuando el teléfono vuelve a calcular el precio de un trabajo que cotió la OFICINA y obtiene un total distinto, así que nada puede aparecer aquí hasta que los trabajos se coticen desde la oficina: al 21 de octubre de 2026 ninguno lo había sido, todos con %s. Marcar una fila como vista sigue limitado a la empresa (%s, el DUEÑO o GERENTE de esa empresa), así que la fila de otra empresa se puede leer aquí pero no cambiar.',
     driftNoneVisible:'Nada visible para esta cuenta.', driftApart:'%s de diferencia',
     driftMarkFailed:'No se pudo marcar: %s',
     driftMarkNoRowsMsg:'No se marcó -- la escritura no coincidió con ninguna fila. pricing_drift todavía no tiene una política de actualización para el administrador, solo una limitada al propio dueño o gerente de esa empresa, así que un administrador de la plataforma puede ver esta fila pero no puede cambiarla (vea la nota de arriba). Hace falta agregar esa política para que este botón funcione en la fila de otra empresa.',
@@ -1393,7 +1393,7 @@ const TL = {
     driftHead:'Écart de prix',
     driftSub:'Où le prix du bureau et le prix du téléphone sur place n\'étaient pas d\'accord sur le même chantier.',
     colJob:'Chantier', colHowFarApart:'Écart', colEngines:'Moteurs', colNoted:'Noté',
-    driftNoteBody:'Une visibilité complète entre entreprises a besoin d\'une politique de lecture admin-plateforme sur %s (quelque chose comme %s, de la même forme que celle sur %s), ou d\'une RPC %s en SECURITY DEFINER comme les plantages et les entreprises en ont déjà une. Aucune n\'existe encore -- %s est limitée à %s, donc cette table ne peut montrer que les lignes que votre propre compte a le droit de voir, généralement aucune.',
+    driftNoteBody:'Vous voyez ici les lignes de toutes les entreprises -- %s accorde à un admin-plateforme %s. Une table vide signifie donc qu\'aucun désaccord n\'a jamais été enregistré, et NON qu\'on vous en cache un. Une ligne n\'est écrite que lorsque le téléphone recalcule le prix d\'un chantier chiffré par le BUREAU et obtient un total différent, donc rien ne peut apparaître ici tant que les chantiers ne sont pas chiffrés depuis le bureau : au 21 octobre 2026 aucun ne l\'avait été, tous affichant %s. Marquer une ligne comme vue reste limité à l\'entreprise (%s, le PROPRIÉTAIRE ou le GÉRANT de cette entreprise), donc la ligne d\'une autre entreprise se lit ici mais ne se modifie pas.',
     driftNoneVisible:'Rien de visible pour ce compte.', driftApart:'%s d\'écart',
     driftMarkFailed:'Impossible de marquer : %s',
     driftMarkNoRowsMsg:'Non marqué -- l\'écriture n\'a touché aucune ligne. pricing_drift n\'a pas encore de politique de mise à jour pour l\'administrateur, seulement une limitée au propriétaire ou au gérant de cette entreprise, donc un administrateur de la plateforme peut voir cette ligne mais ne peut pas la modifier (voir la note ci-dessus). Il faut ajouter cette politique pour que ce bouton fonctionne sur la ligne d\'une autre entreprise.',
@@ -3085,10 +3085,18 @@ function renderDrift() {
   // inside them -- table, function and policy names a person would actually
   // grep the migrations for -- are never touched by translation, only the
   // English prose explaining them.
+  // CORRECTED 21 October 2026. This note used to say that a platform-admin
+  // read policy did not exist and that the panel could therefore only ever
+  // be empty. pricing_drift_admin_read DOES exist -- using
+  // (is_platform_admin()) -- so the emptiness had a completely different
+  // cause, and the note was sending whoever read it to go and fix the wrong
+  // thing. The real cause: no job in the product has ever been priced by the
+  // office, so the branch in JobSync that writes a drift row has never been
+  // reached. Checked the same day: priced_by was APP on 23 jobs, blank on 13,
+  // OFFICE on none.
   $('driftNote').innerHTML = tr('driftNoteBody',
-    '<code>pricing_drift</code>', '<code>using (is_platform_admin())</code>', '<code>companies</code>',
-    '<code>admin_pricing_drift()</code>', '<code>pricing_drift_read</code>',
-    '<code>company_id = current_company_id()</code>');
+    '<code>pricing_drift_admin_read</code>', '<code>using (is_platform_admin())</code>',
+    '<code>priced_by = APP</code>', '<code>pricing_drift_update</code>');
 
   if (!drift.length) {
     $('driftRows').innerHTML = `<tr><td colspan="7" style="color:var(--muted)">${esc(tr('driftNoneVisible'))}</td></tr>`;
