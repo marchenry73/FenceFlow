@@ -28,6 +28,7 @@
 // sent" reported as "failed", a password or key leaking, another person's
 // file attached, a private address dialed, a duplicate APPENDed into Sent.
 import test from "node:test";
+import * as LIMITS from "../supabase/functions/_shared/mail/limits.ts";
 import assert from "node:assert/strict";
 import { randomUUID, randomBytes } from "node:crypto";
 import { registerHooks } from "node:module";
@@ -1034,10 +1035,13 @@ test("PLANTED: one client_send_id sends at most once -- a retry, and a request t
   assert.equal(server.sessions.length, 1);
 });
 
-test("PLANTED: past 20 an hour or 200 a day nothing is claimed or sent; a ledger answer that is not a number refuses", async () => {
+test("PLANTED: past 60 an hour or 300 a day nothing is claimed or sent; a ledger answer that is not a number refuses", async () => {
+  // One PAST each limit, read from limits.ts rather than typed here, so the
+  // day somebody raises a cap this test follows it instead of going red about
+  // a number that was never the point.
   for (const [over, status, code] of [
-    [{ noteAnswer: 21 }, 429, "rate_limited"],
-    [{ dayAnswer: 201 }, 429, "rate_limited"],
+    [{ noteAnswer: LIMITS.SMTP_SENDS_PER_HOUR + 1 }, 429, "rate_limited"],
+    [{ dayAnswer: LIMITS.SMTP_SENDS_PER_DAY + 1 }, 429, "rate_limited"],
     [{ noteAnswer: "5" }, 500, "server_error"],
     [{ noteAnswer: { not: "a number" } }, 500, "server_error"],
     [{ dayAnswer: "7" }, 500, "server_error"],
@@ -1614,6 +1618,132 @@ test("brevo: selected but unconfigured is refused BEFORE anything is recorded or
   assert.equal(log.fetches.length, 0, "it tried to send with no key");
   assert.equal(sends().length, 0, "a message was recorded for a send that could not happen");
   assert.equal(world.events.length, 0, "the rate budget was spent on a send that could not happen");
+});
+
+test("fallback: a refusal the other service could carry is retried there, as the SAME message", async () => {
+  resetWorld();
+  fenceflowEnv();
+  ENV.BREVO_API_KEY = "brevo-test-key";
+  world.db.mail_platform_settings[0].sender_provider = "resend";
+  world.db.mail_platform_settings[0].fallback_provider = "brevo";
+  let call_n = 0;
+  const { deps, log } = makeDeps({
+    fetchImpl: async (url) => {
+      call_n++;
+      if (url.includes("resend")) {
+        // 429: the provider said no. Nothing was sent.
+        return new Response(JSON.stringify({ message: "daily quota exceeded" }), { status: 429 });
+      }
+      return new Response(JSON.stringify({ messageId: "<abc.123@smtp-relay.mailin.fr>" }), { status: 201 });
+    },
+  });
+  const res = await call(sendBody("fenceflow"), deps);
+  assert.equal(res.status, 200, res.text);
+  assert.equal(res.json.state, "sent");
+
+  assert.equal(call_n, 2, "it did not try the second service");
+  assert.ok(log.fetches[0].url.includes("resend"));
+  assert.equal(log.fetches[1].url, "https://api.brevo.com/v3/smtp/email");
+  assert.equal(log.fetches[1].headers["api-key"], "brevo-test-key");
+  // Rebuilt in the second service's shape, not posted in the first's.
+  assert.deepEqual(log.fetches[1].body.to, [{ email: "jane@example.org" }]);
+  assert.deepEqual(log.fetches[1].body.replyTo, { email: "office@acmefence.com" });
+
+  // ONE message, not two. The claim is reused; a second row would be a second
+  // quote in the customer's inbox and a second line in Sent.
+  assert.equal(sends().length, 1, "the fallback created a second message");
+  const [row] = sends();
+  assert.equal(row.send_state, "sent");
+  assert.equal(row.provider_message_id, "abc.123@smtp-relay.mailin.fr");
+  // And the rate budget was spent once, not twice.
+  assert.deepEqual(world.events.map((e) => e.kind), ["send_resend"]);
+  assertNothingLeaked();
+
+  delete ENV.BREVO_API_KEY;
+});
+
+test("fallback: NO answer is never retried -- the message may already have gone", async () => {
+  // The whole asymmetry. A 5xx or a timeout leaves the message 'sending'; a
+  // fallback that fired here is how a customer receives the same quote twice,
+  // and nothing can tell afterwards which happened.
+  for (const first of [
+    async () => new Response("{}", { status: 503 }),
+    async () => { throw Object.assign(new Error("timed out"), { name: "TimeoutError" }); },
+  ]) {
+    resetWorld();
+    fenceflowEnv();
+    ENV.BREVO_API_KEY = "brevo-test-key";
+    world.db.mail_platform_settings[0].sender_provider = "resend";
+    world.db.mail_platform_settings[0].fallback_provider = "brevo";
+    let brevoCalls = 0;
+    const { deps } = makeDeps({
+      fetchImpl: async (url) => {
+        if (url.includes("brevo")) { brevoCalls++; return new Response(JSON.stringify({ messageId: "<x@y.z>" }), { status: 201 }); }
+        return await first();
+      },
+    });
+    const res = await call(sendBody("fenceflow"), deps);
+    assert.equal(res.json.state, "sending", res.text);
+    assert.equal(res.json.unconfirmed, true);
+    assert.equal(brevoCalls, 0, "an unknown answer was retried through the other service");
+    assert.equal(sends()[0].send_state, "sending");
+  }
+  delete ENV.BREVO_API_KEY;
+});
+
+test("fallback: too large is not retried, and no fallback configured changes nothing", async () => {
+  // The other service will refuse it for the same reason.
+  resetWorld();
+  fenceflowEnv();
+  ENV.BREVO_API_KEY = "brevo-test-key";
+  world.db.mail_platform_settings[0].sender_provider = "resend";
+  world.db.mail_platform_settings[0].fallback_provider = "brevo";
+  let brevoCalls = 0;
+  let d = makeDeps({
+    fetchImpl: async (url) => {
+      if (url.includes("brevo")) { brevoCalls++; return new Response("{}", { status: 201 }); }
+      return new Response(JSON.stringify({ message: "too big" }), { status: 413 });
+    },
+  });
+  let res = await call(sendBody("fenceflow"), d.deps);
+  assert.equal(res.json.state, "failed", res.text);
+  assert.equal(res.json.error_code, "too_large");
+  assert.equal(brevoCalls, 0, "a message too large for one service was offered to the other");
+
+  // CONTROL: with no fallback set, the same 429 that WOULD have been retried
+  // just fails -- so the test above is measuring the fallback and not luck.
+  resetWorld();
+  fenceflowEnv();
+  world.db.mail_platform_settings[0].fallback_provider = null;
+  let tries = 0;
+  d = makeDeps({
+    fetchImpl: async () => { tries++; return new Response(JSON.stringify({ message: "quota" }), { status: 429 }); },
+  });
+  res = await call(sendBody("fenceflow"), d.deps);
+  assert.equal(res.json.state, "failed", res.text);
+  assert.equal(res.json.error_code, "rate_limited");
+  assert.equal(tries, 1, "something was retried with no fallback configured");
+  assertNothingLeaked();
+
+  delete ENV.BREVO_API_KEY;
+});
+
+test("fallback: configured but with no key is not attempted, and the first refusal is what is reported", async () => {
+  resetWorld();
+  fenceflowEnv();
+  delete ENV.BREVO_API_KEY;
+  world.db.mail_platform_settings[0].sender_provider = "resend";
+  world.db.mail_platform_settings[0].fallback_provider = "brevo";
+  let tries = 0;
+  const { deps } = makeDeps({
+    fetchImpl: async () => { tries++; return new Response(JSON.stringify({ message: "quota" }), { status: 429 }); },
+  });
+  const res = await call(sendBody("fenceflow"), deps);
+  assert.equal(res.json.state, "failed", res.text);
+  // The FIRST service's answer, not an invented one about the second.
+  assert.equal(res.json.error_code, "rate_limited");
+  assert.equal(tries, 1);
+  assertNothingLeaked();
 });
 
 test("CONTROL: with the setting absent or unreadable, mail still goes out through Resend", async () => {

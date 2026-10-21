@@ -32,6 +32,7 @@
 // row key the SQL would silently ignore is caught here), Resend, Google's
 // OAuth and FCM.
 import test from "node:test";
+import { RESEND_SENDS_PER_DAY, RESEND_SENDS_PER_HOUR } from "../supabase/functions/_shared/mail/limits.ts";
 import assert from "node:assert/strict";
 import { generateKeyPairSync, randomBytes, randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -669,8 +670,8 @@ test("FAILURES are recorded and pushed, and say what is true: not configured, no
     ["a sender address that is not an address", () => { ENV.MAIL_FROM = "not an address"; }, "failed", "not_configured", /not set up/, 0],
     ["no business email and no inbound routing: replies would reach FenceFlow itself", () => { world.db.companies[0].email = ""; }, "failed", "no_reply_address", /no business email/i, 0],
     ["a business email that is not an address", () => { world.db.companies[0].email = "nope"; }, "failed", "no_reply_address", /no business email/i, 0],
-    ["the hourly rate limit", () => { world.noteAnswer = 21; }, "failed", "rate_limited", /sending limit/, 0],
-    ["the daily rate limit", () => { world.dayAnswer = 101; }, "failed", "rate_limited", /sending limit/, 0],
+    ["the hourly rate limit", () => { world.noteAnswer = RESEND_SENDS_PER_HOUR + 1; }, "failed", "rate_limited", /sending limit/, 0],
+    ["the daily rate limit", () => { world.dayAnswer = RESEND_SENDS_PER_DAY + 1; }, "failed", "rate_limited", /sending limit/, 0],
     ["the rate ledger answering with something that is not a number", () => { world.noteAnswer = "lots"; }, "failed", "server_error", /FenceFlow's side/, 0],
     ["the provider refusing the message (422)", () => { world.resendMode = "422"; }, "failed", "send_rejected", /refused/, 1],
     ["the provider refusing our key (401)", () => { world.resendMode = "401"; }, "failed", "not_configured", /not set up/, 1],

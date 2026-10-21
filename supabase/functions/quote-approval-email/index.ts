@@ -40,7 +40,7 @@
  * buildResendEmail() and composeBody() (the HTML twin is made from the text and
  * escaped), mail_ingest() (the message appears in the office's Sent view and on
  * the job's mail panel, de-duplicated by client_send_id), the note_mail_event()
- * rate ledger (20 an hour and 100 a day per company, SHARED with what the
+ * rate ledger (60 an hour and 300 a day per company, SHARED with what the
  * office sends by hand), and the same Resend call with the same
  * Idempotency-Key. The orchestration around those pieces is repeated here
  * because mail-send's own is welded to a signed-in caller (mailCaller) and its

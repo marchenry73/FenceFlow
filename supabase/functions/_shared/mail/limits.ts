@@ -136,10 +136,31 @@ export const MAX_IMAP_ACCOUNTS_PER_COMPANY = 3;
 // ---------------------------------------------------------------------------
 
 export const CONNECT_ATTEMPTS_PER_HOUR = 10;
-export const SMTP_SENDS_PER_HOUR = 20;
-export const SMTP_SENDS_PER_DAY = 200;
-export const RESEND_SENDS_PER_HOUR = 20;
-export const RESEND_SENDS_PER_DAY = 100;
+// HOW MUCH ONE COMPANY MAY SEND, and why there is a number at all.
+//
+// Not a licence and not a cost control: the provider's own plan is the real
+// ceiling (Resend's free tier stops at 100 a day across the whole account,
+// Brevo's at 300), and raising these does not buy a single extra email. What
+// this is for is a BUG. Follow-ups, quote emails and approval emails all send
+// by themselves, so a loop in any of them emails one customer forty times
+// before anybody notices. The cap is what makes that "forty refused" instead
+// of "four hundred sent".
+//
+// THE SAME FOR BOTH, as of 21 Oct 2026. They used to differ -- 20/200 through
+// a company's own mailbox and 20/100 through FenceFlow mail -- for no reason
+// anybody could name, so the same day's work succeeded or failed depending on
+// which sender happened to be chosen. March asked for one number, set high
+// enough never to be met by real work:
+//
+//   60 an hour is a send every minute, all hour.
+//   300 a day is three hundred quotes, from one company, in one day.
+//
+// Past those, something is wrong rather than busy. A company that genuinely
+// outgrows them should have this raised deliberately, with somebody looking.
+export const SMTP_SENDS_PER_HOUR = 60;
+export const SMTP_SENDS_PER_DAY = 300;
+export const RESEND_SENDS_PER_HOUR = 60;
+export const RESEND_SENDS_PER_DAY = 300;
 export const INBOUND_PER_COMPANY_PER_DAY = 300;
 /** Mailbox sign-ins and Resend receiving calls made by mail-message, per
  *  company: opening mail FenceFlow has no copy of, read/unread marks, and

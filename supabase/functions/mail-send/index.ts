@@ -59,9 +59,11 @@
  *
  * RATE. note_mail_event records the attempt and counts the hour; the day is
  * counted without recording (mail_event_count), so a send is never counted
- * twice. SMTP: 20 an hour and 200 a day per company; FenceFlow mail: 20 and
- * 100. Refused attempts count, so hammering the button burns the budget. An
- * answer that is not a number refuses the send.
+ * twice. The same figures either way since 21 Oct 2026 -- 60 an hour and 300
+ * a day per company, whichever service carries it (limits.ts says why there is
+ * a number at all, and why it is not about cost). Refused attempts count, so
+ * hammering the button burns the budget. An answer that is not a number
+ * refuses the send.
  *
  * ATTACHMENTS go through storage, never the request: the office uploads to
  * its own <company>/outgoing/<uid>/<uuid>/ folder (the one INSERT policy on
@@ -1044,16 +1046,49 @@ async function postToResend(deps: SendDeps, url: string, key: string, payload: R
  * reason: the fallback has to be the provider that is already configured and
  * already paid for, never the one that might have no key.
  */
-async function senderProvider(caller: MailCaller): Promise<"resend" | "brevo"> {
+type Sender = "resend" | "brevo";
+
+async function senderProvider(caller: MailCaller): Promise<{ primary: Sender; fallback: Sender | null }> {
+  const asSender = (v: unknown): Sender | null => {
+    const s = String(v ?? "").trim();
+    return s === "brevo" ? "brevo" : s === "resend" ? "resend" : null;
+  };
   try {
     const { data, error } = await caller.admin
-      .from("mail_platform_settings").select("sender_provider").eq("id", 1).maybeSingle();
-    if (error) return "resend";
-    const v = String((data as Row | null)?.sender_provider ?? "").trim();
-    return v === "brevo" ? "brevo" : "resend";
+      .from("mail_platform_settings").select("sender_provider, fallback_provider").eq("id", 1).maybeSingle();
+    if (error) return { primary: "resend", fallback: null };
+    const row = data as Row | null;
+    const primary = asSender(row?.sender_provider) ?? "resend";
+    const fallback = asSender(row?.fallback_provider);
+    // A fallback equal to the primary is not a fallback; the table refuses it,
+    // and this refuses it again rather than retrying the same account.
+    return { primary, fallback: fallback && fallback !== primary ? fallback : null };
   } catch {
-    return "resend";
+    return { primary: "resend", fallback: null };
   }
+}
+
+/** The key a provider sends with, or "" when it has none configured. */
+function providerKey(deps: SendDeps, provider: Sender): string {
+  return provider === "brevo" ? envOf(deps, "BREVO_API_KEY") : envOf(deps, "MAIL_API_KEY");
+}
+
+/**
+ * Whether a refusal is one the OTHER service could still carry.
+ *
+ * The list is short on purpose, and the exclusion is the whole design:
+ * DeliveryUnknown -- a timeout, a dropped connection, a 5xx -- never reaches
+ * here, because the message MAY have gone and sending it again through the
+ * other service is how a customer receives the same quote twice. There is no
+ * way to find out which happened, so the honest answer is to leave it
+ * 'sending' and say "check Sent".
+ *
+ * too_large is excluded for the opposite reason: the other service will refuse
+ * it as well, so a second attempt only costs time.
+ */
+function worthFallingBackTo(e: unknown): boolean {
+  if (!(e instanceof MailError)) return false;
+  return e.code === "rate_limited" || e.code === "not_configured" || e.code === "send_rejected";
 }
 
 /**
@@ -1212,8 +1247,8 @@ async function viaFenceflow(caller: MailCaller, deps: SendDeps, req: SendRequest
   // limit, the attachments, the threading. Only the last step differs, which
   // is the whole reason the choice lives here and not in a second copy of all
   // of it.
-  const provider = await senderProvider(caller);
-  const key = provider === "brevo" ? envOf(deps, "BREVO_API_KEY") : envOf(deps, "MAIL_API_KEY");
+  const { primary: provider, fallback } = await senderProvider(caller);
+  const key = providerKey(deps, provider);
   const mailFrom = envOf(deps, "MAIL_FROM");
   if (!key || !mailFrom) {
     // Named, because "not set up" for a provider somebody deliberately
@@ -1327,13 +1362,50 @@ async function viaFenceflow(caller: MailCaller, deps: SendDeps, req: SendRequest
     return await failed(caller, claimed, e instanceof MailError ? e : new MailError("server_error"), secrets);
   }
 
+  // One place that knows how each service is posted to, so the first attempt
+  // and the fallback cannot drift apart.
+  const post = (which: Sender, withKey: string, body: Row) =>
+    which === "brevo"
+      ? postToBrevo(deps, envOf(deps, "BREVO_API_URL") || DEFAULT_BREVO_API_URL, withKey, body)
+      : postToResend(deps, envOf(deps, "MAIL_API_URL") || DEFAULT_MAIL_API_URL, withKey, body, `fenceflow-mail-${claimed.messageId}`);
+
   let providerId: string | null;
   try {
-    providerId = provider === "brevo"
-      ? await postToBrevo(deps, envOf(deps, "BREVO_API_URL") || DEFAULT_BREVO_API_URL, key, payload)
-      : await postToResend(deps, envOf(deps, "MAIL_API_URL") || DEFAULT_MAIL_API_URL, key, payload, `fenceflow-mail-${claimed.messageId}`);
+    providerId = await post(provider, key, payload);
   } catch (e) {
     if (e instanceof DeliveryUnknown) return await unconfirmed(caller, claimed, e, secrets);
+
+    // THE OTHER SERVICE, but only when the first certainly did not send.
+    //
+    // The message is already claimed, so this is the SAME mail_messages row
+    // going out through a different transport -- not a second message, and not
+    // a second client_send_id. The payload is rebuilt because the two shapes
+    // differ, with the Reply-To that was actually settled above rather than
+    // the one the first build started from.
+    const second = fallback && worthFallingBackTo(e) ? fallback : null;
+    const secondKey = second ? providerKey(deps, second) : "";
+    if (second && secondKey) {
+      secrets.push(secondKey);
+      console.error(`${FN}: ${provider} refused (${(e as MailError).code}); trying ${second}`);
+      const retryPayload = second === "brevo" ? buildBrevoEmail(mail) : buildResendEmail(mail);
+      if (replyTo) setPayloadReplyTo(retryPayload, second, replyTo);
+      try {
+        providerId = await post(second, secondKey, retryPayload);
+        await settle(caller, claimed, {
+          send_state: "sent",
+          send_error: null,
+          ...(providerId ? { provider_message_id: providerId } : {}),
+          ...(finalReplyLater && replyTo ? { reply_to_list: [bare(replyTo)] } : {}),
+        });
+        if (parent?.source === "resend_inbound") await markAnswered(caller, String(parent.id));
+        return sentAnswer(claimed);
+      } catch (e2) {
+        // The fallback's own answer decides now. An unknown answer from IT is
+        // still unknown -- the same rule, one service along.
+        if (e2 instanceof DeliveryUnknown) return await unconfirmed(caller, claimed, e2, secrets);
+        return await failed(caller, claimed, e2 instanceof MailError ? e2 : new MailError("server_error"), secrets);
+      }
+    }
     return await failed(caller, claimed, e instanceof MailError ? e : new MailError("server_error"), secrets);
   }
 
