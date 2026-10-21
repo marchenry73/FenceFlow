@@ -169,6 +169,68 @@ object AdminRepository {
         Unit
     }
 
+    // ------------------------------------------------- company access
+    //
+    // THROUGH THE RPCs, not through an UPDATE on companies.
+    //
+    // updateCompany below can write suspended / subscription_status /
+    // trial_ends_at directly, and for a platform admin protect_billing_columns
+    // lets that through -- so it would appear to work. These three go through
+    // the same audited functions the console uses instead, for two reasons:
+    // admin_suspend records a reason and a HOLD flag that a bare column write
+    // has no way to express (and a HOLD is the difference between "pay and
+    // you're back" and "paying will not help"), and every one of them raises
+    // rather than silently changing nothing if the caller is not an admin --
+    // where an UPDATE a policy filters out is zero rows and no error at all.
+
+    /**
+     * Give a company [days] more trial, exactly as the console's button does.
+     *
+     * The server's own expression is
+     * `greatest(coalesce(trial_ends_at, now()), now()) + days`, which is what
+     * makes this work on a trial that ended weeks ago: it restarts from NOW
+     * rather than from the old end date, so "one more day" is a day from this
+     * moment and not a date still in the past. It also sets the status back to
+     * trialing and lifts a suspension.
+     */
+    suspend fun extendTrial(companyId: String, days: Int = 14): Result<Unit> = io {
+        SupabaseModule.client.postgrest.rpc(
+            "admin_extend_trial",
+            buildJsonObject { put("target", companyId); put("days", days) }
+        )
+        Unit
+    }
+
+    /**
+     * Switch a company off.
+     *
+     * [hold] is not a severity dial. A plain suspension is a billing matter
+     * and the office offers them a plan; a HOLD says paying will NOT lift it,
+     * and the office stops offering -- my_service_status answers
+     * can_self_serve = false for it. Taking money from somebody who will still
+     * be locked out afterwards is the thing that flag exists to prevent.
+     */
+    suspend fun suspendCompany(companyId: String, note: String?, hold: Boolean): Result<Unit> = io {
+        SupabaseModule.client.postgrest.rpc(
+            "admin_suspend",
+            buildJsonObject {
+                put("target", companyId)
+                put("note", note?.takeIf { it.isNotBlank() })
+                put("hold", hold)
+            }
+        )
+        Unit
+    }
+
+    /** Lift a suspension. Plan and billing are left exactly as they were. */
+    suspend fun unsuspendCompany(companyId: String): Result<Unit> = io {
+        SupabaseModule.client.postgrest.rpc(
+            "admin_unsuspend",
+            buildJsonObject { put("target", companyId) }
+        )
+        Unit
+    }
+
     /** Stop a group of errors being reported again until it recurs. */
     suspend fun markErrorsSeen(message: String, whereAt: String): Result<Unit> = io {
         SupabaseModule.client.postgrest.rpc(

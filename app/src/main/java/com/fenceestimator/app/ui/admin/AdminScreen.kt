@@ -12,6 +12,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -25,6 +26,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -223,7 +225,12 @@ private fun <T> Section(
 }
 
 @Composable
-private fun AdminCard(title: String, lines: List<String>) {
+private fun AdminCard(
+    title: String,
+    lines: List<String>,
+    /** Anything the card should carry under its lines -- the company actions. */
+    footer: (@androidx.compose.runtime.Composable () -> Unit)? = null,
+) {
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
@@ -237,6 +244,7 @@ private fun AdminCard(title: String, lines: List<String>) {
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
+            footer?.invoke()
         }
     }
 }
@@ -250,6 +258,11 @@ private fun CompaniesTab() {
     var newEmail by remember { mutableStateOf("") }
     var addError by remember { mutableStateOf<String?>(null) }
     var busy by remember { mutableStateOf(false) }
+    // The company an action is waiting to be confirmed for, and which action.
+    // Null means nothing is pending. Held here rather than inside the row so
+    // the dialog survives the list reloading underneath it.
+    var pending by remember { mutableStateOf<Pair<AdminRepository.Company, AdminAction>?>(null) }
+    var actionError by remember { mutableStateOf<String?>(null) }
 
     suspend fun load() {
         state = AdminRepository.companies()
@@ -318,6 +331,15 @@ private fun CompaniesTab() {
         ) { Text("Add a company") }
     }
 
+    actionError?.let { why ->
+        Text(
+            why,
+            color = MaterialTheme.colorScheme.error,
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.fillMaxWidth().padding(bottom = Space.sm)
+        )
+    }
+
     Section(state, "No companies.") { c ->
         AdminCard(
             title = c.name.ifBlank { "(unnamed)" },
@@ -333,7 +355,117 @@ private fun CompaniesTab() {
                 c.lastActive?.let { "Last active $it" } ?: "Never active",
                 c.adminNotes,
             )
+        ) {
+            // EVERY ONE OF THESE ASKS FIRST. They change whether somebody
+            // else's business can open tomorrow morning, from a phone, with a
+            // thumb -- the console asks before each of them and so does this.
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(Space.sm),
+                modifier = Modifier.padding(top = Space.sm)
+            ) {
+                OutlinedButton(
+                    enabled = !busy,
+                    onClick = { actionError = null; pending = c to AdminAction.ExtendOneDay },
+                ) { Text("+1 day") }
+                OutlinedButton(
+                    enabled = !busy,
+                    onClick = { actionError = null; pending = c to AdminAction.ExtendTwoWeeks },
+                ) { Text("+14 days") }
+                if (c.suspended) {
+                    OutlinedButton(
+                        enabled = !busy,
+                        onClick = { actionError = null; pending = c to AdminAction.Reinstate },
+                    ) { Text("Reinstate") }
+                } else {
+                    OutlinedButton(
+                        enabled = !busy,
+                        onClick = { actionError = null; pending = c to AdminAction.Suspend },
+                    ) { Text("Suspend") }
+                }
+            }
+        }
+    }
+
+    pending?.let { p: Pair<AdminRepository.Company, AdminAction> ->
+        val company = p.first
+        val action = p.second
+        AlertDialog(
+            onDismissRequest = { if (!busy) pending = null },
+            title = { Text(action.title(company)) },
+            text = { Text(action.body(company)) },
+            confirmButton = {
+                TextButton(
+                    enabled = !busy,
+                    onClick = {
+                        busy = true
+                        scope.launch {
+                            val result = when (action) {
+                                AdminAction.ExtendOneDay ->
+                                    AdminRepository.extendTrial(company.id, 1)
+                                AdminAction.ExtendTwoWeeks ->
+                                    AdminRepository.extendTrial(company.id, 14)
+                                AdminAction.Suspend ->
+                                    // hold = false: a plain suspension is a
+                                    // billing matter and the office keeps
+                                    // offering them a plan. A HOLD says paying
+                                    // will not help, and that is a decision
+                                    // worth making at a keyboard with the
+                                    // reason typed out, not on a phone.
+                                    AdminRepository.suspendCompany(company.id, null, hold = false)
+                                AdminAction.Reinstate ->
+                                    AdminRepository.unsuspendCompany(company.id)
+                            }
+                            // The server decides; the list is re-read rather
+                            // than patched in place, so what is on screen is
+                            // what admin_companies actually says afterwards.
+                            result.onFailure { actionError = it.message ?: "That did not go through." }
+                            load()
+                            busy = false
+                            pending = null
+                        }
+                    }
+                ) { Text(action.confirmLabel) }
+            },
+            dismissButton = {
+                TextButton(enabled = !busy, onClick = { pending = null }) { Text("Cancel") }
+            },
         )
+    }
+}
+
+/** What the company buttons can do, with the words each one asks in. */
+private enum class AdminAction(val confirmLabel: String) {
+    ExtendOneDay("Give 1 day"),
+    ExtendTwoWeeks("Give 14 days"),
+    Suspend("Suspend"),
+    Reinstate("Reinstate");
+
+    fun title(c: AdminRepository.Company): String {
+        val name = c.name.ifBlank { "this company" }
+        return when (this) {
+            ExtendOneDay, ExtendTwoWeeks -> "Extend $name's trial?"
+            Suspend -> "Suspend $name?"
+            Reinstate -> "Reinstate $name?"
+        }
+    }
+
+    fun body(c: AdminRepository.Company): String = when (this) {
+        // Said as "from today", because that is what the server does with a
+        // trial that has already ended -- it restarts from now rather than
+        // adding to a date in the past.
+        ExtendOneDay ->
+            "Their office opens again for one more day, counted from today. " +
+                "A suspension would be lifted too."
+        ExtendTwoWeeks ->
+            "Their office opens again for another 14 days, counted from today. " +
+                "A suspension would be lifted too."
+        Suspend ->
+            "Everyone at ${c.name.ifBlank { "this company" }} is locked out of the office and the " +
+                "app until this is lifted. Nothing is deleted. They are still offered a plan, " +
+                "so paying would let them back in."
+        Reinstate ->
+            "The suspension is lifted. Their plan and billing are left exactly as they are, " +
+                "so if the trial has also run out they will still need more time or a plan."
     }
 }
 
