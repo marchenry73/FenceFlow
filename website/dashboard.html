@@ -471,6 +471,26 @@
   .caret{display:inline-block;transition:transform .15s;font-size:13px;color:var(--muted)}
   .cat.closed .caret{transform:rotate(-90deg)}
   .cat.closed .cat-body{display:none}
+
+  /* "YOUR ALERTS" -- twenty-six of them, and they were twenty-six
+     full-width rows with padding, a column of checkboxes taller than the
+     screen with a line of empty space either side of every word.
+     "They are so far apart, it need to be more congested, maybe make them
+     horizontal and we can scroll on just this part" (21 October 2026).
+     So: pills that wrap across the width, in a box with its own scroll,
+     which keeps the rest of the Settings tab reachable instead of pushing
+     it a screen and a half down. A switched-off alert is dimmed, so which
+     ones are off reads at a glance rather than by hunting empty boxes. */
+  .alertbar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:2px 0 8px}
+  .alertgrid{display:flex;flex-wrap:wrap;gap:6px;max-height:232px;overflow-y:auto;
+    padding:8px;border:1px solid var(--line);border-radius:8px;background:var(--paper)}
+  .alertgrid label{display:inline-flex;align-items:center;gap:7px;margin:0;
+    padding:5px 11px;border:1px solid var(--line);border-radius:16px;
+    background:var(--surface);font-size:12.5px;font-weight:400;line-height:1.25;
+    cursor:pointer;max-width:340px}
+  .alertgrid label.off{opacity:.5}
+  .alertgrid input{width:auto;margin:0;flex:0 0 auto}
+  @media(max-width:520px){.alertgrid{max-height:260px}.alertgrid label{max-width:100%}}
   /* THE REPORTS TAB IS NOW ONE SECTION AT A TIME, so each section's own
      heading row is redundant -- the tab strip above it is the heading.
      The markup keeps the button (the print path and the translation
@@ -5060,6 +5080,7 @@ jobViewAll:'All', jobViewToday:'Today', jobViewWeek:'This week', jobViewUnschedu
     settingsAlertsFootnote:'Seen hides that one item for 3 hours, even if the job changes in the meantime. After that it comes back if it is still true. Desktop alerts pop up in this browser while this tab is open but not the one you\'re looking at — there\'s no email alert yet; the mail key isn\'t configured, and a silent failure to send would be worse than none.',
 
     desktopAlertsUnsupported:'This browser does not support desktop notifications.',
+    alertsOnCount:'%s of %s on', alertsAllOn:'All on', alertsAllOff:'All off',
     desktopAlertsBlocked:'Blocked in this browser — allow notifications for this site to turn it back on.',
     desktopAlertsOn:'On — this browser will pop up a notification for a critical or urgent item while this tab is in the background.',
     desktopAlertsEnableBtn:'Turn on desktop alerts',
@@ -6820,6 +6841,7 @@ jobViewAll:'Todos', jobViewToday:'Hoy', jobViewWeek:'Esta semana', jobViewUnsche
     settingsAlertsFootnote:'«Visto» oculta ese elemento durante 3 horas, aunque el trabajo cambie mientras tanto. Después vuelve a aparecer si sigue siendo cierto. Las alertas de escritorio aparecen en este navegador mientras esta pestaña está abierta pero no es la que está mirando — todavía no hay alerta por correo; la clave de correo no está configurada, y una falla silenciosa al enviar sería peor que ninguna.',
 
     desktopAlertsUnsupported:'Este navegador no admite notificaciones de escritorio.',
+    alertsOnCount:'%s de %s activadas', alertsAllOn:'Todas', alertsAllOff:'Ninguna',
     desktopAlertsBlocked:'Bloqueado en este navegador — permita las notificaciones para este sitio para volver a activarlo.',
     desktopAlertsOn:'Activado — este navegador mostrará una notificación para un elemento crítico o urgente mientras esta pestaña esté en segundo plano.',
     desktopAlertsEnableBtn:'Activar alertas de escritorio',
@@ -8577,6 +8599,7 @@ jobViewAll:'Tous', jobViewToday:'Aujourdhui', jobViewWeek:'Cette semaine', jobVi
     settingsAlertsFootnote:'« Vu » masque cet élément pendant 3 heures, même si le travail change entre-temps. Ensuite, il revient s\'il est toujours vrai. Les alertes de bureau apparaissent dans ce navigateur tant que cet onglet est ouvert mais pas celui que vous regardez — il n\'y a pas encore d\'alerte par courriel; la clé de messagerie n\'est pas configurée, et un échec d\'envoi silencieux serait pire que pas d\'alerte du tout.',
 
     desktopAlertsUnsupported:'Ce navigateur ne prend pas en charge les notifications de bureau.',
+    alertsOnCount:'%s sur %s activées', alertsAllOn:'Toutes', alertsAllOff:'Aucune',
     desktopAlertsBlocked:'Bloqué dans ce navigateur — autorisez les notifications pour ce site pour les réactiver.',
     desktopAlertsOn:'Activé — ce navigateur affichera une notification pour un élément critique ou urgent pendant que cet onglet est en arrière-plan.',
     desktopAlertsEnableBtn:'Activer les alertes de bureau',
@@ -9530,16 +9553,58 @@ async function setAlertMuted(key, muted){
                    a reload until the table exists and the write succeeds */ }
 }
 
+/* ALL OF THEM AT ONCE, in one write.
+ *
+ * Twenty-six toggles meant twenty-six upserts of the whole list if anybody
+ * wanted to clear the lot -- twenty-six round trips, each sending the same
+ * column, the last one winning. One call, one row.
+ */
+async function setAllAlerts(on){
+  const next = on ? new Set() : new Set(ALERT_DEFS.map(a => a.key));
+  mutedAlerts = next;
+  renderAlertPrefs();
+  renderDash();
+  try {
+    await db.from('notification_prefs').upsert({
+      user_id: profile.id,
+      muted_alerts: Array.from(next),
+      updated_at: new Date().toISOString()
+    }, { onConflict: 'user_id' });
+  } catch (e) { /* same as setAlertMuted: the screen is right for this
+                   session either way, it just will not survive a reload */ }
+}
+
 function renderAlertPrefs(){
   const el = $('alertPrefsRows');
   if (!el) return;
-  el.innerHTML = ALERT_DEFS.map(a => `
-    <label style="display:flex;align-items:center;gap:8px;padding:4px 0;font-weight:400">
-      <input type="checkbox" data-alert-key="${esc(a.key)}" ${alertOn(a.key) ? 'checked' : ''}>
-      ${esc(tr(a.labelKey))}
-    </label>`).join('');
+  const on = ALERT_DEFS.filter(a => alertOn(a.key)).length;
+  el.innerHTML =
+    `<div class="alertbar">
+       <span class="sub" id="alertCount">${esc(tr('alertsOnCount', on, ALERT_DEFS.length))}</span>
+       <button type="button" class="btn btn-sm btn-ghost" id="alertsAllOn">${esc(tr('alertsAllOn'))}</button>
+       <button type="button" class="btn btn-sm btn-ghost" id="alertsAllOff">${esc(tr('alertsAllOff'))}</button>
+     </div>
+     <div class="alertgrid">` +
+    ALERT_DEFS.map(a => `
+      <label class="${alertOn(a.key) ? '' : 'off'}" data-alert-row="${esc(a.key)}">
+        <input type="checkbox" data-alert-key="${esc(a.key)}" ${alertOn(a.key) ? 'checked' : ''}>
+        <span>${esc(tr(a.labelKey))}</span>
+      </label>`).join('') +
+    '</div>';
   el.querySelectorAll('input[data-alert-key]').forEach(cb =>
-    cb.addEventListener('change', () => setAlertMuted(cb.dataset.alertKey, !cb.checked)));
+    cb.addEventListener('change', () => {
+      setAlertMuted(cb.dataset.alertKey, !cb.checked);
+      // The pill and the count follow the box immediately. Re-rendering the
+      // whole grid here would throw away the scroll position, which on a
+      // box this size means losing your place every time you tick one.
+      const row = cb.closest('label');
+      if (row) row.classList.toggle('off', !cb.checked);
+      const live = ALERT_DEFS.filter(a => alertOn(a.key)).length;
+      const count = $('alertCount');
+      if (count) count.textContent = tr('alertsOnCount', live, ALERT_DEFS.length);
+    }));
+  const allOn = $('alertsAllOn'); if (allOn) allOn.addEventListener('click', () => setAllAlerts(true));
+  const allOff = $('alertsAllOff'); if (allOff) allOff.addEventListener('click', () => setAllAlerts(false));
 
   const dEl = $('desktopAlertsRow');
   if (dEl) {
@@ -10159,6 +10224,59 @@ function msg(el,text,kind){
    msg() can run before this line of the module has been reached (the
    password-recovery panel is put up in the module's first tick), and a
    top-level const read that early throws instead of saying anything. */
+/* THE OFFICE WRITES ITS OWN FAILURES DOWN.
+ *
+ * The phone has reported its crashes to app_errors since the beginning.
+ * This page reported nothing, ever -- so on 21 October 2026, with the owner
+ * blocked by "Your account is not allowed to make this change", there was
+ * no way to find out WHICH change or WHICH table: the live rules were
+ * evaluated as his own account and allowed everything, and the only
+ * evidence that existed anywhere was a photograph of the message.
+ *
+ * Only errors plainError already recognised as technical are written, so
+ * this never records a sentence the page wrote itself. app_errors_insert
+ * accepts any authenticated session; app_errors_read is platform-admin
+ * only, so what lands here is readable by the person who can act on it and
+ * nobody else.
+ *
+ * NEVER THROWS, never awaited, never blocks the message the person is
+ * waiting for, and never retries. A logger that can break the page it logs
+ * for is worse than no logger.
+ *
+ * Network failures are left out on purpose: a dropped connection cannot
+ * post a report about a dropped connection, and when it comes back it
+ * would post a hundred.
+ */
+const officeErrorsSent = new Set();
+
+function reportOfficeError(kind, raw){
+  try {
+    if (kind === 'errNetwork' || kind === 'errSession') return;
+    if (!profile || !profile.company_id) return;
+    const text = String(raw == null ? '' : raw).slice(0, 900);
+    // Once per message per page load. A failing save that is retried four
+    // times is one fault, not four, and the row count is what tells me how
+    // widespread something is across companies.
+    const seen = kind + '|' + text;
+    if (officeErrorsSent.has(seen)) return;
+    officeErrorsSent.add(seen);
+    const tab = document.querySelector('.tab.on');
+    db.from('app_errors').insert({
+      company_id: profile.company_id,
+      reported_by: profile.id,
+      email: (typeof user !== 'undefined' && user && user.email) ? user.email : null,
+      version_name: 'office',
+      android: String(navigator.userAgent || '').slice(0, 200),
+      fatal: false,
+      // The tab is the single most useful fact about an office failure:
+      // it says which screen the person was on when it refused them.
+      where_at: 'office/' + ((tab && tab.dataset.tab) || 'unknown') + ' ' + kind,
+      message: text,
+      stack: 'role=' + ((profile && profile.role) || '?') + ' lang=' + LANG
+    }).then(() => {}, () => {});
+  } catch (e) { /* a logger must never be the thing that breaks */ }
+}
+
 /* Who the page thinks you are, for any refusal that mentions the account.
    The header carries the same two facts; a refusal that repeats them is
    the difference between "this is broken" and "I am on the wrong login". */
@@ -10213,6 +10331,7 @@ function plainError(text){
   const s = String(text == null ? '' : text);
   const hit = TECH_ERRORS.find(([re]) => re.test(s));
   if (!hit) return s;
+  reportOfficeError(hit[1], s);
   console.warn('Error shown in plain words (' + hit[1] + '):', s);
   // A third element supplies the %s arguments from the match, so a message
   // can name the thing that was refused instead of being generic.
