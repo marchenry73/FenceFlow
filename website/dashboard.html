@@ -471,6 +471,20 @@
   .caret{display:inline-block;transition:transform .15s;font-size:13px;color:var(--muted)}
   .cat.closed .caret{transform:rotate(-90deg)}
   .cat.closed .cat-body{display:none}
+  /* THE REPORTS TAB IS NOW ONE SECTION AT A TIME, so each section's own
+     heading row is redundant -- the tab strip above it is the heading.
+     The markup keeps the button (the print path and the translation
+     sweep both read it) and this hides it. */
+  #tab-reports .cat-head{display:none}
+  #tab-reports .cat{margin-bottom:0}
+  .reptabs{margin:2px 0 14px}
+  /* NOT sticky table headers, deliberately. The filter panel above is
+     already position:sticky at top:0 with a higher z-index, so a header row
+     stuck at top:0 in the same scrolling page would sit BEHIND it -- the
+     column names would vanish instead of following. Doing it properly means
+     giving each table its own scroll box with a height, which is a change to
+     every table on the tab and a separate piece of work. Left undone rather
+     than shipped broken. */
   @media(max-width:700px){.grid2{grid-template-columns:1fr}}
 
   /* ---- Materials catalog: one collapsible section per fence type --------
@@ -1792,6 +1806,17 @@
       <div class="hero-band" id="repHeroBand"></div>
       <div class="attn" id="repAttention"></div>
       <div class="stats" id="repHero"></div>
+
+      <!-- ONE SECTION AT A TIME.
+           The six groups below used to be six accordions on one page, all
+           openable at once, which is how the tab became "too long to
+           scroll down on it like that" (21 October 2026). The headline
+           tiles above stay on screen whichever group is showing, so the
+           top-line answer never costs a click; the click only chooses
+           which detail to see.
+           Built from the sections themselves rather than written out, so
+           a group added below cannot be left without a tab. -->
+      <div class="chips reptabs" id="repCatTabs" role="tablist"></div>
 
       <!-- Grouped so the page opens readable rather than as a wall of eight
            charts. Each group remembers whether you left it open. -->
@@ -4793,6 +4818,7 @@ jobViewAll:'All', jobViewToday:'Today', jobViewWeek:'This week', jobViewUnschedu
     repFromLabel:'From', repToLabel:'To', repHoursOfDayLabel:'Hours of day',
     repHoursAll:'All hours', repHoursEarly:'Before 8am', repHoursWork:'8am – 5pm', repHoursLate:'After 5pm',
     repApplyBtn:'Apply',
+    repJobWord:'job', repJobsWord:'jobs',
     repMoneyHead:'Money', repMoneySub:'Revenue, costs, what you\'re owed',
     repRevenueHead:'Revenue collected', repRevenueSub:'Money received, by month',
     repCostsHead:'Where the money goes',
@@ -6579,6 +6605,7 @@ jobViewAll:'Todos', jobViewToday:'Hoy', jobViewWeek:'Esta semana', jobViewUnsche
     repFromLabel:'Desde', repToLabel:'Hasta', repHoursOfDayLabel:'Horario del día',
     repHoursAll:'Todas las horas', repHoursEarly:'Antes de las 8am', repHoursWork:'8am – 5pm', repHoursLate:'Después de las 5pm',
     repApplyBtn:'Aplicar',
+    repJobWord:'trabajo', repJobsWord:'trabajos',
     repMoneyHead:'Dinero', repMoneySub:'Ingresos, costos, lo que le deben',
     repRevenueHead:'Ingresos cobrados', repRevenueSub:'Dinero recibido, por mes',
     repCostsHead:'A dónde va el dinero',
@@ -8335,6 +8362,7 @@ jobViewAll:'Tous', jobViewToday:'Aujourdhui', jobViewWeek:'Cette semaine', jobVi
     repFromLabel:'De', repToLabel:'À', repHoursOfDayLabel:'Heures de la journée',
     repHoursAll:'Toutes les heures', repHoursEarly:'Avant 8 h', repHoursWork:'8 h – 17 h', repHoursLate:'Après 17 h',
     repApplyBtn:'Appliquer',
+    repJobWord:'chantier', repJobsWord:'chantiers',
     repMoneyHead:'Argent', repMoneySub:'Revenus, coûts, ce qu\'on vous doit',
     repRevenueHead:'Revenus encaissés', repRevenueSub:'Argent reçu, par mois',
     repCostsHead:'Où va l\'argent',
@@ -18075,6 +18103,10 @@ async function renderReports(){
     + ($('repHours').value!=='all' ? ` · ${$('repHours').selectedOptions[0].text.toLowerCase()}` : '');
 
   const jobsIn=jobs.filter(j=>inPeriod(j.updated_at||j.created_at));
+  // SAY WHAT THE RANGE ACTUALLY CAUGHT. A filter that shows no count cannot
+  // be told apart from a filter that is not working -- and an empty report
+  // then reads as a quiet month rather than as a range with nothing in it.
+  $('repRangeLabel').textContent += ` \u00b7 ${jobsIn.length} ${jobsIn.length === 1 ? tr('repJobWord') : tr('repJobsWord')}`;
   // The window here can reach back years ("All time", or a hand-typed date),
   // well past what loadAll() bounded the first paint to. Line items and
   // expenses are scoped to one job, so topping them up for exactly the jobs
@@ -18792,6 +18824,10 @@ function repBizFilterOptions(){
     // Prints this report alone, every panel open, on the light palette -- see
     // the @media print block beside the markup. Ctrl+P still prints the tab.
     const sec = $('bizSection');
+    // Its own tab first. The groups are shown one at a time now, so printing
+    // the business report while another group is on screen would have put a
+    // display:none section on the paper -- a blank page, reported as success.
+    showRepCat('business');
     const wasClosed = sec.classList.contains('closed');
     sec.classList.remove('closed');
     document.body.classList.add('biz-printing');
@@ -30356,16 +30392,67 @@ $('repApply').addEventListener('click',()=>{
 });
 $('repHours').addEventListener('change',renderReports);
 
-// Collapsible report categories. Open/closed is remembered per browser so the
-// page comes back the way you left it.
-document.querySelectorAll('.cat').forEach(sec=>{
-  const key='ff-cat-'+sec.dataset.cat;
-  if(localStorage.getItem(key)==='closed') sec.classList.add('closed');
-  sec.querySelector('.cat-head').addEventListener('click',()=>{
-    sec.classList.toggle('closed');
-    localStorage.setItem(key, sec.classList.contains('closed')?'closed':'open');
+/* REPORT GROUPS, ONE AT A TIME.
+ *
+ * These six were accordions, every one of them openable at once on a single
+ * page. Opening three made the page longer than the screen several times
+ * over, which is the complaint. A tab strip answers it without hiding
+ * anything: the headline tiles stay above, and choosing a group is one
+ * click instead of one click to open plus a scroll past whatever else was
+ * left open.
+ *
+ * WHAT THIS GIVES UP, honestly: two groups can no longer be read side by
+ * side. At six groups and one screen that trade is worth taking, and the
+ * tiles above carry the numbers most often compared.
+ *
+ * The chosen group is remembered per browser, as the open/closed state was.
+ */
+const REP_TAB_KEY = 'ff-rep-tab';
+
+function repSections(){ return Array.from(document.querySelectorAll('#tab-reports .cat')); }
+
+function showRepCat(name){
+  const secs = repSections();
+  if (!secs.length) return;
+  // An unknown name (a remembered group that has since been removed) falls
+  // back to the first rather than showing nothing at all.
+  const chosen = secs.some(s => s.dataset.cat === name) ? name : secs[0].dataset.cat;
+  secs.forEach(sec => {
+    const on = sec.dataset.cat === chosen;
+    sec.style.display = on ? '' : 'none';
+    // Always open inside its own tab. The tab IS the heading now, so a
+    // second click to expand would be a click for nothing.
+    if (on) sec.classList.remove('closed');
   });
-});
+  document.querySelectorAll('#repCatTabs .chip').forEach(b =>
+    b.classList.toggle('on', b.dataset.cat === chosen));
+  try { localStorage.setItem(REP_TAB_KEY, chosen); } catch (e) {}
+}
+
+function buildRepTabs(){
+  const host = $('repCatTabs');
+  if (!host) return;
+  host.innerHTML = '';
+  repSections().forEach(sec => {
+    const label = sec.querySelector('.cat-head span[data-t]');
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'chip';
+    b.dataset.cat = sec.dataset.cat;
+    // The SAME data-t key as the heading it replaces, so switching language
+    // relabels the tabs with everything else instead of leaving them in
+    // whatever language the page was built in.
+    if (label) { b.setAttribute('data-t', label.getAttribute('data-t')); b.textContent = label.textContent; }
+    else b.textContent = sec.dataset.cat;
+    b.addEventListener('click', () => showRepCat(sec.dataset.cat));
+    host.appendChild(b);
+  });
+  let saved = null;
+  try { saved = localStorage.getItem(REP_TAB_KEY); } catch (e) {}
+  showRepCat(saved || 'money');
+}
+
+buildRepTabs();
 // Payroll pays approved hours only -- approving is what turns a claim about
 // hours into pay, and this export is the reason that rule exists. Grouped by
 // the person who clocked them, with their own rate on every line.
