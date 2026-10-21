@@ -319,9 +319,23 @@
   .cal .more{font-size:10.5px;color:var(--muted);cursor:pointer;padding:1px 2px}
   .cal-legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;font-size:12px;color:var(--muted)}
   .cal-legend i{width:10px;height:10px;border-radius:3px;display:inline-block;margin-right:5px;vertical-align:-1px}
-  /* Pipeline */
-  .pipe{display:flex;gap:12px;overflow-x:auto;padding-bottom:8px}
-  .col{min-width:230px;flex:0 0 230px}
+  /* Pipeline
+     THE BOARD WRAPS INSTEAD OF RUNNING OFF THE RIGHT EDGE.
+     It was one row of fixed columns with overflow-x:auto, so the stages past
+     the sixth were off screen and reaching them meant a sideways scroll --
+     shift+wheel on a mouse, a two-finger shove on a trackpad, and on the
+     owner's own screen the seventh stage was cut off mid-word.
+     "Pipeline on the desktop should be scrolling down not scrolling up, it'll
+     be easier" (21 October 2026). Wrapping gives exactly that: every stage is
+     on the page, the wheel works, and at phone width the columns fall into a
+     single vertical list with no media query needed.
+     WHAT IT COSTS, honestly: a kanban's point is seeing the stages side by
+     side, and a wrapped second row breaks that line. With seven stages and a
+     wide screen the break is one row down, which is a smaller price than a
+     stage nobody can see. align-items:flex-start keeps a tall column from
+     stretching its neighbours. */
+  .pipe{display:flex;flex-wrap:wrap;align-items:flex-start;gap:12px;padding-bottom:8px}
+  .col{min-width:230px;flex:1 1 230px;max-width:340px}
   .col h3{font-size:13px;font-weight:700;margin-bottom:8px;display:flex;justify-content:space-between}
   .card{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:10px;margin-bottom:7px;cursor:pointer;font-size:13px}
   .card:hover{border-color:var(--orange)}
@@ -1406,6 +1420,9 @@
     <div id="tab-materials" style="display:none">
       <div class="panel">
         <h2 style="margin-bottom:2px" data-t="matBuyHead">What to buy</h2>
+        <!-- The one line that answers "what is this tab even for". Two tabs
+             carried the word materials and neither said which was which. -->
+        <p class="sub" style="margin:2px 0 6px;font-style:italic" data-t="matNotCatalogLine">This is the ordering list, not the price list. What a post COSTS lives on the Catalog tab; what is still needed for a job you have already sold is here.</p>
         <p class="sub" style="margin-top:0" data-t="matBuyBody">Every sold job that still needs materials ordered or received,
           rolled up into one buy list. Quantities come straight from each job's line items &mdash; no lead
           times or delivery dates are shown here because this database does not record any.</p>
@@ -1799,6 +1816,7 @@
         <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;flex-wrap:wrap">
           <div>
             <h2 style="margin:0" data-t="catCatalogHead">Materials Catalog</h2>
+            <p class="sub" style="margin:2px 0 0;font-style:italic" data-t="catNotBuyLine">This is the price list. What still has to be ordered for a sold job is on the To order tab.</p>
             <p class="sub" style="margin:4px 0 0" data-t="catCatalogBody">One part list per fence type, so there's no
               confusion about which panel, post or gate belongs to which build. Edit here or in
               the phone app under Catalog — both write the same list and sync to each other
@@ -3511,7 +3529,7 @@ if (inRecovery) showRecoveryPanel(); // declared below; hoisted, and it reads no
 const TL = {
   en: {
     tabDash:'Dashboard', tabJobs:'Jobs', tabCal:'Schedule', tabPipe:'Pipeline',
-    tabProd:'Production', tabMaterials:'Materials', tabCrew:'Crew', tabTime:'Time',
+    tabProd:'Production', tabMaterials:'To order', tabCrew:'Crew', tabTime:'Time',
     tabCatalog:'Catalog', tabReports:'Reports', tabAutomation:'Automation',
     tabSettings:'Settings', tabBilling:'Billing',
     // Company email (Email tab, compose, Settings -> Company email, seat
@@ -4478,6 +4496,7 @@ jobViewAll:'All', jobViewToday:'Today', jobViewWeek:'This week', jobViewUnschedu
     recoveryErrLinkExpired:'That password-reset link has expired or was already used. Send yourself a new one below.',
     authSigningOut:'Signing out…',
     matBuyHead:'What to buy',
+    matNotCatalogLine:'This is the ordering list, not the price list. What a post COSTS lives on the Catalog tab; what is still needed for a job you have already sold is here.',
     matBuyBody:'Every sold job that still needs materials ordered or received, rolled up into one buy list. Quantities come straight from each job\'s line items — no lead times or delivery dates are shown here because this database does not record any.',
     matColItem:'Item', matColUnit:'Unit', matColQty:'Total quantity', matColNeededBy:'Needed by', matColJobs:'Jobs',
     matBuyEmptyMsg:'Nothing to buy right now.',
@@ -4515,6 +4534,7 @@ jobViewAll:'All', jobViewToday:'Today', jobViewWeek:'This week', jobViewUnschedu
     crewRemovedHead:'People you have removed',
     crewRemovedBody:'They cannot get back in with the old code. Everything they recorded is still here. If you removed somebody by mistake, let them back in and they can use the same code again.',
     catCatalogHead:'Materials Catalog',
+    catNotBuyLine:'This is the price list. What still has to be ordered for a sold job is on the To order tab.',
     catCatalogBody:'One part list per fence type, so there\'s no confusion about which panel, post or gate belongs to which build. Edit here or in the phone app under Catalog — both write the same list and sync to each other within a minute of either one going online.',
     catStartSeedBtn:'Start from FenceFlow\'s catalog',
     ppOpenBtn:'Update prices from a price list',
@@ -5313,7 +5333,7 @@ jobViewAll:'All', jobViewToday:'Today', jobViewWeek:'This week', jobViewUnschedu
   },
   es: {
     tabDash:'Panel', tabJobs:'Trabajos', tabCal:'Agenda', tabPipe:'Embudo',
-    tabProd:'Producción', tabMaterials:'Materiales', tabCrew:'Cuadrilla', tabTime:'Horas',
+    tabProd:'Producción', tabMaterials:'Por pedir', tabCrew:'Cuadrilla', tabTime:'Horas',
     tabCatalog:'Catálogo', tabReports:'Informes', tabAutomation:'Automatización',
     tabSettings:'Ajustes', tabBilling:'Facturación',
     tabMail:'Correo', mailUnreadTitle:'%s sin leer',
@@ -6276,6 +6296,7 @@ jobViewAll:'Todos', jobViewToday:'Hoy', jobViewWeek:'Esta semana', jobViewUnsche
     recoveryErrLinkExpired:'Ese enlace para restablecer la contraseña venció o ya se usó. Envíate uno nuevo abajo.',
     authSigningOut:'Cerrando sesión…',
     matBuyHead:'Qué comprar',
+    matNotCatalogLine:'Esta es la lista de pedidos, no la lista de precios. Lo que CUESTA un poste está en la pestaña Catálogo; lo que todavía hace falta para un trabajo ya vendido está aquí.',
     matBuyBody:'Cada trabajo vendido que todavía necesita materiales pedidos o recibidos, junto en una sola lista de compra. Las cantidades salen directo de las partidas de cada trabajo — no se muestran tiempos de entrega ni fechas de envío porque esta base de datos no registra ninguno de los dos.',
     matColItem:'Artículo', matColUnit:'Unidad', matColQty:'Cantidad total', matColNeededBy:'Se necesita para', matColJobs:'Trabajos',
     matBuyEmptyMsg:'No hay nada que comprar por ahora.',
@@ -6313,6 +6334,7 @@ jobViewAll:'Todos', jobViewToday:'Hoy', jobViewWeek:'Esta semana', jobViewUnsche
     crewRemovedHead:'Personas que ha quitado',
     crewRemovedBody:'No pueden volver a entrar con el código anterior. Todo lo que registraron sigue aquí. Si quitó a alguien por error, déjelo entrar de nuevo y puede usar el mismo código otra vez.',
     catCatalogHead:'Catálogo de materiales',
+    catNotBuyLine:'Esta es la lista de precios. Lo que todavía hay que pedir para un trabajo vendido está en la pestaña Por pedir.',
     catCatalogBody:'Una lista de partes por tipo de cerca, para que no haya confusión sobre qué panel, poste o portón corresponde a cuál construcción. Edite aquí o en la app del teléfono en Catálogo — ambos escriben la misma lista y se sincronizan entre sí dentro de un minuto de que cualquiera de los dos esté en línea.',
     catStartSeedBtn:'Empezar con el catálogo de FenceFlow',
     ppOpenBtn:'Actualizar precios desde una lista de precios',
@@ -7081,7 +7103,7 @@ jobViewAll:'Todos', jobViewToday:'Hoy', jobViewWeek:'Esta semana', jobViewUnsche
   },
   fr: {
     tabDash:'Tableau de bord', tabJobs:'Chantiers', tabCal:'Planning', tabPipe:'Pipeline',
-    tabProd:'Production', tabMaterials:'Matériaux', tabCrew:'Équipe', tabTime:'Heures',
+    tabProd:'Production', tabMaterials:'À commander', tabCrew:'Équipe', tabTime:'Heures',
     tabCatalog:'Catalogue', tabReports:'Rapports', tabAutomation:'Automatisation',
     tabSettings:'Paramètres', tabBilling:'Facturation',
     tabMail:'E-mails', mailUnreadTitle:'%s non lus',
@@ -8044,6 +8066,7 @@ jobViewAll:'Tous', jobViewToday:'Aujourdhui', jobViewWeek:'Cette semaine', jobVi
     recoveryErrLinkExpired:'Ce lien de réinitialisation a expiré ou a déjà été utilisé. Envoyez-vous-en un nouveau ci-dessous.',
     authSigningOut:'Déconnexion…',
     matBuyHead:'À acheter',
+    matNotCatalogLine:'Ceci est la liste de commandes, pas la liste de prix. Ce qu’un poteau COÛTE se trouve dans l’onglet Catalogue; ce qui manque encore pour un chantier déjà vendu est ici.',
     matBuyBody:'Chaque chantier vendu qui attend encore des matériaux commandés ou reçus, regroupé en une seule liste d\'achat. Les quantités viennent directement des lignes de chaque chantier — aucun délai de livraison ni date de livraison n\'est affiché ici, car cette base de données n\'en enregistre aucun.',
     matColItem:'Article', matColUnit:'Unité', matColQty:'Quantité totale', matColNeededBy:'Requis pour', matColJobs:'Chantiers',
     matBuyEmptyMsg:'Rien à acheter pour le moment.',
@@ -8081,6 +8104,7 @@ jobViewAll:'Tous', jobViewToday:'Aujourdhui', jobViewWeek:'Cette semaine', jobVi
     crewRemovedHead:'Personnes retirées',
     crewRemovedBody:'Elles ne peuvent plus entrer avec l\'ancien code. Tout ce qu\'elles ont enregistré est encore là. Si vous avez retiré quelqu\'un par erreur, laissez-le revenir et il pourra réutiliser le même code.',
     catCatalogHead:'Catalogue de matériaux',
+    catNotBuyLine:'Ceci est la liste de prix. Ce qui reste à commander pour un chantier vendu se trouve dans l’onglet À commander.',
     catCatalogBody:'Une liste de pièces par type de clôture, pour qu\'il n\'y ait pas de confusion sur quel panneau, poteau ou portail va avec quelle construction. Modifiez ici ou dans l\'appli du téléphone sous Catalogue — les deux écrivent la même liste et se synchronisent dans la minute suivant la connexion de l\'un ou l\'autre.',
     catStartSeedBtn:'Partir du catalogue de FenceFlow',
     ppOpenBtn:'Mettre à jour les prix depuis une liste de prix',
