@@ -229,9 +229,41 @@ fun JobsListScreen(
                 )
             }
         ) else null
-    val crewAttentionItems = crewAttentionViewModel?.items?.collectAsState()?.value.orEmpty()
+    // THIS LINE WAS THE CRASH, and the shape of it is the lesson.
+    //
+    // It used to be `crewAttentionViewModel?.items?.collectAsState()?.value`.
+    // collectAsState() is a composable, and a safe-call chain is NOT a
+    // conditional the Compose compiler wraps in a group -- so the call simply
+    // happened or did not, with nothing enclosing the slots it used. session
+    // .role starts out unresolved and becomes the real role a moment after
+    // this screen first composes, so isCrewRole flips, the call appears or
+    // disappears, and every slot after it shifts by however many it used.
+    // The next remembered composable lambda then read somebody else's slot:
+    //
+    //   java.lang.ClassCastException: r4.j cannot be cast to c0.a
+    //   kotlin.coroutines.EmptyCoroutineContext cannot be cast to
+    //   androidx.compose.runtime.internal.ComposableLambdaImpl
+    //
+    // EmptyCoroutineContext is collectAsState's own default argument, which it
+    // stores as a remember key -- the fingerprint of this exact line. Fatal,
+    // on the jobs list, seven times between 1.519 and 1.687, always within
+    // seconds of opening the app.
+    //
+    // An `if` gets a keyed replaceable group, so the branch's slots are
+    // enclosed and discarded cleanly when it flips. A composable call must
+    // never hang off `?.`, `?:`, `takeIf` or any other inline chain.
+    val crewAttentionItems =
+        if (crewAttentionViewModel != null) crewAttentionViewModel.items.collectAsState().value
+        else emptyList()
     val keptJobIds = heldJobs.map { it.id }.toSet()
-    pendingUpdate?.takeIf { !updateDismissed }?.let { release ->
+    // An `if`, not `?.takeIf { }?.let { }`, for the reason spelled out above
+    // crewAttentionItems: this block holds a rememberCoroutineScope, a
+    // remember and a dialog with composable lambdas in it, so it is the
+    // largest run of slots on the screen that appears and disappears -- and
+    // pendingUpdate goes from null to a release a second or two after the
+    // screen opens, which is exactly when the crash landed.
+    val release = pendingUpdate
+    if (release != null && !updateDismissed) {
         val ctx = androidx.compose.ui.platform.LocalContext.current
         val updateScope = androidx.compose.runtime.rememberCoroutineScope()
         var progress by remember {
