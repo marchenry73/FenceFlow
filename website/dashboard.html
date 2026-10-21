@@ -1847,6 +1847,35 @@
         </div>
 
         <input id="catFilter" data-t="catFilterPh" placeholder="Filter by name, supplier, fence type, category or role…" style="margin:14px 0 10px">
+        <!-- FOUR STRUCTURED FILTERS BESIDE THE SEARCH BOX.
+             Typing is for when you know the name. These are for the question
+             you cannot phrase: everything chain-link, everything from one
+             supplier, every gate, what is retired. Shopify, ServiceTitan,
+             Odoo and Zoho all offer both and so does this now.
+             NOT a facet sidebar with per-option counts: at 124 items across
+             five fence types most facets would hold one to three options, and
+             a sidebar eats the width the table needs. McMaster needs facets
+             for nine thousand parts; this is not that. -->
+        <div class="range" style="margin-bottom:8px">
+          <div><label data-t="catFilterType">Fence type</label>
+            <select id="catFType"><option value="" data-t="reportsFilterAll">All</option></select></div>
+          <div><label data-t="catFilterRole">Role</label>
+            <select id="catFRole"><option value="" data-t="reportsFilterAll">All</option></select></div>
+          <div><label data-t="catFilterSupplier">Supplier</label>
+            <select id="catFSupplier"><option value="" data-t="reportsFilterAll">All</option></select></div>
+          <div><label data-t="catFilterStatus">Status</label>
+            <select id="catFStatus">
+              <option value="active" data-t="catStatusActive">In use</option>
+              <option value="retired" data-t="catStatusRetired">Retired</option>
+              <option value="" data-t="catStatusBoth">Both</option>
+            </select></div>
+          <div style="display:flex;align-items:flex-end;gap:6px">
+            <button class="btn btn-sm btn-ghost" type="button" id="catClear" data-t="catClearBtn">Clear</button>
+            <button class="btn btn-sm btn-ghost" type="button" id="catExpandAll" data-t="catExpandBtn">Open all</button>
+            <button class="btn btn-sm btn-ghost" type="button" id="catCsv" data-t="catCsvBtn">Download CSV</button>
+          </div>
+        </div>
+        <div id="catCount" class="range-label" style="margin-bottom:8px"></div>
         <div class="msg" id="catMsg"></div>
         <div class="empty" id="catEmpty" style="display:none">No materials yet. Add them by hand
           below, import a price list from Jobs, or press "Start from FenceFlow's catalog" above
@@ -4653,6 +4682,10 @@ jobViewAll:'All', jobViewToday:'Today', jobViewWeek:'This week', jobViewUnschedu
     catSupEmptyMsg:'No suppliers yet.',
     catColSupName:'Name', catColSupPhone:'Phone', catColSupEmail:'Email', catColSupHours:'Hours',
     catFilterPh:'Filter by name, supplier, fence type, category or role…',
+    catFilterType:'Fence type', catFilterRole:'Role', catFilterSupplier:'Supplier',
+    catFilterStatus:'Status', catStatusActive:'In use', catStatusRetired:'Retired', catStatusBoth:'Both',
+    catClearBtn:'Clear', catExpandBtn:'Open all', catCsvBtn:'Download CSV',
+    catCountLine:'Showing %s of %s items',
     catEmptyMsg:'No materials yet. Add them by hand below, import a price list from Jobs, or press "%s" above for a typical starting set you can then correct.',
     catColItem:'Item', catColRole:'Role', catColColour:'Colour', catColUnit:'Unit', catColPrice:'Price', catColCoversFt:'Covers ft',
     catColSupplierPrice:'Supplier price', catColSupplier:'Supplier', catColSku:'SKU', catColActive:'Active',
@@ -6453,6 +6486,10 @@ jobViewAll:'Todos', jobViewToday:'Hoy', jobViewWeek:'Esta semana', jobViewUnsche
     catSupEmptyMsg:'Todavía no hay proveedores.',
     catColSupName:'Nombre', catColSupPhone:'Teléfono', catColSupEmail:'Correo', catColSupHours:'Horario',
     catFilterPh:'Filtrar por nombre, proveedor, tipo de cerca, categoría o puesto…',
+    catFilterType:'Tipo de cerca', catFilterRole:'Puesto', catFilterSupplier:'Proveedor',
+    catFilterStatus:'Estado', catStatusActive:'En uso', catStatusRetired:'Retirados', catStatusBoth:'Ambos',
+    catClearBtn:'Limpiar', catExpandBtn:'Abrir todo', catCsvBtn:'Descargar CSV',
+    catCountLine:'Mostrando %s de %s artículos',
     catEmptyMsg:'Todavía no hay materiales. Agréguelos a mano abajo, importe una lista de precios desde Trabajos, o presione "%s" arriba para un conjunto inicial típico que luego puede corregir.',
     catColItem:'Artículo', catColRole:'Puesto', catColColour:'Color', catColUnit:'Unidad', catColPrice:'Precio', catColCoversFt:'Cubre pies',
     catColSupplierPrice:'Precio del proveedor', catColSupplier:'Proveedor', catColSku:'SKU', catColActive:'Activo',
@@ -8223,6 +8260,10 @@ jobViewAll:'Tous', jobViewToday:'Aujourdhui', jobViewWeek:'Cette semaine', jobVi
     catSupEmptyMsg:'Pas encore de fournisseur.',
     catColSupName:'Nom', catColSupPhone:'Téléphone', catColSupEmail:'Courriel', catColSupHours:'Heures',
     catFilterPh:'Filtrer par nom, fournisseur, type de clôture, catégorie ou poste…',
+    catFilterType:'Type de clôture', catFilterRole:'Poste', catFilterSupplier:'Fournisseur',
+    catFilterStatus:'État', catStatusActive:'En service', catStatusRetired:'Retirés', catStatusBoth:'Les deux',
+    catClearBtn:'Effacer', catExpandBtn:'Tout ouvrir', catCsvBtn:'Télécharger CSV',
+    catCountLine:'Affichage de %s sur %s articles',
     catEmptyMsg:'Pas encore de matériaux. Ajoutez-les à la main ci-dessous, importez une liste de prix depuis Chantiers, ou appuyez sur « %s » ci-dessus pour un ensemble de départ typique que vous pourrez ensuite corriger.',
     catColItem:'Article', catColRole:'Poste', catColColour:'Couleur', catColUnit:'Unité', catColPrice:'Prix', catColCoversFt:'Couvre (pi)',
     catColSupplierPrice:'Prix fournisseur', catColSupplier:'Fournisseur', catColSku:'UGS', catColActive:'Actif',
@@ -16436,23 +16477,131 @@ function wireCatSectionsIn(root){
     buttons. A missing container is not an error, the same convention
     renderTierRows already uses, since the wizard step usually is not on
     screen at all. */
+/* THE FOUR DROPDOWNS, kept OUT of catalogFilterItems on purpose.
+ *
+ * That helper is shared with the setup wizard's supplier step, which passes
+ * its own search box and knows nothing about these controls. Widening a
+ * shared predicate is how every caller quietly starts answering a narrower
+ * question than it asked -- so this is a second, separate layer, applied
+ * only to the Catalog tab's own container.
+ *
+ * Status defaults to IN USE. A retired part is one somebody deliberately
+ * took out of circulation; showing it by default in a price list is how it
+ * gets quoted again.
+ */
+const catSel = { type: '', role: '', supplier: '', status: 'active' };
+
+function catStructuralFilter(items){
+  return (items||[]).filter(c => {
+    if (catSel.type && c.fence_type !== catSel.type) return false;
+    if (catSel.role && c.role !== catSel.role) return false;
+    if (catSel.supplier && String(c.manufacturer_sync_id||'') !== catSel.supplier) return false;
+    const live = c.is_active !== false;
+    if (catSel.status === 'active' && !live) return false;
+    if (catSel.status === 'retired' && live) return false;
+    return true;
+  });
+}
+
+/* Filled from what the catalog actually holds, not from every enum value:
+   an option that selects nothing is a dead end. Rebuilt whenever the
+   catalog is, so an item added in the phone app turns up here too. */
+function fillCatPickers(){
+  const fill = (id, pairs, keep) => {
+    const el = $(id);
+    if (!el) return;
+    const was = el.value;
+    el.innerHTML = '<option value="">' + esc(tr('reportsFilterAll')) + '</option>';
+    for (const [v, label] of pairs) {
+      const o = document.createElement('option');
+      o.value = v; o.textContent = label;
+      el.appendChild(o);
+    }
+    // A chosen value that no longer exists must not silently become All.
+    el.value = pairs.some(p => p[0] === was) ? was : (keep ? was : '');
+  };
+  fill('catFType', [...new Set(catalog.map(c => c.fence_type).filter(Boolean))]
+    .sort().map(t => [t, catFenceTypeLabel(t)]));
+  fill('catFRole', [...new Set(catalog.map(c => c.role).filter(Boolean))].sort().map(r => [r, r]));
+  fill('catFSupplier', [...new Set(catalog.map(c => c.manufacturer_sync_id).filter(Boolean))]
+    .map(id => [id, manufacturerName(id) || id.slice(0, 8)])
+    .sort((a, b) => String(a[1]).localeCompare(String(b[1]))));
+}
+
+let catPickersWired = false;
+function wireCatFilters(){
+  if (catPickersWired) return;
+  catPickersWired = true;
+  const on = (id, key) => {
+    const el = $(id);
+    if (el) el.addEventListener('change', () => { catSel[key] = el.value; renderCatalog(); });
+  };
+  on('catFType', 'type'); on('catFRole', 'role');
+  on('catFSupplier', 'supplier'); on('catFStatus', 'status');
+  const clear = $('catClear');
+  if (clear) clear.addEventListener('click', () => {
+    catSel.type = catSel.role = catSel.supplier = ''; catSel.status = 'active';
+    const f = $('catFilter'); if (f) f.value = '';
+    ['catFType','catFRole','catFSupplier'].forEach(id => { const e = $(id); if (e) e.value = ''; });
+    const st = $('catFStatus'); if (st) st.value = 'active';
+    renderCatalog();
+  });
+  const openAll = $('catExpandAll');
+  if (openAll) openAll.addEventListener('click', () => {
+    // Five accordions meant five clicks before the whole price list was
+    // even visible. One button, and it toggles, so closing them again is
+    // not five more.
+    const anyClosed = catalogGroupByType(catalog).some(g => catCollapsed.has(g.type));
+    catalogGroupByType(catalog).forEach(g => { if (anyClosed) catCollapsed.delete(g.type); else catCollapsed.add(g.type); });
+    renderCatalog();
+  });
+  const csv = $('catCsv');
+  if (csv) csv.addEventListener('click', () => {
+    // The CURRENT view, the way Square exports items matching the filters --
+    // an export that quietly holds more than the screen does is a different
+    // document to the one being looked at.
+    const rows = catStructuralFilter(catalogFilterItems(catalog, $('catFilter')?.value || '', manufacturerName));
+    downloadCsv('catalog.csv',
+      ['Item','Fence type','Role','Category','Supplier','Unit','Price','Covers (ft)','Height (ft)','In use'],
+      rows.map(c => [c.name, catFenceTypeLabel(c.fence_type), c.role, c.category,
+        manufacturerName(c.manufacturer_sync_id) || '', c.unit, c.unit_price,
+        c.covers_ft ?? '', c.height_ft ?? '', c.is_active === false ? 'no' : 'yes']));
+  });
+}
+
 function renderCatalogSections(containerId, filterValue){
   const el = $(containerId);
   if(!el) return;
+  // The dropdowns belong to the Catalog tab only. The setup wizard reuses
+  // this renderer with its own search box and no dropdowns at all.
+  const structural = containerId === 'catSections';
   const groups = catalogGroupByType(catalog);
-  const hasFilter = (filterValue||'').trim().length>0;
+  const hasFilter = (filterValue||'').trim().length>0
+    || (structural && (catSel.type || catSel.role || catSel.supplier || catSel.status !== 'active'));
+  let shownCount = 0;
   const html = groups.map(g=>{
-    const filteredItems = catalogFilterItems(g.items, filterValue, manufacturerName);
+    const filteredItems = structural
+      ? catStructuralFilter(catalogFilterItems(g.items, filterValue, manufacturerName))
+      : catalogFilterItems(g.items, filterValue, manufacturerName);
+    shownCount += filteredItems.length;
     if(hasFilter && !filteredItems.length) return '';
     const expanded = hasFilter ? true : !catCollapsed.has(g.type);
     return catSectionHtml(g, filteredItems, expanded, hasFilter);
   }).join('');
   el.innerHTML = html || (catalog.length ? `<p class="empty">${esc(tr('catNothingFilterMsg'))}</p>` : '');
   wireCatSectionsIn(el);
+  // SHOWING X OF Y. Without it a filter that matches nothing looks the same
+  // as a catalog that holds nothing, and a filter left set from last time
+  // looks like parts that have gone missing.
+  if (structural && $('catCount')) {
+    $('catCount').textContent = tr('catCountLine', shownCount, catalog.length);
+  }
 }
 
 function renderCatalog(){
   if(!$('catFilter')) return;
+  wireCatFilters();
+  fillCatPickers();
   // The same gate as every other catalog edit on this page. The handler checks it again.
   if($('catPriceList')) $('catPriceList').style.display = canEdit() ? '' : 'none';
   $('catEmpty').style.display = catalog.length ? 'none' : 'block';

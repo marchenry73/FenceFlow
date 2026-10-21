@@ -485,7 +485,17 @@ test("PREMISE: the phone files crash reports as the signed-in user, in one batch
   assert.deepEqual(writers, [
     "app/src/main/java/com/fenceestimator/app/cloud/CrashReporter.kt",
     "app/src/main/java/com/fenceestimator/app/cloud/JobSync.kt",
+    // Added 21 October 2026. The office page files its own technical
+    // failures here too, as the signed-in user, under app_errors_insert.
+    // It is a CLIENT, not server side, so the premise this list defends --
+    // that nothing writes these rows with more authority than the person
+    // sitting there -- is unchanged. The office had no error record at all
+    // before, which is why an owner blocked by a refusal could only be
+    // diagnosed from a photograph of the message.
+    "website/dashboard.html",
   ], "nothing server side writes app_errors");
+  // ...and the operator console still only READS them (asserted below), so
+  // the one page that can see every company cannot manufacture a row.
   const cr = read(join(rootPath, "app/src/main/java/com/fenceestimator/app/cloud/CrashReporter.kt"));
   assert.match(cr, /SupabaseModule\.client\.postgrest\.from\("app_errors"\)\.insert\(records\)\s+\/\/[\s\S]{0,200}file\.delete\(\)/, "one batch insert, then the queue file is deleted only once it is safely up");
   assert.ok(!/reported_?by|reportedBy/.test(cr), "the phone has never sent reported_by, so stamping it changes no caller");
