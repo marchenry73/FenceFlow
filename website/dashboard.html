@@ -1432,6 +1432,11 @@
           </div>
         </div>
         <div class="cal-sum" id="calSummary"></div>
+        <!-- Dragging a job to another day writes to the database. Until
+             22 October 2026 a refused write only reached the console: the
+             chip sprang back to where it started and nothing said why,
+             which reads as the drag not working. -->
+        <div class="msg" id="calMsg"></div>
         <div class="cal" id="cal"></div>
 
         <!-- WHAT HAS NO DATE AT ALL.
@@ -5236,6 +5241,9 @@ jobViewAll:'All', jobViewToday:'Today', jobViewWeek:'This week', jobViewUnschedu
 
     desktopAlertsUnsupported:'This browser does not support desktop notifications.',
     alertsOnCount:'%s of %s on', alertsAllOn:'All on', alertsAllOff:'All off',
+    alertPrefSaveFailed:'Not saved \u2014 this switch will come back at the next reload.',
+    calMoveFailed:'That date was not saved: %s',
+    calMoveRefused:'The server did not take that move, so the job is back where it was. Reload and try again.',
     desktopAlertsBlocked:'Blocked in this browser — allow notifications for this site to turn it back on.',
     desktopAlertsOn:'On — this browser will pop up a notification for a critical or urgent item while this tab is in the background.',
     desktopAlertsEnableBtn:'Turn on desktop alerts',
@@ -7016,6 +7024,9 @@ jobViewAll:'Todos', jobViewToday:'Hoy', jobViewWeek:'Esta semana', jobViewUnsche
 
     desktopAlertsUnsupported:'Este navegador no admite notificaciones de escritorio.',
     alertsOnCount:'%s de %s activadas', alertsAllOn:'Todas', alertsAllOff:'Ninguna',
+    alertPrefSaveFailed:'No se guard\u00f3 \u2014 este interruptor volver\u00e1 al recargar.',
+    calMoveFailed:'Esa fecha no se guard\u00f3: %s',
+    calMoveRefused:'El servidor no acept\u00f3 ese cambio, as\u00ed que el trabajo volvi\u00f3 a donde estaba. Recargue e int\u00e9ntelo de nuevo.',
     desktopAlertsBlocked:'Bloqueado en este navegador — permita las notificaciones para este sitio para volver a activarlo.',
     desktopAlertsOn:'Activado — este navegador mostrará una notificación para un elemento crítico o urgente mientras esta pestaña esté en segundo plano.',
     desktopAlertsEnableBtn:'Activar alertas de escritorio',
@@ -8793,6 +8804,9 @@ jobViewAll:'Tous', jobViewToday:'Aujourdhui', jobViewWeek:'Cette semaine', jobVi
 
     desktopAlertsUnsupported:'Ce navigateur ne prend pas en charge les notifications de bureau.',
     alertsOnCount:'%s sur %s activées', alertsAllOn:'Toutes', alertsAllOff:'Aucune',
+    alertPrefSaveFailed:'Non enregistr\u00e9 \u2014 cet interrupteur reviendra au prochain rechargement.',
+    calMoveFailed:'Cette date n\u2019a pas \u00e9t\u00e9 enregistr\u00e9e : %s',
+    calMoveRefused:'Le serveur n\u2019a pas accept\u00e9 ce d\u00e9placement, le chantier est revenu \u00e0 sa place. Rechargez et r\u00e9essayez.',
     desktopAlertsBlocked:'Bloqué dans ce navigateur — autorisez les notifications pour ce site pour les réactiver.',
     desktopAlertsOn:'Activé — ce navigateur affichera une notification pour un élément critique ou urgent pendant que cet onglet est en arrière-plan.',
     desktopAlertsEnableBtn:'Activer les alertes de bureau',
@@ -9741,9 +9755,17 @@ async function setAlertMuted(key, muted){
       muted_alerts: Array.from(next),
       updated_at: new Date().toISOString()
     }, { onConflict: 'user_id' });
-  } catch (e) { /* offline or table missing -- the on-screen state above is
-                   still correct for this session; it just will not survive
-                   a reload until the table exists and the write succeeds */ }
+    const note = $('alertPrefSaveNote');
+    if (note) note.textContent = '';
+  } catch (e) {
+    // SAID OUT LOUD, from 22 October 2026. The screen is right for this
+    // session either way, so this was swallowed -- but the switch then
+    // comes back on at the next reload, and a setting that undoes itself
+    // overnight with no explanation is the product looking broken.
+    const note = $('alertPrefSaveNote');
+    if (note) note.textContent = tr('alertPrefSaveFailed');
+    console.warn('alert preference not saved:', e);
+  }
 }
 
 /* ALL OF THEM AT ONCE, in one write.
@@ -9776,6 +9798,7 @@ function renderAlertPrefs(){
        <span class="sub" id="alertCount">${esc(tr('alertsOnCount', on, ALERT_DEFS.length))}</span>
        <button type="button" class="btn btn-sm btn-ghost" id="alertsAllOn">${esc(tr('alertsAllOn'))}</button>
        <button type="button" class="btn btn-sm btn-ghost" id="alertsAllOff">${esc(tr('alertsAllOff'))}</button>
+       <span id="alertPrefSaveNote" style="color:var(--err,#a33);font-size:12px"></span>
      </div>
      <div class="alertgrid">` +
     ALERT_DEFS.map(a => `
@@ -14893,12 +14916,24 @@ function renderCal(){
       const next=new Date(ny, nm-1, nd, hh, mm);
       const iso=next.toISOString();
       const { moved, error } = await rescheduleJobToDate(job.id, iso);
-      if(error){ console.error(error); renderCal(); return; }
+      if(error){
+        console.error(error);
+        renderCal();
+        // plainError gives the library's wording a sentence a person can
+        // act on, and files the raw text to app_errors on the way past.
+        msg('calMsg', tr('calMoveFailed', plainError(error.message || String(error))), 'err');
+        return;
+      }
       // Zero rows moved with no error -- an RLS-filtered write or a job
       // that changed company/got deleted since the drag started. Repaint
       // from what the server actually holds (job.scheduled_date untouched)
       // rather than the date this chip was just dropped on.
-      if(!moved){ renderCal(); return; }
+      if(!moved){
+        renderCal();
+        msg('calMsg', tr('calMoveRefused'), 'err');
+        return;
+      }
+      msg('calMsg', '', 'ok');
       job.scheduled_date=iso;
       renderCal();
     });
