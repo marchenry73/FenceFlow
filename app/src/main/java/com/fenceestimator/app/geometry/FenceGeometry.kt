@@ -951,16 +951,30 @@ object RunJoinArithmetic {
     }
 
     /**
-     * Who owns the post where runs meet: the SHORTER side owns the shared post where the heights differ.
-     * A post has to be tall enough for the tallest panel on it, so "shorter
-     * wins" is only ever reached at a height CHANGE -- and there the fence
-     * steps DOWN onto the short post rather than leaving a tall one standing
-     * proud of the low side. Equal heights never reach it, and fall through to
-     * sort order and then id, which is what keeps the answer independent of
-     * list order.
+     * Who owns the post where runs meet: the TALLER side owns the shared post
+     * where the heights differ.
+     *
+     * One post, two panels, different heights: the post has to be tall enough
+     * for the taller panel, because a 6 ft panel cannot hang on a 4 ft post.
+     * So the post that is actually bought and set is the tall one, and the run
+     * that carries its cost is the tall run. That is what JOINING_RUNS 2.4 has
+     * always said, and what this file's own @param heightFt has always said.
+     *
+     * It said the opposite here until 22 October 2026, and so did joins.ts --
+     * the two agreed with each other and with nothing else, which is why every
+     * parity run passed. Parity proves the engines agree; it has never proved
+     * they are right. a32's case D2 carried it red the whole time.
+     *
+     * The old reasoning -- that the fence steps DOWN onto the short post
+     * rather than leaving a tall one standing proud -- describes an
+     * arrangement where each run ends on its own post. That is two posts. This
+     * function only ever runs when there is one.
+     *
+     * Equal heights never reach it, and fall through to sort order and then
+     * id, which is what keeps the answer independent of list order.
      */
     private fun outranks(a: JoinableRun, b: JoinableRun): Boolean {
-        if (a.heightFt != b.heightFt) return a.heightFt < b.heightFt
+        if (a.heightFt != b.heightFt) return a.heightFt > b.heightFt
         if (a.sortOrder != b.sortOrder) return a.sortOrder < b.sortOrder
         return a.id < b.id
     }
