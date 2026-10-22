@@ -381,6 +381,10 @@
     <string name="set_logo_shape_wide">Ancho</string>
     <string name="set_logo_shape_square">Cuadrado</string>
     <string name="set_logo_rotate">Girar</string>
+    <string name="set_logo_remove_white">Quitar el fondo blanco</string>
+    <string name="set_logo_remove_white_hint">Para un logo guardado como JPG, que lleva su propia caja blanca a sus presupuestos y correos.</string>
+    <string name="set_logo_brightness">Brillo</string>
+    <string name="set_logo_contrast">Contraste</string>
     <string name="set_logo_use">Usar esta</string>
     <string name="set_logo_label">Logotipo de la empresa</string>
     <string name="set_logo_note">Se imprime en sus presupuestos y contratos en PDF, aparece en la página de presupuesto que abre su cliente y en la parte superior de los correos que FenceFlow le envía. PNG, JPG o WEBP, hasta 2 MB.</string>
@@ -672,6 +676,7 @@
     <string name="jd_paid_use_record">Usa Registrar un pago, abajo</string>
     <string name="jd_refunded_amount">Reembolsado: $%1$s</string>
     <string name="jd_set_deposit_covers">Poner depósito de $%1$s (cubre materiales)</string>
+    <string name="jd_set_deposit_rest">Poner depósito de $%1$s (faltan $%2$s por cobrar)</string>
     <string name="jd_set_deposit_capped">Poner depósito de $%1$s (todo lo que aún se debe)</string>
     <string name="jd_accepted_price">Precio aceptado</string>
     <string name="jd_accepted_vs_estimate">El presupuesto ahora suma $%1$s. Al cliente se le cobra el precio que aceptó; cualquier cambio pasa por una orden de cambio firmada o una nueva aprobación.</string>

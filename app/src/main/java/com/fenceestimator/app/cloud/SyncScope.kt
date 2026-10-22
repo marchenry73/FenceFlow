@@ -95,7 +95,7 @@ val MONEY_KEYS: Set<String> = setOf(
     "tax_rate_percent", "markup_percent", "discount_percent",
     "labor_rate_per_ft", "labor_flat_fee", "minimum_job_charge", "minimum_labor_charge",
     "teardown_flat_fee", "teardown_rate_per_ft", "gate_rate_per_ft", "trash_haul_fee",
-    "deposit_amount", "amount_paid", "refunded_amount", "refunded_at", "refund_reason",
+    "deposit_amount", "deposit_is_auto", "amount_paid", "refunded_amount", "refunded_at", "refund_reason",
     "payment_status", "is_invoiced", "payments_from_processor",
     "contract_total", "signed_contract_total", "tip_amount",
     "payment_link_url", "payment_link_amount",

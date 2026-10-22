@@ -381,6 +381,10 @@
     <string name="set_logo_shape_wide">Large</string>
     <string name="set_logo_shape_square">Carré</string>
     <string name="set_logo_rotate">Pivoter</string>
+    <string name="set_logo_remove_white">Enlever le fond blanc</string>
+    <string name="set_logo_remove_white_hint">Pour un logo enregistré en JPG, qui emporte son propre cadre blanc sur vos devis et vos courriels.</string>
+    <string name="set_logo_brightness">Luminosité</string>
+    <string name="set_logo_contrast">Contraste</string>
     <string name="set_logo_use">Utiliser</string>
     <string name="set_logo_label">Logo de l’entreprise</string>
     <string name="set_logo_note">Imprimé sur vos devis et contrats PDF, affiché sur la page de devis que votre client ouvre, et en haut des courriels que FenceFlow lui envoie. PNG, JPG ou WEBP, jusqu’à 2 Mo.</string>
@@ -672,6 +676,7 @@
     <string name="jd_paid_use_record">Utilisez Enregistrer un paiement ci-dessous</string>
     <string name="jd_refunded_amount">Remboursé : %1$s $</string>
     <string name="jd_set_deposit_covers">Fixer l\'acompte à %1$s $ (couvre les matériaux)</string>
+    <string name="jd_set_deposit_rest">Fixer l\'acompte à %1$s $ (reste %2$s $ à encaisser)</string>
     <string name="jd_set_deposit_capped">Fixer l\'acompte à %1$s $ (tout ce qui reste dû)</string>
     <string name="jd_accepted_price">Prix accepté</string>
     <string name="jd_accepted_vs_estimate">Le devis s\'élève maintenant à %1$s $. Le client est facturé au prix qu\'il a accepté ; tout changement passe par un avenant signé ou une nouvelle approbation.</string>

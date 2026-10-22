@@ -162,7 +162,9 @@ class JobDetailViewModel(
     fun applySuggestedDeposit() {
         val amount = suggestedDeposit()
         if (amount <= 0.0) return
-        update { it.copy(depositAmount = amount) }
+        // Set deliberately -- from the suggestion button or a typed figure --
+        // so it is a person's number now and the price no longer moves it.
+        update { it.copy(depositAmount = amount, depositIsAuto = false) }
     }
 
     /**
@@ -1222,7 +1224,27 @@ internal fun durationFollowStep(
     manuallySet: Boolean,
     mayWrite: Boolean
 ): DurationFollowStep {
-    if (baseline == null) return DurationFollowStep(computed, null)
+    if (baseline == null) {
+        // FIRST EMISSION -- the screen has just opened.
+        //
+        // It writes nothing, with ONE exception, and the reason for the rule
+        // is a real job: 4598150b went from the office's 4 hours to 93.33
+        // because opening the screen saved whatever this phone worked out,
+        // from a drawing that may not have finished syncing and at rates that
+        // may differ from the office's. A stored figure somebody else put
+        // there is not this phone's to overwrite on sight.
+        //
+        // The exception is a stored figure of ZERO. Nobody chose zero: it is a
+        // job whose estimate has never been set, so there is nothing to
+        // protect and no figure to disagree with. That is the case where he
+        // sees no estimated time at all until something else happens to change
+        // -- "I want the estimated time to auto change whenever something
+        // changes" -- and it is the half that is safe to do automatically.
+        val firstWrite = computed.takeIf {
+            mayWrite && !manuallySet && it > 0.0 && stored <= 0.005
+        }
+        return DurationFollowStep(computed, firstWrite)
+    }
     if (kotlin.math.abs(computed - baseline) <= 0.005) return DurationFollowStep(baseline, null)
     val write = computed.takeIf {
         mayWrite && !manuallySet && it > 0.0 && kotlin.math.abs(it - stored) > 0.005

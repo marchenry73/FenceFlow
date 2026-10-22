@@ -17,7 +17,10 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.json.JsonElement
 import kotlinx.serialization.json.JsonObject
+import kotlinx.serialization.json.JsonPrimitive
+import kotlinx.serialization.json.contentOrNull
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
 
@@ -239,13 +242,38 @@ object AdminRepository {
     // A company's OWN connected mailbox is untouched either way; this only
     // decides what "FenceFlow mail" means.
 
-    /** Which service carries FenceFlow mail: "resend" or "brevo". */
+    /**
+     * Which service carries FenceFlow mail: "resend" or "brevo".
+     *
+     * THROUGH THE RPC, NOT THE TABLE. This read a row off
+     * mail_platform_settings directly until 2026-10-22, and had therefore
+     * never once worked: that table is service-role only -- no grant to
+     * authenticated, RLS on, not one policy -- and the panel showed
+     * "permission denied for table mail_platform_settings" with the whole
+     * failing request, access token included, printed under it.
+     *
+     * The error helpfully suggested GRANT SELECT ... TO authenticated. Taking
+     * that advice would give every signed-in user of every fence company a
+     * read of the platform's own mail configuration, and break
+     * tests/a25-tenant-isolation.test.mjs, which lists this table among the
+     * six no tenant login may touch. The database knows about privileges, not
+     * about who ought to have them.
+     *
+     * admin_mail_sender() is the twin of admin_set_mail_sender() below: same
+     * is_platform_admin() guard, same second factor. See
+     * supabase_r27_admin_mail_sender_read.sql.
+     */
     suspend fun mailSender(): Result<String> = io {
-        SupabaseModule.client.postgrest.from("mail_platform_settings")
-            .select(io.github.jan.supabase.postgrest.query.Columns.list("sender_provider")) {
-                filter { eq("id", 1) }
-            }
-            .decodeSingleOrNull<SenderRow>()?.senderProvider ?: "resend"
+        // Null when the server refuses -- which is also what it returns if the
+        // settings row is missing. Either way "resend" is what the platform
+        // actually falls back to, so the panel shows the truth rather than a
+        // blank it would have to explain.
+        // decodeAs<JsonElement>(), not decodeAs<String>(): the function
+        // returns NULL to a refused caller and to a missing settings row,
+        // and decodeAs cannot be given a nullable type -- its parameter is
+        // bounded to Any, so String? does not compile.
+        val answer = SupabaseModule.client.postgrest.rpc("admin_mail_sender").decodeAs<JsonElement>()
+        (answer as? JsonPrimitive)?.contentOrNull ?: "resend"
     }
 
     /**
@@ -261,10 +289,9 @@ object AdminRepository {
         Unit
     }
 
-    @Serializable
-    private data class SenderRow(
-        @SerialName("sender_provider") val senderProvider: String = "resend"
-    )
+    // SenderRow was the shape of the direct table read that mailSender() no
+    // longer does. Deleted with it: a row class nobody decodes is a claim
+    // that something still reads that table.
 
     /** Stop a group of errors being reported again until it recurs. */
     suspend fun markErrorsSeen(message: String, whereAt: String): Result<Unit> = io {

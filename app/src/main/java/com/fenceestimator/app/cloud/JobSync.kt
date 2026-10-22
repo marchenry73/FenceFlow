@@ -77,6 +77,17 @@ data class CloudJob(
     @SerialName("teardown_rate_per_ft") val teardownRatePerFt: Double = 0.0,
     @SerialName("teardown_feet") val teardownFeet: Double = 0.0,
     @SerialName("deposit_amount") val depositAmount: Double = 0.0,
+    /**
+     * Whether that deposit is the app's own suggestion (see Job.depositIsAuto).
+     *
+     * It TRAVELS because the figure does: the office re-prices through
+     * price-job, which moves an automatic deposit and must leave a typed one
+     * alone, and it cannot tell them apart without this. Defaults false so a
+     * row from a database that does not have the column yet reads as
+     * somebody's own figure -- the cautious direction, and the same default
+     * the column itself carries.
+     */
+    @SerialName("deposit_is_auto") val depositIsAuto: Boolean = false,
     @SerialName("amount_paid") val amountPaid: Double = 0.0,
     /**
      * What the customer is actually billed, from the estimating engine.
@@ -1714,6 +1725,7 @@ private fun Job.toCloud(
     signatureStoragePath = signatureStoragePath,
     finalSignOffStoragePath = finalSignOffStoragePath,
     depositAmount = depositAmount,
+    depositIsAuto = depositIsAuto,
     amountPaid = amountPaid,
     contractTotal = contractTotal,
     assignedEmployeeSyncId = assignedEmployeeSyncId,
@@ -1834,6 +1846,10 @@ internal fun CloudJob.mergeOnto(local: Job, keepMoney: Boolean = false): Job = l
     signatureStoragePath = signatureStoragePath ?: local.signatureStoragePath,
     finalSignOffStoragePath = finalSignOffStoragePath ?: local.finalSignOffStoragePath,
     depositAmount = if (keepMoney) local.depositAmount else depositAmount,
+    // Follows the figure it describes. Taking the cloud's deposit but
+    // keeping the local flag would let a typed deposit read as automatic,
+    // and the next re-price would overwrite the number somebody chose.
+    depositIsAuto = if (keepMoney) local.depositIsAuto else depositIsAuto,
     // Money that cleared is still never allowed to go backwards, even on a
     // branch where the cloud row is unambiguously newer.
     // Both are caches of the ledger, so the cloud value is taken as-is and
@@ -1995,6 +2011,7 @@ internal fun CloudJob.toLocalJob(): Job = Job(
     signatureStoragePath = signatureStoragePath,
     finalSignOffStoragePath = finalSignOffStoragePath,
     depositAmount = depositAmount,
+    depositIsAuto = depositIsAuto,
     amountPaid = amountPaid,
     refundedAmount = refundedAmount,
     refundedAt = CloudTime.parseMillis(refundedAt),

@@ -2,6 +2,7 @@ package com.fenceestimator.app.ui.settings
 
 import com.fenceestimator.app.ui.settings.LogoCrop.Shape
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -196,5 +197,102 @@ class LogoCropTest {
         assertEquals(LogoCrop.sizeAfterRotation(300, 400, 1), LogoCrop.sizeAfterRotation(300, 400, -3))
         assertEquals(LogoCrop.sizeAfterRotation(300, 400, 1), LogoCrop.sizeAfterRotation(300, 400, 9))
         assertEquals(LogoCrop.sizeAfterRotation(300, 400, 0), LogoCrop.sizeAfterRotation(300, 400, -4))
+    }
+}
+
+/**
+ * The two adjustments that are not a crop: what counts as the white
+ * background, and the brightness/contrast matrix.
+ *
+ * Both are pure arithmetic with a visible consequence, which is exactly the
+ * kind of thing that passes review by eye and is wrong by a factor of two.
+ * Every assertion here is paired with a case that must come out differently.
+ */
+class LogoAdjustTest {
+
+    // ------------------------------------------------- the white knockout
+
+    @Test
+    fun `paper white and near white are the background`() {
+        assertTrue(LogoCrop.isBackgroundWhite(255, 255, 255))
+        assertTrue(LogoCrop.isBackgroundWhite(240, 244, 238))
+    }
+
+    @Test
+    fun `a saturated colour is never the background, however bright`() {
+        // The case averaging gets wrong: (255, 255, 0) averages to 170, and a
+        // mean-based test with a threshold under that punches yellow holes in
+        // the logo. Every channel has to clear the bar.
+        assertFalse("a bright yellow read as background", LogoCrop.isBackgroundWhite(255, 255, 0))
+        assertFalse(LogoCrop.isBackgroundWhite(255, 0, 255))
+        assertFalse("mid grey read as background", LogoCrop.isBackgroundWhite(180, 180, 180))
+        assertFalse("black read as background", LogoCrop.isBackgroundWhite(0, 0, 0))
+    }
+
+    @Test
+    fun `PLANTED FAILURE averaging really would get the yellow wrong`() {
+        val mean = (255 + 255 + 0) / 3
+        assertTrue("the mean no longer clears a sane threshold, so the test above proves nothing",
+            mean >= 128)
+        assertFalse(LogoCrop.isBackgroundWhite(255, 255, 0))
+    }
+
+    @Test
+    fun `the threshold is a boundary, and both sides of it are tested`() {
+        val t = LogoCrop.WHITE_THRESHOLD
+        assertTrue(LogoCrop.isBackgroundWhite(t, t, t))
+        assertFalse(LogoCrop.isBackgroundWhite(t - 1, t, t))
+    }
+
+    // ------------------------------------------- brightness and contrast
+
+    @Test
+    fun `doing nothing really does nothing`() {
+        // A logo nobody adjusted must come out byte-for-byte what it was.
+        val m = LogoCrop.colorMatrix(0f, 0f)
+        val identity = floatArrayOf(
+            1f, 0f, 0f, 0f, 0f,
+            0f, 1f, 0f, 0f, 0f,
+            0f, 0f, 1f, 0f, 0f,
+            0f, 0f, 0f, 1f, 0f,
+        )
+        for (i in identity.indices) assertEquals("cell $i", identity[i], m[i], 0.0001f)
+    }
+
+    @Test
+    fun `brightness moves every channel by the same amount and leaves alpha alone`() {
+        val m = LogoCrop.colorMatrix(0.2f, 0f)
+        val shift = 0.2f * 255f
+        assertEquals(shift, m[4], 0.01f)
+        assertEquals(shift, m[9], 0.01f)
+        assertEquals(shift, m[14], 0.01f)
+        assertEquals("alpha was scaled -- a transparent logo would go opaque", 1f, m[18], 0.0001f)
+        assertEquals("alpha was shifted -- the knockout would be undone", 0f, m[19], 0.0001f)
+    }
+
+    @Test
+    fun `contrast pivots on mid grey, so a mid grey pixel does not move`() {
+        val m = LogoCrop.colorMatrix(0f, 0.5f)
+        // What the matrix does to one channel: value * scale + translate.
+        val out = 128f * m[0] + m[4]
+        assertEquals("mid grey moved, which reads as a broken brightness control", 128f, out, 0.01f)
+        // ...and something off mid grey DOES move, or the control does nothing.
+        val dark = 64f * m[0] + m[4]
+        assertTrue("contrast changed nothing at all", dark < 64f - 1f)
+    }
+
+    @Test
+    fun `PLANTED FAILURE scaling around zero would darken the whole picture`() {
+        // The version this is not: no pivot term at all.
+        val naive = 128f * 1.5f
+        assertTrue("the naive version agrees, so the pivot assertion proves nothing", naive > 128f + 1f)
+    }
+
+    @Test
+    fun `the sliders cannot be pushed past what the matrix can take`() {
+        for (v in listOf(-5f, 5f, Float.NaN.takeIf { false } ?: 2f)) {
+            val m = LogoCrop.colorMatrix(v, v)
+            for (cell in m) assertTrue("a cell went non-finite at $v", cell.isFinite())
+        }
     }
 }

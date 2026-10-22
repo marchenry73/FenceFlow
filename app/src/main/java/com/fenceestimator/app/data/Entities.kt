@@ -293,6 +293,34 @@ data class Job(
 
     // Payment / invoice
     val depositAmount: Double = 0.0,
+    /**
+     * [depositAmount] is the app's own suggestion, not a figure a person chose.
+     *
+     * THE ONE BIT THAT LETS THE DEPOSIT FOLLOW THE PRICE SAFELY. Without it a
+     * stored deposit has no provenance: "$1,400" looks identical whether the
+     * app worked it out or the owner typed it, so the code had to pick one
+     * rule for both. It picked "never move it", which is why the deposit on
+     * the estimate stopped updating when the price changed -- the thing the
+     * owner has now asked for twice.
+     *
+     * TRUE: written by [JobMoney.depositToStore], and rewritten by it every
+     * time the price moves, precisely.
+     * FALSE: a person typed it or tapped a figure. It never moves again. That
+     * is the protection the old blanket refusal was standing in for, and it is
+     * the one that stopped an auto-fill rewriting a signed deposit ten seconds
+     * after the signature.
+     *
+     * Either way, [JobMoney.customerIsInIt] still freezes it once the customer
+     * has approved, signed or paid. This bit decides what happens BEFORE that,
+     * not whether the freeze applies.
+     *
+     * Defaults false so a row written by an older build, or by any code that
+     * does not know about it, is treated as somebody's own figure -- the
+     * cautious direction. The 52 -> 53 migration and
+     * supabase_r28_deposit_follows_price_again.sql backfill TRUE for jobs
+     * nobody has agreed to yet, which is where it belongs.
+     */
+    val depositIsAuto: Boolean = false,
     val amountPaid: Double = 0.0,
     val paymentStatus: PaymentStatus = PaymentStatus.UNPAID,
     val isInvoiced: Boolean = false,

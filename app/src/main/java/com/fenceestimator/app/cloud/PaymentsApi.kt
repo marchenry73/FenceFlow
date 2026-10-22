@@ -121,7 +121,7 @@ object PaymentsApi {
         } catch (e: HttpRequestTimeoutException) {
             Result.Failed("Timed out waiting for the payment service. Try once more -- the first request after a quiet spell is the slow one.")
         } catch (e: Exception) {
-            Result.Failed("${e::class.simpleName}: ${e.message ?: "couldn't reach the payment service"}")
+            Result.Failed("${e::class.simpleName}: ${shownError(e, "couldn't reach the payment service")}")
         } finally {
             client.close()
         }

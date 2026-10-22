@@ -340,13 +340,19 @@ fun SettingsScreen(
                 SectionCard(
                     stringResource(R.string.set_contract_terms),
                     subtitle = if (termsNeedReview) stringResource(R.string.set_contract_terms_needs_review) else "",
-                    // Open on arrival while the block is still unreplaced.
-                    // Every other card here starts shut, and rightly so, but
-                    // the person who lands on this one was sent by a warning
-                    // about this exact text -- a closed card is one more thing
-                    // between them and the paragraph they came to replace.
-                    // Closes with the rest once it no longer applies.
-                    startExpanded = termsNeedReview,
+                    // SHUT, like every other card here, and red when the block
+                    // is still unreplaced.
+                    //
+                    // It used to open itself in that case. The reasoning was
+                    // that whoever landed here was sent by a warning about
+                    // this exact paragraph -- true of the person who followed
+                    // the warning, and false of everybody merely scrolling
+                    // through Settings, who got a twelve-line editor and four
+                    // paragraphs of notes unrolled across the page every time.
+                    // The alarm is worth one red line in the header; it is not
+                    // worth the scroll.
+                    startExpanded = false,
+                    alert = termsNeedReview,
                     icon = Icons.Filled.Gavel
                 ) {
                     if (termsNeedReview) {
@@ -1148,6 +1154,18 @@ internal fun SectionCard(
     subtitle: String = "",
     startExpanded: Boolean = false,
     icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
+    /**
+     * Something in this card wants attention. The card stays SHUT and says so
+     * in red on its own header -- the tile and the subtitle both.
+     *
+     * Opening a card to raise an alarm is the thing this replaces. Contract
+     * terms opened itself whenever the terms still carried the replace-me
+     * block, which put a twelve-line editor and four paragraphs of notes in
+     * the middle of Settings every single time anybody scrolled past. A red
+     * closed row says the same thing in one line and costs nothing to scroll
+     * by; the person who wants it opens it.
+     */
+    alert: Boolean = false,
     content: @Composable () -> Unit
 ) {
     var expanded by rememberSaveable(title) { mutableStateOf(startExpanded) }
@@ -1176,7 +1194,8 @@ internal fun SectionCard(
                             .padding(end = 12.dp)
                             .size(36.dp)
                             .background(
-                                MaterialTheme.colorScheme.secondaryContainer,
+                                if (alert) MaterialTheme.colorScheme.errorContainer
+                                else MaterialTheme.colorScheme.secondaryContainer,
                                 androidx.compose.foundation.shape.RoundedCornerShape(10.dp)
                             ),
                         contentAlignment = Alignment.Center
@@ -1184,7 +1203,8 @@ internal fun SectionCard(
                         Icon(
                             icon,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                            tint = if (alert) MaterialTheme.colorScheme.onErrorContainer
+                                   else MaterialTheme.colorScheme.onSecondaryContainer,
                             modifier = Modifier.size(20.dp)
                         )
                     }
@@ -1195,11 +1215,15 @@ internal fun SectionCard(
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold
                     )
+                    // The subtitle is the alarm, so it is shown while the card
+                    // is SHUT -- which is the only state it can be seen in.
                     if (!expanded && subtitle.isNotBlank()) {
                         Text(
                             subtitle,
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            fontWeight = if (alert) FontWeight.SemiBold else FontWeight.Normal,
+                            color = if (alert) MaterialTheme.colorScheme.error
+                                    else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }

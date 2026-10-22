@@ -411,6 +411,10 @@
     <string name="set_logo_shape_wide">Wide</string>
     <string name="set_logo_shape_square">Square</string>
     <string name="set_logo_rotate">Rotate</string>
+    <string name="set_logo_remove_white">Remove the white background</string>
+    <string name="set_logo_remove_white_hint">For a logo saved as a JPG, which carries its own white box onto your quotes and emails.</string>
+    <string name="set_logo_brightness">Brightness</string>
+    <string name="set_logo_contrast">Contrast</string>
     <string name="set_logo_use">Use this</string>
     <string name="set_logo_label">Company logo</string>
     <string name="set_logo_note">Printed on your PDF quotes and contracts, shown on the quote page your customer opens, and at the top of the emails FenceFlow sends them. PNG, JPG or WEBP, up to 2 MB.</string>
@@ -705,6 +709,7 @@
     <string name="jd_refunded_amount">Refunded: $%1$s</string>
     <string name="jd_set_deposit_covers">Set deposit to $%1$s (covers materials)</string>
     <string name="jd_set_deposit_capped">Set deposit to $%1$s (all that is still owed)</string>
+    <string name="jd_set_deposit_rest">Set deposit to $%1$s ($%2$s still to collect)</string>
     <string name="jd_accepted_price">Accepted price</string>
     <string name="jd_accepted_vs_estimate">The estimate now comes to $%1$s. The customer is billed the price they accepted -- a change goes through a signed change order or a new approval.</string>
     <string name="jd_materials_partly_paid">Materials with tax come to $%1$s and $%2$s has been paid, so $%3$s is still needed to cover them. The deposit covers that, rounded up to the next $100, plus $100 — and it includes the $%2$s already received, so what is left to collect is right.</string>

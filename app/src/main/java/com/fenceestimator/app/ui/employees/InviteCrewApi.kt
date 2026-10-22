@@ -2,6 +2,7 @@ package com.fenceestimator.app.ui.employees
 
 import com.fenceestimator.app.BuildConfig
 import com.fenceestimator.app.cloud.SupabaseModule
+import com.fenceestimator.app.cloud.shownError
 import io.github.jan.supabase.auth.auth
 import io.ktor.client.HttpClient
 import io.ktor.client.engine.cio.CIO
@@ -86,7 +87,7 @@ object InviteCrewApi {
         } catch (e: HttpRequestTimeoutException) {
             Result.Failed("Timed out reaching the invite service.")
         } catch (e: Exception) {
-            Result.Failed(e.message ?: "Couldn't reach the invite service.")
+            Result.Failed(shownError(e, "Couldn't reach the invite service."))
         } finally {
             client.close()
         }

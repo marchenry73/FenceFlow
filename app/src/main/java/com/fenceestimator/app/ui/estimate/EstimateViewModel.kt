@@ -220,12 +220,23 @@ class EstimateViewModel(
         val orders = changeOrders.value
         viewModelScope.launch {
             val fresh = repository.getJob(jobId) ?: return@launch
-            val seed = com.fenceestimator.app.estimate.JobMoney.depositToSeed(
-                fresh,
-                com.fenceestimator.app.estimate.JobMoney.materialsToBuy(currentTotals, orders),
+            val materials = com.fenceestimator.app.estimate.JobMoney.materialsToBuy(currentTotals, orders)
+            val billable =
                 com.fenceestimator.app.estimate.JobMoney.billableTotal(fresh, currentTotals.grandTotal, orders)
-            ) ?: return@launch
-            repository.updateJob(fresh.copy(depositAmount = seed))
+            // A job with no deposit at all gets its first one, and it is marked
+            // as the app's so it keeps following from here.
+            val seed = com.fenceestimator.app.estimate.JobMoney.depositToSeed(fresh, materials, billable)
+            if (seed != null) {
+                repository.updateJob(fresh.copy(depositAmount = seed, depositIsAuto = true))
+                return@launch
+            }
+            // ...and a job whose deposit is already the app's follows the new
+            // price. depositToStore returns null when nothing should move, so
+            // a typed deposit, an agreed one, and an unchanged figure all fall
+            // out here without a write.
+            val next = com.fenceestimator.app.estimate.JobMoney.depositToStore(fresh, materials, billable)
+                ?: return@launch
+            repository.updateJob(fresh.copy(depositAmount = next, depositIsAuto = true))
         }
     }
 

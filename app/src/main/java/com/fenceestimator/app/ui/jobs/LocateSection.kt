@@ -120,6 +120,19 @@ fun LocateSection(job: Job, viewModel: JobDetailViewModel) {
                 ) { chosen -> viewModel.update { it.copy(locateExpiresAt = chosen) } }
             }
 
+            // DIRECTLY UNDER THE TWO DATES, which is where the question gets
+            // asked: "why do I need 2 date boxes there?" Both are real and
+            // neither is derivable -- one is the earliest anyone may dig, the
+            // other is when the ticket is void and has to be called again, and
+            // the second is what the crew's "811 locate expired" warning reads.
+            // The sentence was already here; it was at the bottom of the
+            // section, four controls after the thing it explains.
+            Text(
+                stringResource(R.string.jsec_locate_hint),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
             DraftTextField(
                 stableKey = job.id,
                 initialValue = job.locateNotes,
@@ -128,11 +141,6 @@ fun LocateSection(job: Job, viewModel: JobDetailViewModel) {
                 modifier = Modifier.fillMaxWidth()
             ) { text -> viewModel.update { it.copy(locateNotes = text) } }
 
-            Text(
-                stringResource(R.string.jsec_locate_hint),
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
         }
     }
 }

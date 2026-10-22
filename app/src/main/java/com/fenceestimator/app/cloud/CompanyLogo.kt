@@ -231,7 +231,7 @@ object CompanyLogo {
         if (put.isFailure) {
             val e = put.exceptionOrNull()
             if (e is CancellationException) throw e
-            return@withContext Upload.FailedWith(e?.message ?: "upload failed")
+            return@withContext Upload.FailedWith(shownError(e, "upload failed"))
         }
 
         val rows = runCatching {
@@ -246,7 +246,7 @@ object CompanyLogo {
             // The column still names the OLD object, which is still there, so
             // nothing the customer sees has changed. Clear up the orphan.
             runCatching { SupabaseModule.client.storage.from(BUCKET).delete(path) }
-            return@withContext Upload.FailedWith(e.message ?: "could not save")
+            return@withContext Upload.FailedWith(shownError(e, "could not save"))
         }
         if (rows.isEmpty()) {
             // Zero rows with no error is what a policy-filtered UPDATE looks
@@ -297,7 +297,7 @@ object CompanyLogo {
                 .decodeList<IdRow>()
         }.getOrElse { e ->
             if (e is CancellationException) throw e
-            return@withContext Upload.FailedWith(e.message ?: "could not save")
+            return@withContext Upload.FailedWith(shownError(e, "could not save"))
         }
         if (rows.isEmpty()) {
             return@withContext Upload.Failed(com.fenceestimator.app.R.string.set_logo_owner_only)

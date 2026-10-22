@@ -13,9 +13,13 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.Slider
+import androidx.compose.material3.Switch
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -26,8 +30,11 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.res.stringResource
@@ -73,11 +80,25 @@ fun LogoCropDialog(
 ) {
     var shape by remember { mutableStateOf(LogoCrop.Shape.ORIGINAL) }
     var quarterTurns by remember { mutableStateOf(0) }
+    // Off, 0 and 0: a logo that was already fine must come out of this dialog
+    // byte-for-byte what it would have been before any of this existed.
+    var knockOutWhite by remember { mutableStateOf(false) }
+    var brightness by remember { mutableStateOf(0f) }
+    var contrast by remember { mutableStateOf(0f) }
     // The bitmap as it is being LOOKED AT -- rotated, if they turned it.
     // Rotating the pixels once and cropping the result is one transform to get
     // right; rotating the crop rectangle instead is two, and the second one is
     // where a 90-degree mirror hides.
-    val shown = remember(source, quarterTurns) { rotated(source, quarterTurns) }
+    val turned = remember(source, quarterTurns) { rotated(source, quarterTurns) }
+    // The bitmap as it is being LOOKED AT. The knockout is a per-pixel pass,
+    // so it is done once when the switch moves rather than per frame, and the
+    // preview and the encoder both read THIS -- one bitmap, so what is in the
+    // frame is what is saved.
+    var shown by remember(turned) { mutableStateOf(turned) }
+    LaunchedEffect(turned, knockOutWhite) {
+        shown = if (!knockOutWhite) turned
+        else withContext(Dispatchers.Default) { whiteKnockedOut(turned) }
+    }
     var rect by remember(shown, shape) {
         mutableStateOf(LogoCrop.initialRect(shown.width, shown.height, LogoCrop.aspectOf(shape)))
     }
@@ -137,6 +158,12 @@ fun LogoCropDialog(
                         srcSize = IntSize(rect.width.coerceAtLeast(1), rect.height.coerceAtLeast(1)),
                         dstOffset = IntOffset.Zero,
                         dstSize = IntSize(size.width.toInt(), size.height.toInt()),
+                        // The SAME numbers the encoder uses, so the picture in
+                        // the frame is the picture that gets saved.
+                        colorFilter = if (brightness == 0f && contrast == 0f) null
+                        else ColorFilter.colorMatrix(
+                            ColorMatrix(LogoCrop.colorMatrix(brightness, contrast))
+                        ),
                     )
                 }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -161,6 +188,47 @@ fun LogoCropDialog(
                 TextButton(onClick = { if (!busy) quarterTurns += 1 }) {
                     Text(stringResource(R.string.set_logo_rotate))
                 }
+
+                // The white behind a JPG logo, taken out. A switch rather than
+                // a slider: there is one sensible threshold and a number to
+                // tune would be one more thing to get wrong on a phone in a
+                // van. He can see the result before he saves it.
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Switch(checked = knockOutWhite, enabled = !busy, onCheckedChange = { knockOutWhite = it })
+                    Spacer(Modifier.width(10.dp))
+                    Column {
+                        Text(
+                            stringResource(R.string.set_logo_remove_white),
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                        Text(
+                            stringResource(R.string.set_logo_remove_white_hint),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+
+                Text(
+                    stringResource(R.string.set_logo_brightness),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Slider(
+                    value = brightness,
+                    onValueChange = { if (!busy) brightness = it },
+                    valueRange = -0.5f..0.5f,
+                )
+                Text(
+                    stringResource(R.string.set_logo_contrast),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Slider(
+                    value = contrast,
+                    onValueChange = { if (!busy) contrast = it },
+                    valueRange = -0.5f..0.5f,
+                )
             }
         },
         confirmButton = {
@@ -174,8 +242,10 @@ fun LogoCropDialog(
                     // that has gone.
                     val r = rect
                     val bmp = shown
+                    val br = brightness
+                    val co = contrast
                     scope.launch {
-                        val bytes = withContext(Dispatchers.Default) { encodePng(bmp, r) }
+                        val bytes = withContext(Dispatchers.Default) { encodePng(bmp, r, br, co) }
                         busy = false
                         if (bytes != null) onUse(bytes, "image/png") else onCancel()
                     }
@@ -230,7 +300,35 @@ private fun rotated(source: Bitmap, quarterTurns: Int): Bitmap {
  * background by JPEG, which is how a white wordmark ends up unreadable on a
  * quote. The size cost is paid once, by one file per company.
  */
-private fun encodePng(source: Bitmap, rect: LogoCrop.Rect): ByteArray? = runCatching {
+/**
+ * Every white-enough pixel turned transparent.
+ *
+ * One pass, on a bitmap already capped at MAX_WORKING_SIDE, off the main
+ * thread. ARGB_8888 because the source may be an opaque JPG with no alpha
+ * channel at all -- writing transparency into a bitmap that cannot hold it is
+ * a no-op that looks like the switch did nothing.
+ */
+private fun whiteKnockedOut(source: Bitmap): Bitmap = runCatching {
+    val w = source.width
+    val h = source.height
+    val pixels = IntArray(w * h)
+    source.getPixels(pixels, 0, w, 0, 0, w, h)
+    for (i in pixels.indices) {
+        val p = pixels[i]
+        val r = (p shr 16) and 0xFF
+        val g = (p shr 8) and 0xFF
+        val b = p and 0xFF
+        if (LogoCrop.isBackgroundWhite(r, g, b)) pixels[i] = 0
+    }
+    Bitmap.createBitmap(pixels, w, h, Bitmap.Config.ARGB_8888)
+}.getOrDefault(source)
+
+private fun encodePng(
+    source: Bitmap,
+    rect: LogoCrop.Rect,
+    brightness: Float = 0f,
+    contrast: Float = 0f,
+): ByteArray? = runCatching {
     val left = rect.left.coerceIn(0, source.width - 1)
     val top = rect.top.coerceIn(0, source.height - 1)
     val width = rect.width.coerceIn(1, source.width - left)
@@ -240,8 +338,27 @@ private fun encodePng(source: Bitmap, rect: LogoCrop.Rect): ByteArray? = runCatc
     val scaled =
         if (outW == cropped.width && outH == cropped.height) cropped
         else Bitmap.createScaledBitmap(cropped, outW, outH, true)
+    // Brightness and contrast go on LAST, after the scale, through the same
+    // matrix the preview drew with. Nothing happens at all when both are zero,
+    // so a logo nobody adjusted comes out exactly as it did before any of this
+    // existed.
+    val finished =
+        if (brightness == 0f && contrast == 0f) scaled
+        else runCatching {
+            val out = Bitmap.createBitmap(scaled.width, scaled.height, Bitmap.Config.ARGB_8888)
+            android.graphics.Canvas(out).drawBitmap(
+                scaled, 0f, 0f,
+                android.graphics.Paint().apply {
+                    isAntiAlias = true
+                    colorFilter = android.graphics.ColorMatrixColorFilter(
+                        android.graphics.ColorMatrix(LogoCrop.colorMatrix(brightness, contrast))
+                    )
+                }
+            )
+            out
+        }.getOrDefault(scaled)
     ByteArrayOutputStream().use { out ->
-        scaled.compress(Bitmap.CompressFormat.PNG, 100, out)
+        finished.compress(Bitmap.CompressFormat.PNG, 100, out)
         out.toByteArray()
     }
 }.getOrNull()

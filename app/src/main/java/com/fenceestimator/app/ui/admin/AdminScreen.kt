@@ -40,6 +40,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
 import com.fenceestimator.app.cloud.AdminRepository
+import com.fenceestimator.app.cloud.shownError
 import com.fenceestimator.app.ui.components.EmptyState
 import com.fenceestimator.app.ui.theme.Space
 import kotlinx.coroutines.launch
@@ -163,7 +164,7 @@ fun AdminScreen(onBack: () -> Unit) {
                                     // The reason, not just "failed": a wrong
                                     // code and an expired session need
                                     // different things from him.
-                                    .onFailure { stepUpError = it.message ?: "That code was not accepted." }
+                                    .onFailure { stepUpError = shownError(it, "That code was not accepted.") }
                                 busy = false
                             }
                         },
@@ -266,7 +267,7 @@ private fun CompaniesTab() {
 
     suspend fun load() {
         state = AdminRepository.companies()
-            .fold({ Load.Rows(it) }, { Load.Failed(it.message ?: "unknown error") })
+            .fold({ Load.Rows(it) }, { Load.Failed(shownError(it, "unknown error")) })
     }
     LaunchedEffect(Unit) { load() }
 
@@ -311,7 +312,7 @@ private fun CompaniesTab() {
                                 .onSuccess {
                                     newName = ""; newEmail = ""; adding = false; load()
                                 }
-                                .onFailure { addError = it.message ?: "Could not create it." }
+                                .onFailure { addError = shownError(it, "Could not create it.") }
                             busy = false
                         }
                     },
@@ -420,7 +421,7 @@ private fun CompaniesTab() {
                             // The server decides; the list is re-read rather
                             // than patched in place, so what is on screen is
                             // what admin_companies actually says afterwards.
-                            result.onFailure { actionError = it.message ?: "That did not go through." }
+                            result.onFailure { actionError = shownError(it, "That did not go through.") }
                             load()
                             busy = false
                             pending = null
@@ -458,7 +459,7 @@ private fun MailSenderRow() {
     suspend fun load() {
         AdminRepository.mailSender()
             .onSuccess { current = it }
-            .onFailure { error = it.message ?: "Could not read the mail sender." }
+            .onFailure { error = shownError(it, "Could not read the mail sender.") }
     }
     LaunchedEffect(Unit) { load() }
 
@@ -519,7 +520,7 @@ private fun MailSenderRow() {
                         busy = true
                         scope.launch {
                             AdminRepository.setMailSender(want)
-                                .onFailure { error = it.message ?: "That did not go through." }
+                                .onFailure { error = shownError(it, "That did not go through.") }
                             // Re-read rather than assume: the server decides,
                             // and a refusal must not leave the screen showing
                             // a switch that never happened.
@@ -578,7 +579,7 @@ private fun ReleasesTab() {
     var state by remember { mutableStateOf<Load<AdminRepository.Release>>(Load.Loading) }
     LaunchedEffect(Unit) {
         state = AdminRepository.releases()
-            .fold({ Load.Rows(it) }, { Load.Failed(it.message ?: "unknown error") })
+            .fold({ Load.Rows(it) }, { Load.Failed(shownError(it, "unknown error")) })
     }
     Section(state, "No releases.") { r ->
         AdminCard(
@@ -598,7 +599,7 @@ private fun ErrorsTab() {
     var state by remember { mutableStateOf<Load<AdminRepository.ErrorGroup>>(Load.Loading) }
     suspend fun load() {
         state = AdminRepository.errorSummary()
-            .fold({ Load.Rows(it) }, { Load.Failed(it.message ?: "unknown error") })
+            .fold({ Load.Rows(it) }, { Load.Failed(shownError(it, "unknown error")) })
     }
     LaunchedEffect(Unit) { load() }
     Section(state, "Nothing has failed in the last 14 days.") { e ->
@@ -633,7 +634,7 @@ private fun SignInsTab() {
     var state by remember { mutableStateOf<Load<AdminRepository.SignInAttemptGroup>>(Load.Loading) }
     LaunchedEffect(Unit) {
         state = AdminRepository.signInAttempts()
-            .fold({ Load.Rows(it) }, { Load.Failed(it.message ?: "unknown error") })
+            .fold({ Load.Rows(it) }, { Load.Failed(shownError(it, "unknown error")) })
     }
     Section(state, "No failed sign-ins in the last 7 days.") { s ->
         AdminCard(

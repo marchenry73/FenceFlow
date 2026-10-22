@@ -85,7 +85,12 @@ fun EstimateScreen(jobId: Long, onBack: () -> Unit, onOpenSupplierPrices: (Long)
     // own id and whether a total exists, so it is asked once per priced job
     // rather than on every recomposition; depositToSeed refuses the rest.
     val seedTotals by viewModel.totals.collectAsState()
-    LaunchedEffect(job?.id, seedTotals.grandTotal > 0.0) {
+    // Keyed on the TOTAL, not on whether there is one. It used to be
+    // `seedTotals.grandTotal > 0.0` -- a key that stops changing the moment
+    // the job has any price at all, so the deposit was written once and never
+    // again however much the price moved afterwards. That, with the refusal
+    // inside depositToSeed, is why the deposit on the estimate did not update.
+    LaunchedEffect(job?.id, seedTotals.grandTotal) {
         if (job != null && seedTotals.grandTotal > 0.0) viewModel.seedDepositIfUnset()
     }
     val runs by viewModel.runs.collectAsState()
@@ -269,7 +274,23 @@ private fun RunSection(
     // feet. The field only needs to reset when it starts representing a
     // DIFFERENT run.
     var feetText by remember(run.id) {
-        mutableStateOf(run.manualLinearFeet?.let { if (it % 1f == 0f) it.toInt().toString() else it.toString() } ?: "")
+        // THE DRAWN TOTAL SHOWS IN THE BOX. It used to be blank on a run that
+        // was drawn rather than typed: the figure was on the summary line
+        // above and nowhere a person would look for it, so a side he had just
+        // drawn read as having no length at all in the one field labelled
+        // "Total feet".
+        //
+        // Seeded, NOT written. Nothing about the run changes by showing it --
+        // usesManualFeet still only flips when he actually edits the box, and
+        // until he does the price still comes from the drawing. Typing over it
+        // does exactly what typing over a blank box did.
+        //
+        // Keyed on run.id alone, deliberately. Re-keying on the drawn length
+        // would reset the field in the middle of being typed in -- the first
+        // keystroke moves the run's own length, which would move the key.
+        val typed = run.manualLinearFeet?.let { if (it % 1f == 0f) it.toInt().toString() else it.toString() }
+        val drawn = if (linearFeet > 0f) String.format("%.1f", linearFeet) else ""
+        mutableStateOf(typed ?: drawn)
     }
     var cornerText by remember(run.id) {
         mutableStateOf(if (run.manualCornerCount > 0) run.manualCornerCount.toString() else "")

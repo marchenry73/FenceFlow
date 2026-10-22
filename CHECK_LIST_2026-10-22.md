@@ -122,6 +122,42 @@ about an hour's worth of your access, on screen in a picture you then sent.
 > Settings every time you scrolled past. The alarm is worth one red line; it is
 > not worth the scroll.
 
+### The job page folds up — **NEEDS A PUBLISH**
+Eighteen sections, every one of them open at once. That is why it scrolled
+forever; it was never disorganised, it was all unrolled.
+
+| Do this | You should see (once published) |
+|---|---|
+| Open any job | **Progress**, **Customer** and **Payment** are open. Everything else is shut |
+| Look at a shut card | A line under the heading saying what is in it — the customer's name and number, how many sides, how many change orders |
+| Tap a heading | It opens. Tap again, it shuts |
+| Turn the phone | It stays how you left it |
+
+### The estimate — **NEEDS A PUBLISH**
+| Do this | You should see (once published) |
+|---|---|
+| Draw a side, open the estimate | The **Total feet** box carries the drawn figure instead of being blank |
+| Change the price (add a run, change a panel) | The **deposit asked moves with it**, precisely |
+| Type a deposit by hand | It never moves again. That is deliberate |
+| On a part-paid job | **Set deposit** is there, and names what is still to collect |
+
+### The logo — **NEEDS A PUBLISH**
+| Do this | You should see (once published) |
+|---|---|
+| Settings → logo → pick a picture | Shapes and Rotate as before, plus **Remove the white background**, **Brightness** and **Contrast** |
+| Turn the white off on a JPG logo | The white box around it goes. This is the one that stops your quotes looking homemade |
+| Leave the sliders alone | The picture comes out exactly as it would have before |
+
+### The email your customer opens — **LIVE NOW**
+| Do this | You should see |
+|---|---|
+| Send yourself a quote | A white card, your logo **and** your company name at the top, one **Open it here** button instead of a blue link in a sentence, your signature under a line, a small grey footer |
+| Open it on your phone | It fills the screen. It used to lay out at desktop width and shrink to a stamp |
+| Read it with images off | Your company name is still there — most mail apps block images on first open |
+
+> The words did not change. Every sentence is still the one that was there
+> yesterday; what changed is how it looks.
+
 ---
 
 ## 2. Office, screen by screen

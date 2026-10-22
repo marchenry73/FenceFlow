@@ -21,7 +21,7 @@ import kotlinx.coroutines.withContext
         PaymentRecord::class, BuildTemplate::class, JobPayShare::class, PendingResurrection::class,
         EnquiryCapture::class, EnquiryCapturePhoto::class, RunJoin::class
     ],
-    version = 52,
+    version = 53,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -797,13 +797,19 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_52_53 = object : Migration(52, 53) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                SchemaV53.MIGRATION_52_53_STATEMENTS.forEach { db.execSQL(it) }
+            }
+        }
+
         fun getInstance(context: Context, scope: CoroutineScope): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     DB_NAME
-                ).addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35, MIGRATION_35_36, MIGRATION_36_37, MIGRATION_37_38, MIGRATION_38_39, MIGRATION_39_40, MIGRATION_40_41, MIGRATION_41_42, MIGRATION_42_43, MIGRATION_43_44, MIGRATION_44_45, MIGRATION_45_46, MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49, MIGRATION_49_50, MIGRATION_50_51, MIGRATION_51_52)
+                ).addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35, MIGRATION_35_36, MIGRATION_36_37, MIGRATION_37_38, MIGRATION_38_39, MIGRATION_39_40, MIGRATION_40_41, MIGRATION_41_42, MIGRATION_42_43, MIGRATION_43_44, MIGRATION_44_45, MIGRATION_45_46, MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49, MIGRATION_49_50, MIGRATION_50_51, MIGRATION_51_52, MIGRATION_52_53)
                 // Destructive ONLY from the pre-release versions that predate the
                 // migration chain (it starts at 4). Blanket
                 // fallbackToDestructiveMigration() was a standing offer to wipe a
@@ -1090,6 +1096,34 @@ internal object SchemaV50 {
     val MIGRATION_49_50_STATEMENTS: List<String> = listOf(
         "ALTER TABLE `fence_runs` ADD COLUMN `startJoint` TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE `fence_runs` ADD COLUMN `endJoint` TEXT NOT NULL DEFAULT ''"
+    )
+}
+
+internal object SchemaV53 {
+    /**
+     * Job.depositIsAuto: the stored deposit is the app's own suggestion, so it
+     * may follow the price. See the field's own comment for why one bit makes
+     * the difference between "follows precisely" and "never moves".
+     */
+    val MIGRATION_52_53_STATEMENTS: List<String> = listOf(
+        "ALTER TABLE `jobs` ADD COLUMN `depositIsAuto` INTEGER NOT NULL DEFAULT 0",
+        // BACKFILL, and it is a judgement rather than a formality. A job
+        // nobody has approved, signed or paid anything on is still a draft:
+        // its deposit came from the app the first time the job was priced, and
+        // following the price is what the owner is asking for. A job the
+        // customer IS in keeps 0 -- not because the bit would matter there
+        // (customerIsInIt freezes it regardless) but because claiming the app
+        // owns a figure somebody agreed to would be false.
+        //
+        // The honest limit: a deposit the owner typed by hand on a job that is
+        // not yet approved is swept in here and will start following. There is
+        // no record anywhere that distinguishes it -- that absence is the bug
+        // being fixed -- and of the two wrong answers, a draft deposit that
+        // tracks the price beats a draft deposit frozen at a price that no
+        // longer exists. Every job from here on carries the truth.
+        "UPDATE `jobs` SET `depositIsAuto` = 1 " +
+            "WHERE `depositAmount` > 0 AND `quoteApprovedAt` IS NULL AND `signedAt` IS NULL " +
+            "AND IFNULL(`amountPaid`, 0) = 0"
     )
 }
 

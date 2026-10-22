@@ -121,7 +121,7 @@ object ApkUpdater {
             target
         }.getOrElse { error ->
             target.delete()
-            onProgress(Progress.Failed(error.message ?: "The download did not finish."))
+            onProgress(Progress.Failed(shownError(error, "The download did not finish.")))
             null
         }
     }

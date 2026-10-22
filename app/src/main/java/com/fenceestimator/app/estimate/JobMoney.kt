@@ -514,6 +514,38 @@ object JobMoney {
     }
 
     /**
+     * The deposit to STORE now, or null to leave the stored one alone.
+     *
+     * [depositToSeed] with the "already has one" refusal replaced by the thing
+     * that refusal was standing in for. It is called on every price change,
+     * not once, which is the whole point: the owner asked twice for the
+     * deposit on the estimate to follow the price, and it did not, because a
+     * deposit above zero stopped it dead whatever had put it there.
+     *
+     * Three gates, and all three must pass:
+     *
+     *  1. [Job.depositIsAuto] -- this figure is the app's, not a person's. A
+     *     typed deposit is never touched, which is the protection that cost
+     *     John Beaunissant's $9,910 to learn.
+     *  2. NOT [customerIsInIt] -- nothing moves once they have approved,
+     *     signed or paid. Unchanged, and it applies to auto figures too.
+     *  3. The suggestion is a real figure and DIFFERENT from what is stored.
+     *     Returning the same number would be a write on every recomposition:
+     *     an updated_at bump on every keystroke, which is how offline edits
+     *     get silently lost.
+     *
+     * Returns the figure to write. The caller keeps depositIsAuto true.
+     */
+    fun depositToStore(job: Job, materialsToBuy: Double, billableTotal: Double): Double? {
+        if (!job.depositIsAuto) return null
+        if (customerIsInIt(job)) return null
+        val want = depositSuggestion(job, materialsToBuy, billableTotal).amount
+        if (want <= 0.0) return null
+        if (kotlin.math.abs(want - job.depositAmount) < 0.005) return null
+        return want
+    }
+
+    /**
      * Whether the customer's signature still describes the job they signed for.
      *
      * A signature means "I agree to this", and "this" was a price and a length

@@ -163,4 +163,64 @@ object LogoCrop {
         val turns = ((quarterTurns % 4) + 4) % 4
         return if (turns % 2 == 0) width to height else height to width
     }
+
+    // ---------------------------------------------------- making it look right
+
+    /**
+     * Brightness and contrast as one 4x5 colour matrix.
+     *
+     * A logo is usually an export, and an export is usually fine. The ones
+     * that are not are the photographed ones -- a sign, a van door, a printed
+     * letterhead -- which come out grey and flat, and no amount of cropping
+     * helps them. Two numbers fix almost all of those.
+     *
+     * @param brightness -1 (black) .. 0 (unchanged) .. 1 (white). Added to
+     *   every channel, so it moves the whole image rather than stretching it.
+     * @param contrast -1 (flat grey) .. 0 (unchanged) .. 1 (hard). Scales
+     *   around the mid grey 128, which is why the translate term carries the
+     *   `(1 - scale) * 128` that keeps mid grey where it is; scaling around
+     *   zero instead darkens everything as a side effect, which looks like a
+     *   broken brightness control.
+     *
+     * ALPHA IS LEFT ALONE. Row four is the identity, so a transparent logo
+     * stays transparent and the knockout below is not quietly undone.
+     */
+    fun colorMatrix(brightness: Float, contrast: Float): FloatArray {
+        val b = brightness.coerceIn(-1f, 1f) * 255f
+        val scale = 1f + contrast.coerceIn(-1f, 1f)
+        val t = (1f - scale) * 128f + b
+        return floatArrayOf(
+            scale, 0f, 0f, 0f, t,
+            0f, scale, 0f, 0f, t,
+            0f, 0f, scale, 0f, t,
+            0f, 0f, 0f, 1f, 0f,
+        )
+    }
+
+    /** The default knockout threshold: how close to white counts as the paper. */
+    const val WHITE_THRESHOLD = 236
+
+    /**
+     * Whether this pixel is the white background rather than part of the logo.
+     *
+     * WHY IT IS WORTH HAVING AT ALL. A logo saved as a JPG has no transparency,
+     * so it carries its own white rectangle everywhere it goes -- and FenceFlow
+     * puts it on the quote page, on the PDF header and at the top of the emails
+     * it sends. On anything but a white background that rectangle is a white
+     * box with a logo floating in it, which is the single thing that makes a
+     * small contractor's quote look homemade.
+     *
+     * EVERY channel must be above the threshold, not the average. Averaging
+     * makes a saturated yellow (255, 255, 0) read as near-white and punches
+     * holes in the logo itself.
+     *
+     * Deliberately NOT a flood fill from the edges. A flood fill is the
+     * cleverer answer and it fails on the common case: a logo with white
+     * INSIDE it -- a letter counter, a white outline -- keeps its white while
+     * the background goes, so half the picture is knocked out and half is not.
+     * A threshold treats both the same, which is at least predictable, and the
+     * owner can see the result before he saves it.
+     */
+    fun isBackgroundWhite(r: Int, g: Int, b: Int, threshold: Int = WHITE_THRESHOLD): Boolean =
+        r >= threshold && g >= threshold && b >= threshold
 }

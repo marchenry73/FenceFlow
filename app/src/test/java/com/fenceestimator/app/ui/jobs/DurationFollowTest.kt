@@ -72,3 +72,47 @@ class DurationFollowTest {
         assertNull(step.write)
     }
 }
+
+/**
+ * The one case where opening a job DOES save a computed figure: a job whose
+ * estimate has never been set at all.
+ *
+ * Nobody chose zero. There is no office figure to protect, no disagreement to
+ * resolve, and until something else happened to change in the same session the
+ * screen simply showed no estimated time. Everything else about the rule is
+ * unchanged, and the test above -- the 4-hour job that became 93.33 -- still
+ * holds, which is what the planted failures here prove.
+ */
+class DurationFirstEmissionTest {
+
+    @Test
+    fun `a job with no estimate at all gets one on open`() {
+        val step = durationFollowStep(baseline = null, computed = 12.5, stored = 0.0, manuallySet = false, mayWrite = true)
+        assertEquals(12.5, step.write)
+        assertEquals(12.5, step.baseline, 0.001)
+    }
+
+    @Test
+    fun `PLANTED FAILURE the incident case still writes nothing on open`() {
+        // 4598150b: the office said 4 hours, this phone worked out 93.33.
+        val step = durationFollowStep(baseline = null, computed = 93.33, stored = 4.0, manuallySet = false, mayWrite = true)
+        assertNull("opening a job overwrote a figure somebody else put there", step.write)
+    }
+
+    @Test
+    fun `a crew phone still writes nothing, even to an empty estimate`() {
+        val step = durationFollowStep(baseline = null, computed = 12.5, stored = 0.0, manuallySet = false, mayWrite = false)
+        assertNull(step.write)
+    }
+
+    @Test
+    fun `a figure somebody typed is not replaced, even when the stored one is zero`() {
+        val step = durationFollowStep(baseline = null, computed = 12.5, stored = 0.0, manuallySet = true, mayWrite = true)
+        assertNull(step.write)
+    }
+
+    @Test
+    fun `nothing is written when there is nothing to write`() {
+        assertNull(durationFollowStep(baseline = null, computed = 0.0, stored = 0.0, manuallySet = false, mayWrite = true).write)
+    }
+}

@@ -141,7 +141,7 @@ object QuoteEmailApi {
             // rather than inviting a second attempt that could double it.
             Result.Failed("Timed out waiting for the mail service. It may still have gone out -- check before sending again.")
         } catch (e: Exception) {
-            Result.Failed(e.message ?: "Couldn't reach the mail service.")
+            Result.Failed(shownError(e, "Couldn't reach the mail service."))
         } finally {
             client.close()
         }

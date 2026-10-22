@@ -27,6 +27,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Timeline
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.Email
+import androidx.compose.material.icons.filled.KeyboardArrowDown
+import androidx.compose.material.icons.filled.KeyboardArrowUp
+import androidx.compose.material.icons.filled.Sms
 import androidx.compose.material.icons.filled.Straighten
 import androidx.compose.material.icons.filled.AttachMoney
 import androidx.compose.material.icons.filled.Sell
@@ -90,6 +94,7 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -336,7 +341,12 @@ fun JobDetailScreen(
                 }
             }
             item(key = SECTION_PROGRESS) {
-                SectionCard(title = stringResource(R.string.section_progress), icon = Icons.Filled.Timeline) {
+                SectionCard(
+                    title = stringResource(R.string.section_progress),
+                    icon = Icons.Filled.Timeline,
+                    // One of the three the screen is opened FOR.
+                    startExpanded = true
+                ) {
                     ProjectProgressSection(
                         job = currentJob,
                         punchListClear = punchList.isEmpty(),
@@ -363,7 +373,13 @@ fun JobDetailScreen(
                 }
             }
             item {
-                SectionCard(title = stringResource(R.string.section_customer), icon = Icons.Filled.Person) {
+                SectionCard(
+                    title = stringResource(R.string.section_customer),
+                    icon = Icons.Filled.Person,
+                    summary = listOf(currentJob.customerName, currentJob.phone)
+                        .filter { it.isNotBlank() }.joinToString("  ·  "),
+                    startExpanded = true
+                ) {
                     CustomerFields(
                         job = currentJob,
                         editable = session.canEditJobs,
@@ -526,7 +542,17 @@ fun JobDetailScreen(
                     },
                     modifier = Modifier.weight(1f)
                 ) {
-                    Icon(Icons.Filled.Star, contentDescription = null)
+                    // A TEXT SYMBOL, because this button texts.
+                    //
+                    // It was a star, which said nothing about what pressing it
+                    // does. The button has gone straight to a text message --
+                    // addressed to this customer, with the link in it --
+                    // whenever the job has a phone number, and only falls back
+                    // to the share sheet when it has none or the device cannot
+                    // text. The icon now says so, and it sits directly above
+                    // the email button so the two ways of sending a quote read
+                    // as the pair they are.
+                    Icon(Icons.Filled.Sms, contentDescription = null)
                     Text("  " + stringResource(R.string.jd_send_quote_short))
                 }
                 OutlinedButton(
@@ -761,7 +787,8 @@ fun JobDetailScreen(
                         },
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        Text(stringResource(R.string.jd_send_quote_short) + " · " + stringResource(R.string.field_email))
+                        Icon(Icons.Filled.Email, contentDescription = null)
+                        Text("  " + stringResource(R.string.jd_send_quote_short) + " · " + stringResource(R.string.field_email))
                     }
                 }
             }
@@ -778,7 +805,16 @@ fun JobDetailScreen(
                 }
             }
             item {
-                SectionCard(title = stringResource(R.string.section_fence_runs), icon = Icons.Filled.Straighten) {
+                SectionCard(
+                    title = stringResource(R.string.section_fence_runs),
+                    icon = Icons.Filled.Straighten,
+                    // How many sides, without opening it. Not the footage:
+                    // a run has no stored length -- it is measured from its
+                    // points by the same analyze() the takeoff prices from --
+                    // and a second way of working it out here is a second
+                    // chance to disagree with the estimate.
+                    summary = if (runs.isEmpty()) "" else runs.size.toString()
+                ) {
                     if (runs.isEmpty()) {
                         Text(
                             stringResource(R.string.jd_no_runs),
@@ -883,7 +919,10 @@ fun JobDetailScreen(
             item(key = SECTION_LOCATE) { LocateSection(currentJob, viewModel) }
             item(key = SECTION_HOA) { SectionCard(title = stringResource(R.string.section_hoa_permits), icon = Icons.Filled.Gavel) { HoaFields(currentJob, runs, profile, editable = session.canEditJobs, viewModel = viewModel) } }
             if (session.canSeeMoney) {
-                item { SectionCard(title = stringResource(R.string.section_change_orders), icon = Icons.Filled.EditNote) { ChangeOrdersSection(changeOrders, session.canDelete, !session.isGuestDemo, viewModel) } }
+                item { SectionCard(
+                    title = stringResource(R.string.section_change_orders), icon = Icons.Filled.EditNote,
+                    summary = if (changeOrders.isEmpty()) "" else changeOrders.size.toString()
+                ) { ChangeOrdersSection(changeOrders, session.canDelete, !session.isGuestDemo, viewModel) } }
                 // Above the money, because a job running over is the thing
                 // that has to be dealt with today -- the invoice can wait.
                 //
@@ -913,7 +952,15 @@ fun JobDetailScreen(
                     }
                 }
                 item(key = SECTION_PAYMENT) {
-                    SectionCard(title = stringResource(R.string.section_payment), icon = Icons.Filled.Payments) {
+                    SectionCard(
+                        title = stringResource(R.string.section_payment),
+                        icon = Icons.Filled.Payments,
+                        // The third of the three that open on arrival. No
+                        // summary line: the balance is not in scope here and
+                        // working it out a second way at the call site is how
+                        // two figures for one job start disagreeing.
+                        startExpanded = true
+                    ) {
                         StaleSignatureBanner(
                             job = currentJob,
                             contractTotal = jobTotals.grandTotal,
@@ -939,7 +986,10 @@ fun JobDetailScreen(
                         PaymentFields(currentJob, profile, viewModel)
                     }
                 }
-                item { SectionCard(title = stringResource(R.string.section_expenses), icon = Icons.Filled.ReceiptLong) { ExpensesSection(expenses, session.canDelete, !session.isGuestDemo, viewModel) } }
+                item { SectionCard(
+                    title = stringResource(R.string.section_expenses), icon = Icons.Filled.ReceiptLong,
+                    summary = if (expenses.isEmpty()) "" else expenses.size.toString()
+                ) { ExpensesSection(expenses, session.canDelete, !session.isGuestDemo, viewModel) } }
             }
             // What an approved drawing cost this job, and what the crew
             // reported from the field, merged into one card -- see
@@ -1009,7 +1059,10 @@ fun JobDetailScreen(
                     }
                 }
             }
-            item { SectionCard(title = stringResource(R.string.section_punch_list), icon = Icons.Filled.Checklist) { PunchListSection(punchList, session.canDelete, !session.isGuestDemo, viewModel) } }
+            item { SectionCard(
+                title = stringResource(R.string.section_punch_list), icon = Icons.Filled.Checklist,
+                summary = if (punchList.isEmpty()) "" else punchList.size.toString()
+            ) { PunchListSection(punchList, session.canDelete, !session.isGuestDemo, viewModel) } }
             item {
                 SectionCard(title = stringResource(R.string.section_photos), icon = Icons.Filled.PhotoCamera) {
                     PhotosSection(photos, session.canDelete, !session.isGuestDemo, viewModel)
@@ -1401,18 +1454,40 @@ private fun TemplateMenuItem(template: com.fenceestimator.app.data.BuildTemplate
 private fun SectionCard(
     title: String,
     icon: androidx.compose.ui.graphics.vector.ImageVector? = null,
+    /**
+     * What this section says while it is SHUT.
+     *
+     * The whole reason a folded section is worth having. A closed card
+     * reading only "Payment" has hidden the answer; one reading
+     * "$3,000 still owed" has answered the question and saved the scroll.
+     * Blank where there is nothing short and true to say.
+     */
+    summary: String = "",
+    /**
+     * Open on arrival. True for the three the screen is opened FOR -- where
+     * the job is up to, who the customer is, and the money -- and false for
+     * everything somebody goes to on purpose.
+     */
+    startExpanded: Boolean = false,
     content: @Composable () -> Unit
 ) {
+    // Keyed on the title, like Settings: survives a rotation, resets when you
+    // leave the job. A section opened on one job should not decide how the
+    // next one looks.
+    var expanded by rememberSaveable(title) { mutableStateOf(startExpanded) }
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = MaterialTheme.shapes.medium,
-        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = if (expanded) 2.dp else 1.dp)
     ) {
         Column(modifier = Modifier.padding(Space.card), verticalArrangement = Arrangement.spacedBy(Space.row)) {
             // A job is a long screen. The icon is what lets somebody scrolling
             // for the payment section find it by shape instead of reading every
             // heading on the way past.
-            Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(
+                modifier = Modifier.fillMaxWidth().clickable { expanded = !expanded },
+                verticalAlignment = Alignment.CenterVertically
+            ) {
                 if (icon != null) {
                     androidx.compose.foundation.layout.Box(
                         Modifier
@@ -1432,14 +1507,35 @@ private fun SectionCard(
                         )
                     }
                 }
-                Text(
-                    title,
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        title,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    if (!expanded && summary.isNotBlank()) {
+                        Text(
+                            summary,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                Icon(
+                    if (expanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+                    contentDescription = stringResource(
+                        // The same two strings Settings' own folding cards use -- one
+                        // wording for one gesture, already in all three languages.
+                        if (expanded) R.string.set_collapse_section else R.string.set_expand_section,
+                        title
+                    ),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
-            content()
+            if (expanded) {
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                content()
+            }
         }
     }
 }
@@ -2286,7 +2382,13 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
                 modifier = Modifier.weight(1f)
             ) { typed ->
                 viewModel.update { j ->
-                    j.copy(depositAmount = EstimateEngine.roundToCents(typed.toDouble()))
+                    // Typed by hand, so it stops being the app's figure and
+                    // stops following the price. There is no way back to
+                    // automatic by design: a number somebody chose is theirs.
+                    j.copy(
+                        depositAmount = EstimateEngine.roundToCents(typed.toDouble()),
+                        depositIsAuto = false
+                    )
                 }
             }
         } else {
@@ -2355,9 +2457,21 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
     val suggested = suggestion.amount
     val paidSoFar = JobMoney.netPaid(job)
     val suggestionIsCapped = suggestion.capped
-    if (suggested > 0.0 && job.depositAmount < materialCost &&
-        kotlin.math.abs(job.depositAmount - suggested) > 0.005
-    ) {
+    // SHOWN WHENEVER THERE IS A DIFFERENT FIGURE TO OFFER, part paid or not.
+    //
+    // There used to be a third condition -- job.depositAmount < materialCost --
+    // which took the button away as soon as the stored deposit reached the
+    // material cost. After a part payment that is exactly when it is wanted:
+    // the suggestion is CUMULATIVE (what has been collected plus what still
+    // has to be), so once anything is paid the figure to store climbs past the
+    // materials and the button that would set it vanished. "Set deposit should
+    // show regardless if it is part paid" is that condition, in his words.
+    //
+    // Nothing is written by showing it. It is a button he presses; the stored
+    // figure stays the cumulative one every reader subtracts netPaid from, and
+    // pressing it marks the deposit as HIS -- depositIsAuto goes false -- so it
+    // stops following the price from then on.
+    if (suggested > 0.0 && kotlin.math.abs(job.depositAmount - suggested) > 0.005) {
         // An action, not a value -- nothing to show read-only, so it comes
         // off entirely for the guest demo. The note underneath stays: it is
         // the materials figure, not a control.
@@ -2373,6 +2487,18 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
                     // carry cents, so "%.0f" would have shown a button that
                     // stores a different number from the one it names.
                     if (suggestionIsCapped) stringResource(R.string.jd_set_deposit_capped, Money.format(suggested).removePrefix("$"))
+                    // Part paid: name BOTH figures. What gets stored is still
+                    // the cumulative one -- every reader works out what is
+                    // outstanding as asked minus paid, so storing "the rest"
+                    // would quietly ask for it twice -- but the figure he cares
+                    // about is what is left to collect, and a button naming
+                    // only the larger number reads as asking for the whole
+                    // deposit over again.
+                    else if (paidSoFar > 0.005) stringResource(
+                        R.string.jd_set_deposit_rest,
+                        Money.format(suggested).removePrefix("$"),
+                        Money.format(suggested - paidSoFar).removePrefix("$")
+                    )
                     else stringResource(R.string.jd_set_deposit_covers, Money.format(suggested).removePrefix("$"))
                 )
             }
