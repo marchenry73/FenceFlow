@@ -90,6 +90,36 @@ test("plainError can actually substitute the argument", () => {
   assert.match(r, /tr\(hit\[1\],\s*\.\.\.args\)/, "the arguments are not passed to tr()");
 });
 
+test("a sentence our own SQL raised is not replaced by a sentence about the account", () => {
+  // COMMENT LINES STRIPPED FIRST. The code block explains at length which
+  // patterns were removed and why, so the words themselves are in the
+  // region -- and a check that reads a comment and calls correct code
+  // broken has cost a day here before.
+  const r = region("const TECH_ERRORS = [", "];")
+    .split("\n").filter((l) => !l.trim().startsWith("//")).join("\n");
+  // 42 functions in this database raise with errcode 42501 AND a message
+  // written for the reader. Matching the bare code threw all of them away.
+  assert.doesNotMatch(r, /insufficient_privilege/,
+    "the error CODE is matched again, so every deliberate message raised with it is replaced by a line about the account");
+  assert.doesNotMatch(r, /42501/,
+    "the bare 42501 is matched again -- that is the code our own functions raise with");
+  assert.match(r, /\[\/row-level security\/i, 'errPermission'/,
+    "the canonical row-level wording is no longer matched, so the one message no human can read now reaches the screen raw");
+});
+
+test("the two phrasings that SHOULD be rewritten still are", () => {
+  // Postgres and PostgREST write these themselves; nobody can act on them.
+  const rls = /row-level security/i;
+  const grant = /permission denied for (?:table|column|relation|function|schema|sequence|type)\s*"?([A-Za-z0-9_.]+)"?/i;
+  assert.ok(rls.test('new row violates row-level security policy for table "jobs"'), "the RLS wording is not matched");
+  assert.ok(grant.test("permission denied for column logo_path"), "the grant wording is not matched");
+  // ...and a sentence one of our functions raised is matched by NEITHER.
+  for (const own of ["Sign in first.", "Only owners and managers can change business settings.",
+                     "Only a FenceFlow admin may change company access."]) {
+    assert.ok(!rls.test(own) && !grant.test(own), `"${own}" would still be replaced`);
+  }
+});
+
 // ---------------------------------------------------------------- canaries
 
 test("CANARY: the order check fails when the patterns are swapped back", () => {

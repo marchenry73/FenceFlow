@@ -10455,7 +10455,30 @@ function plainError(text){
     [/permission denied for (?:table|column|relation|function|schema|sequence|type)\s+"?([A-Za-z0-9_.]+)"?/i,
       'errGrantMissing', (m) => [m[1] || '?']],
     [/permission denied for/i, 'errGrantMissing', () => ['the database']],
-    [/row-level security|insufficient_privilege|\b42501\b/i, 'errPermission', () => [whoAmI()]],
+    // ONLY THE LIBRARY'S OWN WORDING, not the error code.
+    //
+    // This used to match insufficient_privilege and a bare 42501 as well.
+    // Forty-two functions in this database raise with that code AND a
+    // sentence written for the person reading it -- 'Sign in first.',
+    // 'Only owners and managers can change business settings.', 'That is
+    // your own company...' -- and every one of them was being replaced
+    // with a generic line about the account. On 21 October 2026 that sent
+    // the OWNER of the business hunting his own permissions for an hour,
+    // while the database, asked directly as his user, allowed every write
+    // he could make. The page had been handed the real reason and threw
+    // it away.
+    //
+    // What stays: the two phrasings Postgres and PostgREST write
+    // themselves, which no human wrote and no human can read --
+    // 'new row violates row-level security policy for table "jobs"' and
+    // 'permission denied for ...' (split out above, because that one is a
+    // grant we never issued, not the account).
+    //
+    // What this gives up: a 42501 with an unhelpful raw message now
+    // reaches the screen as written. That is the better failure -- it is
+    // at least TRUE, and the office files it to app_errors either way, so
+    // whatever it says can be read back and improved.
+    [/row-level security/i, 'errPermission', () => [whoAmI()]],
     [/duplicate key value|violates unique constraint|\b23505\b/i, 'errDuplicate'],
     [/violates foreign key constraint|\b23503\b/i, 'errLinked'],
     [/violates check constraint|invalid input syntax|violates not-null constraint|\b22P02\b|\b23514\b|\b23502\b/i, 'errInvalid'],
