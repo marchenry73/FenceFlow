@@ -3038,6 +3038,27 @@
     </div>
 
     <!-- Ready to install, or blocked, and exactly what by. -->
+    <!-- The extras and the snags. Both existed only on the phone until
+         22 October 2026, which is the whole reason neither had ever been
+         used: the office could not see them. -->
+    <div class="panel" id="panelPunch"><h2 data-t="jobSecPunch">Snag list</h2>
+      <p class="sub" style="margin-top:0" data-t="jobPunchBody">What is still outstanding on this job. The crew
+        add these from the phone as they find them; tick one off when it is done.</p>
+      <div id="punchRows"></div>
+      <div style="display:flex;gap:8px;margin-top:8px;flex-wrap:wrap">
+        <input id="punchNew" data-t="jobPunchPh" placeholder="What still needs doing" style="flex:1;min-width:200px">
+        <button class="btn btn-sm btn-grey" type="button" id="punchAdd" data-t="jobPunchAddBtn">Add</button>
+      </div>
+      <div class="msg" id="punchMsg"></div>
+    </div>
+
+    <div class="panel" id="panelChangeOrders"><h2 data-t="jobSecChangeOrders">Change orders</h2>
+      <p class="sub" style="margin-top:0" data-t="jobCoBody">Extra work agreed after the quote was signed. Raised
+        and signed on the phone, in front of the customer — shown here so the office can see what a job
+        has picked up and whether it has been added to what they owe.</p>
+      <div id="coRows"></div>
+    </div>
+
     <div class="panel" id="panelReady"><h2 data-t="jobSecReady">Installation readiness</h2>
       <div id="readyVerdict" class="rd-verdict" role="status"></div>
       <div id="readyList" class="rd-list"></div>
@@ -4295,6 +4316,19 @@ jobViewAll:'All', jobViewToday:'Today', jobViewWeek:'This week', jobViewUnschedu
     jobDeliveryMiscBody:'The yard\'s delivery fee, a permit run, anything that does not fit a catalog line. Logged here so it reaches this job\'s cost report — never the customer\'s price, which is computed separately and does not read this.',
     jobOptDelivery:'Delivery', jobOptMisc:'Misc', jobCostDescPh:'What it was',
     jobCostAmountPh:'Amount ($)', jobAddCostBtn:'Add cost',
+    jobSecPunch:'Snag list', jobSecChangeOrders:'Change orders',
+    jobPunchBody:'What is still outstanding on this job. The crew add these from the phone as they find them; tick one off when it is done.',
+    jobPunchPh:'What still needs doing', jobPunchAddBtn:'Add',
+    jobPunchDoneBtn:'Done', jobPunchReopenBtn:'Reopen',
+    jobPunchNone:'Nothing outstanding on this job.',
+    jobPunchNeedText:'Say what needs doing first.',
+    jobPunchNoRows:'That did not save \u2014 nothing was changed. Reload and try again.',
+    jobCoBody:'Extra work agreed after the quote was signed. Raised and signed on the phone, in front of the customer \u2014 shown here so the office can see what a job has picked up and whether it has been added to what they owe.',
+    jobCoNone:'No change orders on this job.',
+    jobCoNoDescription:'(no description)',
+    jobCoSigned:'signed', jobCoUnsigned:'not signed yet',
+    jobCoNotInTotal:'not in the agreed total',
+    jobCoRaiseOnPhone:'Raise a change order on the phone, on the job screen \u2014 it needs the customer\u2019s signature.',
     jobSecReady:'Installation readiness', jobSecHoa:'HOA & Permits',
     jobLabelHoaName:'HOA name', jobLabelHoaEmail:'HOA email', jobLabelHoaStatus:'HOA status',
     jobOptNotRequired:'Not required', jobOptPending:'Pending', jobOptApproved:'Approved',
@@ -6127,6 +6161,19 @@ jobViewAll:'Todos', jobViewToday:'Hoy', jobViewWeek:'Esta semana', jobViewUnsche
     jobDeliveryMiscBody:'El flete del depósito, un trámite de permiso, cualquier cosa que no encaje en una línea del catálogo. Se registra aquí para que llegue al reporte de costos de este trabajo — nunca al precio del cliente, que se calcula por separado y no lee esto.',
     jobOptDelivery:'Entrega', jobOptMisc:'Varios', jobCostDescPh:'Qué fue',
     jobCostAmountPh:'Monto ($)', jobAddCostBtn:'Agregar costo',
+    jobSecPunch:'Pendientes', jobSecChangeOrders:'\u00d3rdenes de cambio',
+    jobPunchBody:'Lo que queda pendiente en este trabajo. La cuadrilla los agrega desde el tel\u00e9fono seg\u00fan los encuentra; m\u00e1rquelo cuando est\u00e9 hecho.',
+    jobPunchPh:'Qu\u00e9 falta por hacer', jobPunchAddBtn:'Agregar',
+    jobPunchDoneBtn:'Hecho', jobPunchReopenBtn:'Reabrir',
+    jobPunchNone:'No queda nada pendiente en este trabajo.',
+    jobPunchNeedText:'Diga primero qu\u00e9 falta por hacer.',
+    jobPunchNoRows:'No se guard\u00f3 \u2014 no se cambi\u00f3 nada. Recargue e int\u00e9ntelo de nuevo.',
+    jobCoBody:'Trabajo adicional acordado despu\u00e9s de firmar la cotizaci\u00f3n. Se crea y se firma en el tel\u00e9fono, frente al cliente \u2014 aqu\u00ed se muestra para que la oficina vea qu\u00e9 ha sumado el trabajo y si ya se agreg\u00f3 a lo que deben.',
+    jobCoNone:'Sin \u00f3rdenes de cambio en este trabajo.',
+    jobCoNoDescription:'(sin descripci\u00f3n)',
+    jobCoSigned:'firmada', jobCoUnsigned:'sin firmar todav\u00eda',
+    jobCoNotInTotal:'no incluida en el total acordado',
+    jobCoRaiseOnPhone:'Cree una orden de cambio en el tel\u00e9fono, en la pantalla del trabajo \u2014 necesita la firma del cliente.',
     jobSecReady:'Preparación para la instalación', jobSecHoa:'HOA y permisos',
     jobLabelHoaName:'Nombre de la HOA', jobLabelHoaEmail:'Correo de la HOA', jobLabelHoaStatus:'Estado de la HOA',
     jobOptNotRequired:'No se requiere', jobOptPending:'Pendiente', jobOptApproved:'Aprobado',
@@ -7929,6 +7976,19 @@ jobViewAll:'Tous', jobViewToday:'Aujourdhui', jobViewWeek:'Cette semaine', jobVi
     jobDeliveryMiscBody:'Les frais de livraison de la cour, une démarche de permis, tout ce qui ne correspond pas à une ligne du catalogue. Noté ici pour figurer au rapport de coûts de ce chantier — jamais dans le prix du client, qui est calculé séparément et ne lit pas ceci.',
     jobOptDelivery:'Livraison', jobOptMisc:'Divers', jobCostDescPh:'De quoi il s’agissait',
     jobCostAmountPh:'Montant ($)', jobAddCostBtn:'Ajouter un coût',
+    jobSecPunch:'Points \u00e0 finir', jobSecChangeOrders:'Avenants',
+    jobPunchBody:'Ce qui reste \u00e0 faire sur ce chantier. L\u2019\u00e9quipe les ajoute depuis le t\u00e9l\u00e9phone au fur et \u00e0 mesure; cochez quand c\u2019est fait.',
+    jobPunchPh:'Ce qu\u2019il reste \u00e0 faire', jobPunchAddBtn:'Ajouter',
+    jobPunchDoneBtn:'Fait', jobPunchReopenBtn:'Rouvrir',
+    jobPunchNone:'Rien en attente sur ce chantier.',
+    jobPunchNeedText:'Dites d\u2019abord ce qu\u2019il reste \u00e0 faire.',
+    jobPunchNoRows:'Cela n\u2019a pas \u00e9t\u00e9 enregistr\u00e9 \u2014 rien n\u2019a chang\u00e9. Rechargez et r\u00e9essayez.',
+    jobCoBody:'Travaux suppl\u00e9mentaires convenus apr\u00e8s la signature du devis. Cr\u00e9\u00e9s et sign\u00e9s sur le t\u00e9l\u00e9phone, devant le client \u2014 affich\u00e9s ici pour que le bureau voie ce que le chantier a pris et si cela a \u00e9t\u00e9 ajout\u00e9 \u00e0 ce qui est d\u00fb.',
+    jobCoNone:'Aucun avenant sur ce chantier.',
+    jobCoNoDescription:'(sans description)',
+    jobCoSigned:'sign\u00e9', jobCoUnsigned:'pas encore sign\u00e9',
+    jobCoNotInTotal:'pas dans le total convenu',
+    jobCoRaiseOnPhone:'Cr\u00e9ez un avenant sur le t\u00e9l\u00e9phone, sur l\u2019\u00e9cran du chantier \u2014 il faut la signature du client.',
     jobSecReady:'Préparation à l’installation', jobSecHoa:'Copropriété et permis',
     jobLabelHoaName:'Nom de l’association', jobLabelHoaEmail:'Courriel de l’association', jobLabelHoaStatus:'Statut de l’association',
     jobOptNotRequired:'Non requis', jobOptPending:'En attente', jobOptApproved:'Approuvé',
@@ -23564,6 +23624,109 @@ async function onCrewAccessAdd(sel, msgId){
   else msg(msgId, tr('jobCrewAdded', who), 'ok');
 }
 
+/* ---------- the snag list and the change orders -----------------------
+ * Fetched per job rather than loaded for every job at boot: both are
+ * small, both are only ever looked at one job at a time, and neither is
+ * on the critical path of the first paint.
+ */
+let jobExtras = { punch: [], orders: [], sid: null };
+
+async function loadJobExtras(sid){
+  jobExtras = { punch: [], orders: [], sid };
+  const [p, o] = await Promise.all([
+    db.from('punch_list_items').select('sync_id, description, resolved, resolved_at, created_at')
+      .eq('job_sync_id', sid).is('deleted_at', null).order('created_at', { ascending: true }),
+    // change_orders carries a restrictive SEE_MONEY policy, so a crew
+    // account gets an empty list from the server rather than a refusal.
+    // The panel is hidden for them anyway; this is the belt to that
+    // braces, and the reason an empty list here is not an error.
+    db.from('change_orders').select('sync_id, description, additional_feet, additional_cost, material_cost, signed_at, in_accepted_total, created_at')
+      .eq('job_sync_id', sid).is('deleted_at', null).order('created_at', { ascending: true }),
+  ]);
+  // A job that changed under us while these were in flight must not have
+  // the previous job's extras painted onto it.
+  if (!openJob || openJob.sync_id !== sid) return;
+  if (p.error) msg('punchMsg', plainError(p.error.message || String(p.error)), 'err');
+  jobExtras.punch = p.data || [];
+  jobExtras.orders = o.error ? [] : (o.data || []);
+  renderJobExtras();
+}
+
+function renderJobExtras(){
+  const pEl = $('punchRows');
+  if (pEl) {
+    const open = jobExtras.punch.filter(x => !x.resolved);
+    const done = jobExtras.punch.filter(x => x.resolved);
+    // Outstanding first, done underneath and dimmed: the list is read to
+    // find what is LEFT, not to admire what is finished.
+    pEl.innerHTML = jobExtras.punch.length
+      ? open.concat(done).map(x => `
+        <div class="li-row"${x.resolved ? ' style="opacity:.55"' : ''}>
+          <span>${x.resolved ? '\u2713 ' : ''}${esc(x.description || '')}</span>
+          <span>${canEdit()
+            ? `<button class="btn btn-sm btn-grey" type="button" data-punch="${esc(String(x.sync_id))}" data-done="${x.resolved ? '' : '1'}">`
+              + esc(tr(x.resolved ? 'jobPunchReopenBtn' : 'jobPunchDoneBtn')) + '</button>'
+            : ''}</span>
+        </div>`).join('')
+      : `<p class="sub">${esc(tr('jobPunchNone'))}</p>`;
+    pEl.querySelectorAll('[data-punch]').forEach(b =>
+      b.addEventListener('click', () => setPunchResolved(b.dataset.punch, b.dataset.done === '1')));
+  }
+
+  const coEl = $('coRows');
+  const panel = $('panelChangeOrders');
+  if (panel) panel.style.display = canSeeMoney() ? '' : 'none';
+  if (coEl) {
+    coEl.innerHTML = jobExtras.orders.length
+      ? jobExtras.orders.map(o => `
+        <div class="li-row">
+          <span>${esc(o.description || tr('jobCoNoDescription'))}
+            ${Number(o.additional_feet) ? `<span class="sub"> \u00b7 ${Number(o.additional_feet)} ft</span>` : ''}
+            <span class="sub"> \u00b7 ${esc(tr(o.signed_at ? 'jobCoSigned' : 'jobCoUnsigned'))}</span>
+            ${o.in_accepted_total ? '' : `<span class="sub"> \u00b7 ${esc(tr('jobCoNotInTotal'))}</span>`}
+          </span>
+          <span>${money(Number(o.additional_cost) || 0)}</span>
+        </div>`).join('') + `<p class="sub" style="margin-top:8px">${esc(tr('jobCoRaiseOnPhone'))}</p>`
+      : `<p class="sub">${esc(tr('jobCoNone'))}</p>`;
+  }
+}
+
+async function addPunchItem(){
+  if (!canEdit() || !openJob) return;
+  const text = ($('punchNew').value || '').trim();
+  if (!text) return msg('punchMsg', tr('jobPunchNeedText'), 'err');
+  const row = {
+    company_id: profile.company_id,
+    sync_id: crypto.randomUUID(),
+    job_sync_id: openJob.sync_id,
+    job_id: openJob.id,
+    description: text,
+    resolved: false,
+    updated_at: new Date().toISOString()
+  };
+  const { data, error } = await db.from('punch_list_items').insert(row).select('sync_id');
+  if (error) return msg('punchMsg', plainError(error.message || String(error)), 'err');
+  // A policy that filters an INSERT returns no rows and no error, which
+  // reads exactly like success -- the same check every other write on
+  // this page makes.
+  if (!data || !data.length) return msg('punchMsg', tr('jobPunchNoRows'), 'err');
+  $('punchNew').value = '';
+  msg('punchMsg', '', 'ok');
+  await loadJobExtras(openJob.sync_id);
+}
+
+async function setPunchResolved(syncId, done){
+  if (!canEdit() || !openJob) return;
+  const { data, error } = await db.from('punch_list_items')
+    .update({ resolved: done, resolved_at: done ? new Date().toISOString() : null,
+              updated_at: new Date().toISOString() })
+    .eq('sync_id', syncId).eq('company_id', profile.company_id).is('deleted_at', null)
+    .select('sync_id');
+  if (error) return msg('punchMsg', plainError(error.message || String(error)), 'err');
+  if (!data || !data.length) return msg('punchMsg', tr('jobPunchNoRows'), 'err');
+  await loadJobExtras(openJob.sync_id);
+}
+
 async function showJob(id){
   // A job the wizard has not finished belongs in the wizard, resumed at
   // whatever step it stopped on -- opening the full sheet instead would show
@@ -23575,6 +23738,13 @@ async function showJob(id){
   if(target && target.wizard_step && canEdit()){ openWizard(id); return; }
   openJob=jobs.find(j=>String(j.id)===String(id));
   renderQuoteBlock(); renderReadiness(); renderContact(); renderMaterials();
+  if (openJob) {
+    // Painted empty first so the previous job's snags are never on screen
+    // under this job's name while the fetch is in flight.
+    jobExtras = { punch: [], orders: [], sid: openJob.sync_id };
+    renderJobExtras();
+    loadJobExtras(openJob.sync_id);
+  }
   loadReapprovalHistory(openJob);
   if(!openJob) return;
   renderJobHeader();
@@ -25627,6 +25797,8 @@ $('supDialogSave').addEventListener('click', saveSupplierDialog);
 $('supDialogRetire').addEventListener('click', retireSupplierDialog);
 
 $('jcAdd').addEventListener('click', addJobCost);
+$('punchAdd').addEventListener('click', addPunchItem);
+$('punchNew').addEventListener('keydown', e => { if (e.key === 'Enter') addPunchItem(); });
 
 /* ===================== Update prices from a supplier's price list ===========
    WHAT THIS IS. The importer further down ("Import their data") ADDS items for
