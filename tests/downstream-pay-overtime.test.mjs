@@ -105,15 +105,22 @@ function withRenderPay(shifts, employees, ot = { otAfter: 40, otMult: 1.5 }) {
   const TL_EN = eval("(" + src.slice(src.indexOf("{", tlStart), tlEnd) + ")").en;
   const tr = (k, ...a) => { let t = TL_EN[k] ?? k; for (const v of a) t = String(t).replace('%s', v); return t; };
 
+  // timesInWholeWeeks() arrived with the Time tab's filter on 21 October
+  // 2026. renderPay reads it instead of `times` directly, so this harness has
+  // to supply it or the lift fails with "timesInWholeWeeks is not defined" --
+  // which is what the publish gate caught. Here it returns the fixture
+  // unchanged: this test is about the overtime arithmetic, and a filter that
+  // narrowed the fixture would quietly change which hours the sums run on.
   const fn = new Function(
     "times", "employees", "d", "$", "esc", "money", "ot", "tr", "jobs", "runs",
+    "timesInWholeWeeks",
     code + "\nrenderPay(ot);\nreturn {rowsHtml: $('payWeekRows').innerHTML};"
   );
   const d = (s) => (s ? new Date(s) : null);
   const esc = (s) => String(s ?? "");
   const money = (n) => "$" + Number(n).toFixed(2);
   const $ = el;
-  const result = fn(shifts, employees, d, $, esc, money, ot, tr, [], []);
+  const result = fn(shifts, employees, d, $, esc, money, ot, tr, [], [], () => shifts);
   return { rowsHtml: result.rowsHtml };
 }
 
