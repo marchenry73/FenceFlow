@@ -688,6 +688,15 @@ export function threadRowHtml(t, ctx = {}) {
     `<span class="mr-subj">${t && t.has_attachments ? `<span class="mr-clip" title="${escapeHtml(w.attachment || "Attachment")}">${CLIP_SVG}</span>` : ""}${escapeHtml(subject)}</span>` +
     `<span class="mr-snip">${escapeHtml(cleanLine(t && t.snippet))}</span>` +
     jobChipsHtml(t && t.job_sync_ids, ctx.jobNames) +
+    // THE DATE, A SECOND TIME, for the wide one-line layout.
+    //
+    // Gmail puts the date hard right on its own; the stacked layout keeps
+    // it beside the sender, where it belongs when the column is narrow.
+    // One row has to serve both, so it carries both and the stylesheet
+    // shows exactly one -- .mr-time in the narrow column beside an open
+    // email, .mr-when when the list has the width to itself. Cheaper and
+    // far less fragile than re-rendering every row on a layout change.
+    `<span class="mr-when">${escapeHtml(mailTimeLabel(t && t.last_message_at, ctx.now || new Date(0), ctx.lang || "en"))}</span>` +
     `</button></div>`;
 }
 

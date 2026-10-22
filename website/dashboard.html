@@ -776,7 +776,42 @@
      this page's DOM: it sits in a sandboxed frame (.mail-frame) with a
      white page of its own, because senders design for white. */
   .tab .mail-badge{margin-left:4px;padding:1px 7px;font-size:11px;background:var(--orange);color:#fff;border-color:transparent}
+  /* FULL WIDTH UNTIL SOMETHING IS OPEN, which is what Gmail does.
+     The list used to sit in a 360px column at every width, including when
+     the reader held nothing but "Select an email to read it" -- a quarter
+     of the screen of three-line rows beside two thirds of nothing. */
   .mail-grid{display:grid;grid-template-columns:minmax(260px,360px) minmax(0,1fr);gap:14px;align-items:start}
+  .mail-grid[data-view="list"]{grid-template-columns:minmax(0,1fr)}
+  .mail-grid[data-view="list"] .mail-reader{display:none}
+  /* ONE CONVERSATION, ONE LINE, once there is room for it: sender,
+     subject, then the snippet in the same line in grey, with the date hard
+     right. Exactly Gmail's row. The stacked two-line form stays for the
+     narrow column beside an open email, where one line cannot hold it. */
+  .mail-grid[data-view="list"] .mr-open{display:flex;align-items:baseline;gap:8px;flex-wrap:nowrap}
+  .mail-grid[data-view="list"] .mr-top{flex:0 0 auto;max-width:34%;min-width:0}
+  .mail-grid[data-view="list"] .mr-top .mr-time{display:none}
+  .mail-grid[data-view="list"] .mr-subj{flex:0 1 auto;margin-top:0;min-width:0}
+  .mail-grid[data-view="list"] .mr-snip{flex:1 1 auto;margin-top:0;min-width:0}
+  /* The date belongs on the right of the row, not in the middle of the
+     sender's name. A second copy is appended by the row builder when the
+     list is wide; this is the one that shows. */
+  .mail-grid[data-view="list"] .mr-when{flex:0 0 auto;margin-left:auto;padding-left:10px;
+    font-size:12px;color:var(--muted);white-space:nowrap}
+  .mr-when{display:none}
+  .mail-grid[data-view="list"] .mr-when{display:inline}
+  /* A snippet needs a visible break from the subject the way Gmail's
+     em dash does, or the two read as one sentence. */
+  .mail-grid[data-view="list"] .mr-snip::before{content:"\2014\00a0";color:var(--line)}
+  @media(max-width:900px){
+    /* Back to two lines: one line cannot hold a conversation on a phone. */
+    .mail-grid[data-view="list"] .mr-open{display:block}
+    .mail-grid[data-view="list"] .mr-top{max-width:none}
+    .mail-grid[data-view="list"] .mr-top .mr-time{display:inline}
+    .mail-grid[data-view="list"] .mr-when{display:none}
+    .mail-grid[data-view="list"] .mr-snip::before{content:none}
+    .mail-grid[data-view="list"] .mr-subj{margin-top:2px}
+    .mail-grid[data-view="list"] .mr-snip{margin-top:1px}
+  }
   .mail-left{min-width:0}
   .mail-folders{display:flex;flex-direction:column;gap:6px;margin-bottom:10px}
   /* A VERTICAL LIST, not wrapped pills. Pills were fine for the two folders a
@@ -802,6 +837,10 @@
   .mail-sync{font-size:12px;color:var(--muted);min-height:16px;margin:2px 0 6px}
   .mail-sync.err{color:var(--bad-fg)}
   .mail-threads{border:1px solid var(--line);border-radius:10px;background:var(--surface);max-height:70vh;overflow:auto}
+  /* No scroll box of its own when the list IS the page: a 70vh pane
+     inside a scrolling page gives two scrollbars and the wheel fights
+     over which one it means. */
+  .mail-grid[data-view="list"] .mail-threads{max-height:none;overflow:visible}
   .mail-row{display:block;width:100%;text-align:left;background:none;border:none;border-bottom:1px solid var(--line);
             padding:9px 11px;cursor:pointer;color:var(--text);font-family:inherit;font-size:13px}
   .tpl-row{display:flex;align-items:center;gap:4px;border-bottom:1px solid var(--line)}
@@ -1394,6 +1433,17 @@
         </div>
         <div class="cal-sum" id="calSummary"></div>
         <div class="cal" id="cal"></div>
+
+        <!-- WHAT HAS NO DATE AT ALL.
+             A month grid can only show work that has been scheduled, so a
+             sold job nobody has put on a day is invisible on the one screen
+             whose job is to say what happens when. Jobber keeps a drawer of
+             undated visits with a count, Housecall Pro a bubble, ServiceTitan
+             an Unassigned tray -- all three keep it NEXT TO the calendar and
+             none of them bury it inside the grid.
+             Oldest first, as Jobber sorts it: the one sold longest ago with
+             still no date is the one that has been forgotten. -->
+        <div id="calUnsched" style="margin-top:14px"></div>
         <p style="font-size:12px;color:var(--muted);margin-top:10px" data-t="calFooterNote">Click a job to open it.</p>
       </div>
     </div>
@@ -4238,6 +4288,8 @@ jobViewAll:'All', jobViewToday:'Today', jobViewWeek:'This week', jobViewUnschedu
     mapPinsSing:'%s job on the map — colours are pipeline stages, tap a pin to open the job.',
     mapPinsPlur:'%s jobs on the map — colours are pipeline stages, tap a pin to open the job.',
     calTodayBtn:'Today', calPrevTitle:'Previous month', calNextTitle:'Next month',
+    calUnschedHead:'%s sold with no date yet',
+    calUnschedBody:'These are not on the calendar because nobody has given them a day. Oldest first. Click one to open it and set a date.',
     askCancelBtn:'Cancel', askConfirmBtn:'Confirm',
     calSumScheduledSing:'job scheduled', calSumScheduledPlur:'jobs scheduled',
     calSumClocked:'clocked', calSumCollected:'collected',
@@ -4250,6 +4302,7 @@ jobViewAll:'All', jobViewToday:'Today', jobViewWeek:'This week', jobViewUnschedu
     prodTimeHead:'Time in stage',
     prodTimeColStage:'Stage', prodTimeColCount:'Jobs there now', prodTimeColAvg:'Average time to move on',
     prodStageNotStarted:'Not started', prodStageMaterials:'Materials', prodStageDig:'Dig',
+    prodSlowTag:'longer than usual', prodSlowTitle:'Your own median for this stage is %s.',
     prodStageSet:'Set', prodStageBuild:'Build', prodStagePunch:'Punch', prodStageDone:'Done',
     prodInStage:'In this stage %s',
     prodMoveAria:'Move %s to a different production stage',
@@ -6042,6 +6095,8 @@ jobViewAll:'Todos', jobViewToday:'Hoy', jobViewWeek:'Esta semana', jobViewUnsche
     mapPinsSing:'%s trabajo en el mapa — los colores son las etapas del embudo, toque un punto para abrir el trabajo.',
     mapPinsPlur:'%s trabajos en el mapa — los colores son las etapas del embudo, toque un punto para abrir el trabajo.',
     calTodayBtn:'Hoy', calPrevTitle:'Mes anterior', calNextTitle:'Mes siguiente',
+    calUnschedHead:'%s vendidos sin fecha todavía',
+    calUnschedBody:'No están en el calendario porque nadie les ha dado un día. Más antiguos primero. Haga clic en uno para abrirlo y poner la fecha.',
     askCancelBtn:'Cancelar', askConfirmBtn:'Confirmar',
     calSumScheduledSing:'trabajo programado', calSumScheduledPlur:'trabajos programados',
     calSumClocked:'horas marcadas', calSumCollected:'cobrado',
@@ -6054,6 +6109,7 @@ jobViewAll:'Todos', jobViewToday:'Hoy', jobViewWeek:'Esta semana', jobViewUnsche
     prodTimeHead:'Tiempo en cada etapa',
     prodTimeColStage:'Etapa', prodTimeColCount:'Trabajos ahí ahora', prodTimeColAvg:'Tiempo promedio para avanzar',
     prodStageNotStarted:'Sin comenzar', prodStageMaterials:'Materiales', prodStageDig:'Excavar',
+    prodSlowTag:'más de lo normal', prodSlowTitle:'Su propia mediana para esta etapa es %s.',
     prodStageSet:'Plantar', prodStageBuild:'Construir', prodStagePunch:'Retoques', prodStageDone:'Terminado',
     prodInStage:'En esta etapa %s',
     prodMoveAria:'Mover %s a otra etapa de producción',
@@ -7816,6 +7872,8 @@ jobViewAll:'Tous', jobViewToday:'Aujourdhui', jobViewWeek:'Cette semaine', jobVi
     mapPinsSing:'%s chantier sur la carte — les couleurs sont les étapes du pipeline, touchez un point pour ouvrir le chantier.',
     mapPinsPlur:'%s chantiers sur la carte — les couleurs sont les étapes du pipeline, touchez un point pour ouvrir le chantier.',
     calTodayBtn:'Aujourd’hui', calPrevTitle:'Mois précédent', calNextTitle:'Mois suivant',
+    calUnschedHead:'%s vendus sans date pour l’instant',
+    calUnschedBody:'Ils ne sont pas au calendrier parce que personne ne leur a donné de jour. Les plus anciens d’abord. Cliquez pour ouvrir et fixer une date.',
     askCancelBtn:'Annuler', askConfirmBtn:'Confirmer',
     calSumScheduledSing:'chantier prévu', calSumScheduledPlur:'chantiers prévus',
     calSumClocked:'heures pointées', calSumCollected:'encaissé',
@@ -7828,6 +7886,7 @@ jobViewAll:'Tous', jobViewToday:'Aujourdhui', jobViewWeek:'Cette semaine', jobVi
     prodTimeHead:'Temps par étape',
     prodTimeColStage:'Étape', prodTimeColCount:'Chantiers là en ce moment', prodTimeColAvg:'Temps moyen avant de passer à la suite',
     prodStageNotStarted:'Pas commencé', prodStageMaterials:'Matériaux', prodStageDig:'Creuser',
+    prodSlowTag:'plus long que d’habitude', prodSlowTitle:'Votre propre médiane pour cette étape est %s.',
     prodStageSet:'Planter', prodStageBuild:'Monter', prodStagePunch:'Retouches', prodStageDone:'Terminé',
     prodInStage:'Sur cette étape depuis %s',
     prodMoveAria:'Déplacer %s vers une autre étape de production',
@@ -14656,7 +14715,36 @@ async function rescheduleJobToDate(jobId, iso){
   return { moved: !!(data && data.length) };
 }
 
+/* The sold jobs with no date on them. Sold is the same test used
+   everywhere else on this page -- ACCEPTED or COMPLETED -- so a draft
+   nobody has quoted yet does not show up here demanding a day. */
+function renderUnscheduled(){
+  const host = $('calUnsched');
+  if (!host) return;
+  const list = jobs
+    .filter(j => (j.status === 'ACCEPTED' || j.status === 'COMPLETED') && !j.scheduled_date)
+    .slice()
+    .sort((a, b) => d(a.quote_approved_at || a.created_at) - d(b.quote_approved_at || b.created_at));
+  if (!list.length) {
+    // Nothing to say rather than an empty box. A zero here is genuinely
+    // good news -- unlike most empty answers in this product.
+    host.innerHTML = '';
+    return;
+  }
+  host.innerHTML =
+    `<h2 style="margin:0 0 2px;font-size:15px">${esc(tr('calUnschedHead', list.length))}</h2>` +
+    `<p class="sub" style="margin:0 0 8px">${esc(tr('calUnschedBody'))}</p>` +
+    '<div class="chips">' + list.map(j =>
+      `<button type="button" class="chip" data-unsched="${esc(String(j.id))}">` +
+      `${esc(j.customer_name || tr('jobUntitled'))}` +
+      (j.address ? `<span style="color:var(--muted)"> \u00b7 ${esc(String(j.address).split(',')[0])}</span>` : '') +
+      '</button>').join('') + '</div>';
+  host.querySelectorAll('[data-unsched]').forEach(b =>
+    b.addEventListener('click', () => showJob(b.dataset.unsched)));
+}
+
 function renderCal(){
+  renderUnscheduled();
   const y=calMonth.getFullYear(), m=calMonth.getMonth();
   $('calTitle').textContent=calMonth.toLocaleDateString('en-US',{month:'long',year:'numeric'});
   const today=new Date(); today.setHours(0,0,0,0);
@@ -14910,18 +14998,60 @@ function renderProduction(){
   const byJobEvents = stageEventsByJob();
   const nowMs = Date.now();
 
+  // HOW LONG THIS COMPANY'S OWN STAGES USUALLY TAKE, from the stage events
+  // it has already completed. Used to decide whether a job has been sitting
+  // too long -- a threshold taken from the company's own history rather than
+  // a number invented here, because the stages are nothing like each other:
+  // Materials can take three weeks and Dig a morning, and 'red after 11 days'
+  // would be wrong for both. Fewer than three completed passes through a
+  // stage means no opinion at all, which is the honest answer at this size.
+  const stageMedian = (() => {
+    const by = new Map();
+    byJobEvents.forEach(list => {
+      for (let i = 0; i < list.length - 1; i++) {
+        const h = (d(list[i + 1].entered_at) - d(list[i].entered_at)) / 36e5;
+        const arr = by.get(list[i].stage) || [];
+        arr.push(h);
+        by.set(list[i].stage, arr);
+      }
+    });
+    const out = new Map();
+    by.forEach((arr, stage) => {
+      if (arr.length < 3) return;
+      const sorted = arr.slice().sort((a, b) => a - b);
+      const mid = Math.floor(sorted.length / 2);
+      out.set(stage, sorted.length % 2 ? sorted[mid] : (sorted[mid - 1] + sorted[mid]) / 2);
+    });
+    return out;
+  })();
+
   const cols=[{key:null,label:tr('prodStageNotStarted')}, ...PROD_STAGES.map(s=>({key:s,label:prodStageLabel(s)}))];
   $('prodBoard').innerHTML = cols.map(col=>{
-    const list = soldJobs.filter(j=>(j.production_stage||null)===col.key);
+    // LONGEST-WAITING FIRST. The card that needs a phone call was wherever
+    // the job list happened to put it; now it is at the top of its column.
+    // A job with no stage event at all sorts last: it has not been anywhere
+    // long, it has simply never been moved.
+    const ageOf = j => {
+      const ev = byJobEvents.get(j.sync_id) || [];
+      const last = ev[ev.length - 1];
+      return last ? (nowMs - d(last.entered_at).getTime()) / 36e5 : -1;
+    };
+    const list = soldJobs.filter(j=>(j.production_stage||null)===col.key)
+      .slice().sort((a, b) => ageOf(b) - ageOf(a));
     return `<div class="col"><h3><span>${esc(col.label)}</span><span style="color:var(--orange)">${list.length}</span></h3>
       ${list.map(j=>{
         const events = byJobEvents.get(j.sync_id)||[];
         const last = events[events.length-1];
-        const since = last ? fmtDuration((nowMs - d(last.entered_at).getTime())/36e5) : null;
+        const hours = last ? (nowMs - d(last.entered_at).getTime())/36e5 : null;
+        const since = hours === null ? null : fmtDuration(hours);
+        // Marked only against this company's own median for THIS stage, and
+        // only once there are three completed passes to take a median from.
+        const med = col.key ? stageMedian.get(col.key) : undefined;
+        const slow = hours !== null && med !== undefined && hours > med;
         return `<div class="card" data-id="${j.id}">
           <strong>${esc(j.customer_name)||esc(tr('jobUntitled'))}</strong>
           <div style="color:var(--muted);font-size:12px">${esc(j.address)||''}</div>
-          ${since ? `<div style="color:var(--muted);font-size:11px;margin-top:3px">${esc(tr('prodInStage', since))}</div>` : ''}
+          ${since ? `<div style="font-size:11px;margin-top:3px;color:${slow ? 'var(--warn,#9a6b00)' : 'var(--muted)'};font-weight:${slow ? '600' : '400'}" title="${slow ? esc(tr('prodSlowTitle', fmtDuration(med))) : ''}">${esc(tr('prodInStage', since))}${slow ? ' \u00b7 ' + esc(tr('prodSlowTag')) : ''}</div>` : ''}
           <select class="prod-move" data-sid="${j.sync_id}" style="margin-top:6px;width:100%;font-size:12px" aria-label="${esc(tr('prodMoveAria', j.customer_name||tr('jobUntitled')))}">
             ${PROD_STAGES.map(s=>`<option value="${s}"${s===col.key?' selected':''}>${esc(prodStageLabel(s))}</option>`).join('')}
           </select>
@@ -15273,9 +15403,13 @@ function wireTimeFilter(){
       document.querySelectorAll('#timePresets .chip').forEach(o => o.classList.toggle('on', o === b));
       renderTime();
     }));
-  const who = $('timeWho'), job = $('timeJob');
-  if (who) who.addEventListener('change', () => { timeFilter.who = who.value; renderTime(); });
-  if (job) job.addEventListener('change', () => { timeFilter.job = job.value; renderTime(); });
+  // NOT named `job`. tests/job-columns.test.mjs scans this page for `job.`
+  // reads and asks that each one be a column JOB_COLUMNS actually selects --
+  // a local <select> called `job` makes it report job.value and
+  // job.addEventListener as missing columns, and the deploy refuses.
+  const whoPick = $('timeWho'), jobPick = $('timeJob');
+  if (whoPick) whoPick.addEventListener('change', () => { timeFilter.who = whoPick.value; renderTime(); });
+  if (jobPick) jobPick.addEventListener('change', () => { timeFilter.job = jobPick.value; renderTime(); });
 }
 
 function timeRangeBounds(){
@@ -15413,23 +15547,23 @@ function buildTimeViewTabs(){
    the whole employee and job lists: an option that selects nothing is a
    dead end, and on this tab it reads as lost hours. */
 function fillTimePickers(){
-  const who = $('timeWho'), job = $('timeJob');
-  if (who && who.options.length <= 1) {
+  const whoPick = $('timeWho'), jobPick = $('timeJob');
+  if (whoPick && whoPick.options.length <= 1) {
     const names = [...new Set(times.map(shiftWhoName))].sort();
     for (const n of names) {
       const o = document.createElement('option');
       o.value = n; o.textContent = n;
-      who.appendChild(o);
+      whoPick.appendChild(o);
     }
   }
-  if (job && job.options.length <= 1) {
+  if (jobPick && jobPick.options.length <= 1) {
     const ids = [...new Set(times.map(t => t.job_sync_id).filter(Boolean))];
     for (const id of ids) {
       const j = jobBySync(id);
       if (!j) continue;
       const o = document.createElement('option');
       o.value = id; o.textContent = j.customer_name || id.slice(0, 8);
-      job.appendChild(o);
+      jobPick.appendChild(o);
     }
   }
 }

@@ -37,7 +37,31 @@ const src = readFileSync(SRC_PATH, "utf8");
 // site_lat/site_lon, already in JOB_COLUMNS.
 const KNOWN_NON_COLUMNS = new Set(["data", "error", "matched", "job_sync_id", "lat"]);
 
-function extractJobColumns(source) {
+/* A COMMENT IS NOT CODE, and this scan used to read them.
+   On 22 October 2026 four deploys in a row were refused because a comment in
+   dashboard.html explained, in words, why a local variable must not be named
+   `job` -- and in explaining it wrote job.value and job.addEventListener,
+   which the scan then reported as job columns the page selects without.
+   A gate that fails on its own documentation teaches people to stop writing
+   documentation. Line and block comments are blanked first now; string
+   literals are left exactly as they are, since a job column named in a
+   string is still a read. */
+function stripJsComments(src) {
+  let out = "";
+  for (let i = 0; i < src.length; ) {
+    const two = src.slice(i, i + 2);
+    if (two === "//") { while (i < src.length && src[i] !== "\n") { out += " "; i++; } continue; }
+    if (two === "/*") {
+      while (i < src.length && src.slice(i, i + 2) !== "*/") { out += src[i] === "\n" ? "\n" : " "; i++; }
+      out += "  "; i += 2; continue;
+    }
+    out += src[i]; i++;
+  }
+  return out;
+}
+
+function extractJobColumns(rawSource) {
+  const source = stripJsComments(rawSource);
   const found = new Set();
   // jobs.map(j=>...), jobs.filter(j=>...), jobs.find(j=>...), jobs.forEach(j=>...),
   // then any j.<prop> / job.<prop> / openJob.<prop> access anywhere in the
