@@ -48,15 +48,44 @@ office error reads as a phone crash with no version.
 
 ---
 
-## What I would build, in this order
+## Built on 22 October, in 1.734
 
-1. **Overview tiles.** Smallest, and it is the screen you would actually open on
-   a phone — "is anything on fire" in seven numbers.
-2. **Using it, on the companies list.** The thing that went live today, which is
-   no use to you if it only exists on a desktop.
-3. **Release audience.** Promote to everyone, from anywhere.
-4. **Manage a company** — plan, price, billing email, notes.
-5. **The crash filter and the Office pill**, so the two screens stop disagreeing.
+1. **Overview tab** — six figures: companies, used it in 30 days, dormant, on
+   trial, paying, suspended. Built from the **same one call** the Companies tab
+   makes, so the two cannot disagree about how many companies exist, and
+   opening it costs one request rather than seven.
+2. **Using it, on every company card** — the verdict with its three counts
+   beside it, so the rule can be checked rather than believed. A company
+   invited and never signed in says so instead of reading as dormant.
+3. **Give a release to everyone** — `admin_promote_release` already existed, so
+   this was only the button. It asks first, and says plainly that it cannot be
+   taken back from a phone that has already installed it.
+
+## The blocker on "Manage a company" is gone
+
+I said this one needed a server function that does not exist. It does not:
+`protect_billing_columns()` on the companies table lets a platform admin
+through and silently reverts plan, price, status and the Stripe ids for
+everybody else, which is exactly how the web console writes them. **The phone
+can write that row the same way** — so Manage is now plain UI work, next time
+I am in there.
+
+One thing seen while checking, recorded rather than raised as an alarm: that
+trigger opens with `if auth.uid() is null then return new`, the shape that has
+caught this project before — `auth.uid()` is null for an anonymous caller as
+well as for the backend's own service-role writes. It is not reachable today,
+because nothing grants `anon` an UPDATE on companies. It is worth narrowing to
+the service role by name the next time that file is open.
+
+## What I would build next, in this order
+
+1. **Manage a company** — plan, price, billing email, notes. No longer blocked;
+   see above.
+2. **The crash filter and the Office pill**, so the phone and the web stop
+   disagreeing about whether an office error is a phone crash.
+3. **Pricing drift** — the list of jobs where the two engines disagree, with a
+   mark-seen button.
+4. **Audit log**, the list only. The CSV stays at a desk.
 
 ## What I would NOT build, and why
 
