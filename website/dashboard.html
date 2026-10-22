@@ -2416,6 +2416,9 @@
             <button class="btn btn-sm" id="mailCompose" type="button" data-t="mailComposeBtn">Write an email</button>
           </div>
           <div class="mail-sync" id="mailSyncNote" role="status"></div>
+          <!-- How much sending is left today. Quiet until it is read, and
+               it only ever shows the provider actually in use. -->
+          <div class="sub" id="mailAllowance" style="margin-top:2px"></div>
           <div class="mail-threads" id="mailThreads"></div>
           <button class="btn btn-sm btn-grey" id="mailMore" type="button" style="display:none;margin-top:8px" data-t="mailMoreBtn">Show older</button>
           <p class="sub" style="margin-top:10px" data-t="mailWindowNote">FenceFlow shows mail from the 30 days before a mailbox was connected onward. Older mail stays in your mailbox. New mail is checked every minute while this tab is open, and every 5 minutes otherwise. Replies to mail you sent from FenceFlow arrive the moment they land.</p>
@@ -3719,6 +3722,8 @@ jobViewAll:'All', jobViewToday:'Today', jobViewWeek:'This week', jobViewUnschedu
     mailFolderFiled:'Filed', mailFolderStarred:'Starred', mailFolderSnoozed:'Snoozed', mailFolderArchived:'Archived', mailFolderTrash:'Trash',
     mailActStar:'Star', mailActUnstar:'Remove star', mailActArchive:'Archive', mailActSnooze:'Snooze until tomorrow 8am', mailActTrash:'Move to trash', mailActRestore:'Put back in the inbox',
     mailSearchPh:'Search by name, email address or subject', mailRefreshBtn:'Check for new mail',
+    mailAllowanceDay:'%s of %s emails left today.',
+    mailAllowanceHour:'%s of %s emails left today \u2014 but only %s more this hour.',
     mailSyncing:'Checking for new mail…', mailLastChecked:'Checked for new mail at %s.',
     mailSyncUnfinished:'Some mail is still coming in; the next check finishes it.',
     mailComposeBtn:'Write an email', mailMoreBtn:'Show older', mailBackBtn:'Back',
@@ -5564,6 +5569,8 @@ jobViewAll:'Todos', jobViewToday:'Hoy', jobViewWeek:'Esta semana', jobViewUnsche
     mailFolderFiled:'Archivado', mailFolderStarred:'Destacados', mailFolderSnoozed:'Pospuestos', mailFolderArchived:'Archivados', mailFolderTrash:'Papelera',
     mailActStar:'Destacar', mailActUnstar:'Quitar destacado', mailActArchive:'Archivar', mailActSnooze:'Posponer hasta mañana a las 8', mailActTrash:'Mover a la papelera', mailActRestore:'Devolver a recibidos',
     mailSearchPh:'Buscar por nombre, dirección de correo o asunto', mailRefreshBtn:'Buscar correo nuevo',
+    mailAllowanceDay:'Quedan %s de %s correos hoy.',
+    mailAllowanceHour:'Quedan %s de %s correos hoy \u2014 pero solo %s m\u00e1s esta hora.',
     mailSyncing:'Buscando correo nuevo…', mailLastChecked:'Correo revisado a las %s.',
     mailSyncUnfinished:'Todavía está llegando correo; la próxima revisión lo termina.',
     mailComposeBtn:'Escribir un correo', mailMoreBtn:'Ver anteriores', mailBackBtn:'Volver',
@@ -7379,6 +7386,8 @@ jobViewAll:'Tous', jobViewToday:'Aujourdhui', jobViewWeek:'Cette semaine', jobVi
     mailFolderFiled:'Classé', mailFolderStarred:'Suivis', mailFolderSnoozed:'Reportés', mailFolderArchived:'Archivés', mailFolderTrash:'Corbeille',
     mailActStar:'Suivre', mailActUnstar:'Ne plus suivre', mailActArchive:'Archiver', mailActSnooze:'Reporter à demain 8h', mailActTrash:'Mettre à la corbeille', mailActRestore:'Remettre dans la réception',
     mailSearchPh:'Chercher par nom, adresse e-mail ou objet', mailRefreshBtn:'Relever le courrier',
+    mailAllowanceDay:'Il reste %s courriels sur %s aujourd\u2019hui.',
+    mailAllowanceHour:'Il reste %s courriels sur %s aujourd\u2019hui \u2014 mais seulement %s de plus cette heure.',
     mailSyncing:'Relève du courrier…', mailLastChecked:'Courrier relevé à %s.',
     mailSyncUnfinished:'Du courrier arrive encore ; la prochaine relève le termine.',
     mailComposeBtn:'Écrire un e-mail', mailMoreBtn:'Voir les plus anciens', mailBackBtn:'Retour',
@@ -29076,6 +29085,8 @@ function mailErrorText(body, status){
    Only an exact `true` shows the tab: an error (the function not installed
    yet, a network blip) is a no, and crew are not even asked. */
 async function initMail(){
+  // Not awaited: the mailbox opening must not wait on a count.
+  refreshMailAllowance();
   canUseMail = false;
   try {
     if (profile && profile.company_id && profile.role !== 'CREW') {
@@ -29242,6 +29253,35 @@ async function syncMail(manual){
   renderMailFolders();
   if (fresh > 0 || manual) await loadMailThreads(true, true);
 }
+/* HOW MANY SENDS ARE LEFT, from the same rows that refuse the next one.
+ *
+ * Never awaited by anything that sends: a number on a screen must not be
+ * able to delay or fail an email. Its own failure is silent for the same
+ * reason -- this line going missing is a worse outcome than it being
+ * absent, and absent is what a failure leaves.
+ */
+async function refreshMailAllowance(){
+  const el = $('mailAllowance');
+  if (!el) return;
+  try {
+    const { data, error } = await db.rpc('my_mail_allowance');
+    if (error || !data) { el.textContent = ''; return; }
+    // The provider in use is the one with sends on it. A company that has
+    // never sent shows the day cap as the whole allowance, which is true.
+    const dayUsed = Math.max(Number(data.resend_day) || 0, Number(data.smtp_day) || 0);
+    const hourUsed = Math.max(Number(data.resend_hour) || 0, Number(data.smtp_hour) || 0);
+    const dayCap = Number(data.day_cap) || 0;
+    const hourCap = Number(data.hour_cap) || 0;
+    const dayLeft = Math.max(0, dayCap - dayUsed);
+    const hourLeft = Math.max(0, hourCap - hourUsed);
+    // The hour is only mentioned when it is the tighter of the two, which
+    // is the only time it is the number that will actually stop you.
+    el.textContent = hourLeft < dayLeft
+      ? tr('mailAllowanceHour', dayLeft, dayCap, hourLeft)
+      : tr('mailAllowanceDay', dayLeft, dayCap);
+  } catch (e) { $('mailAllowance').textContent = ''; }
+}
+
 function mailSyncNote(text, bad){
   const el = $('mailSyncNote');
   el.textContent = text || '';
@@ -30093,6 +30133,10 @@ function composeSent(c, body){
     if (mailCompose === c) { $('mailOverlay').classList.remove('on'); mailCompose = null; }
   }, 1200);
   refreshMailBadge();
+  // The count people want is the one AFTER the send they just made. Placed
+  // in composeSent, which is reached on state === 'sent' and nowhere else:
+  // a refusal or an unconfirmed send must not move the number.
+  refreshMailAllowance();
   jobMailSent(c.jobSyncId);
   // The ONLY place a quote is marked sent by email. composeSent() is reached
   // on state === 'sent' and nowhere else -- 'failed', 'sending' (may have
