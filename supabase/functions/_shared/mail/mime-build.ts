@@ -460,6 +460,114 @@ function htmlDocument(inner: string): string {
     `line-height:1.5;color:#1a1a1a">${inner}</div></body></html>`;
 }
 
+// ---------------------------------------------------------------------------
+// The look of a letter a customer opens.
+//
+// Tables, not flexbox or grid. Not nostalgia: Outlook on Windows renders mail
+// through Word, which supports neither, and a layout that collapses there
+// collapses for a large share of the people being quoted. Inline styles for
+// the same reason -- Gmail strips <style> blocks.
+// ---------------------------------------------------------------------------
+
+/** The page behind the card, and the card itself. */
+const MAIL_PAGE_BG = "#eef1f5";
+const MAIL_CARD_BG = "#ffffff";
+const MAIL_BORDER = "#dfe4ea";
+const MAIL_INK = "#1a1a1a";
+const MAIL_MUTED = "#6b7280";
+/** The one colour on the page, and it is on the one thing to press. */
+const MAIL_ACCENT = "#1f3b57";
+
+/** At most one URL, and not much else: the line that becomes the button. */
+const CTA_LINE_RE = /^\s*(.{0,40}?)\s*(https?:\/\/[^\s<>"'`]+)\s*$/;
+
+/**
+ * The letter's lines, with the first link line turned into a button.
+ *
+ * Returns the HTML for the body and nothing else; the caller owns the shell.
+ * A line is only ever promoted ONCE -- a second link line stays a link -- so
+ * an email cannot turn into a row of buttons.
+ */
+function htmlLetter(text: string): string {
+  const lines = normalizeNewlines(String(text ?? "")).split("\n");
+  let used = false;
+  const out: string[] = [];
+  for (const line of lines) {
+    const m = used || line.trimStart().startsWith(">") ? null : CTA_LINE_RE.exec(line);
+    if (m && m[2]) {
+      used = true;
+      // The words already beside the link, in the letter's own language.
+      // Trailing punctuation is the sentence's, not the label's.
+      const label = m[1].replace(/[\s:：-]+$/, "").trim();
+      const href = escapeHtml(m[2]);
+      out.push(
+        `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:18px 0">` +
+          `<tr><td style="border-radius:6px;background:${MAIL_ACCENT}">` +
+          `<a href="${href}" style="display:inline-block;padding:12px 26px;font-family:Arial,Helvetica,sans-serif;` +
+          `font-size:15px;font-weight:bold;color:#ffffff;text-decoration:none;border-radius:6px">` +
+          `${escapeHtml(label || "Open")}</a></td></tr></table>`,
+      );
+      // The address in full underneath, small and grey. A button with no
+      // visible URL is the shape a phishing mail has; a customer who wants to
+      // see where it goes before pressing it can.
+      out.push(
+        `<div style="font-size:12px;color:${MAIL_MUTED};margin:-8px 0 4px;word-break:break-all">` +
+          `<a href="${href}" style="color:${MAIL_MUTED}">${href}</a></div>`,
+      );
+      continue;
+    }
+    out.push(linkify(line).replace(/\t/g, "    ").replace(/ {2}/g, " &nbsp;") + "<br>");
+  }
+  return out.join("\n");
+}
+
+/** The header: the logo if it arrives, and the company's name whether it does or not. */
+function htmlHeader(logo: string | null, company: string): string {
+  const name = company
+    ? `<div style="font-size:17px;font-weight:bold;color:${MAIL_INK};letter-spacing:.2px">${escapeHtml(company)}</div>`
+    : "";
+  const img = logo
+    ? `<img src="${escapeHtml(logo)}" alt="${escapeHtml(company)}" ` +
+      `style="display:block;max-height:52px;max-width:220px;width:auto;border:0;margin:0 0 8px">`
+    : "";
+  if (!img && !name) return "";
+  return `<tr><td style="padding:22px 28px 14px 28px;border-bottom:1px solid ${MAIL_BORDER}">${img}${name}</td></tr>`;
+}
+
+/** The whole card: header, letter, footer. */
+function htmlCard(header: string, letter: string, footer: string): string {
+  const foot = footer
+    ? `<tr><td style="padding:14px 28px 22px 28px;border-top:1px solid ${MAIL_BORDER};` +
+      `font-size:12px;line-height:1.5;color:${MAIL_MUTED}">${footer}</td></tr>`
+    : "";
+  // THE VIEWPORT META IS NOT OPTIONAL ON A PHONE. Without it a mail client's
+  // web view lays the message out at a desktop width (980px here, measured)
+  // and then shrinks the whole thing to fit, so the card renders as a stamp
+  // with the text too small to read. text-size-adjust stops iOS inflating the
+  // type afterwards and undoing the spacing.
+  return `<!doctype html><html><head><meta charset="utf-8">` +
+    `<meta name="viewport" content="width=device-width,initial-scale=1"></head>` +
+    `<body style="margin:0;padding:0;background:${MAIL_PAGE_BG};` +
+    `-webkit-text-size-adjust:100%;text-size-adjust:100%">` +
+    `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" ` +
+    `style="background:${MAIL_PAGE_BG};padding:24px 12px">` +
+    `<tr><td align="center">` +
+    // NO width="600" ATTRIBUTE. It was there for Outlook on Windows, and on a
+    // phone it forced the whole page to 600px: the card rendered a third of
+    // the width of the screen with the rest of the page scrolling off to the
+    // right. Caught by looking at it at 375px, which is the width almost every
+    // customer reads this on. max-width does the same job everywhere that is
+    // not Word-rendered Outlook, and a slightly wide card there beats an
+    // unreadable one on every phone.
+    `<table role="presentation" cellpadding="0" cellspacing="0" border="0" ` +
+    `style="max-width:600px;width:100%;background:${MAIL_CARD_BG};border:1px solid ${MAIL_BORDER};border-radius:10px">` +
+    header +
+    `<tr><td style="padding:20px 28px 6px 28px;font-family:Arial,Helvetica,sans-serif;font-size:14px;` +
+    `line-height:1.6;color:${MAIL_INK}">${letter}</td></tr>` +
+    foot +
+    `</table></td></tr></table></body></html>`;
+}
+
 /**
  * The HTML twin of a plain-text body. Everything is escaped; the only markup
  * added is <br>, non-breaking spaces to keep indentation, and links around
@@ -505,21 +613,27 @@ export function composeBody(input: {
   const sig = capChars(normalizeNewlines(String(input.signature ?? "")).trim(), SIGNATURE_MAX_CHARS);
   const footer = cleanSubject(input.footer ?? "");
   const logo = httpsOnly(input.logoUrl);
+  const company = cleanDisplayName(input.logoAlt) || "";
   let text = body;
-  let html = logo
-    ? `<img src="${escapeHtml(logo)}" alt="${escapeHtml(cleanDisplayName(input.logoAlt) || "")}" ` +
-      `style="display:block;max-height:56px;max-width:220px;width:auto;border:0;margin:0 0 14px">` +
-      htmlInner(body)
-    : htmlInner(body);
+  // The letter, and the one link in it as a button. The plain-text part below
+  // is assembled exactly as it always was -- same sentences, same order, same
+  // separator before the signature -- because a reader on plain text must get
+  // the letter they got yesterday.
+  let html = htmlLetter(body);
   if (sig) {
     text += `\n\n-- \n${sig}`;
-    html += `<br>\n<br>\n-- <br>\n${htmlInner(sig)}`;
+    html += `\n<div style="margin-top:18px;padding-top:14px;border-top:1px solid ${MAIL_BORDER}">` +
+      `${htmlInner(sig)}</div>`;
   }
+  let foot = "";
   if (footer) {
     text += `\n\n${footer}`;
-    html += `<br>\n<br>\n<span style="font-size:12px;color:#8a93a0">${escapeHtml(footer)}</span>`;
+    foot = escapeHtml(footer);
   }
-  return { text: `${text}\n`, html: htmlDocument(html) };
+  return {
+    text: `${text}\n`,
+    html: htmlCard(htmlHeader(logo, company), html, foot),
+  };
 }
 
 function textPart(subtype: "plain" | "html", content: string, boundaries: ReadonlyArray<string>): string {

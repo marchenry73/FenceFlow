@@ -403,3 +403,76 @@ test("send-side errors are MailErrors with fixed codes, so the office can transl
   assert.ok(err instanceof MailError);
   assert.equal(err.code, "bad_request");
 });
+
+// ====================================================== how a letter looks =====
+//
+// The email a customer opens is the one message that decides whether somebody
+// buys a fence, and it read as software output: a small logo, the letter as
+// <br>-joined lines on a bare white page, a grey footer. These pin the five
+// things every branded contractor email shares -- a card, a header with the
+// company's NAME as well as its logo, one button, a quiet footer, and nothing
+// else -- and, just as hard, that the plain-text part did not move.
+
+test("composeBody: the letter is a card with the company's name in the header", () => {
+  const { html } = composeBody({
+    text: "Hi Pat,\n\nHere is your quote.",
+    logoUrl: "https://example.test/logo.png",
+    logoAlt: "Acme Fence",
+  });
+  assert.match(html, /<img src="https:\/\/example\.test\/logo\.png"/);
+  assert.ok(html.includes("Acme Fence"), "the company's name is not in the letter");
+  assert.match(html, /max-width:600px/, "the card has no width, so it runs the full width of a desktop screen");
+  assert.match(html, /name="viewport"/, "no viewport meta: a phone lays this out at desktop width and shrinks it to a stamp");
+});
+
+test("composeBody: the name is there even when the logo is not", () => {
+  // Most mail clients block remote images by default, so on first open the
+  // logo simply is not there. The name has to carry the header alone.
+  const { html } = composeBody({ text: "Hi", logoAlt: "Acme Fence" });
+  assert.ok(!html.includes("<img"), "an image appeared with no logo given");
+  assert.ok(html.includes("Acme Fence"), "with no logo there is nothing identifying the sender at all");
+});
+
+test("composeBody: the one link line becomes a button, and the address is still shown", () => {
+  const { html } = composeBody({ text: "Hi Pat,\n\nOpen it here: https://example.test/q/abc\n\nThanks." });
+  assert.match(html, /<a href="https:\/\/example\.test\/q\/abc"[^>]*>Open it here<\/a>/,
+    "the link line is not a button, or the button lost the words that were beside the link");
+  // A button with no visible address is the shape a phishing mail has.
+  assert.ok((html.match(/https:\/\/example\.test\/q\/abc/g) || []).length >= 2,
+    "the address itself is no longer shown anywhere");
+});
+
+test("composeBody: only the FIRST link line is promoted, and never a quoted one", () => {
+  const { html } = composeBody({
+    text: "One: https://example.test/a\nTwo: https://example.test/b\n> Quoted: https://example.test/c",
+  });
+  const buttons = html.match(/padding:12px 26px/g) || [];
+  assert.equal(buttons.length, 1, "an email turned into a row of buttons");
+  assert.ok(!html.includes(">Quoted<"), "a quoted line in a reply was turned into a button");
+});
+
+test("composeBody: a link inside a sentence is left as a link", () => {
+  // A typed reply must not sprout a button in the middle of a paragraph.
+  const long = "I had a look at https://example.test/x and it seems fine to me, so go ahead whenever you like.";
+  const { html } = composeBody({ text: long });
+  assert.ok(!html.includes("padding:12px 26px"), "a link inside a paragraph became a button");
+  assert.match(html, /<a href="https:\/\/example\.test\/x"/);
+});
+
+test("composeBody: the PLAIN TEXT part is untouched by any of it", () => {
+  // Every sentence a customer reads is written in email-templates.ts. This
+  // file decides how the HTML twin looks and never what it says.
+  const body = "Hi Pat,\n\nOpen it here: https://example.test/q/abc\n\nThanks.";
+  const { text } = composeBody({ text: body, signature: "Marc", footer: "Sent by Acme Fence using FenceFlow" });
+  assert.equal(text, body + "\n\n-- \nMarc\n\nSent by Acme Fence using FenceFlow\n");
+});
+
+test("composeBody: everything in the header and the footer is still escaped", () => {
+  const { html } = composeBody({
+    text: "Hi",
+    logoAlt: '<script>alert(1)</script>',
+    footer: '<b>not bold</b>',
+  });
+  assert.ok(!html.includes("<script>"), "a company name reached the HTML as markup");
+  assert.ok(!html.includes("<b>not bold</b>"), "a footer reached the HTML as markup");
+});
