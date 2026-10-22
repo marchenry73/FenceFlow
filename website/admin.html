@@ -376,6 +376,7 @@
             <thead><tr>
               <th data-sort="name" data-t="colCompany">Company</th>
               <th data-sort="subscription_status" data-t="colStatus">Status</th>
+              <th data-sort="health" data-t="colHealth">Using it</th>
               <th data-t="colOnboarding">Onboarding</th>
               <th data-sort="subscription_plan" data-t="colPlan">Plan</th>
               <th data-sort="monthly_price" data-t="colPriceMo">$/mo</th>
@@ -860,6 +861,12 @@ const TL = {
     refreshBtn:'Refresh', exportCsvBtn:'Export CSV',
     colCompany:'Company', colStatus:'Status', colOnboarding:'Onboarding', colPlan:'Plan',
     colPriceMo:'$/mo', colSeats:'Seats', colJobs:'Jobs', colLastSeen:'Last seen',
+    colHealth:'Using it',
+    healthActive:'Active', healthQuiet:'Quiet', healthDormant:'Dormant',
+    healthDetail:'%s seen \u00b7 %s jobs \u00b7 %s quotes',
+    healthRuleTitle:'Active = a job created or a quote sent in the last 30 days. Quiet = somebody opened it but built nothing. Dormant = nobody opened it at all.',
+    healthNotYetTitle:'Invited, and has never signed in. There is nothing to measure yet.',
+    kpiUsingIt:'used it (30 days)', kpiDormantNote:'%s dormant',
     colVersion:'Version', colRenewsEnds:'Renews / ends',
     rowOwnerLabel:'Owner:',
     rowOwnerTitle:'The email address this company\'s owner signs in with. It is what tells one company from another: a company email is a typed setting two companies can share, a login is not.',
@@ -1113,6 +1120,12 @@ const TL = {
     refreshBtn:'Actualizar', exportCsvBtn:'Exportar CSV',
     colCompany:'Empresa', colStatus:'Estado', colOnboarding:'Incorporación', colPlan:'Plan',
     colPriceMo:'$/mes', colSeats:'Cupos', colJobs:'Trabajos', colLastSeen:'Última vez visto',
+    colHealth:'En uso',
+    healthActive:'Activa', healthQuiet:'Tranquila', healthDormant:'Inactiva',
+    healthDetail:'%s vistos \u00b7 %s trabajos \u00b7 %s presupuestos',
+    healthRuleTitle:'Activa = creó un trabajo o envió un presupuesto en los últimos 30 días. Tranquila = alguien la abrió pero no hizo nada. Inactiva = nadie la abrió.',
+    healthNotYetTitle:'Invitada y nunca inició sesión. Todavía no hay nada que medir.',
+    kpiUsingIt:'la usaron (30 días)', kpiDormantNote:'%s inactivas',
     colVersion:'Versión', colRenewsEnds:'Renueva / termina',
     rowOwnerLabel:'Propietario:',
     rowOwnerTitle:'La dirección de correo con la que inicia sesión el propietario de esta empresa. Es lo que distingue una empresa de otra: un correo de empresa es un ajuste escrito a mano que dos empresas pueden compartir, un inicio de sesión no.',
@@ -1366,6 +1379,12 @@ const TL = {
     refreshBtn:'Actualiser', exportCsvBtn:'Exporter en CSV',
     colCompany:'Entreprise', colStatus:'Statut', colOnboarding:'Intégration', colPlan:'Forfait',
     colPriceMo:'$/mois', colSeats:'Postes', colJobs:'Chantiers', colLastSeen:'Vu pour la dernière fois',
+    colHealth:'Utilisation',
+    healthActive:'Active', healthQuiet:'Calme', healthDormant:'Dormante',
+    healthDetail:'%s vus \u00b7 %s chantiers \u00b7 %s devis',
+    healthRuleTitle:'Active = un chantier créé ou un devis envoyé dans les 30 derniers jours. Calme = quelqu\'un l\'a ouverte sans rien faire. Dormante = personne ne l\'a ouverte.',
+    healthNotYetTitle:'Invitée et jamais connectée. Il n\'y a encore rien à mesurer.',
+    kpiUsingIt:'utilisée (30 jours)', kpiDormantNote:'%s dormantes',
     colVersion:'Version', colRenewsEnds:'Renouvelle / se termine',
     rowOwnerLabel:'Propriétaire :',
     rowOwnerTitle:'L\'adresse courriel avec laquelle le propriétaire de cette entreprise se connecte. C\'est ce qui distingue une entreprise d\'une autre : un courriel d\'entreprise est un réglage saisi à la main que deux entreprises peuvent partager, un identifiant non.',
@@ -2422,6 +2441,18 @@ function renderKpis() {
   // rebuilt on the fixed price list instead of the monthly_price column.
   const unpriced = activeNow.filter(c => !PLAN_PRICE[(c.subscription_plan || '').toLowerCase()]).length;
 
+  // How many customers did any work at all in the last thirty days. Every
+  // other tile here counts what was signed up; this one counts what is being
+  // used, which is the number that moves first when a customer leaves.
+  //
+  // Blank, not zero, when no row carries the columns: a bold 0 would read as
+  // "nobody is using FenceFlow" on a console whose database simply has not
+  // been patched yet.
+  const health = clients.map(healthOf);
+  const healthKnown = health.some(h => h.state !== 'absent');
+  const usingIt = health.filter(h => h.state === 'active').length;
+  const dormant = health.filter(h => h.state === 'dormant').length;
+
   const crashCount7 = crashes7d.reduce((s, c) => s + Number(c.occurrences || 0), 0);
 
   // admin_companies() hands back the oldest and newest version NAME seen on
@@ -2458,6 +2489,10 @@ function renderKpis() {
     <div class="stat"><b>${money(mrr)}${floorMark}</b><span>${esc(tr('kpiMrrListPrice'))}</span>${
       unpriced ? `<span class="note">${esc(tr('kpiUnpricedNote', unpriced))}</span>` : ''
     }</div>
+    <div class="stat"><b>${healthKnown ? usingIt + floorMark : '—'}</b><span>${
+      esc(tr('kpiUsingIt'))}</span>${
+      healthKnown && dormant ? `<span class="note">${esc(tr('kpiDormantNote', dormant))}</span>` : ''
+    }</div>
     <div class="stat"><b>${crashCount7}</b><span>${esc(tr('kpiCrashes7d'))}</span></div>
     <div class="stat"><b>${versions.size || '—'}</b><span>${esc(tr('kpiAppVersionsField'))}</span></div>`;
 }
@@ -2483,6 +2518,73 @@ function onboardingTrack(c) {
     : (steps[0].on ? tr('onbWaitingPrefix') : tr('onbNotStartedPrefix')) + (next ? next.label.toLowerCase() : '');
   return `<div style="display:flex;gap:4px;align-items:center">${beads}</div>
     <span style="font-size:11.5px;color:${done ? 'var(--teal)' : 'var(--muted)'}">${esc(caption)}</span>`;
+}
+
+/* Is this company actually using FenceFlow?
+
+   The list could not say. people and jobs are totals EVER, and a total never
+   goes down: a company that stopped in August read exactly like one that used
+   it this morning. admin_companies() now returns three counts over the same
+   thirty days -- people seen, jobs created, quotes sent -- and this turns them
+   into one word.
+
+   THREE COUNTS, not one, because they fail differently. last_seen_at is
+   written by the PHONE, so an office-only company reads as nobody-seen; a
+   people-only rule would call it dormant while it quoted every day. And
+   someone opening the app is not the same as someone working: that is the
+   difference between quiet and active, and it is the distinction worth having.
+
+   FIVE STATES, not three:
+
+     absent   the row does not carry the columns, because the database has not
+              had the health patch applied. The cell prints nothing. Saying
+              "dormant" in that state would be a red pill on every company on
+              the strength of data this page never received -- the same reason
+              ownerLogin() distinguishes absent from none. The discriminator is
+              whether the KEY is there: PostgREST returns the key holding null
+              when the column exists, and omits it entirely when it does not.
+     notyet   invited and never signed in. "Are they still using it" has no
+              answer before they ever started, and Status already says
+              Invited; a red pill here would only make the list look alarming
+              about the one state that is nobody's fault yet.
+     active   a job created or a quote sent in the last thirty days.
+     quiet    somebody opened it, but built nothing.
+     dormant  nobody opened it at all.
+
+   No score. No weighting, no 0-100. Three counts, the rule stated in the
+   tooltip, and the counts printed under the pill so the rule can be argued
+   with rather than believed. */
+function healthOf(c) {
+  if (!c || !('active_people_30d' in c)) return { state: 'absent' };
+  const people = Number(c.active_people_30d || 0);
+  const jobs = Number(c.jobs_30d || 0);
+  const quotes = Number(c.quotes_30d || 0);
+  const counts = { people, jobs, quotes };
+  if (!c.joined_at) return Object.assign({ state: 'notyet' }, counts);
+  if (jobs > 0 || quotes > 0) return Object.assign({ state: 'active' }, counts);
+  if (people > 0) return Object.assign({ state: 'quiet' }, counts);
+  return Object.assign({ state: 'dormant' }, counts);
+}
+
+/* Sort order: worst first when ascending, which is the direction anybody
+   clicking this header wants. notyet and absent sort past active because
+   neither is a verdict about usage, and parking them at the end keeps the
+   top of the list to companies the figure actually describes. */
+function healthRank(c) {
+  return { dormant: 0, quiet: 1, active: 2, notyet: 3, absent: 4 }[healthOf(c).state];
+}
+
+function healthCell(c) {
+  const h = healthOf(c);
+  if (h.state === 'absent') return '';
+  if (h.state === 'notyet') {
+    return `<span class="pill muted" title="${esc(tr('healthNotYetTitle'))}">—</span>`;
+  }
+  const cls = { active: 'ok', quiet: 'warn', dormant: 'bad' }[h.state];
+  const label = { active: tr('healthActive'), quiet: tr('healthQuiet'), dormant: tr('healthDormant') }[h.state];
+  return `<span class="pill ${cls}" title="${esc(tr('healthRuleTitle'))}">${esc(label)}</span>` +
+    `<br><span style="font-size:11px;color:var(--muted)">${
+      esc(tr('healthDetail', h.people, h.jobs, h.quotes))}</span>`;
 }
 
 function statusPill(c) {
@@ -2639,6 +2741,10 @@ function accessButton(c) {
 
 function compareClients(a, b) {
   let av = a[sortKey], bv = b[sortKey];
+  // 'health' is not a column on the row -- it is the rule healthOf() applies
+  // to three of them -- so it gets its own rank rather than a[sortKey],
+  // which would be undefined for every row and leave the order untouched.
+  if (sortKey === 'health') { av = healthRank(a); bv = healthRank(b); }
   if (typeof av === 'string' || typeof bv === 'string') { av = (av ?? '').toString().toLowerCase(); bv = (bv ?? '').toString().toLowerCase(); }
   else { av = av ?? -Infinity; bv = bv ?? -Infinity; }
   if (av < bv) return -1 * sortDir;
@@ -2678,6 +2784,7 @@ function renderCompaniesTable() {
           ${identityLines(c)}${isMine(c) ? `
           <br><span style="color:#ffb3c4;font-size:12px">This is the company your own login is in.</span>` : ''}</td>
       <td>${statusPill(c)}</td>
+      <td>${healthCell(c)}</td>
       <td>${onboardingTrack(c)}</td>
       <td>${esc(c.subscription_plan || '—')}</td>
       <td class="nowrap">${money(c.monthly_price)}</td>
@@ -3756,13 +3863,20 @@ function exportCsv() {
   // and neither has to be unique. It is blank rather than absent when the
   // database has no owner email to give, so a script reading this file by
   // column name keeps working either way.
-  const head = ['CompanyId', 'Company', 'OwnerLogin', 'Status', 'Plan', 'MonthlyPrice', 'Seats', 'Jobs', 'LastSeen', 'Suspended', 'BillingEmail'];
-  const rows = clients.map(c => [
-    c.id, c.name, ownerLogin(c).email,
-    c.subscription_status, c.subscription_plan, c.monthly_price,
-    c.people, c.jobs, day(c.last_seen), c.suspended ? 'yes' : 'no',
-    c.billing_email || c.email || ''
-  ]);
+  const head = ['CompanyId', 'Company', 'OwnerLogin', 'Status', 'Plan', 'MonthlyPrice', 'Seats', 'Jobs', 'LastSeen', 'UsingIt', 'PeopleSeen30d', 'JobsCreated30d', 'QuotesSent30d', 'Suspended', 'BillingEmail'];
+  const rows = clients.map(c => {
+    const h = healthOf(c);
+    const known = h.state !== 'absent';
+    return [
+      c.id, c.name, ownerLogin(c).email,
+      c.subscription_status, c.subscription_plan, c.monthly_price,
+      c.people, c.jobs, day(c.last_seen),
+      known ? h.state : '',
+      known ? h.people : '', known ? h.jobs : '', known ? h.quotes : '',
+      c.suspended ? 'yes' : 'no',
+      c.billing_email || c.email || ''
+    ];
+  });
   const csv = [head, ...rows]
     .map(r => r.map(v => `"${csvSafeCell(v).replace(/"/g, '""')}"`).join(',')).join('\n');
   // A blob download, because the file is generated here and never leaves the browser.
