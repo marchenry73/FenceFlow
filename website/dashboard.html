@@ -1425,7 +1425,11 @@
             <th class="sortable" data-sort="customer" tabindex="0" aria-sort="none"><span data-t="jobColCustomer">Customer</span><span class="arw"></span></th>
             <th class="sortable" data-sort="address" tabindex="0" aria-sort="none"><span data-t="jobColAddress">Address</span><span class="arw"></span></th>
             <th class="sortable" data-sort="status" tabindex="0" aria-sort="none"><span data-t="jobColStatus">Status</span><span class="arw"></span></th>
+            <th class="sortable" data-sort="stage" tabindex="0" aria-sort="none"><span data-t="jobColStage">Stage</span><span class="arw"></span></th>
             <th class="sortable" data-sort="scheduled" tabindex="0" aria-sort="none"><span data-t="jobColScheduled">Scheduled</span><span class="arw"></span></th>
+            <!-- Hidden rather than absent for anyone without SEE_MONEY, so the
+                 header and the rows cannot fall out of step with each other. -->
+            <th class="sortable" id="jobColTotalTh" data-sort="total" tabindex="0" aria-sort="none"><span data-t="jobColTotal">Total</span><span class="arw"></span></th>
             <th class="sortable" data-sort="paid" tabindex="0" aria-sort="none"><span data-t="jobColPaid">Paid</span><span class="arw"></span></th>
           </tr></thead>
           <tbody id="jobRows"></tbody></table></div>
@@ -4195,7 +4199,7 @@ jobViewAll:'All', jobViewToday:'Today', jobViewWeek:'This week', jobViewUnschedu
     jobsImportBtn:'Import their data', jobsNewBtn:'+ New Job',
     jobSearchPh:'Search a customer or address', jobsClearBtn:'Clear',
     jobColCustomer:'Customer', jobColAddress:'Address', jobColStatus:'Status',
-    jobColScheduled:'Scheduled', jobColPaid:'Paid',
+    jobColScheduled:'Scheduled', jobColPaid:'Paid', jobColTotal:'Total', jobColStage:'Stage',
     jobsEmptyNone:'No jobs yet.',
     jobsEmptyFiltered:'No jobs match that. Clear the search or pick a different status.',
     jobsCountAllSing:'%s job', jobsCountAllPlur:'%s jobs',
@@ -6040,7 +6044,7 @@ jobViewAll:'Todos', jobViewToday:'Hoy', jobViewWeek:'Esta semana', jobViewUnsche
     jobsImportBtn:'Importar sus datos', jobsNewBtn:'+ Nuevo trabajo',
     jobSearchPh:'Buscar un cliente o dirección', jobsClearBtn:'Borrar',
     jobColCustomer:'Cliente', jobColAddress:'Dirección', jobColStatus:'Estado',
-    jobColScheduled:'Programado', jobColPaid:'Pagado',
+    jobColScheduled:'Programado', jobColPaid:'Pagado', jobColTotal:'Total', jobColStage:'Etapa',
     jobsEmptyNone:'Todavía no hay trabajos.',
     jobsEmptyFiltered:'Nada coincide con eso. Borre la búsqueda o elija otro estado.',
     jobsCountAllSing:'%s trabajo', jobsCountAllPlur:'%s trabajos',
@@ -7855,7 +7859,7 @@ jobViewAll:'Tous', jobViewToday:'Aujourdhui', jobViewWeek:'Cette semaine', jobVi
     jobsImportBtn:'Importer leurs données', jobsNewBtn:'+ Nouveau chantier',
     jobSearchPh:'Rechercher un client ou une adresse', jobsClearBtn:'Effacer',
     jobColCustomer:'Client', jobColAddress:'Adresse', jobColStatus:'Statut',
-    jobColScheduled:'Prévu', jobColPaid:'Payé',
+    jobColScheduled:'Prévu', jobColPaid:'Payé', jobColTotal:'Total', jobColStage:'Étape',
     jobsEmptyNone:'Aucun chantier pour l’instant.',
     jobsEmptyFiltered:'Rien ne correspond. Effacez la recherche ou choisissez un autre statut.',
     jobsCountAllSing:'%s chantier', jobsCountAllPlur:'%s chantiers',
@@ -14487,6 +14491,14 @@ function jobsSorted(list){
       case 'address':  return txt(a.address).localeCompare(txt(b.address)) * dir;
       case 'status':   return (JOB_STATUS_ORDER.indexOf(a.status) - JOB_STATUS_ORDER.indexOf(b.status)) * dir;
       case 'paid':     return (netPaid(a) - netPaid(b)) * dir;
+      case 'total':    return ((contractTotalOf(a) || 0) - (contractTotalOf(b) || 0)) * dir;
+      // Down the pipeline, in the order the board draws it, rather than
+      // alphabetically -- 'Approved' before 'New Lead' would be a sort by
+      // spelling, not by progress.
+      case 'stage': {
+        const order = Object.keys(CAL_STAGE);
+        return (order.indexOf(stageOf(a)) - order.indexOf(stageOf(b))) * dir;
+      }
       case 'scheduled':
       default: {
         // Never scheduled is not "the earliest date" and not "the latest".
@@ -14601,6 +14613,12 @@ function renderJobs(){
 
   renderJobBatch(shown);
 
+  // Read once for the whole list rather than per row: it is a role lookup,
+  // not a per-job question, and asking it forty times says the same thing
+  // forty times.
+  const seeMoneyHere = canSeeMoney();
+  const totalTh = $('jobColTotalTh');
+  if (totalTh) totalTh.style.display = seeMoneyHere ? '' : 'none';
   $('jobRows').innerHTML=shown.map(j=>`
     <tr class="click" data-id="${j.id}">
       <td class="selcol"><input type="checkbox" class="jobtick" data-id="${j.id}"
@@ -14609,7 +14627,9 @@ function renderJobs(){
       <td>${esc(j.address)||tr('jobNoValue')}</td>
       <td><span class="pill ${esc(j.status)}">${esc(jobStatusLabel(j.status))}</span>
         ${j.wizard_step ? '<span class="pill" style="background:var(--warn-bg);color:var(--warn-fg);margin-left:4px;white-space:nowrap">'+esc(tr('jobWizardBadge'))+'</span>' : ''}</td>
+      <td><span class="pill na">${esc(stageLabel(stageOf(j)))}</span></td>
       <td>${j.scheduled_date?d(j.scheduled_date).toLocaleDateString():'—'}</td>
+      <td class="jobTotalCell"${seeMoneyHere?'':' style="display:none"'}>${seeMoneyHere?money(contractTotalOf(j)||0):''}</td>
       <td>${money(netPaid(j))}</td></tr>`).join('');
   document.querySelectorAll('#jobRows tr').forEach(tr=>
     tr.addEventListener('click',()=>showJob(tr.dataset.id)));
