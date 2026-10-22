@@ -950,6 +950,7 @@ const TL = {
     crashSummaryNoRows:'Which builds each problem came from could not be read, so this goes by the newest report in each group.',
     crashNoneCurrent:'Nothing reported by %s or newer in the last 14 days.',
     crashPillCurrent:'On %s', crashPillOldOnly:'Older builds only', crashPillFatal:'App closed',
+    crashPillOffice:'Office website',
     crashSeenOn:'Seen on', crashMerged:'%s wordings of the same problem, counted together.',
 
     releasesHead:'Releases',
@@ -1202,6 +1203,7 @@ const TL = {
     crashSummaryNoRows:'No se pudo leer de qué versión vino cada problema, así que esto usa el reporte más reciente de cada grupo.',
     crashNoneCurrent:'Nada reportado por la %s o una más nueva en los últimos 14 días.',
     crashPillCurrent:'En %s', crashPillOldOnly:'Solo versiones anteriores', crashPillFatal:'La app se cerró',
+    crashPillOffice:'Sitio de la oficina',
     crashSeenOn:'Visto en', crashMerged:'%s formas de escribir el mismo problema, contadas juntas.',
 
     releasesHead:'Versiones',
@@ -1454,6 +1456,7 @@ const TL = {
     crashSummaryNoRows:'Impossible de lire de quelle version vient chaque problème : ceci se fie au rapport le plus récent de chaque groupe.',
     crashNoneCurrent:'Rien de signalé par la %s ou une plus récente ces 14 derniers jours.',
     crashPillCurrent:'Sur %s', crashPillOldOnly:'Anciennes versions seulement', crashPillFatal:'Appli fermée',
+    crashPillOffice:'Site du bureau',
     crashSeenOn:'Vu sur', crashMerged:'%s formulations du même problème, comptées ensemble.',
 
     releasesHead:'Versions',
@@ -3066,6 +3069,12 @@ function crashGroups(cur) {
     // Phones counted once across every wording, not once per wording.
     g.devices = new Set(rows.map(r => r.android || '')).size;
     g.fatal = rows.some(r => r.fatal);
+    // FROM THE OFFICE, not a phone. Those rows carry no version_code and
+    // 'office' as the name, so every build comparison below reads 0 for
+    // them. `every` rather than `some`: a signature seen on both the phone
+    // and the office is a phone crash that also happens in the browser, and
+    // it should keep being judged against the build it came from.
+    g.office = rows.every(r => r.version_name === 'office');
     const count = new Map(), name = new Map();
     rows.forEach(r => {
       const c = Number(r.version_code) || codeOf(r.version_name);
@@ -3163,7 +3172,13 @@ function renderCrashes() {
       tr('crashSummary', groups.filter(g => g.onCurrent).length, groups.length, cur.name) +
       (crashRows ? '' : ' ' + tr('crashSummaryNoRows'));
   }
-  const shown = cur && crashCurrentOnly ? groups.filter(g => g.onCurrent) : groups;
+  // An office error has no build, so it can never satisfy "still happening
+  // on 1.708" -- and hiding it behind that box would hide the only record
+  // the office keeps of its own failures, from somebody who ticked the box
+  // precisely because they were looking for what is still going wrong.
+  const shown = cur && crashCurrentOnly
+    ? groups.filter(g => g.onCurrent || g.office)
+    : groups;
   if (!shown.length) {
     $('errRows').innerHTML = '';
     $('errNote').textContent = groups.length && cur ? tr('crashNoneCurrent', cur.name) : tr('crashNoneLast14');
@@ -3174,8 +3189,11 @@ function renderCrashes() {
   $('errRows').innerHTML = shown.map((c, i) => {
     const open = c.any_unseen;
     const message = c.message || tr('crashNoMessage');
-    const versions = c.versionRange || c.latest_version || '—';
-    const buildPill = !cur ? ''
+    // 'office' as a version number reads like a build nobody can find.
+    const versions = c.office ? tr('crashPillOffice') : (c.versionRange || c.latest_version || '—');
+    const buildPill = c.office
+      ? `<br><span class="pill">${esc(tr('crashPillOffice'))}</span>`
+      : !cur ? ''
       : c.onCurrent ? `<br><span class="pill bad">${esc(tr('crashPillCurrent', cur.name))}</span>`
       : `<br><span class="pill muted">${esc(tr('crashPillOldOnly'))}</span>`;
     return `<div class="crash-row${open ? '' : ' handled'}">
