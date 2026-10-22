@@ -59,16 +59,20 @@ const grabLine = (prefix) => {
 const FUNCTIONS = [
   "paymentMethodsFromForm", "canonPaymentMethods", "livePaymentMethodNames", "samePaymentMethods",
   "readPayMethodsForm", "fillPayMethodsForm", "readStoredPaymentMethods", "loadPaymentMethods", "savePaymentMethods",
+  // "Other ways to pay": the free list beside the four fixed methods.
+  "canonOtherMethods", "otherMethodsFromForm", "sameOtherMethods", "renderOtherMethods", "readOtherMethodsForm",
 ];
 const LIFTED = [
   grabLine("const PAY_INVISIBLE = "), grabLine("const PAY_TAG = "), grabLine("const PAY_LIMITS = "),
+  grabLine("const PAY_OTHER_MAX = "), grabLine("const PAY_OTHER_NAME_MAX = "), grabLine("const PAY_OTHER_DETAIL_MAX = "),
   "let payMethodsLoaded = false;",
   ...FUNCTIONS.map(grab),
 ].join("\n");
 
 // ================================================================ harness =====
 const IDS = ["pm_cashApp_on", "pm_cashApp_tag", "pm_zelle_on", "pm_zelle_to", "pm_wire_on", "pm_wire_details",
-  "pm_cash_on", "savePayMethods", "payMethMsg", "payMethSummary", "payMethodsPanel"];
+  "pm_cash_on", "savePayMethods", "payMethMsg", "payMethSummary", "payMethodsPanel",
+  "pm_other_rows", "pm_other_add"];
 
 /**
  * A page and a database. The database behaves like the real one where it
@@ -99,9 +103,16 @@ function world({ role = "OWNER", settings, readFails: readFailsAtStart = false, 
           calls.push({ kind: "read", table, cols: q.cols });
           if (table !== "company_settings") throw new Error("the payment panel read a table other than company_settings: " + table);
           if (flags.readFails || (readFailsAfterWrite && wrote)) return { data: null, error: { message: "planted: read failed" } };
-          const m = /^(\w+):settings->(\w+)$/.exec(String(q.cols).trim());
-          assert.ok(m, "the panel must read ONE key of the blob, not the whole of it: " + q.cols);
-          return { data: store.row ? { [m[1]]: store.row.settings[m[2]] } : null, error: null };
+          // One or more `alias:settings->key`, which is what PostgREST takes
+          // and what the panel sends now that it reads the custom list beside
+          // the four fixed methods. Every part must name ONE key, so a select
+          // that reached for the whole blob still fails here.
+          const parts = String(q.cols).split(",").map((c) => c.trim()).filter(Boolean);
+          const ms = parts.map((c) => /^(\w+):settings->(\w+)$/.exec(c));
+          assert.ok(ms.length > 0 && ms.every(Boolean),
+            "the panel must read NAMED keys of the blob, not the whole of it: " + q.cols);
+          if (!store.row) return { data: null, error: null };
+          return { data: Object.fromEntries(ms.map((m) => [m[1], store.row.settings[m[2]]])), error: null };
         },
       };
       return q;
@@ -124,9 +135,36 @@ function world({ role = "OWNER", settings, readFails: readFailsAtStart = false, 
   const tr = (k, ...a) => [k, ...a].join("|");
   const profile = { company_id: "co1", role };
   const canEdit = () => role === "OWNER" || role === "MANAGER";
-  const api = new Function("$", "db", "profile", "canEdit", "msg", "tr", "console",
-    LIFTED + "\nreturn { " + FUNCTIONS.join(", ") + ", PAY_LIMITS, get loaded(){ return payMethodsLoaded; } };")
-    ($, db, profile, canEdit, msg, tr, { error() {} });
+  // The custom-rows box, as much of a DOM as the real functions touch: they
+  // write a block of HTML into it and then read the values back out of those
+  // inputs. Parsing that HTML here rather than faking the values keeps the
+  // render and the read tested as the round trip they are -- a render that
+  // stopped emitting a value, or a read looking for the wrong class, fails
+  // here instead of passing against a stub that agreed with itself.
+  const unesc = (t) => String(t).replace(/&amp;/g, "&").replace(/&lt;/g, "<")
+    .replace(/&gt;/g, ">").replace(/&quot;/g, '"').replace(/&#39;/g, "'");
+  const esc = (t) => (t || "").replace(/[&<>"']/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+  const rowsBox = $("pm_other_rows");
+  rowsBox.innerHTML = "";
+  rowsBox.querySelectorAll = () => [];
+  rowsBox.insertAdjacentHTML = (_where, html) => { rowsBox.innerHTML += html; };
+  Object.defineProperty(rowsBox, "lastElementChild", {
+    get: () => ({ querySelector: () => ({ addEventListener() {}, focus() {} }) }),
+  });
+  const document = {
+    querySelectorAll(sel) {
+      const cls = sel.includes("pm_other_name") ? "pm_other_name" : "pm_other_detail";
+      const re = new RegExp('class="' + cls + '"[^>]*value="([^"]*)"', "g");
+      const out = [];
+      let m;
+      while ((m = re.exec(rowsBox.innerHTML))) out.push({ value: unesc(m[1]) });
+      return out;
+    },
+  };
+  const api = new Function("$", "db", "profile", "canEdit", "msg", "tr", "console", "esc", "document",
+    LIFTED + "\nreturn { " + FUNCTIONS.join(", ") + ", PAY_LIMITS, PAY_OTHER_MAX, get loaded(){ return payMethodsLoaded; } };")
+    ($, db, profile, canEdit, msg, tr, { error() {} }, esc, document);
   return { api, $, els, db, store, calls, shown, profile, flags };
 }
 
@@ -252,7 +290,11 @@ test("an owner with nothing stored sees a blank, ENABLED form and an honest 'not
   assert.equal(w.$("pm_cashApp_tag").value, "");
   assert.equal(w.$("pm_zelle_on").checked, false);
   assert.equal(w.$("payMethSummary").textContent, "payMethSummaryNone");
-  assert.deepEqual(w.calls.filter((c) => c.kind === "read").map((c) => c.cols), ["payment_methods:settings->payment_methods"]);
+  // ONE read, naming BOTH keys it needs: the four fixed methods and the
+  // custom list. Named keys, never the blob -- company_settings also holds the
+  // labour rate, the markup and the minimum charge.
+  assert.deepEqual(w.calls.filter((c) => c.kind === "read").map((c) => c.cols),
+    ["payment_methods:settings->payment_methods,payment_methods_other:settings->payment_methods_other"]);
 });
 
 test("stored details come back into the form, the tag shown with its $", async () => {
@@ -334,7 +376,14 @@ test("saving writes ONE save_company_settings call carrying ONE key, the WHOLE o
   assert.equal(writes.length, 1);
   assert.equal(writes[0].name, "save_company_settings");
   assert.deepEqual(Object.keys(writes[0].args), ["new_settings"]);
-  assert.deepEqual(Object.keys(writes[0].args.new_settings), ["payment_methods"], "something besides payment_methods was sent");
+  // TWO keys, in ONE call, and no others. Both are written whole every time:
+  // save_company_settings merges with || (shallow), so a partial object
+  // replaces its key outright and erases what it left out. The custom list is
+  // a SIBLING key rather than a field inside payment_methods for exactly that
+  // reason -- the four fixed methods are written whole from a form that knows
+  // nothing about it, and anything kept inside would go on the next Save.
+  assert.deepEqual(Object.keys(writes[0].args.new_settings).sort(),
+    ["payment_methods", "payment_methods_other"], "something besides the two payment keys was sent");
   assert.deepEqual(writes[0].args.new_settings.payment_methods, {
     cash_app: { on: true, tag: "TestOnlyTag" }, zelle: { on: true, to: "test-only@example.invalid" },
     wire: { on: false, details: "" }, cash: { on: true },
@@ -489,7 +538,10 @@ test("every payMeth string used by the page exists in English, Spanish and Frenc
   assert.deepEqual(keys("es"), keys("en"));
   assert.deepEqual(keys("fr"), keys("en"));
   for (const k of keys("en")) {
-    if (["payMethCashAppLabel", "payMethZelleLabel"].includes(k)) continue; // brand names, the same in every language
+    // Brand names, the same in every language. payMethOtherNamePh is the
+    // EXAMPLE in the custom-row name box -- "Venmo" -- and translating a
+    // brand would be inventing a company that does not exist.
+    if (["payMethCashAppLabel", "payMethZelleLabel", "payMethOtherNamePh"].includes(k)) continue;
     for (const lang of ["es", "fr"]) assert.notEqual(TL[lang][k], TL.en[k], `${lang} ${k} is just the English`);
   }
 });
@@ -516,4 +568,97 @@ test("the wording is TRUE: 'no card fee' is said only while create-payment-link 
   // Spanish and French say the same thing as the English: none is added.
   assert.match(TL.es.payMethCardNote, /No se suma ningún cargo/);
   assert.match(TL.fr.payMethCardNote, /Aucun frais de carte n’est ajouté/);
+});
+
+// ====================================================== other ways to pay =====
+//
+// The free list beside the four fixed methods. The four have a KNOWN SHAPE and
+// are checked against it; these have none, so they are a name and a line of
+// detail, shown exactly as typed. What has to hold is that nothing half-saves,
+// nothing empty reaches a customer, and the list survives a Save of the four.
+
+test("a row with a name is kept; a row with nothing in it is simply dropped", () => {
+  const { api } = world();
+  assert.deepEqual(
+    api.otherMethodsFromForm([
+      { name: " Venmo ", detail: " @test-only " },
+      { name: "", detail: "" },
+      { name: "Check", detail: "" },
+    ]).value,
+    [{ name: "Venmo", detail: "@test-only" }, { name: "Check", detail: "" }],
+    "a named row with no detail is a real answer and must survive; a blank row must not block a Save"
+  );
+});
+
+test("a detail with no name is REFUSED, not silently dropped", () => {
+  // The one case worth stopping for: somebody typed an account number and
+  // would otherwise watch it vanish on Save with nothing said.
+  const { api } = world();
+  assert.equal(api.otherMethodsFromForm([{ name: "", detail: "0000-0000" }]).error, "payMethOtherNoName");
+});
+
+test("the same way to pay cannot be listed twice", () => {
+  const { api } = world();
+  const r = api.otherMethodsFromForm([{ name: "Venmo", detail: "a" }, { name: "venmo", detail: "b" }]);
+  assert.equal(r.error, "payMethOtherDuplicate");
+  assert.equal(r.which, "Venmo", "the message must name the one that is repeated");
+});
+
+test("more rows than a customer will read is refused", () => {
+  const { api } = world();
+  const rows = Array.from({ length: api.PAY_OTHER_MAX + 1 }, (_, i) => ({ name: "Way " + i, detail: "" }));
+  assert.equal(api.otherMethodsFromForm(rows).error, "payMethOtherTooMany");
+  assert.ok(api.otherMethodsFromForm(rows.slice(0, api.PAY_OTHER_MAX)).value, "the cap itself must be allowed");
+});
+
+test("invisible characters are stripped before anything is judged or stored", () => {
+  const { api } = world();
+  const u = (h) => String.fromCharCode(parseInt(h, 16));
+  const r = api.otherMethodsFromForm([{ name: u("200e") + "Ven" + u("200b") + "mo", detail: "a" + u("feff") + "b" }]);
+  assert.deepEqual(r.value, [{ name: "Venmo", detail: "ab" }]);
+});
+
+test("nothing stored reads as an empty list, never as an error", () => {
+  const { api } = world();
+  for (const nothing of [undefined, null, "", 0, {}, "garbage", [1, 2]]) {
+    assert.deepEqual(api.canonOtherMethods(nothing), [], JSON.stringify(nothing));
+  }
+});
+
+test("what is stored comes back into the boxes, and back out again unchanged", async () => {
+  const w = world({ settings: { payment_methods_other: [{ name: "Venmo", detail: "@test-only" }, { name: "Check", detail: "to TEST ONLY LLC" }] } });
+  await w.api.loadPaymentMethods();
+  // Read straight back off the rendered boxes: the render and the read are one
+  // round trip, and a value lost in either direction shows up here.
+  assert.deepEqual(w.api.canonOtherMethods(w.api.readOtherMethodsForm()),
+    [{ name: "Venmo", detail: "@test-only" }, { name: "Check", detail: "to TEST ONLY LLC" }]);
+});
+
+test("a name with a quote in it survives the round trip (it is escaped, not mangled)", async () => {
+  const w = world({ settings: { payment_methods_other: [{ name: 'Pay "Bob"', detail: "<b>x</b> & co" }] } });
+  await w.api.loadPaymentMethods();
+  assert.deepEqual(w.api.canonOtherMethods(w.api.readOtherMethodsForm()),
+    [{ name: 'Pay "Bob"', detail: "<b>x</b> & co" }]);
+});
+
+test("saving the four methods keeps the custom list, and the other way round", async () => {
+  const w = world({ settings: { payment_methods_other: [{ name: "Venmo", detail: "@test-only" }] } });
+  await w.api.loadPaymentMethods();
+  typed(w, { cashOn: true });
+  await w.api.savePaymentMethods();
+  // This is the whole reason it is a sibling key: || is shallow, and the four
+  // methods are written whole from a form that knows nothing about this list.
+  assert.deepEqual(w.store.row.settings.payment_methods_other, [{ name: "Venmo", detail: "@test-only" }]);
+  assert.equal(w.store.row.settings.payment_methods.cash.on, true);
+});
+
+test("a bad custom row stops the WHOLE save -- the four methods are not written either", async () => {
+  const w = world({ settings: { labor_rate: 8 } });
+  await w.api.loadPaymentMethods();
+  typed(w, { cashOn: true });
+  w.$("pm_other_rows").innerHTML =
+    '<div class="pm-row"><input class="pm_other_name" value=""><input class="pm_other_detail" value="0000-0000"></div>';
+  await w.api.savePaymentMethods();
+  assert.equal(rpcs(w).length, 0, "a refused row still let a write through -- half the panel would have saved");
+  assert.equal(w.shown.at(-1).kind, "err");
 });

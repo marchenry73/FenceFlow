@@ -1187,6 +1187,23 @@ function payMethodsFrom(q){
     const value=v.trim();
     if(value) out.push({key, value});
   });
+  // Then anything else the company takes, in the order it listed them.
+  //
+  // These carry a LABEL -- the owner's own words -- where the four above carry
+  // a translation key. That is the whole difference, and it is why every place
+  // that prints a method's name reads `label` first: a company's own name for
+  // how it takes money is not translated, for the same reason its own name is
+  // not. A row with a name and no detail is kept and drawn as a name with
+  // nothing to copy ("Check" is a real answer); value stays null for it, the
+  // same flag cash already uses to mean "there is nothing to put in a box".
+  const other = Array.isArray(src.other) ? src.other : [];
+  other.forEach(r=>{
+    if(!r || typeof r!=='object') return;
+    const label=String(r.name ?? '').trim();
+    if(!label) return;
+    const detail=String(r.detail ?? '').trim();
+    out.push({key:'other', label, value: detail || null});
+  });
   return out;
 }
 
@@ -1214,8 +1231,10 @@ function payHowModel(q, balance, cardOffered){
 /** "Cash App, Zelle or cash" in the reader's language. Intl.ListFormat knows
  * that Spanish says "o" and French says "ou"; the comma join is only the
  * fallback for a browser that predates it. */
-function payNameList(keys){
-  const names=keys.map(k=>tr(PAY_IN_KEY[k]));
+/** Takes the METHODS, not their keys: a custom one is named by its own label
+ *  and has no translation key to look up. */
+function payNameList(methods){
+  const names=methods.map(m=>m.label ? m.label : tr(PAY_IN_KEY[m.key]));
   try{
     if(typeof Intl!=='undefined' && Intl.ListFormat)
       return new Intl.ListFormat(LANG,{style:'long',type:'disjunction'}).format(names);
@@ -1266,11 +1285,19 @@ function renderHowToPay(q, balance){
       +'<div class="pm-how">'+esc(tr('pmCardHow'))+'</div></div>';
   }
   html+=m.methods.map((p,i)=>{
-    const name=tr(PAY_NAME_KEY[p.key]);
-    // Cash has nothing to copy: a sentence, no value box, no button.
+    // The owner's own words first; a translation key only for the four fixed
+    // methods, which are the only ones that have one.
+    const name=p.label ? p.label : tr(PAY_NAME_KEY[p.key]);
     if(p.value===null){
+      // Cash has nothing to copy and a sentence that fits it ("hand it to the
+      // crew"). A custom row with no detail has nothing to copy EITHER, but
+      // that sentence would be a lie about it -- "Check" is not cash -- so it
+      // gets its name and nothing else. Saying nothing beats saying the wrong
+      // thing on a customer's page.
+      const how = (p.key==='other') ? '' :
+        '<div class="pm-how">'+esc(tr('pmCashHow'))+'</div>';
       return '<div class="pm" data-method="'+p.key+'"><div class="pm-name">'+esc(name)+'</div>'
-        +'<div class="pm-how">'+esc(tr('pmCashHow'))+'</div></div>';
+        +how+'</div>';
     }
     return '<div class="pm" data-method="'+p.key+'">'
       +'<div class="pm-name">'+esc(name)+'</div>'
@@ -1298,7 +1325,7 @@ function renderHowToPay(q, balance){
   }).join('');
   $('payMethods').innerHTML=html;
   let notes='';
-  if(m.skipCard) notes+='<p class="sub paynote">'+esc(tr('pmSkipCard', payNameList(m.methods.map(p=>p.key))))+'</p>';
+  if(m.skipCard) notes+='<p class="sub paynote">'+esc(tr('pmSkipCard', payNameList(m.methods)))+'</p>';
   if(m.nameNote) notes+='<p class="sub paynote">'+esc(tr('pmNameNote'))+'</p>';
   // Zelle runs inside each bank's own app and has no link that can open
   // anything, so there is no button for it and this says why. Shown only when

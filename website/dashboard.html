@@ -406,6 +406,10 @@
   .pm-switch{display:flex;align-items:center;gap:10px;font-size:14px;font-weight:700;text-transform:none;letter-spacing:0;color:var(--text);margin:16px 0 6px;cursor:pointer}
   .pm-switch input{width:auto}
   .pm-hint{display:block;font-size:11px;color:var(--muted);margin-top:4px}
+  .pm-h3{font-size:13px;font-weight:700;letter-spacing:.3px;margin:22px 0 2px;color:var(--text)}
+  .pm-row{display:flex;gap:8px;align-items:flex-start;margin-top:8px}
+  .pm-row input{flex:1 1 0;min-width:0}
+  .pm-row button{flex:0 0 auto}
   /* ---- the hero band ----------------------------------------------------
      The one figure the owner opens this tab for, said once and said large,
      in the brand's own steel. Everything else on the page is white cards;
@@ -2600,6 +2604,14 @@
           <span data-t="payMethCashLabel">We accept cash</span>
         </label>
 
+        <!-- Anything else you take. The four above each have a known
+             shape and are checked against it; these have none, so they are a
+             name and a line of detail, shown exactly as typed. -->
+        <h3 class="pm-h3" data-t="payMethOtherHead">Other ways to pay</h3>
+        <span class="pm-hint" data-t="payMethOtherHint">Venmo, PayPal, a cheque made out to the business — anything else you take. A row with no name is not saved and never reaches a customer.</span>
+        <div id="pm_other_rows"></div>
+        <div style="margin-top:8px"><button class="btn" id="pm_other_add" type="button" data-t="payMethOtherAdd">Add a way to pay</button></div>
+
         <p class="pm-hint" style="margin-top:14px" data-t="payMethCardNote">Card payments run through your connected card processor and are not set up here. No card fee is added to what a customer pays, so none is shown to them.</p>
         <div style="margin-top:14px"><button class="btn" id="savePayMethods" type="button" data-t="payMethSaveBtn" disabled>Save payment methods</button></div>
       </div>
@@ -4504,6 +4516,16 @@ jobViewAll:'All', jobViewToday:'Today', jobViewWeek:'This week', jobViewUnschedu
     payMethHead:'How customers can pay you',
     payMethSub:'Whatever you switch on and fill in appears on the quote link your customer opens. A method that is switched off, or left empty, is not shown to them at all.',
     payMethCashAppLabel:'Cash App', payMethCashAppPh:'Your $cashtag',
+    payMethOtherHead:'Other ways to pay',
+    payMethOtherHint:'Venmo, PayPal, a cheque made out to the business — anything else you take. A row with no name is not saved and never reaches a customer.',
+    payMethOtherAdd:'Add a way to pay', payMethOtherFull:'That is all %s of them',
+    payMethOtherRemove:'Remove',
+    payMethOtherNamePh:'Venmo', payMethOtherDetailPh:'@your-handle, or how to pay you this way',
+    payMethOtherNoName:'One of the other ways to pay has details but no name. Give it a name, or clear the details.',
+    payMethOtherNameLong:'One of those names is too long.',
+    payMethOtherDetailLong:'One of those lines is too long.',
+    payMethOtherTooMany:'That is more ways to pay than a customer will read. Keep eight.',
+    payMethOtherDuplicate:'%s is listed twice. One row per way to pay.',
     payMethZelleLabel:'Zelle', payMethZellePh:'Phone number or email',
     payMethZelleHint:'The phone number or email address your Zelle is registered to. Type whichever one your customers should use.',
     payMethWireLabel:'Wire transfer', payMethWirePh:'Bank name, account name, routing number, account number',
@@ -6351,6 +6373,16 @@ jobViewAll:'Todos', jobViewToday:'Hoy', jobViewWeek:'Esta semana', jobViewUnsche
     payMethHead:'Cómo pueden pagarle sus clientes',
     payMethSub:'Lo que active y complete aparece en el enlace del presupuesto que abre su cliente. Un método desactivado, o sin completar, no se le muestra al cliente.',
     payMethCashAppLabel:'Cash App', payMethCashAppPh:'Su $cashtag',
+    payMethOtherHead:'Otras formas de pago',
+    payMethOtherHint:'Venmo, PayPal, un cheque a nombre del negocio: cualquier otra forma que acepte. Una fila sin nombre no se guarda y nunca llega al cliente.',
+    payMethOtherAdd:'Agregar una forma de pago', payMethOtherFull:'Ya son las %s',
+    payMethOtherRemove:'Quitar',
+    payMethOtherNamePh:'Venmo', payMethOtherDetailPh:'@su-usuario, o cómo pagarle así',
+    payMethOtherNoName:'Una de las otras formas de pago tiene datos pero no tiene nombre. Póngale nombre o borre los datos.',
+    payMethOtherNameLong:'Uno de esos nombres es demasiado largo.',
+    payMethOtherDetailLong:'Una de esas líneas es demasiado larga.',
+    payMethOtherTooMany:'Son más formas de pago de las que un cliente va a leer. Deje ocho.',
+    payMethOtherDuplicate:'%s aparece dos veces. Una fila por forma de pago.',
     payMethZelleLabel:'Zelle', payMethZellePh:'Número de teléfono o correo electrónico',
     payMethZelleHint:'El número de teléfono o el correo electrónico con el que está registrado su Zelle. Escriba el que sus clientes deban usar.',
     payMethWireLabel:'Transferencia bancaria (wire)', payMethWirePh:'Nombre del banco, nombre de la cuenta, número de ruta, número de cuenta',
@@ -8168,6 +8200,16 @@ jobViewAll:'Tous', jobViewToday:'Aujourdhui', jobViewWeek:'Cette semaine', jobVi
     payMethHead:'Comment vos clients peuvent vous payer',
     payMethSub:'Ce que vous activez et remplissez apparaît sur le lien du devis que votre client ouvre. Un mode de paiement désactivé, ou laissé vide, n’est pas montré au client.',
     payMethCashAppLabel:'Cash App', payMethCashAppPh:'Votre $cashtag',
+    payMethOtherHead:'Autres moyens de paiement',
+    payMethOtherHint:'Venmo, PayPal, un chèque à l’ordre de l’entreprise — tout autre moyen que vous acceptez. Une ligne sans nom n’est pas enregistrée et n’atteint jamais le client.',
+    payMethOtherAdd:'Ajouter un moyen de paiement', payMethOtherFull:'Les %s y sont déjà',
+    payMethOtherRemove:'Retirer',
+    payMethOtherNamePh:'Venmo', payMethOtherDetailPh:'@votre-identifiant, ou comment vous payer ainsi',
+    payMethOtherNoName:'Un des autres moyens de paiement a des détails mais aucun nom. Donnez-lui un nom ou effacez les détails.',
+    payMethOtherNameLong:'Un de ces noms est trop long.',
+    payMethOtherDetailLong:'Une de ces lignes est trop longue.',
+    payMethOtherTooMany:'Cela fait plus de moyens de paiement qu’un client n’en lira. Gardez-en huit.',
+    payMethOtherDuplicate:'%s figure deux fois. Une ligne par moyen de paiement.',
     payMethZelleLabel:'Zelle', payMethZellePh:'Numéro de téléphone ou courriel',
     payMethZelleHint:'Le numéro de téléphone ou le courriel auquel votre Zelle est associé. Indiquez celui que vos clients doivent utiliser.',
     payMethWireLabel:'Virement bancaire (wire)', payMethWirePh:'Nom de la banque, nom du compte, numéro d’acheminement, numéro de compte',
@@ -28826,6 +28868,101 @@ function paymentMethodsFromForm(f){
   } };
 }
 
+/**
+ * How many custom rows, and how long each part may be.
+ *
+ * The cap is not arbitrary and it is not about storage: every row shows on the
+ * customer's quote page, and a payment panel with twenty entries is a page
+ * nobody reads. Eight is more than anyone takes money in.
+ */
+const PAY_OTHER_MAX = 8;
+const PAY_OTHER_NAME_MAX = 40;
+const PAY_OTHER_DETAIL_MAX = 120;
+
+/**
+ * The custom rows in one fixed shape, whatever was stored (or nothing). Pure.
+ *
+ * Anything that is not an array of objects reads as an empty list rather than
+ * throwing: this key did not exist until today, so every company on FenceFlow
+ * has nothing here, and "nothing stored" must be the quiet ordinary case.
+ */
+function canonOtherMethods(list){
+  const arr = Array.isArray(list) ? list : [];
+  return arr
+    .filter(r => r && typeof r === 'object' && !Array.isArray(r))
+    .map(r => ({
+      name: String(r.name ?? '').replace(PAY_INVISIBLE, '').trim().slice(0, PAY_OTHER_NAME_MAX),
+      detail: String(r.detail ?? '').replace(PAY_INVISIBLE, '').replace(/\s+/g, ' ').trim().slice(0, PAY_OTHER_DETAIL_MAX),
+    }))
+    // A row with no NAME has nothing to call it, so it is not a method -- it
+    // is an empty row somebody tabbed through. Dropped here rather than
+    // refused, so a stray blank row never blocks a Save.
+    .filter(r => r.name)
+    .slice(0, PAY_OTHER_MAX);
+}
+
+/** What was typed in the custom rows -> what to store, or why not. Pure. */
+function otherMethodsFromForm(rows){
+  const raw = (Array.isArray(rows) ? rows : []).map(r => ({
+    name: String(r?.name ?? '').replace(PAY_INVISIBLE, '').trim(),
+    detail: String(r?.detail ?? '').replace(PAY_INVISIBLE, '').replace(/\s+/g, ' ').trim(),
+  }));
+  // A detail with no name beside it is the one case worth REFUSING rather than
+  // dropping: somebody typed an account number and would otherwise watch it
+  // vanish on Save with no word said about it.
+  if (raw.some(r => !r.name && r.detail)) return { error: 'payMethOtherNoName' };
+  if (raw.some(r => r.name.length > PAY_OTHER_NAME_MAX)) return { error: 'payMethOtherNameLong' };
+  if (raw.some(r => r.detail.length > PAY_OTHER_DETAIL_MAX)) return { error: 'payMethOtherDetailLong' };
+  const kept = raw.filter(r => r.name);
+  if (kept.length > PAY_OTHER_MAX) return { error: 'payMethOtherTooMany' };
+  // Named by the spelling he typed FIRST, so "Venmo is listed twice" points at
+  // the row he meant to keep rather than at the stray lowercase one.
+  const seen = new Map();
+  for (const r of kept) {
+    const k = r.name.toLowerCase();
+    if (seen.has(k)) return { error: 'payMethOtherDuplicate', which: seen.get(k) };
+    seen.set(k, r.name);
+  }
+  return { value: kept };
+}
+
+function sameOtherMethods(a, b){
+  return JSON.stringify(canonOtherMethods(a)) === JSON.stringify(canonOtherMethods(b));
+}
+
+/** Draw the custom rows. Called with what is stored, and after every add or remove. */
+function renderOtherMethods(list){
+  const box = $('pm_other_rows');
+  if (!box) return;
+  const rows = canonOtherMethods(list);
+  box.innerHTML = rows.map((r, i) => `
+    <div class="pm-row">
+      <input class="pm_other_name" maxlength="${PAY_OTHER_NAME_MAX}" value="${esc(r.name)}"
+             autocomplete="off" spellcheck="false" placeholder="${esc(tr('payMethOtherNamePh'))}">
+      <input class="pm_other_detail" maxlength="${PAY_OTHER_DETAIL_MAX}" value="${esc(r.detail)}"
+             autocomplete="off" spellcheck="false" placeholder="${esc(tr('payMethOtherDetailPh'))}">
+      <button class="btn" type="button" data-pm-other-del="${i}">${esc(tr('payMethOtherRemove'))}</button>
+    </div>`).join('');
+  box.querySelectorAll('[data-pm-other-del]').forEach(b => b.addEventListener('click', () => {
+    const cur = readOtherMethodsForm();
+    cur.splice(Number(b.dataset.pmOtherDel), 1);
+    renderOtherMethods(cur);
+  }));
+  const add = $('pm_other_add');
+  // Nothing is hidden when the cap is reached -- the button says why.
+  if (add) {
+    add.disabled = rows.length >= PAY_OTHER_MAX;
+    add.textContent = rows.length >= PAY_OTHER_MAX ? tr('payMethOtherFull', PAY_OTHER_MAX) : tr('payMethOtherAdd');
+  }
+}
+
+/** What is in the boxes right now, blank rows and all. Pure of validation. */
+function readOtherMethodsForm(){
+  const names = Array.from(document.querySelectorAll('#pm_other_rows .pm_other_name'));
+  const details = Array.from(document.querySelectorAll('#pm_other_rows .pm_other_detail'));
+  return names.map((n, i) => ({ name: n.value ?? '', detail: details[i]?.value ?? '' }));
+}
+
 /** The four methods in one fixed shape, whatever was stored (or nothing). Pure. */
 function canonPaymentMethods(pm){
   const m = (pm && typeof pm === 'object' && !Array.isArray(pm)) ? pm : {};
@@ -28871,7 +29008,11 @@ function fillPayMethodsForm(pm){
   $('pm_wire_on').checked = c.wire.on;
   $('pm_wire_details').value = c.wire.details;
   $('pm_cash_on').checked = c.cash.on;
-  const names = livePaymentMethodNames(pm).map(k => tr(k));
+  // The custom rows are named by what HE typed, so they are appended as
+  // their own text rather than through tr() -- the same rule the plan name
+  // follows on the companies table.
+  const names = livePaymentMethodNames(pm).map(k => tr(k))
+    .concat(canonOtherMethods(readOtherMethodsForm()).map(r => r.name));
   const sum = $('payMethSummary');
   if (sum) sum.textContent = names.length ? tr('payMethSummaryOn', names.join(', ')) : tr('payMethSummaryNone');
 }
@@ -28880,10 +29021,10 @@ function fillPayMethodsForm(pm){
 async function readStoredPaymentMethods(){
   try {
     const { data, error } = await db.from('company_settings')
-      .select('payment_methods:settings->payment_methods')
+      .select('payment_methods:settings->payment_methods,payment_methods_other:settings->payment_methods_other')
       .eq('company_id', profile.company_id).maybeSingle();
     if (error) return { ok: false, error };
-    return { ok: true, value: data?.payment_methods ?? null };
+    return { ok: true, value: data?.payment_methods ?? null, other: data?.payment_methods_other ?? null };
   } catch (error) {
     return { ok: false, error };
   }
@@ -28912,6 +29053,7 @@ async function loadPaymentMethods(){
   ['pm_cashApp_on','pm_cashApp_tag','pm_zelle_on','pm_zelle_to','pm_wire_on','pm_wire_details','pm_cash_on']
     .forEach(id => { const e = $(id); if (e) e.disabled = false; });
   fillPayMethodsForm(got.value);
+  renderOtherMethods(got.other);
   $('payMethMsg').className = 'msg';
   payMethodsLoaded = true;
   $('savePayMethods').disabled = false;
@@ -28921,10 +29063,16 @@ async function savePaymentMethods(){
   if (!canEdit() || !payMethodsLoaded) return;
   const built = paymentMethodsFromForm(readPayMethodsForm());
   if (built.error) return msg('payMethMsg', tr(built.error, built.which ? tr(built.which) : ''), 'err');
+  // The custom rows are refused before anything is written, so a bad row never
+  // half-saves: one RPC carries both keys or neither goes.
+  const other = otherMethodsFromForm(readOtherMethodsForm());
+  if (other.error) return msg('payMethMsg', tr(other.error, other.which ?? ''), 'err');
   const btn = $('savePayMethods');
   btn.disabled = true;
   try {
-    const { error } = await db.rpc('save_company_settings', { new_settings: { payment_methods: built.value } });
+    const { error } = await db.rpc('save_company_settings', {
+      new_settings: { payment_methods: built.value, payment_methods_other: other.value }
+    });
     if (error) return msg('payMethMsg', tr('payMethSaveFailed', error.message), 'err');
     // "Saved" is only said about what is actually stored: read it back, show
     // what came back, and compare. save_company_settings() returns nothing, so
@@ -28932,7 +29080,11 @@ async function savePaymentMethods(){
     const back = await readStoredPaymentMethods();
     if (!back.ok) return msg('payMethMsg', tr('payMethVerifyFailed'), 'err');
     fillPayMethodsForm(back.value);
+    renderOtherMethods(back.other);
     if (!samePaymentMethods(back.value, built.value)) return msg('payMethMsg', tr('payMethVerifyFailed'), 'err');
+    // Read back and compared, like the four above: save_company_settings()
+    // returns nothing, so no error is not proof that a write happened.
+    if (!sameOtherMethods(back.other, other.value)) return msg('payMethMsg', tr('payMethVerifyFailed'), 'err');
     const m = $('payMethMsg');
     m.textContent = tr('payMethSavedMsg');
     m.className = 'msg ok';
@@ -31749,6 +31901,30 @@ $('saveEmp').addEventListener('click',saveEmp);
 $('e_pay_type').addEventListener('change',syncEmpPayNote);
 $('deleteEmp').addEventListener('click',deleteEmp);
 $('saveSettings').addEventListener('click',saveSettings);
+$('pm_other_add')?.addEventListener('click',()=>{
+  const cur = readOtherMethodsForm();
+  if (cur.length >= PAY_OTHER_MAX) return;
+  cur.push({ name: '', detail: '' });
+  // renderOtherMethods canonicalises, which drops rows with no name -- so the
+  // blank row just added would vanish. Drawn straight from what is in the
+  // boxes instead, with the new empty row kept.
+  const box = $('pm_other_rows');
+  box.insertAdjacentHTML('beforeend', `
+    <div class="pm-row">
+      <input class="pm_other_name" maxlength="${PAY_OTHER_NAME_MAX}" value=""
+             autocomplete="off" spellcheck="false" placeholder="${esc(tr('payMethOtherNamePh'))}">
+      <input class="pm_other_detail" maxlength="${PAY_OTHER_DETAIL_MAX}" value=""
+             autocomplete="off" spellcheck="false" placeholder="${esc(tr('payMethOtherDetailPh'))}">
+      <button class="btn" type="button" data-pm-other-del="${cur.length - 1}">${esc(tr('payMethOtherRemove'))}</button>
+    </div>`);
+  box.lastElementChild.querySelector('[data-pm-other-del]').addEventListener('click', () => {
+    const now = readOtherMethodsForm();
+    now.splice(cur.length - 1, 1);
+    renderOtherMethods(now);
+  });
+  box.lastElementChild.querySelector('.pm_other_name').focus();
+});
+
 $('savePayMethods').addEventListener('click',()=>{ savePaymentMethods().catch(e=>msg('payMethMsg', tr('payMethSaveFailed', e?.message ?? e), 'err')); });
 // The logo's own two buttons. Caught here rather than left to float, the same
 // way savePayMethods above is: an upload that throws mid-way must say so in

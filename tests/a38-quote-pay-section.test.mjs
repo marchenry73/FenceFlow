@@ -247,10 +247,36 @@ test('"put your name in the note" is not said when the only method is cash', () 
 });
 
 test('the list of names reads naturally in each language', () => {
-  const keys = ['cashapp', 'zelle', 'cash'];
-  assert.match(page({ lang: 'en' }).payNameList(keys), /^Cash App, Zelle,? or cash$/);
-  assert.match(page({ lang: 'es' }).payNameList(keys), /^Cash App, Zelle o efectivo$/);
-  assert.match(page({ lang: 'fr' }).payNameList(keys), /^Cash App, Zelle ou espèces$/);
+  // payNameList takes the METHODS now, not their keys: a custom method is
+  // named by the owner's own label and has no translation key to look up.
+  const methods = [{ key: 'cashapp' }, { key: 'zelle' }, { key: 'cash' }];
+  assert.match(page({ lang: 'en' }).payNameList(methods), /^Cash App, Zelle,? or cash$/);
+  assert.match(page({ lang: 'es' }).payNameList(methods), /^Cash App, Zelle o efectivo$/);
+  assert.match(page({ lang: 'fr' }).payNameList(methods), /^Cash App, Zelle ou espèces$/);
+});
+
+test('a custom method is named by what the owner typed, in every language', () => {
+  const methods = [{ key: 'cashapp' }, { key: 'other', label: 'Venmo' }];
+  // The label is NOT translated, for the same reason a company's own name is
+  // not. Each language still supplies its own "or".
+  assert.match(page({ lang: 'en' }).payNameList(methods), /^Cash App or Venmo$/);
+  assert.match(page({ lang: 'fr' }).payNameList(methods), /^Cash App ou Venmo$/);
+});
+
+test('custom methods reach the page, and a name with no detail has nothing to copy', () => {
+  const p = page({ lang: 'en' });
+  const q = quoteWith({});
+  q.paymentMethods.other = [
+    { name: 'Venmo', detail: '@test-only' },
+    { name: 'Check', detail: '' },
+    { name: '', detail: 'orphan detail' },
+  ];
+  const list = p.payMethodsFrom(q);
+  assert.deepEqual(
+    list.filter((m) => m.key === 'other').map((m) => [m.label, m.value]),
+    [['Venmo', '@test-only'], ['Check', null]],
+    'a row with no name must not reach the customer, and a row with no detail must still be named'
+  );
 });
 
 /* ---- no figure is restated ---------------------------------------------- */

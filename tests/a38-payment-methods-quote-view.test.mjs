@@ -41,7 +41,10 @@ const OTHER_COMPANY = "c3800000-0000-4000-8000-000000000002";
 const JOB = "a3800000-0000-4000-8000-00000000000a";
 const JOB_ID = "13800000-0000-4000-8000-000000000001";
 const TOKEN = "b3800000-0000-4000-8000-00000000000b";
-const NO_TAG = { cashApp: "", zelle: "", wire: "", cash: false };
+// `other` is the custom list -- anything the company takes that is not one
+// of the four fixed methods. Empty for a company that has added none, which
+// is every company until somebody does, so it belongs in the baseline.
+const NO_TAG = { cashApp: "", zelle: "", wire: "", cash: false, other: [] };
 
 // ============================================================ harness =====
 const SHARED = {
@@ -116,11 +119,20 @@ function fakeDb(tables, { settingsError = null, settingsThrows = false } = {}) {
       const rows = (t[this.table] ??= []);
       const hit = rows.filter((r) => this.filters.every((f) => f(r)));
       if (this.op === "update") { hit.forEach((r) => Object.assign(r, this.payload)); return { data: null, error: null }; }
-      const alias = this.table === "company_settings"
-        ? /^(\w+):settings->(\w+)$/.exec(String(this.cols).trim()) : null;
-      const cols = String(this.cols).split(",").map((c) => c.trim()).filter(Boolean);
+      // One OR MORE `alias:settings->key` selects, which is what PostgREST
+      // takes and what the function sends now that it asks for the custom
+      // payment list beside the four fixed methods. Every part must be an
+      // alias of a single key: a select that reached for the whole blob would
+      // fall through to the plain projection below and the leak test would
+      // see it.
+      const parts = String(this.cols).split(",").map((c) => c.trim()).filter(Boolean);
+      const aliases = this.table === "company_settings"
+        ? parts.map((c) => /^(\w+):settings->(\w+)$/.exec(c))
+        : [];
+      const alias = aliases.length > 0 && aliases.every(Boolean) ? aliases : null;
+      const cols = parts;
       const project = (r) => {
-        if (alias) return { [alias[1]]: r.settings?.[alias[2]] };
+        if (alias) return Object.fromEntries(alias.map((a) => [a[1], r.settings?.[a[2]]]));
         return (cols.length === 0 || cols.includes("*")) ? r : Object.fromEntries(cols.filter((c) => c in r).map((c) => [c, r[c]]));
       };
       const out = hit.map(project);
@@ -194,6 +206,7 @@ test("a fully set up company is served exactly its four methods (the positive co
     zelle: "test-only@example.invalid",
     wire: "Bank: TEST ONLY BANK\nAccount name: TEST ONLY LLC\nRouting: 000000000\nAccount: 000000000",
     cash: true,
+    other: [],
   });
   // The existing quote is untouched alongside it.
   assert.equal(body.company.name, "Test Fence Co");
@@ -343,12 +356,23 @@ test("NOTHING else from the settings blob reaches the response, and the read ask
   }
   for (const c of ["CANARY-PIN", "CANARY-SECRET", "CANARY-NOTE"]) assert.ok(!wire.includes(c), `${c} reached the customer`);
   assert.ok(!wire.includes("labor_rate") && !wire.includes("markup"), "a settings KEY name reached the customer");
-  assert.deepEqual(Object.keys(body.paymentMethods).sort(), ["cash", "cashApp", "wire", "zelle"], "the block carries exactly four fields");
+  // Five now: the four fixed methods and `other`, the custom list. Still a
+  // closed set, which is the point -- a key added to the settings blob
+  // tomorrow must not appear here, and this fails if one does.
+  assert.deepEqual(Object.keys(body.paymentMethods).sort(), ["cash", "cashApp", "other", "wire", "zelle"],
+    "the block carries exactly the four fixed methods and the custom list");
+  // ...and the custom list is a whitelist of two fields per row, never the
+  // stored object with whatever else somebody put in it.
+  for (const row of body.paymentMethods.other) {
+    assert.deepEqual(Object.keys(row).sort(), ["detail", "name"], "a custom row carries more than a name and a detail");
+  }
 
   // The one read of company_settings asked for the one key.
   const reads = w.db.log.filter((l) => l.table === "company_settings");
   assert.equal(reads.length, 1, "company_settings is read once");
-  assert.equal(reads[0].cols, "payment_methods:settings->payment_methods");
+  assert.equal(reads[0].cols,
+    "payment_methods:settings->payment_methods,payment_methods_other:settings->payment_methods_other",
+    "the read must still name its keys -- two of them now -- and never reach for the blob");
   // And the companies select still names only what the page shows -- as a SET,
   // not as a string.
   //
@@ -469,7 +493,7 @@ test("there is no card-fee field on the response, and the code that charges a cu
 test("quote-view's source says deliberately what goes out (the bank-details decision is on the page, not by accident)", () => {
   const src = readFileSync(new URL("../supabase/functions/quote-view/index.ts", import.meta.url), "utf8");
   assert.match(src, /BANK DETAILS ARE SENT TO ANY HOLDER OF THE LINK, KNOWINGLY/);
-  assert.match(src, /\.select\("payment_methods:settings->payment_methods"\)/);
+  assert.match(src, /\.select\("payment_methods:settings->payment_methods,payment_methods_other:settings->payment_methods_other"\)/);
   // Not a spread of the settings: a whitelist, so a key added tomorrow stays out.
   assert.doesNotMatch(src, /\.\.\.\s*\(?\s*(data|settings|stored)\b/);
 });

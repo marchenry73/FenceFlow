@@ -12,6 +12,11 @@ Each check below is **where to go → what to do → what you should see**. If w
 you see differs, tell me the words on screen; that is usually enough for me to
 find it.
 
+> **Two kinds of row below.** Anything marked **LIVE NOW** is already running —
+> a database change or a website deploy, nothing to install. Anything marked
+> **NEEDS A PUBLISH** is written and tested but is not in any build on your
+> phone yet, so checking it today will show you the old behaviour.
+
 ---
 
 ## 0. The two-minute version
@@ -28,7 +33,98 @@ If you only do one thing, do this. It proves the biggest new piece end to end.
 
 ---
 
-## 1. Office, screen by screen
+## 1. New this afternoon
+
+### Admin console — "Using it" — **LIVE NOW**
+The list told you how many people and jobs a company has had **ever**, and a
+total never goes down: a company that stopped in August looked exactly like one
+that used it this morning.
+
+| Do this | You should see |
+|---|---|
+| Open the console → **Companies** | A new **Using it** column, right beside Status |
+| Look down it | One green **Active**, one amber **Quiet**, the rest red **Dormant** |
+| Read the small line under a pill | `2 seen · 4 jobs · 4 quotes` — the counts the verdict came from |
+| Hover the pill | The rule, in one sentence, so you can disagree with it |
+| Click the **Using it** header | Dormant companies come to the top |
+| Look at the tiles above | **1** — used it (30 days), with "7 dormant" under it |
+| Press **CSV** | Four new columns: UsingIt, PeopleSeen30d, JobsCreated30d, QuotesSent30d |
+
+> Three counts, not one, and that is the whole design. `last_seen_at` is
+> written by the **phone**, so a company that only ever opens the office
+> website reads as nobody-seen — a people-only rule would call it dormant while
+> it quoted every day. A company that was invited and never signed in shows a
+> grey dash, not a red pill: there is nothing to measure yet.
+>
+> **Your numbers today:** Fence solutions is the only Active one (2 seen, 4
+> jobs, 4 quotes). Legacy is Quiet — somebody opened it on 24 September, which
+> drops out of the 30 days in two days' time. Everything else is Dormant or has
+> never joined.
+
+### The console answers your address only — **LIVE NOW**
+| Do this | You should see |
+|---|---|
+| Open the console as yourself | Exactly as before — all 11 companies |
+| Nothing else to do | There is no second account to test with, and that is the point |
+
+> It already needed the platform-admin flag **and** your authenticator. It now
+> also needs the login to be `marchenry73@gmail.com`. Three locks, checked in
+> one place that 19 functions and 11 policies go through, so new admin code is
+> refused by default instead of having to remember.
+>
+> Proved both ways against the live database: your login, stepped up, sees all
+> 11 companies; another real login, also stepped up, is refused and sees 0.
+>
+> **If you ever change your login email, change it in
+> `supabase_r26_admin_is_one_address.sql` and re-run that file first** — doing
+> it the other way round locks the console to nobody, and the way back in is
+> the Supabase SQL editor.
+
+### Phone → Admin → the mail panel — **NEEDS A PUBLISH**
+The panel you photographed. It has **never worked**: the phone read
+`mail_platform_settings` straight off the table, and that table is one of six
+no signed-in account may touch at all. It now goes through an admin function,
+the same door the button under it already used.
+
+| Do this | You should see (once published) |
+|---|---|
+| Phone → Admin → scroll to **FenceFlow mail goes through** | **Resend (in use)**, no red text |
+
+> The error suggested `GRANT SELECT ... TO authenticated`. Taking that advice
+> would have given every signed-in user of every fence company a read of the
+> platform's mail configuration, and broken the test that exists to stop
+> exactly that. A database knows about privileges, not about who should have
+> them.
+
+### No error ever prints your access token again — **NEEDS A PUBLISH**
+The red text in that photo carried `Authorization=[Bearer eyJ…]` — a live token,
+about an hour's worth of your access, on screen in a picture you then sent.
+
+| Do this | You should see (once published) |
+|---|---|
+| Cause any failure in the app (turn off wifi mid-save) | The reason only. No URL, no headers, no token |
+
+> Crash **reports** have been redacted since the same hazard was found in the
+> error log weeks ago. The **screen** was not. All sixteen places that put a
+> failure into words now go through one function, so a new screen is redacted
+> by default. **Treat the token in that photo as spent** — don't repost the
+> picture; signing out and back in on the phone retires it immediately.
+
+### Settings → Contract terms stays shut — **NEEDS A PUBLISH**
+| Do this | You should see (once published) |
+|---|---|
+| Phone → Settings, scroll past **Contract terms** | It is **closed**, like every other card |
+| Look at it | Red tile, red line under the heading, saying it needs review |
+| Tap it | It opens, with the same warning inside |
+
+> It opened itself whenever the terms still had the replace-me block in them —
+> which meant a twelve-line editor and four paragraphs of notes unrolled across
+> Settings every time you scrolled past. The alarm is worth one red line; it is
+> not worth the scroll.
+
+---
+
+## 2. Office, screen by screen
 
 ### Time
 | Do this | You should see |
@@ -127,7 +223,7 @@ If you only do one thing, do this. It proves the biggest new piece end to end.
 
 ---
 
-## 2. Admin console
+## 3. Admin console
 
 | Do this | You should see |
 |---|---|
@@ -135,20 +231,20 @@ If you only do one thing, do this. It proves the biggest new piece end to end.
 | Set **Company** and a date range, press **Show** | The list narrows; the line above says how many it is showing |
 | Scroll to the bottom | **Show older** when there are more than 200 |
 | Press **CSV** | A file of exactly what is on screen, before and after values included |
-| Open **Crashes** | An office error carries an **Office website** pill and is never hidden by the "only on 1.708" tick box |
+| Open **Crashes** | An office error carries an **Office website** pill and is never hidden by the "only on 1.727" tick box |
 
 ---
 
-## 3. The phone
+## 4. The phone
 
 | Do this | You should see |
 |---|---|
-| Open the app on any phone | An update prompt for the newest build, **with no "Later"** — 1.708 onward is mandatory |
+| Open the app on any phone | An update prompt for the newest build, **with no "Later"** — 1.708 onward is mandatory, and 1.727 is the current one |
 | The handset still on 1.687 | Must take the update. It is the only one still reporting the jobs-list crash |
 
 ---
 
-## 4. Yours to do, not mine
+## 5. Yours to do, not mine
 
 - [ ] **Supabase dashboard → Authentication → SMTP → point it at Resend.**
       Password resets currently come from `mail.app.supabase.io` and share a
@@ -156,10 +252,36 @@ If you only do one thing, do this. It proves the biggest new piece end to end.
 - [ ] **Decide the mail fallback.** When the daily allowance runs out: send
       from a different address, or stop and tell you? The machinery is built
       and needs a Brevo account and key, which only you can create.
+- [ ] **Sign out and back in on the phone** once, to retire the access token
+      that was printed in the Admin screenshot.
 
 ---
 
-## 5. Known, and not broken
+## 6. Asked for, not built yet
+
+In the order you asked. None of these is started; they are listed so none gets
+lost.
+
+1. **Payment methods you can receive, flexible.** Today it is four fixed ones —
+   Cash App, Zelle, wire, cash — hardcoded across the phone, the office, the
+   quote page and nine tests. My recommendation is to keep those four, which
+   have real validation behind them, and add an **"Other methods" list** you can
+   add any number of rows to: a name and a line of detail (Venmo @handle, cheque
+   payable to …, PayPal, ACH). It stores in a sibling key so the office's Save
+   cannot wipe it, shows on the quote page with the rest, and does not disturb
+   the four that already work. Say the word and I will build it that way, or
+   argue me out of it.
+2. **More to do to a logo than crop and wide.** Rotate, straighten, zoom and
+   pan, brightness and contrast, and a white-background knockout are the
+   realistic set on a phone.
+3. **Everything the web console has, on the phone's Admin portal.** The web
+   console has eight screens the phone does not; I need to go through them with
+   you and decide which actually belong on a phone, because a few of them
+   (bulk price changes, the audit log's CSV) are desk work.
+
+---
+
+## 7. Known, and not broken
 
 - **Snag lists and change orders are at zero.** The test of whether they were
   merely unreachable has not started. Give it a week of real use.

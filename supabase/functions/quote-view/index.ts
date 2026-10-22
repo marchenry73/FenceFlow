@@ -156,10 +156,60 @@ const CASH_APP_TAG = /^[A-Za-z0-9_.-]{1,30}$/;
 const MAX_ZELLE_CHARS = 200;
 const MAX_WIRE_CHARS = 1500;
 
-type PublicPaymentMethods = { cashApp: string; zelle: string; wire: string; cash: boolean };
+type PublicOtherMethod = { name: string; detail: string };
+type PublicPaymentMethods = {
+  cashApp: string;
+  zelle: string;
+  wire: string;
+  cash: boolean;
+  /**
+   * Anything else the company takes: a name it chose and one line of detail.
+   *
+   * Its own list rather than more fields, because there is no fixed set of
+   * them -- Venmo today, a cheque made out to the business tomorrow. Stored
+   * under its own settings key for the same reason it is its own list here:
+   * save_company_settings() merges shallowly, and the office writes the four
+   * fixed methods whole, so anything kept inside that key would be erased by
+   * the next Save.
+   *
+   * Empty for every company that has set none, which is all of them until
+   * somebody adds one -- so an empty list is the ordinary case and never an
+   * error.
+   */
+  other: PublicOtherMethod[];
+};
+
+/** As many as the office will store, checked again here rather than trusted. */
+const MAX_OTHER_METHODS = 8;
+const MAX_OTHER_NAME_CHARS = 40;
+const MAX_OTHER_DETAIL_CHARS = 120;
+
+/**
+ * The custom rows, reduced to what a customer may see.
+ *
+ * A row with no name is dropped: there is nothing to call it, so it would
+ * render as a blank heading over an account number. A row with a name and no
+ * detail is KEPT -- "Check" on its own is a real answer to how you can pay --
+ * and the page draws it as a name with nothing to copy.
+ */
+function publicOtherMethods(raw: unknown): PublicOtherMethod[] {
+  if (!Array.isArray(raw)) return [];
+  const text = (v: unknown) => typeof v === "string" ? v.replace(INVISIBLE_CHARS, "") : "";
+  const out: PublicOtherMethod[] = [];
+  for (const row of raw) {
+    if (!row || typeof row !== "object" || Array.isArray(row)) continue;
+    const r = row as Record<string, unknown>;
+    const name = text(r.name).replace(/\s+/g, " ").trim().slice(0, MAX_OTHER_NAME_CHARS);
+    if (!name) continue;
+    const detail = text(r.detail).replace(/\s+/g, " ").trim().slice(0, MAX_OTHER_DETAIL_CHARS);
+    out.push({ name, detail });
+    if (out.length >= MAX_OTHER_METHODS) break;
+  }
+  return out;
+}
 
 function publicPaymentMethods(raw: unknown): PublicPaymentMethods {
-  const out: PublicPaymentMethods = { cashApp: "", zelle: "", wire: "", cash: false };
+  const out: PublicPaymentMethods = { cashApp: "", zelle: "", wire: "", cash: false, other: [] };
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return out;
   const stored = raw as Record<string, unknown>;
   // The method's own object, but only when it is switched on.
@@ -218,14 +268,19 @@ async function readPaymentMethods(
   try {
     const { data, error } = await admin
       .from("company_settings")
-      .select("payment_methods:settings->payment_methods")
+      .select("payment_methods:settings->payment_methods,payment_methods_other:settings->payment_methods_other")
       .eq("company_id", companyId)
       .maybeSingle();
     if (error) {
       console.error("quote-view payment methods", error.message);
       return null;
     }
-    return publicPaymentMethods((data as { payment_methods?: unknown } | null)?.payment_methods);
+    const row = data as { payment_methods?: unknown; payment_methods_other?: unknown } | null;
+    const methods = publicPaymentMethods(row?.payment_methods);
+    // One read, two keys. The custom list is attached to the same answer so
+    // the page has one shape to draw and one failure to handle.
+    methods.other = publicOtherMethods(row?.payment_methods_other);
+    return methods;
   } catch (e) {
     console.error("quote-view payment methods", String((e as Error)?.message ?? e));
     return null;
