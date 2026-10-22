@@ -418,6 +418,7 @@ class SettingsStore(private val context: Context) {
         PaymentMethodsCache(
             methodsJson = prefs[Keys.PM_METHODS_JSON] ?: "",
             limitsJson = prefs[Keys.PM_LIMITS_JSON] ?: "",
+            othersJson = prefs[Keys.PM_OTHERS_JSON] ?: "",
             loaded = prefs[Keys.PM_LOADED] ?: false,
             pending = prefs[Keys.PM_PENDING] ?: false
         )
@@ -440,7 +441,7 @@ class SettingsStore(private val context: Context) {
      * edit is the thing he typed and must not be quietly replaced by the older
      * copy it was about to supersede.
      */
-    suspend fun cachePaymentMethods(methodsJson: String, limitsJson: String) {
+    suspend fun cachePaymentMethods(methodsJson: String, limitsJson: String, othersJson: String) {
         context.dataStore.edit { prefs ->
             if (prefs[Keys.PM_PENDING] == true) {
                 // Still say the read worked -- it did -- without touching the
@@ -448,7 +449,7 @@ class SettingsStore(private val context: Context) {
                 prefs[Keys.PM_LOADED] = true
                 return@edit
             }
-            writePaymentMethods(prefs, methodsJson, limitsJson, loaded = true, pending = false)
+            writePaymentMethods(prefs, methodsJson, limitsJson, othersJson, loaded = true, pending = false)
         }
     }
 
@@ -456,8 +457,8 @@ class SettingsStore(private val context: Context) {
      * He pressed Save and the server took it. Also clears the outbox.
      * Not stamped, for the reason in [cachePaymentMethods].
      */
-    suspend fun savePaymentMethodsSynced(methodsJson: String, limitsJson: String) {
-        context.dataStore.edit { writePaymentMethods(it, methodsJson, limitsJson, loaded = true, pending = false) }
+    suspend fun savePaymentMethodsSynced(methodsJson: String, limitsJson: String, othersJson: String) {
+        context.dataStore.edit { writePaymentMethods(it, methodsJson, limitsJson, othersJson, loaded = true, pending = false) }
     }
 
     /**
@@ -465,8 +466,8 @@ class SettingsStore(private val context: Context) {
      * flagged, so the panel can say "on this phone, not sent yet" instead of
      * "Saved". Not stamped, for the reason in [cachePaymentMethods].
      */
-    suspend fun savePaymentMethodsPending(methodsJson: String, limitsJson: String) {
-        context.dataStore.edit { writePaymentMethods(it, methodsJson, limitsJson, loaded = true, pending = true) }
+    suspend fun savePaymentMethodsPending(methodsJson: String, limitsJson: String, othersJson: String) {
+        context.dataStore.edit { writePaymentMethods(it, methodsJson, limitsJson, othersJson, loaded = true, pending = true) }
     }
 
     /**
@@ -487,17 +488,21 @@ class SettingsStore(private val context: Context) {
         /**
          * The body of the three payment-method writes, kept apart from
          * DataStore so a test can run it on a plain [MutablePreferences] and
-         * see exactly which keys it touched. FOUR keys, and never UPDATED_AT.
+         * see exactly which keys it touched. FIVE keys, and never UPDATED_AT.
+         * (Four until "other ways to pay" reached the phone; the custom list is
+         * cached beside the other two so the panel works with no signal.)
          */
         internal fun writePaymentMethods(
             prefs: MutablePreferences,
             methodsJson: String,
             limitsJson: String,
+            othersJson: String,
             loaded: Boolean,
             pending: Boolean
         ) {
             prefs[Keys.PM_METHODS_JSON] = methodsJson
             prefs[Keys.PM_LIMITS_JSON] = limitsJson
+            prefs[Keys.PM_OTHERS_JSON] = othersJson
             prefs[Keys.PM_LOADED] = loaded
             prefs[Keys.PM_PENDING] = pending
         }
@@ -754,6 +759,8 @@ class SettingsStore(private val context: Context) {
         // blank and send it later.
         val PM_METHODS_JSON = stringPreferencesKey("payment_methods_json")
         val PM_LIMITS_JSON = stringPreferencesKey("payment_limits_json")
+        /** The custom "other ways to pay" list, cached for the panel offline. */
+        val PM_OTHERS_JSON = stringPreferencesKey("payment_methods_other_json")
         val PM_LOADED = booleanPreferencesKey("payment_methods_loaded")
         // Set when a save landed on this phone but NOT on the server. The panel
         // says so in words and keeps saying so until a flush succeeds, which is

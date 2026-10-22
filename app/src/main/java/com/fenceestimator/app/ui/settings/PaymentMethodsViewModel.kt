@@ -6,6 +6,7 @@ import com.fenceestimator.app.cloud.SupabaseModule
 import com.fenceestimator.app.cloud.SyncFailure
 import com.fenceestimator.app.data.PaymentLimits
 import com.fenceestimator.app.data.PaymentMethodRules
+import com.fenceestimator.app.data.OtherPaymentMethod
 import com.fenceestimator.app.data.PaymentMethods
 import com.fenceestimator.app.data.PaymentMethodsCache
 import com.fenceestimator.app.data.PaymentMethodsForm
@@ -23,6 +24,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.put
@@ -88,6 +90,10 @@ class PaymentMethodsViewModel(
     private val _limits = MutableStateFlow(PaymentLimits())
     val limits: StateFlow<PaymentLimits> = _limits.asStateFlow()
 
+    /** Anything else he takes, in the order he listed it. */
+    private val _others = MutableStateFlow<List<OtherPaymentMethod>>(emptyList())
+    val others: StateFlow<List<OtherPaymentMethod>> = _others.asStateFlow()
+
     /** True once a real read has succeeded here, so the form may be edited. */
     private val _editable = MutableStateFlow(false)
     val editable: StateFlow<Boolean> = _editable.asStateFlow()
@@ -116,6 +122,7 @@ class PaymentMethodsViewModel(
     private fun applyCache(cached: PaymentMethodsCache) {
         _methods.value = PaymentMethodRules.canon(PaymentMethodRules.parseOrNull(cached.methodsJson))
         _limits.value = PaymentMethodRules.canonLimits(PaymentMethodRules.parseOrNull(cached.limitsJson))
+        _others.value = PaymentMethodRules.canonOthers(PaymentMethodRules.parseOrNull(cached.othersJson))
         _editable.value = cached.loaded
         _status.value = when {
             cached.pending -> Status.Pending
@@ -124,18 +131,31 @@ class PaymentMethodsViewModel(
         }
     }
 
-    /** One read of the two keys. Null means the read FAILED -- never "nothing stored". */
-    private suspend fun readStored(companyId: String): Pair<JsonElement?, JsonElement?>? =
+    /** What one read of the three keys found. Named, because a Triple of
+     *  JsonElement? at four call sites is four chances to swap two of them. */
+    private data class Stored(
+        val methods: JsonElement?,
+        val limits: JsonElement?,
+        val others: JsonElement?
+    )
+
+    /** One read of the three keys. Null means the read FAILED -- never "nothing stored". */
+    private suspend fun readStored(companyId: String): Stored? =
         runCatching {
             val row = SupabaseModule.client.postgrest.from("company_settings")
                 .select(
                     Columns.raw(
                         "payment_methods:settings->payment_methods," +
-                            "payment_limits:settings->payment_limits"
+                            "payment_limits:settings->payment_limits," +
+                            "payment_methods_other:settings->payment_methods_other"
                     )
                 ) { filter { eq("company_id", companyId) } }
                 .decodeSingleOrNull<JsonObject>()
-            (row?.get("payment_methods")) to (row?.get("payment_limits"))
+            Stored(
+                methods = row?.get("payment_methods"),
+                limits = row?.get("payment_limits"),
+                others = row?.get("payment_methods_other")
+            )
         }.getOrNull()
 
     private suspend fun refresh(companyId: String?) {
@@ -147,23 +167,24 @@ class PaymentMethodsViewModel(
             _status.value = if (_editable.value) Status.Offline else Status.Unknown
             return
         }
-        val (methodsJson, limitsJson) = got
-        _methods.value = PaymentMethodRules.canon(methodsJson)
-        _limits.value = PaymentMethodRules.canonLimits(limitsJson)
+        _methods.value = PaymentMethodRules.canon(got.methods)
+        _limits.value = PaymentMethodRules.canonLimits(got.limits)
+        _others.value = PaymentMethodRules.canonOthers(got.others)
         _editable.value = true
         _status.value = Status.Loaded
         withContext(NonCancellable) {
             settingsStore.cachePaymentMethods(
-                methodsJson = methodsJson?.toString() ?: "",
-                limitsJson = limitsJson?.toString() ?: ""
+                methodsJson = got.methods?.toString() ?: "",
+                limitsJson = got.limits?.toString() ?: "",
+                othersJson = got.others?.toString() ?: ""
             )
         }
     }
 
     /** The exact text a customer would read, for the confirm step. */
     fun preview(form: PaymentMethodsForm) =
-        PaymentMethodRules.fromForm(form).map { (methods, limits) ->
-            PaymentMethodRules.publicView(methods) to limits
+        PaymentMethodRules.fromForm(form).map { (methods, limits, others) ->
+            PaymentMethodRules.publicView(methods, others) to limits
         }
 
     /** Validate without writing, so the confirm sheet is never opened on bad input. */
@@ -192,14 +213,16 @@ class PaymentMethodsViewModel(
             _status.value = if (rejection != null) Status.Refused(rejection) else Status.VerifyFailed
             return
         }
-        val (methods, limits) = built.getOrThrow()
+        val (methods, limits, others) = built.getOrThrow()
         val methodsJson = PaymentMethodRules.toStoredJson(methods)
         val limitsJson = PaymentMethodRules.limitsToStoredJson(limits)
+        val othersJson = PaymentMethodRules.othersToStoredJson(others)
         busy = true
         appScope.launch {
             try {
                 _methods.value = methods
                 _limits.value = limits
+                _others.value = others
 
                 // LOCAL FIRST, and recorded as unsent. He is in the yard: if
                 // the app is killed, the phone is put in a pocket or the signal
@@ -209,14 +232,18 @@ class PaymentMethodsViewModel(
                 // the save would simply never have happened, with nothing on
                 // screen having said so.
                 withContext(NonCancellable) {
-                    settingsStore.savePaymentMethodsPending(methodsJson.toString(), limitsJson.toString())
+                    settingsStore.savePaymentMethodsPending(
+                        methodsJson.toString(), limitsJson.toString(), othersJson.toString()
+                    )
                 }
                 _status.value = Status.Pending
 
-                when (val sent = push(companyId, methodsJson, limitsJson)) {
+                when (val sent = push(companyId, methodsJson, limitsJson, othersJson)) {
                     PushResult.VERIFIED -> {
                         withContext(NonCancellable) {
-                            settingsStore.savePaymentMethodsSynced(methodsJson.toString(), limitsJson.toString())
+                            settingsStore.savePaymentMethodsSynced(
+                                methodsJson.toString(), limitsJson.toString(), othersJson.toString()
+                            )
                         }
                         _status.value = Status.Saved
                     }
@@ -257,13 +284,21 @@ class PaymentMethodsViewModel(
                 val methodsJson = PaymentMethodRules.parseOrNull(cached.methodsJson) as? JsonObject
                 val limitsJson = PaymentMethodRules.parseOrNull(cached.limitsJson) as? JsonObject
                 if (methodsJson == null || limitsJson == null) return@launch
-                when (push(companyId, methodsJson, limitsJson)) {
+                // An EMPTY array when nothing was cached, not a refusal to
+                // send: a phone that queued an edit before this list existed
+                // has no othersJson, and its unsent four methods must still go.
+                val othersJson =
+                    PaymentMethodRules.parseOrNull(cached.othersJson) as? JsonArray ?: JsonArray(emptyList())
+                when (push(companyId, methodsJson, limitsJson, othersJson)) {
                     PushResult.VERIFIED -> {
                         withContext(NonCancellable) {
-                            settingsStore.savePaymentMethodsSynced(cached.methodsJson, cached.limitsJson)
+                            settingsStore.savePaymentMethodsSynced(
+                                cached.methodsJson, cached.limitsJson, othersJson.toString()
+                            )
                         }
                         _methods.value = PaymentMethodRules.canon(methodsJson)
                         _limits.value = PaymentMethodRules.canonLimits(limitsJson)
+                        _others.value = PaymentMethodRules.canonOthers(othersJson)
                         _editable.value = true
                         _status.value = Status.Saved
                     }
@@ -305,7 +340,7 @@ class PaymentMethodsViewModel(
     private enum class PushResult { VERIFIED, UNREACHABLE, VERIFY_FAILED, READBACK_UNKNOWN, SERVER_REFUSED }
 
     /**
-     * ONE write: one `save_company_settings` call carrying the two keys, each
+     * ONE write: one `save_company_settings` call carrying the three keys, each
      * WHOLE. Never a write to the `companies` row -- every member of a company
      * can read that row, crew included -- and never a partial method object,
      * because the RPC merges with `||`, which is shallow, so a partial one
@@ -314,7 +349,8 @@ class PaymentMethodsViewModel(
     private suspend fun push(
         companyId: String?,
         methodsJson: JsonObject,
-        limitsJson: JsonObject
+        limitsJson: JsonObject,
+        othersJson: JsonArray
     ): PushResult {
         if (companyId == null || !SupabaseModule.isConfigured) return PushResult.UNREACHABLE
         val wrote = runCatching {
@@ -326,6 +362,7 @@ class PaymentMethodsViewModel(
                         buildJsonObject {
                             put("payment_methods", methodsJson)
                             put("payment_limits", limitsJson)
+                            put("payment_methods_other", othersJson)
                         }
                     )
                 }
@@ -345,8 +382,11 @@ class PaymentMethodsViewModel(
         // The read-back FAILING is not the same answer as the read-back
         // DISAGREEING. See PushResult.
         val back = readStored(companyId) ?: return PushResult.READBACK_UNKNOWN
-        val sameMethods = PaymentMethodRules.same(back.first, methodsJson)
-        val sameLimits = PaymentMethodRules.sameLimits(back.second, limitsJson)
-        return if (sameMethods && sameLimits) PushResult.VERIFIED else PushResult.VERIFY_FAILED
+        val sameMethods = PaymentMethodRules.same(back.methods, methodsJson)
+        val sameLimits = PaymentMethodRules.sameLimits(back.limits, limitsJson)
+        // Compared too, for the same reason the other two are: "Saved" is only
+        // ever said about what the server actually holds.
+        val sameOthers = PaymentMethodRules.sameOthers(back.others, othersJson)
+        return if (sameMethods && sameLimits && sameOthers) PushResult.VERIFIED else PushResult.VERIFY_FAILED
     }
 }

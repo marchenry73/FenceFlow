@@ -716,6 +716,8 @@
     <string name="jd_payment_email_subject">Enlace de pago de tu cerca</string>
     <string name="jd_text_link">Enviar por SMS</string>
     <string name="jd_email_link">Enviar por correo</string>
+    <string name="jd_sending">Enviando…</string>
+    <string name="jd_payment_emailed_to">Enviado a %1$s desde su propia dirección.</string>
     <string name="jd_tip_label">Propina ($) -- va 100% al instalador</string>
     <string name="jd_tip_recorded">Propina de $%1$s registrada. Se lleva aparte del contrato y no cuenta como ingreso de la empresa en los reportes.</string>
     <string name="jd_invoice_generated">Ya se generó la factura de este trabajo.</string>
@@ -2198,6 +2200,18 @@
     <string name="pm_wire_label">Transferencia bancaria</string>
     <string name="pm_wire_hint">Pegue las instrucciones de transferencia tal como se las dio su banco</string>
     <string name="pm_cash_label">Efectivo</string>
+    <string name="pm_other_head">Otras formas de pago</string>
+    <string name="pm_other_hint">Venmo, PayPal, un cheque a nombre del negocio: cualquier otra forma que acepte. Una fila sin nombre no se guarda y nunca llega al cliente.</string>
+    <string name="pm_other_name_label">Nombre</string>
+    <string name="pm_other_detail_label">Cómo pagarle así</string>
+    <string name="pm_other_remove">Quitar esta</string>
+    <string name="pm_other_add">Agregar una forma de pago</string>
+    <string name="pm_other_full">Ya son las %1$d</string>
+    <string name="pm_other_no_name">Una de las otras formas de pago tiene datos pero no tiene nombre. Póngale nombre o borre los datos.</string>
+    <string name="pm_other_name_long">Uno de esos nombres es demasiado largo.</string>
+    <string name="pm_other_detail_long">Una de esas líneas es demasiado larga.</string>
+    <string name="pm_other_too_many">Son más formas de pago de las que un cliente va a leer. Deje ocho.</string>
+    <string name="pm_other_duplicate">%1$s aparece dos veces. Una fila por forma de pago.</string>
     <string name="pm_limit_hint">Máximo que puede recibir de una vez (opcional)</string>
     <string name="pm_limit_support">Déjelo en blanco para no decir nada sobre un límite. Es lo que el banco de ella le permitirá enviar, no un límite suyo.</string>
     <string name="pm_limit_line">Su banco puede limitar un pago a unos %1$s. Si lo hace, pregunte por dividirlo o use otra forma.</string>

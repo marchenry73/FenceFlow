@@ -33,6 +33,10 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.fenceestimator.app.data.OtherPaymentMethod
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material.icons.filled.Close
 import com.fenceestimator.app.R
 import com.fenceestimator.app.data.PaymentOption
 import com.fenceestimator.app.data.PaymentMethodRules
@@ -87,6 +91,7 @@ fun PaymentMethodsCard(editable: Boolean) {
     val companyId = session.companyId
     val stored by viewModel.methods.collectAsState()
     val storedLimits by viewModel.limits.collectAsState()
+    val storedOthers by viewModel.others.collectAsState()
     val status by viewModel.status.collectAsState()
     val loadedOk by viewModel.editable.collectAsState()
 
@@ -95,8 +100,8 @@ fun PaymentMethodsCard(editable: Boolean) {
     // The edit buffer is seeded from what was actually read, never from a
     // placeholder -- the same rule SettingsScreen follows for the profile. A
     // form seeded before the read lands is a form whose Save writes blanks.
-    var form by remember(stored, storedLimits) {
-        mutableStateOf(PaymentMethodRules.toForm(stored, storedLimits))
+    var form by remember(stored, storedLimits, storedOthers) {
+        mutableStateOf(PaymentMethodRules.toForm(stored, storedLimits, storedOthers))
     }
     var confirming by rememberSaveable { mutableStateOf(false) }
 
@@ -174,6 +179,82 @@ fun PaymentMethodsCard(editable: Boolean) {
             )
         }
 
+        // ---- anything else he takes ---------------------------------------
+        //
+        // The four above each have a known shape and are checked against it.
+        // These have none, so they are a name and a line of detail, shown to
+        // the customer exactly as typed. A row with no name is dropped on
+        // save; a detail with no name is refused, because that is an account
+        // number about to vanish with nothing said.
+        Text(
+            stringResource(R.string.pm_other_head),
+            style = MaterialTheme.typography.titleSmall,
+            modifier = Modifier.padding(top = 8.dp)
+        )
+        Text(
+            stringResource(R.string.pm_other_hint),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        form.others.forEachIndexed { index, row ->
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.Top
+            ) {
+                OutlinedTextField(
+                    value = row.name,
+                    onValueChange = { typed ->
+                        form = form.copy(
+                            others = form.others.toMutableList().also {
+                                it[index] = it[index].copy(name = typed.take(PaymentMethodRules.MAX_OTHER_NAME_CHARS))
+                            }
+                        )
+                    },
+                    label = { Text(stringResource(R.string.pm_other_name_label)) },
+                    singleLine = true,
+                    enabled = writable,
+                    modifier = Modifier.weight(1f)
+                )
+                OutlinedTextField(
+                    value = row.detail,
+                    onValueChange = { typed ->
+                        form = form.copy(
+                            others = form.others.toMutableList().also {
+                                it[index] = it[index].copy(detail = typed.take(PaymentMethodRules.MAX_OTHER_DETAIL_CHARS))
+                            }
+                        )
+                    },
+                    label = { Text(stringResource(R.string.pm_other_detail_label)) },
+                    singleLine = true,
+                    enabled = writable,
+                    modifier = Modifier.weight(1.4f)
+                )
+                IconButton(
+                    onClick = { form = form.copy(others = form.others.filterIndexed { i, _ -> i != index }) },
+                    enabled = writable
+                ) {
+                    Icon(
+                        Icons.Filled.Close,
+                        contentDescription = stringResource(R.string.pm_other_remove)
+                    )
+                }
+            }
+        }
+        if (writable) {
+            // Nothing is hidden at the cap -- the button says why.
+            val full = form.others.size >= PaymentMethodRules.MAX_OTHER
+            TextButton(
+                onClick = { form = form.copy(others = form.others + OtherPaymentMethod()) },
+                enabled = !full
+            ) {
+                Text(
+                    if (full) stringResource(R.string.pm_other_full, PaymentMethodRules.MAX_OTHER)
+                    else stringResource(R.string.pm_other_add)
+                )
+            }
+        }
+
         // What the limit does, and does not do, today. Saying nothing here
         // would let him type a limit and believe his customer is being warned
         // about it, which she is not: quote-view sends four whitelisted keys
@@ -228,7 +309,7 @@ private fun ConfirmDialog(
         AlertDialog(
             onDismissRequest = onDismiss,
             title = { Text(stringResource(R.string.pm_refused_title)) },
-            text = { Text(refusalText(refusal.reason, refusal.which)) },
+            text = { Text(refusalText(refusal.reason, refusal.which, refusal.otherName)) },
             confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.pm_go_back)) } }
         )
         return
@@ -267,6 +348,15 @@ private fun ConfirmDialog(
                             }
                             if (view.cash) {
                                 CustomerLine(stringResource(R.string.pm_cash_label), "", null)
+                            }
+                            // The custom rows, named in HIS words -- not
+                            // through stringResource, for the same reason a
+                            // company's own name is not translated. This is
+                            // the card headed "what the customer will see",
+                            // so they belong in it or the preview is a lie
+                            // about what is about to be published.
+                            for (row in view.other) {
+                                CustomerLine(row.name, row.detail, null)
                             }
                         }
                     }
@@ -383,7 +473,8 @@ private fun StatusLine(
         is PaymentMethodsViewModel.Status.Saved -> stringResource(R.string.pm_saved)
         is PaymentMethodsViewModel.Status.VerifyFailed -> stringResource(R.string.pm_verify_failed)
         is PaymentMethodsViewModel.Status.ServerRefused -> stringResource(R.string.pm_server_refused)
-        is PaymentMethodsViewModel.Status.Refused -> refusalText(status.rejection.reason, status.rejection.which)
+        is PaymentMethodsViewModel.Status.Refused ->
+            refusalText(status.rejection.reason, status.rejection.which, status.rejection.otherName)
     } ?: return
 
     val bad = status is PaymentMethodsViewModel.Status.VerifyFailed ||
@@ -402,13 +493,24 @@ private fun StatusLine(
 }
 
 @Composable
-private fun refusalText(reason: PaymentMethodsError, which: PaymentOption?): String = when (reason) {
+private fun refusalText(
+    reason: PaymentMethodsError,
+    which: PaymentOption?,
+    /** The custom row's own name, for the refusals that are about one. HIS
+     *  words, so it is passed through and never translated. */
+    otherName: String = ""
+): String = when (reason) {
     PaymentMethodsError.CASH_APP_BAD -> stringResource(R.string.pm_err_cashapp)
     PaymentMethodsError.ZELLE_BAD -> stringResource(R.string.pm_err_zelle)
     PaymentMethodsError.ZELLE_LONG -> stringResource(R.string.pm_err_zelle_long, PaymentMethodRules.MAX_ZELLE_CHARS)
     PaymentMethodsError.WIRE_LONG -> stringResource(R.string.pm_err_wire_long, PaymentMethodRules.MAX_WIRE_CHARS)
     PaymentMethodsError.ON_BUT_EMPTY -> stringResource(R.string.pm_err_on_but_empty, methodName(which))
     PaymentMethodsError.LIMIT_BAD -> stringResource(R.string.pm_err_limit, methodName(which))
+    PaymentMethodsError.OTHER_NO_NAME -> stringResource(R.string.pm_other_no_name)
+    PaymentMethodsError.OTHER_NAME_LONG -> stringResource(R.string.pm_other_name_long)
+    PaymentMethodsError.OTHER_DETAIL_LONG -> stringResource(R.string.pm_other_detail_long)
+    PaymentMethodsError.OTHER_TOO_MANY -> stringResource(R.string.pm_other_too_many)
+    PaymentMethodsError.OTHER_DUPLICATE -> stringResource(R.string.pm_other_duplicate, otherName)
 }
 
 @Composable

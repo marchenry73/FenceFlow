@@ -2976,6 +2976,9 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
         val smsBody = stringResource(R.string.jd_payment_sms_body, greetingName, amountText, job.address, job.paymentLinkUrl)
         val emailBody = stringResource(R.string.jd_payment_email_body, greetingName, amountText, job.address, job.paymentLinkUrl)
         val emailSubject = stringResource(R.string.jd_payment_email_subject)
+        val sentToText = stringResource(R.string.jd_payment_emailed_to)
+        var sendingPayEmail by remember(job.id) { mutableStateOf(false) }
+        var payEmailMsg by remember(job.id) { mutableStateOf<String?>(null) }
         Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             OutlinedButton(
                 onClick = { IntentHelpers.openSmsDraft(context, job.phone, smsBody) },
@@ -2983,10 +2986,50 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
                 modifier = Modifier.weight(1f)
             ) { Text(stringResource(R.string.jd_text_link)) }
             Button(
-                onClick = { IntentHelpers.openEmailDraft(context, job.email, emailSubject, emailBody) },
-                enabled = job.email.isNotBlank() && !linkIsStale,
+                onClick = {
+                    if (sendingPayEmail) return@Button
+                    sendingPayEmail = true
+                    payEmailMsg = null
+                    scope.launch {
+                        // The same path the quote email takes: mail-send with
+                        // from_account_id "fenceflow", which is the office's
+                        // own path. It answers only once the provider has the
+                        // message, so "sent" here is a fact rather than the
+                        // observation that a mail app opened.
+                        val r = com.fenceestimator.app.cloud.QuoteEmailApi.send(
+                            jobSyncId = job.syncId,
+                            to = job.email,
+                            subject = emailSubject,
+                            body = emailBody,
+                        )
+                        sendingPayEmail = false
+                        payEmailMsg = when (r) {
+                            is com.fenceestimator.app.cloud.QuoteEmailApi.Result.Sent ->
+                                sentToText.format(job.email)
+                            // NO QUIET FALLBACK TO A DRAFT. He has just been
+                            // told it did not send; a mail app appearing would
+                            // read as it having gone after all, and the long
+                            // press below is there when he wants one.
+                            is com.fenceestimator.app.cloud.QuoteEmailApi.Result.Failed -> r.why
+                        }
+                    }
+                },
+                enabled = job.email.isNotBlank() && !linkIsStale && !sendingPayEmail,
                 modifier = Modifier.weight(1f)
-            ) { Text(stringResource(R.string.jd_email_link)) }
+            ) {
+                Text(
+                    if (sendingPayEmail) stringResource(R.string.jd_sending)
+                    else stringResource(R.string.jd_email_link)
+                )
+            }
+        }
+        payEmailMsg?.let {
+            Text(
+                it,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = 4.dp)
+            )
         }
     }
     }

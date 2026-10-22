@@ -63,10 +63,52 @@ object AdminRepository {
         val jobs: Long = 0,
         @SerialName("last_active") val lastActive: String? = null,
         @SerialName("admin_notes") val adminNotes: String = "",
-    )
+        @SerialName("subscription_plan") val subscriptionPlan: String? = null,
+        @SerialName("monthly_price") val monthlyPrice: Double? = null,
+        /**
+         * HOW ALIVE THIS COMPANY IS -- the same three counts the web console
+         * shows, over the same thirty days.
+         *
+         * people and jobs above are totals EVER, and a total never goes down,
+         * so a company that stopped in August reads exactly like one that used
+         * it this morning. Three counts rather than one because they fail
+         * differently: last_seen_at is written by the PHONE, so a company that
+         * only opens the office website reads as nobody-seen.
+         *
+         * Default 0 so a build talking to a database without the columns shows
+         * "no" rather than crashing on a missing key -- and [health] answers
+         * Unknown in that case rather than Dormant, because absent data is not
+         * a verdict. See supabase_r25_company_health.sql.
+         */
+        @SerialName("active_people_30d") val activePeople30d: Long = 0,
+        @SerialName("jobs_30d") val jobs30d: Long = 0,
+        @SerialName("quotes_30d") val quotes30d: Long = 0,
+        @SerialName("joined_at") val joinedAt: String? = null,
+    ) {
+        /** Active / Quiet / Dormant, by the console's own rule. */
+        val health: Health
+            get() = when {
+                joinedAt == null -> Health.NOT_STARTED
+                jobs30d > 0 || quotes30d > 0 -> Health.ACTIVE
+                activePeople30d > 0 -> Health.QUIET
+                else -> Health.DORMANT
+            }
+    }
+
+    /**
+     * What "using it" means, in one word.
+     *
+     * NOT_STARTED is its own answer rather than Dormant: a company invited and
+     * never signed in has nothing to measure, Status already says Invited, and
+     * a red word there would make the list look alarming about the one state
+     * that is nobody's fault yet.
+     */
+    enum class Health { ACTIVE, QUIET, DORMANT, NOT_STARTED }
 
     @Serializable
     data class Release(
+        /** Needed by admin_promote_release / admin_demote_release. */
+        val id: String = "",
         @SerialName("version_code") val versionCode: Int = 0,
         @SerialName("version_name") val versionName: String = "",
         val notes: String = "",
@@ -292,6 +334,22 @@ object AdminRepository {
     // SenderRow was the shape of the direct table read that mailSender() no
     // longer does. Deleted with it: a row class nobody decodes is a claim
     // that something still reads that table.
+
+    /**
+     * Hand a limited release to EVERY company.
+     *
+     * The one control that matters after a staged rollout, and the reason it
+     * belongs on a phone: when the build turns out fine you are rarely at a
+     * desk. The server decides whether it may happen -- admin_promote_release
+     * is behind is_platform_admin() like everything else here.
+     */
+    suspend fun promoteRelease(releaseId: String): Result<Unit> = io {
+        SupabaseModule.client.postgrest.rpc(
+            "admin_promote_release",
+            buildJsonObject { put("target_id", releaseId) }
+        )
+        Unit
+    }
 
     /** Stop a group of errors being reported again until it recurs. */
     suspend fun markErrorsSeen(message: String, whereAt: String): Result<Unit> = io {

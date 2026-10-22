@@ -173,16 +173,17 @@ fun AdminScreen(onBack: () -> Unit) {
                 }
 
                 AdminEntry.OPEN -> {
-                    val tabs = listOf("Companies", "Releases", "Errors", "Sign-ins")
+                    val tabs = listOf("Overview", "Companies", "Releases", "Errors", "Sign-ins")
                     TabRow(selectedTabIndex = tab) {
                         tabs.forEachIndexed { i, title ->
                             Tab(selected = tab == i, onClick = { tab = i }, text = { Text(title) })
                         }
                     }
                     when (tab) {
-                        0 -> CompaniesTab()
-                        1 -> ReleasesTab()
-                        2 -> ErrorsTab()
+                        0 -> OverviewTab()
+                        1 -> CompaniesTab()
+                        2 -> ReleasesTab()
+                        3 -> ErrorsTab()
                         else -> SignInsTab()
                     }
                 }
@@ -246,6 +247,75 @@ private fun AdminCard(
                 )
             }
             footer?.invoke()
+        }
+    }
+}
+
+/**
+ * Is anything on fire, in six numbers.
+ *
+ * Built from the SAME one call the Companies tab makes, so the two can never
+ * disagree about how many companies there are -- and so opening this costs one
+ * request rather than seven.
+ *
+ * Every figure here is a count of rows that came back. If that read is ever
+ * truncated the numbers are a floor rather than a total; the web console says
+ * so in those words when it happens, and the phone would need the same note
+ * before any of these could be treated as exact. With eleven companies it is
+ * not a live concern, and it is written down here so it is not forgotten when
+ * it becomes one.
+ */
+@Composable
+private fun OverviewTab() {
+    var state by remember { mutableStateOf<Load<AdminRepository.Company>>(Load.Loading) }
+    LaunchedEffect(Unit) {
+        state = AdminRepository.companies()
+            .fold({ Load.Rows(it) }, { Load.Failed(shownError(it, "unknown error")) })
+    }
+    when (val s = state) {
+        is Load.Loading -> Text("Loading...", style = MaterialTheme.typography.bodyMedium)
+        is Load.Failed -> Text(
+            s.why,
+            color = MaterialTheme.colorScheme.error,
+            style = MaterialTheme.typography.bodyMedium
+        )
+        is Load.Rows -> {
+            val all = s.rows
+            // "On trial" and "paying" by the console's own tests, not a second
+            // reading of them: trialing OR a trial end date still ahead, and
+            // paying means Stripe is charging money TODAY -- active, not
+            // suspended, not still inside a trial, and with a price on file. A
+            // hand-granted open-ended account carries 'active' with no price
+            // at all, and counting that as revenue is the flattering-direction
+            // mistake the console exists to avoid.
+            val onTrial = all.filter {
+                !it.suspended && (it.subscriptionStatus == "trialing" || (it.daysLeft ?: 0) > 0)
+            }
+            val paying = all.filter {
+                it.subscriptionStatus == "active" && !it.suspended &&
+                    it.subscriptionStatus != "trialing" && (it.daysLeft ?: 0) <= 0 &&
+                    (it.monthlyPrice ?: 0.0) > 0.0
+            }
+            val usingIt = all.count { it.health == AdminRepository.Health.ACTIVE }
+            val dormant = all.count { it.health == AdminRepository.Health.DORMANT }
+            Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
+                Tile("${all.size}", "companies")
+                Tile("$usingIt", "used it in the last 30 days")
+                Tile("$dormant", "dormant -- nobody opened it in 30 days")
+                Tile("${onTrial.size}", "on trial")
+                Tile("${paying.size}", "paying")
+                Tile("${all.count { it.suspended }}", "suspended")
+            }
+        }
+    }
+}
+
+@Composable
+private fun Tile(figure: String, label: String) {
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(Space.md)) {
+            Text(figure, style = MaterialTheme.typography.headlineMedium, fontWeight = FontWeight.Bold)
+            Text(label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
@@ -355,6 +425,18 @@ private fun CompaniesTab() {
                     (c.daysLeft?.let { " - $it days left" } ?: "") +
                     (if (c.suspended) " - suspended" else ""),
                 "${c.people} people, ${c.jobs} jobs",
+                // EVER above; the last thirty days here. The counts are
+                // printed beside the verdict so the rule can be checked
+                // rather than believed -- the same thing the web console
+                // does under its pill.
+                when (c.health) {
+                    AdminRepository.Health.ACTIVE ->
+                        "Using it - ${c.activePeople30d} seen, ${c.jobs30d} jobs, ${c.quotes30d} quotes in 30 days"
+                    AdminRepository.Health.QUIET ->
+                        "Quiet - ${c.activePeople30d} seen in 30 days, nothing built"
+                    AdminRepository.Health.DORMANT -> "Dormant - nobody opened it in 30 days"
+                    AdminRepository.Health.NOT_STARTED -> "Invited, never signed in"
+                },
                 c.lastActive?.let { "Last active $it" } ?: "Never active",
                 c.adminNotes,
             )
@@ -576,10 +658,23 @@ private enum class AdminAction(val confirmLabel: String) {
 
 @Composable
 private fun ReleasesTab() {
+    val scope = rememberCoroutineScope()
     var state by remember { mutableStateOf<Load<AdminRepository.Release>>(Load.Loading) }
-    LaunchedEffect(Unit) {
+    var busy by remember { mutableStateOf(false) }
+    var asking by remember { mutableStateOf<AdminRepository.Release?>(null) }
+    var why by remember { mutableStateOf<String?>(null) }
+    suspend fun load() {
         state = AdminRepository.releases()
             .fold({ Load.Rows(it) }, { Load.Failed(shownError(it, "unknown error")) })
+    }
+    LaunchedEffect(Unit) { load() }
+    why?.let {
+        Text(
+            it,
+            color = MaterialTheme.colorScheme.error,
+            style = MaterialTheme.typography.bodySmall,
+            modifier = Modifier.fillMaxWidth().padding(bottom = Space.sm)
+        )
     }
     Section(state, "No releases.") { r ->
         AdminCard(
@@ -589,6 +684,51 @@ private fun ReleasesTab() {
                 r.audience + (if (r.isMandatory) " - mandatory" else ""),
                 if (r.downloadUrl.isNullOrBlank()) "NO DOWNLOAD URL" else "",
             )
+        ) {
+            // Only for a release that is NOT already everyone's. A limited
+            // rollout that is never promoted is a stuck rollout: the audience
+            // named keeps getting it and nobody else moves at all. This is the
+            // control that unsticks it, and the moment you want it is rarely
+            // one where you are sitting at a desk.
+            if (!r.audience.equals("everyone", ignoreCase = true) && r.id.isNotBlank()) {
+                OutlinedButton(
+                    enabled = !busy,
+                    onClick = { why = null; asking = r },
+                    modifier = Modifier.padding(top = Space.sm)
+                ) { Text("Give it to everyone") }
+            }
+        }
+    }
+
+    asking?.let { rel ->
+        AlertDialog(
+            onDismissRequest = { if (!busy) asking = null },
+            title = { Text("Give ${rel.versionName} to every company?") },
+            text = {
+                Text(
+                    "Every phone on every company will be offered this build the next time the app " +
+                        "is opened" + (if (rel.isMandatory) ", with no way to put it off." else ".") +
+                        " It cannot be taken back from a phone that has already installed it."
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !busy,
+                    onClick = {
+                        busy = true
+                        scope.launch {
+                            AdminRepository.promoteRelease(rel.id)
+                                .onFailure { why = shownError(it, "That did not go through.") }
+                            busy = false
+                            asking = null
+                            load()
+                        }
+                    }
+                ) { Text(if (busy) "Working..." else "Give it to everyone") }
+            },
+            dismissButton = {
+                TextButton(enabled = !busy, onClick = { asking = null }) { Text("Cancel") }
+            }
         )
     }
 }

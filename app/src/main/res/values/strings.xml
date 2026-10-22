@@ -748,6 +748,8 @@
     <string name="jd_payment_email_subject">Payment link for your fence</string>
     <string name="jd_text_link">Text Link</string>
     <string name="jd_email_link">Email Link</string>
+    <string name="jd_sending">Sending…</string>
+    <string name="jd_payment_emailed_to">Emailed to %1$s from your own address.</string>
     <string name="jd_tip_label">Tip ($) -- goes 100% to the installer</string>
     <string name="jd_tip_recorded">$%1$s tip recorded. This is tracked separately from the contract and is not counted as company revenue in reports.</string>
     <string name="jd_invoice_generated">Invoice has been generated for this job.</string>
@@ -2269,6 +2271,18 @@
     <string name="pm_wire_label">Bank wire</string>
     <string name="pm_wire_hint">Paste the wire instructions exactly as your bank gave them</string>
     <string name="pm_cash_label">Cash</string>
+    <string name="pm_other_head">Other ways to pay</string>
+    <string name="pm_other_hint">Venmo, PayPal, a cheque made out to the business — anything else you take. A row with no name is not saved and never reaches a customer.</string>
+    <string name="pm_other_name_label">Name</string>
+    <string name="pm_other_detail_label">How to pay you this way</string>
+    <string name="pm_other_remove">Remove this one</string>
+    <string name="pm_other_add">Add a way to pay</string>
+    <string name="pm_other_full">That is all %1$d of them</string>
+    <string name="pm_other_no_name">One of the other ways to pay has details but no name. Give it a name, or clear the details.</string>
+    <string name="pm_other_name_long">One of those names is too long.</string>
+    <string name="pm_other_detail_long">One of those lines is too long.</string>
+    <string name="pm_other_too_many">That is more ways to pay than a customer will read. Keep eight.</string>
+    <string name="pm_other_duplicate">%1$s is listed twice. One row per way to pay.</string>
     <string name="pm_limit_hint">Most you can take in one go (optional)</string>
     <string name="pm_limit_support">Leave blank to say nothing about a limit. This is what her bank will let her send, not a limit of yours.</string>
     <string name="pm_limit_line">Her bank may cap one payment at about %1$s. If it does, ask about splitting it or use another way.</string>

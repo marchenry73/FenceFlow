@@ -716,6 +716,8 @@
     <string name="jd_payment_email_subject">Lien de paiement pour votre clôture</string>
     <string name="jd_text_link">Envoyer par SMS</string>
     <string name="jd_email_link">Envoyer par e-mail</string>
+    <string name="jd_sending">Envoi en cours…</string>
+    <string name="jd_payment_emailed_to">Envoyé à %1$s depuis votre propre adresse.</string>
     <string name="jd_tip_label">Pourboire ($) -- 100% pour le poseur</string>
     <string name="jd_tip_recorded">Pourboire de %1$s $ enregistré. Il est suivi séparément du contrat et n\'est pas compté comme revenu de l\'entreprise dans les rapports.</string>
     <string name="jd_invoice_generated">La facture de ce chantier a été générée.</string>
@@ -2198,6 +2200,18 @@
     <string name="pm_wire_label">Virement bancaire</string>
     <string name="pm_wire_hint">Collez les instructions de virement exactement comme votre banque les a données</string>
     <string name="pm_cash_label">Espèces</string>
+    <string name="pm_other_head">Autres moyens de paiement</string>
+    <string name="pm_other_hint">Venmo, PayPal, un chèque à l\'ordre de l\'entreprise — tout autre moyen que vous acceptez. Une ligne sans nom n\'est pas enregistrée et n\'atteint jamais le client.</string>
+    <string name="pm_other_name_label">Nom</string>
+    <string name="pm_other_detail_label">Comment vous payer ainsi</string>
+    <string name="pm_other_remove">Retirer celui-ci</string>
+    <string name="pm_other_add">Ajouter un moyen de paiement</string>
+    <string name="pm_other_full">Les %1$d y sont déjà</string>
+    <string name="pm_other_no_name">Un des autres moyens de paiement a des détails mais aucun nom. Donnez-lui un nom ou effacez les détails.</string>
+    <string name="pm_other_name_long">Un de ces noms est trop long.</string>
+    <string name="pm_other_detail_long">Une de ces lignes est trop longue.</string>
+    <string name="pm_other_too_many">Cela fait plus de moyens de paiement qu\'un client n\'en lira. Gardez-en huit.</string>
+    <string name="pm_other_duplicate">%1$s figure deux fois. Une ligne par moyen de paiement.</string>
     <string name="pm_limit_hint">Maximum que vous pouvez recevoir en une fois (facultatif)</string>
     <string name="pm_limit_support">Laissez vide pour ne rien dire sur une limite. C\'est ce que SA banque lui permettra d\'envoyer, pas une limite à vous.</string>
     <string name="pm_limit_line">Sa banque peut plafonner un paiement à environ %1$s. Si c\'est le cas, proposez de le diviser ou un autre moyen.</string>

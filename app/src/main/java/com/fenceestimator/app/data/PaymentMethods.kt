@@ -2,12 +2,15 @@ package com.fenceestimator.app.data
 
 import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonElement
+import kotlinx.serialization.json.JsonArray
 import kotlinx.serialization.json.JsonObject
 import kotlinx.serialization.json.JsonPrimitive
 import kotlinx.serialization.json.boolean
 import kotlinx.serialization.json.booleanOrNull
+import kotlinx.serialization.json.buildJsonArray
 import kotlinx.serialization.json.buildJsonObject
 import kotlinx.serialization.json.contentOrNull
+import kotlinx.serialization.json.add
 import kotlinx.serialization.json.put
 
 /**
@@ -66,7 +69,9 @@ data class PaymentMethodsForm(
     val wireOn: Boolean = false,
     val wireDetails: String = "",
     val wireLimit: String = "",
-    val cashOn: Boolean = false
+    val cashOn: Boolean = false,
+    /** Anything else he takes. Rows with no name are dropped, not refused. */
+    val others: List<OtherPaymentMethod> = emptyList()
 )
 
 /**
@@ -82,6 +87,18 @@ data class PaymentMethods(
     val wireDetails: String = "",
     val cashOn: Boolean = false
 )
+
+/**
+ * Any other way he takes money: a name he chose and one line of detail.
+ *
+ * The four above each have a KNOWN SHAPE and are checked against it -- a
+ * $cashtag against a pattern, a Zelle handle that is an email or ten digits,
+ * bank lines trimmed and capped. These have none, so they are exactly what he
+ * typed. That is the whole difference, and it is why they are a list rather
+ * than four more fields: there is no fixed set of them. Venmo today, a cheque
+ * made out to the business tomorrow.
+ */
+data class OtherPaymentMethod(val name: String = "", val detail: String = "")
 
 /** The per-method receiving limit, exactly as typed and normalised, or blank. */
 data class PaymentLimits(
@@ -103,10 +120,13 @@ data class PublicPaymentMethods(
     val cashApp: String = "",
     val zelle: String = "",
     val wire: String = "",
-    val cash: Boolean = false
+    val cash: Boolean = false,
+    /** The custom rows a customer would be shown: named, in his own words. */
+    val other: List<OtherPaymentMethod> = emptyList()
 ) {
     /** True when nothing at all would reach a customer, so no panel is drawn. */
-    val isEmpty: Boolean get() = cashApp.isEmpty() && zelle.isEmpty() && wire.isEmpty() && !cash
+    val isEmpty: Boolean
+        get() = cashApp.isEmpty() && zelle.isEmpty() && wire.isEmpty() && !cash && other.isEmpty()
 }
 
 /**
@@ -124,14 +144,34 @@ data class PublicPaymentMethods(
 data class PaymentMethodsCache(
     val methodsJson: String = "",
     val limitsJson: String = "",
+    /** The custom list, cached beside the other two so the panel works offline. */
+    val othersJson: String = "",
     val loaded: Boolean = false,
     val pending: Boolean = false
 )
 
 /** Why a form was refused. [which] names the method for the on-but-empty case. */
-data class PaymentMethodsRejection(val reason: PaymentMethodsError, val which: PaymentOption? = null)
+data class PaymentMethodsRejection(
+    val reason: PaymentMethodsError,
+    val which: PaymentOption? = null,
+    /**
+     * The custom row's own name, for the refusals that are about one. It is
+     * HIS text, so it is never translated -- the same rule the office follows
+     * and the same reason a company's own name is not translated.
+     */
+    val otherName: String = ""
+)
 
-enum class PaymentMethodsError { CASH_APP_BAD, ZELLE_BAD, ZELLE_LONG, WIRE_LONG, ON_BUT_EMPTY, LIMIT_BAD }
+enum class PaymentMethodsError {
+    CASH_APP_BAD, ZELLE_BAD, ZELLE_LONG, WIRE_LONG, ON_BUT_EMPTY, LIMIT_BAD,
+    /** A detail typed with no name beside it -- see [PaymentMethodRules.fromForm]. */
+    OTHER_NO_NAME,
+    OTHER_NAME_LONG,
+    OTHER_DETAIL_LONG,
+    OTHER_TOO_MANY,
+    /** The same way to pay listed twice. [PaymentMethodsRejection.otherName] names it. */
+    OTHER_DUPLICATE
+}
 
 /**
  * Which ways he TELLS A CUSTOMER she can pay him -- the four he fills in on the
@@ -175,6 +215,19 @@ object PaymentMethodRules {
     const val MAX_ZELLE_CHARS = 120
     const val MAX_WIRE_CHARS = 1000
 
+    /**
+     * How many custom rows, and how long each part may be. The office's
+     * numbers exactly (PAY_OTHER_MAX / NAME_MAX / DETAIL_MAX), because a row
+     * the phone stores and the office refuses is one he could never edit from
+     * his desk again.
+     *
+     * Eight is not about storage: every row shows on the customer's quote
+     * page, and a payment panel with twenty entries is a page nobody reads.
+     */
+    const val MAX_OTHER = 8
+    const val MAX_OTHER_NAME_CHARS = 40
+    const val MAX_OTHER_DETAIL_CHARS = 120
+
     /** quote-view's own ceilings, for the record. Nothing here may exceed them. */
     const val SERVER_MAX_ZELLE_CHARS = 200
     const val SERVER_MAX_WIRE_CHARS = 1500
@@ -192,7 +245,7 @@ object PaymentMethodRules {
      * with a message, never truncated: half a bank account number is a payment
      * sent nowhere.
      */
-    fun fromForm(form: PaymentMethodsForm): Result<Pair<PaymentMethods, PaymentLimits>> {
+    fun fromForm(form: PaymentMethodsForm): Result<Triple<PaymentMethods, PaymentLimits, List<OtherPaymentMethod>>> {
         val tag = strip(form.cashAppTag).trim().trimStart('$')
         val to = strip(form.zelleTo).replace(Regex("\\s+"), " ").trim()
         val wire = strip(form.wireDetails)
@@ -208,22 +261,65 @@ object PaymentMethodRules {
         if (form.zelleOn && to.isEmpty()) return reject(PaymentMethodsError.ON_BUT_EMPTY, PaymentOption.ZELLE)
         if (form.wireOn && wire.isEmpty()) return reject(PaymentMethodsError.ON_BUT_EMPTY, PaymentOption.WIRE)
 
+        // The custom rows, judged the way the office judges them and in the
+        // same order, so a form either surface accepts is a form both accept.
+        val others = cleanOthers(form.others)
+        // A detail with NO name is the one case worth refusing rather than
+        // dropping: somebody typed an account number and would otherwise watch
+        // it vanish on Save with nothing said about it.
+        if (others.any { it.name.isEmpty() && it.detail.isNotEmpty() }) {
+            return reject(PaymentMethodsError.OTHER_NO_NAME)
+        }
+        if (others.any { it.name.length > MAX_OTHER_NAME_CHARS }) return reject(PaymentMethodsError.OTHER_NAME_LONG)
+        if (others.any { it.detail.length > MAX_OTHER_DETAIL_CHARS }) return reject(PaymentMethodsError.OTHER_DETAIL_LONG)
+        val keptOthers = others.filter { it.name.isNotEmpty() }
+        if (keptOthers.size > MAX_OTHER) return reject(PaymentMethodsError.OTHER_TOO_MANY)
+        // Named by the spelling he typed FIRST, so the message points at the
+        // row he meant to keep rather than at the stray lowercase one.
+        val seen = LinkedHashMap<String, String>()
+        for (row in keptOthers) {
+            val key = row.name.lowercase()
+            val first = seen[key]
+            if (first != null) {
+                return Result.failure(
+                    PaymentMethodsRefused(
+                        PaymentMethodsRejection(PaymentMethodsError.OTHER_DUPLICATE, otherName = first)
+                    )
+                )
+            }
+            seen[key] = row.name
+        }
+
         val cashAppLimit = normaliseLimit(form.cashAppLimit) ?: return reject(PaymentMethodsError.LIMIT_BAD, PaymentOption.CASH_APP)
         val zelleLimit = normaliseLimit(form.zelleLimit) ?: return reject(PaymentMethodsError.LIMIT_BAD, PaymentOption.ZELLE)
         val wireLimit = normaliseLimit(form.wireLimit) ?: return reject(PaymentMethodsError.LIMIT_BAD, PaymentOption.WIRE)
 
         return Result.success(
-            PaymentMethods(
-                cashAppOn = form.cashAppOn, cashAppTag = tag,
-                zelleOn = form.zelleOn, zelleTo = to,
-                wireOn = form.wireOn, wireDetails = wire,
-                cashOn = form.cashOn
-            ) to PaymentLimits(cashApp = cashAppLimit, zelle = zelleLimit, wire = wireLimit)
+            Triple(
+                PaymentMethods(
+                    cashAppOn = form.cashAppOn, cashAppTag = tag,
+                    zelleOn = form.zelleOn, zelleTo = to,
+                    wireOn = form.wireOn, wireDetails = wire,
+                    cashOn = form.cashOn
+                ),
+                PaymentLimits(cashApp = cashAppLimit, zelle = zelleLimit, wire = wireLimit),
+                keptOthers
+            )
         )
     }
 
+    /** Trimmed, de-invisible-charactered, capped. Blank rows survive here so
+     *  [fromForm] can tell "empty row" from "detail with no name". */
+    fun cleanOthers(rows: List<OtherPaymentMethod>): List<OtherPaymentMethod> =
+        rows.map {
+            OtherPaymentMethod(
+                name = strip(it.name).replace(Regex("\\s+"), " ").trim(),
+                detail = strip(it.detail).replace(Regex("\\s+"), " ").trim()
+            )
+        }
+
     private fun reject(reason: PaymentMethodsError, which: PaymentOption? = null) =
-        Result.failure<Pair<PaymentMethods, PaymentLimits>>(
+        Result.failure<Triple<PaymentMethods, PaymentLimits, List<OtherPaymentMethod>>>(
             PaymentMethodsRefused(PaymentMethodsRejection(reason, which))
         )
 
@@ -311,6 +407,38 @@ object PaymentMethodRules {
         )
     }
 
+    /**
+     * The custom rows out of whatever was stored. The Kotlin twin of
+     * dashboard.html's canonOtherMethods and quote-view's publicOtherMethods.
+     *
+     * Anything that is not an array of objects reads as an empty list rather
+     * than throwing: this key did not exist until today, so every company has
+     * nothing here, and "nothing stored" has to be the quiet ordinary case.
+     * A row with no NAME is dropped -- there is nothing to call it, so it
+     * would render as a blank heading over an account number.
+     */
+    fun canonOthers(stored: JsonElement?): List<OtherPaymentMethod> {
+        val arr = stored as? JsonArray ?: return emptyList()
+        fun text(o: JsonObject, field: String): String =
+            (o[field] as? JsonPrimitive)?.takeIf { it.isString }?.contentOrNull ?: ""
+        return arr.mapNotNull { it as? JsonObject }
+            .map {
+                OtherPaymentMethod(
+                    name = strip(text(it, "name")).replace(Regex("\\s+"), " ").trim().take(MAX_OTHER_NAME_CHARS),
+                    detail = strip(text(it, "detail")).replace(Regex("\\s+"), " ").trim().take(MAX_OTHER_DETAIL_CHARS)
+                )
+            }
+            .filter { it.name.isNotEmpty() }
+            .take(MAX_OTHER)
+    }
+
+    /** The whole `payment_methods_other` array to store. */
+    fun othersToStoredJson(rows: List<OtherPaymentMethod>): JsonArray = buildJsonArray {
+        for (row in rows) add(buildJsonObject { put("name", row.name); put("detail", row.detail) })
+    }
+
+    fun sameOthers(a: JsonElement?, b: JsonElement?): Boolean = canonOthers(a) == canonOthers(b)
+
     /** The limits out of whatever was stored in the sibling key. */
     fun canonLimits(stored: JsonElement?): PaymentLimits {
         val m = stored as? JsonObject ?: return PaymentLimits()
@@ -346,7 +474,7 @@ object PaymentMethodRules {
      * switched-off method with a tag still in it shows nothing, and a Cash App
      * tag gains its `$`.
      */
-    fun publicView(methods: PaymentMethods): PublicPaymentMethods {
+    fun publicView(methods: PaymentMethods, others: List<OtherPaymentMethod> = emptyList()): PublicPaymentMethods {
         val out = PublicPaymentMethods(
             // Plain concatenation, not a "$$it" template. On Kotlin 2.0 that
             // happens to mean a literal $ followed by the value, but 2.1
@@ -360,7 +488,11 @@ object PaymentMethodRules {
                 .takeIf { methods.zelleOn && it.isNotEmpty() && it.length <= SERVER_MAX_ZELLE_CHARS } ?: "",
             wire = tidyWire(methods.wireDetails)
                 .takeIf { methods.wireOn && it.isNotEmpty() && it.length <= SERVER_MAX_WIRE_CHARS } ?: "",
-            cash = methods.cashOn
+            cash = methods.cashOn,
+            // Already clean by the time they get here; filtered again because
+            // this is the function that decides what a customer reads, and it
+            // must not depend on who called it.
+            other = canonOthers(othersToStoredJson(cleanOthers(others)))
         )
         return out
     }
@@ -394,7 +526,11 @@ object PaymentMethodRules {
     fun sameLimits(a: JsonElement?, b: JsonElement?): Boolean = canonLimits(a) == canonLimits(b)
 
     /** The form to fill a screen with from what is stored. */
-    fun toForm(methods: PaymentMethods, limits: PaymentLimits) = PaymentMethodsForm(
+    fun toForm(
+        methods: PaymentMethods,
+        limits: PaymentLimits,
+        others: List<OtherPaymentMethod> = emptyList()
+    ) = PaymentMethodsForm(
         cashAppOn = methods.cashAppOn,
         cashAppTag = if (methods.cashAppTag.isEmpty()) "" else "$" + methods.cashAppTag,
         cashAppLimit = limits.cashApp,
@@ -404,7 +540,8 @@ object PaymentMethodRules {
         wireOn = methods.wireOn,
         wireDetails = methods.wireDetails,
         wireLimit = limits.wire,
-        cashOn = methods.cashOn
+        cashOn = methods.cashOn,
+        others = others
     )
 
     /** Lenient reader for the copy this phone keeps for working offline. */
