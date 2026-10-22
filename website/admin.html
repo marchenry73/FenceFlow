@@ -336,6 +336,7 @@
     <button data-view="crashes" type="button" data-t="navCrashes">Crashes</button>
     <button data-view="releases" type="button" data-t="navReleases">Releases</button>
     <button data-view="drift" type="button" data-t="navDrift">Pricing drift</button>
+    <button data-view="audit" type="button" data-t="navAudit">Audit log</button>
     <button data-view="account" type="button" data-t="navAccount">Account</button>
   </nav>
 
@@ -423,6 +424,41 @@
           </table>
         </div>
         <div class="msg" id="releaseNote"></div>
+      </div>
+    </section>
+
+    <section id="view-audit" style="display:none">
+      <div class="panel">
+        <h2 style="margin-top:0" data-t="auditHead">Audit log</h2>
+        <p class="sub" data-t="auditSub">Every change this product has written down: who, when, which company, which
+          record, and what the value was before and after. Append-only — no account, this console included, can
+          write to it or edit it.</p>
+        <div class="row" style="display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end;margin-bottom:10px">
+          <div><label data-t="auditFilterCompany">Company</label>
+            <select id="auditCompany"><option value="" data-t="auditAll">All</option></select></div>
+          <div><label data-t="auditFilterTable">Table</label>
+            <select id="auditTable"><option value="" data-t="auditAll">All</option></select></div>
+          <div><label data-t="auditFilterWho">Who</label>
+            <input id="auditWho" data-t="auditWhoPh" placeholder="email contains…" style="max-width:200px"></div>
+          <div><label data-t="auditFilterFrom">From</label><input type="date" id="auditFrom"></div>
+          <div><label data-t="auditFilterTo">To</label><input type="date" id="auditTo"></div>
+          <div style="display:flex;gap:6px;align-items:flex-end">
+            <button class="btn" type="button" id="auditApply" data-t="auditApplyBtn">Show</button>
+            <button class="btn secondary" type="button" id="auditCsv" data-t="auditCsvBtn">CSV</button>
+          </div>
+        </div>
+        <div class="msg" id="auditNote"></div>
+        <div class="scroll">
+          <table>
+            <thead><tr>
+              <th class="nowrap" data-t="auditColWhen">When</th><th data-t="auditColWho">Who</th>
+              <th data-t="colCompany">Company</th><th data-t="auditColWhat">What</th>
+              <th data-t="auditColField">Field</th><th data-t="auditColChange">Change</th>
+            </tr></thead>
+            <tbody id="auditRows"></tbody>
+          </table>
+        </div>
+        <button class="btn secondary" type="button" id="auditMore" style="display:none;margin-top:10px" data-t="auditMoreBtn">Show older</button>
       </div>
     </section>
 
@@ -799,6 +835,19 @@ const TL = {
     inviteNoticeOtherBusiness:'Invitation sent to %s — but that address already has a FenceFlow account in another business, so it cannot become this company\'s owner. Use a different address for this company.',
 
     navOverview:'Overview', navCompanies:'Companies', navCrashes:'Crashes',
+    navAudit:'Audit log',
+    auditHead:'Audit log',
+    auditSub:'Every change this product has written down: who, when, which company, which record, and what the value was before and after. Append-only \u2014 no account, this console included, can write to it or edit it.',
+    auditFilterCompany:'Company', auditFilterTable:'Table', auditFilterWho:'Who',
+    auditFilterFrom:'From', auditFilterTo:'To', auditAll:'All',
+    auditWhoPh:'email contains\u2026',
+    auditApplyBtn:'Show', auditCsvBtn:'CSV', auditMoreBtn:'Show older',
+    auditColWhen:'When', auditColWho:'Who', auditColWhat:'What', auditColField:'Field', auditColChange:'Change',
+    auditNoActor:'(not recorded)',
+    auditNone:'Nothing matches that. Widen the dates or clear a filter.',
+    auditShowingAll:'Showing all %s changes that match.',
+    auditShowingMore:'Showing the %s most recent that match \u2014 there are older ones.',
+    auditFailed:'The audit log could not be read: %s',
     navReleases:'Releases', navDrift:'Pricing drift', navAccount:'Account',
 
     overviewHead:'Overview',
@@ -1038,6 +1087,19 @@ const TL = {
     inviteNoticeOtherBusiness:'Invitación enviada a %s — pero esa dirección ya tiene una cuenta de FenceFlow en otra empresa, así que no puede ser la propietaria de esta. Use otra dirección para esta empresa.',
 
     navOverview:'Resumen', navCompanies:'Empresas', navCrashes:'Fallos',
+    navAudit:'Registro',
+    auditHead:'Registro de auditor\u00eda',
+    auditSub:'Cada cambio que este producto ha anotado: qui\u00e9n, cu\u00e1ndo, qu\u00e9 empresa, qu\u00e9 registro y cu\u00e1l era el valor antes y despu\u00e9s. Solo se agrega \u2014 ninguna cuenta, ni esta consola, puede escribir en \u00e9l ni editarlo.',
+    auditFilterCompany:'Empresa', auditFilterTable:'Tabla', auditFilterWho:'Qui\u00e9n',
+    auditFilterFrom:'Desde', auditFilterTo:'Hasta', auditAll:'Todas',
+    auditWhoPh:'el correo contiene\u2026',
+    auditApplyBtn:'Mostrar', auditCsvBtn:'CSV', auditMoreBtn:'Ver m\u00e1s antiguos',
+    auditColWhen:'Cu\u00e1ndo', auditColWho:'Qui\u00e9n', auditColWhat:'Qu\u00e9', auditColField:'Campo', auditColChange:'Cambio',
+    auditNoActor:'(no registrado)',
+    auditNone:'Nada coincide. Ample las fechas o quite un filtro.',
+    auditShowingAll:'Mostrando los %s cambios que coinciden.',
+    auditShowingMore:'Mostrando los %s m\u00e1s recientes que coinciden \u2014 hay m\u00e1s antiguos.',
+    auditFailed:'No se pudo leer el registro de auditor\u00eda: %s',
     navReleases:'Versiones', navDrift:'Diferencia de precios', navAccount:'Cuenta',
 
     overviewHead:'Resumen',
@@ -1277,6 +1339,19 @@ const TL = {
     inviteNoticeOtherBusiness:'Invitation envoyée à %s — mais cette adresse a déjà un compte FenceFlow dans une autre entreprise, elle ne peut donc pas devenir propriétaire de celle-ci. Utilisez une autre adresse pour cette entreprise.',
 
     navOverview:'Aperçu', navCompanies:'Entreprises', navCrashes:'Plantages',
+    navAudit:'Journal',
+    auditHead:'Journal d\u2019audit',
+    auditSub:'Chaque changement que ce produit a consign\u00e9 : qui, quand, quelle entreprise, quel enregistrement, et la valeur avant et apr\u00e8s. En ajout seulement \u2014 aucun compte, cette console comprise, ne peut y \u00e9crire ni le modifier.',
+    auditFilterCompany:'Entreprise', auditFilterTable:'Table', auditFilterWho:'Qui',
+    auditFilterFrom:'Du', auditFilterTo:'Au', auditAll:'Toutes',
+    auditWhoPh:'le courriel contient\u2026',
+    auditApplyBtn:'Afficher', auditCsvBtn:'CSV', auditMoreBtn:'Voir plus anciens',
+    auditColWhen:'Quand', auditColWho:'Qui', auditColWhat:'Quoi', auditColField:'Champ', auditColChange:'Changement',
+    auditNoActor:'(non consign\u00e9)',
+    auditNone:'Rien ne correspond. \u00c9largissez les dates ou retirez un filtre.',
+    auditShowingAll:'Affichage des %s changements correspondants.',
+    auditShowingMore:'Affichage des %s plus r\u00e9cents correspondants \u2014 il y en a de plus anciens.',
+    auditFailed:'Le journal d\u2019audit n\u2019a pas pu \u00eatre lu : %s',
     navReleases:'Versions', navDrift:'Écart de prix', navAccount:'Compte',
 
     overviewHead:'Aperçu',
@@ -1949,7 +2024,7 @@ async function afterSignedIn(session) {
 }
 
 /* -------------------------------------------------------------- nav ---- */
-const VIEWS = ['overview', 'companies', 'crashes', 'releases', 'drift', 'account'];
+const VIEWS = ['overview', 'companies', 'crashes', 'releases', 'drift', 'audit', 'account'];
 function switchView(name) {
   VIEWS.forEach(v => { $('view-' + v).style.display = (v === name) ? '' : 'none'; });
   document.querySelectorAll('.rail button').forEach(b => b.classList.toggle('on', b.dataset.view === name));
@@ -2054,6 +2129,127 @@ async function loadAll() {
   renderCrashes();
   renderReleases();
   renderDrift();
+}
+
+/* ---------------------------------------------------------- audit ----
+ * PAGED, DELIBERATELY. PostgREST answers an unbounded select with at
+ * most a thousand rows and says nothing about the ones it left behind,
+ * so a page that simply asked for the audit log would have shown 1,000
+ * of 5,170 and looked complete. The page asks for a window it names,
+ * says how many it is showing, and offers the next one.
+ */
+const AUDIT_PAGE = 200;
+let auditRows = [], auditFrom = 0, auditMore = false;
+
+function auditQuery(){
+  let q = db.from('audit_log')
+    .select('id, at, actor_email, company_id, table_name, record_id, action, field, old_value, new_value, label')
+    .order('at', { ascending: false });
+  const co = $('auditCompany').value;
+  if (co) q = q.eq('company_id', co);
+  const tbl = $('auditTable').value;
+  if (tbl) q = q.eq('table_name', tbl);
+  const who = ($('auditWho').value || '').trim();
+  if (who) q = q.ilike('actor_email', '%' + who + '%');
+  const from = $('auditFrom').value;
+  if (from) q = q.gte('at', from);
+  const to = $('auditTo').value;
+  // The To box means the whole of that day, not midnight at the start of
+  // it -- a range of 1 Oct to 1 Oct that returns nothing reads as 'no
+  // activity' when it means 'you asked for an instant'.
+  if (to) q = q.lt('at', new Date(new Date(to).getTime() + 864e5).toISOString());
+  return q;
+}
+
+async function loadAudit(append){
+  if (!append) { auditRows = []; auditFrom = 0; }
+  const { data, error } = await auditQuery().range(auditFrom, auditFrom + AUDIT_PAGE - 1);
+  if (error) {
+    $('auditNote').textContent = tr('auditFailed', error.message || String(error));
+    $('auditNote').className = 'msg err';
+    return;
+  }
+  const page = data || [];
+  auditRows = auditRows.concat(page);
+  auditFrom += page.length;
+  // A full page means there is probably another; a short one means the
+  // end. Nothing here guesses a total -- counting 5,170 rows to put a
+  // number on screen is a second query for a number nobody acts on.
+  auditMore = page.length === AUDIT_PAGE;
+  renderAudit();
+}
+
+function auditCompanyName(id){
+  const c = clients.find(x => x.id === id);
+  return c ? (c.name || id) : (id ? String(id).slice(0, 8) : '\u2014');
+}
+
+function auditValue(v){
+  const s = String(v ?? '');
+  if (s === '') return '\u2014';
+  // Long values are cut with an ellipsis and the whole thing kept in the
+  // title, so a 900-character JSON blob cannot push the table sideways.
+  return s.length > 60 ? s.slice(0, 60) + '\u2026' : s;
+}
+
+function renderAudit(){
+  const note = $('auditNote');
+  note.className = 'msg';
+  note.textContent = auditRows.length
+    ? tr(auditMore ? 'auditShowingMore' : 'auditShowingAll', auditRows.length)
+    : tr('auditNone');
+  $('auditRows').innerHTML = auditRows.map(r => `<tr>
+    <td class="nowrap">${esc(day(r.at))}</td>
+    <td>${esc(r.actor_email || tr('auditNoActor'))}</td>
+    <td>${esc(auditCompanyName(r.company_id))}</td>
+    <td>${esc(String(r.action || '').toLowerCase())} ${esc(r.table_name || '')}
+      ${r.label ? `<div class="sub">${esc(r.label)}</div>` : ''}</td>
+    <td>${esc(r.field || '\u2014')}</td>
+    <td title="${esc(String(r.old_value ?? '') + '  \u2192  ' + String(r.new_value ?? ''))}">
+      ${esc(auditValue(r.old_value))} \u2192 ${esc(auditValue(r.new_value))}</td>
+  </tr>`).join('');
+  $('auditMore').style.display = auditMore ? '' : 'none';
+}
+
+/* The two pickers are filled from the rows actually on screen plus the
+   company list this console already holds -- never from a hardcoded set
+   of table names, which would go stale the first time a table is added. */
+function fillAuditPickers(){
+  const co = $('auditCompany');
+  if (co && co.options.length <= 1) {
+    for (const c of clients) {
+      const o = document.createElement('option');
+      o.value = c.id; o.textContent = c.name || c.id.slice(0, 8);
+      co.appendChild(o);
+    }
+  }
+  const tbl = $('auditTable');
+  if (tbl) {
+    const have = new Set([...tbl.options].map(o => o.value));
+    for (const name of [...new Set(auditRows.map(r => r.table_name).filter(Boolean))].sort()) {
+      if (have.has(name)) continue;
+      const o = document.createElement('option');
+      o.value = name; o.textContent = name;
+      tbl.appendChild(o);
+    }
+  }
+}
+
+function auditCsv(){
+  // What is on screen, not a second query: an export holding rows the
+  // screen never showed is a different document to the one being read.
+  const head = ['When', 'Who', 'CompanyId', 'Company', 'Action', 'Table', 'RecordId', 'Field', 'Before', 'After', 'Label'];
+  const rows = auditRows.map(r => [
+    r.at, r.actor_email || '', r.company_id || '', auditCompanyName(r.company_id),
+    r.action || '', r.table_name || '', r.record_id || '', r.field || '',
+    r.old_value ?? '', r.new_value ?? '', r.label || ''
+  ]);
+  const csv = [head, ...rows]
+    .map(r => r.map(v => `"${csvSafeCell(v).replace(/"/g, '""')}"`).join(',')).join('\n');
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+  a.download = `fenceflow-audit-${new Date().toISOString().slice(0, 10)}.csv`;
+  a.click();
 }
 
 async function loadDrift() {
@@ -3696,7 +3892,23 @@ async function signOutEverywhere() {
 
 /* ------------------------------------------------------------- wiring ---- */
 document.querySelectorAll('.rail button').forEach(b =>
-  b.addEventListener('click', () => switchView(b.dataset.view)));
+  b.addEventListener('click', () => {
+    switchView(b.dataset.view);
+    // The audit log is fetched when its tab is first opened rather than at
+    // boot: 5,170 rows behind a screen nobody has looked at is a page load
+    // spent on nothing, and this console is opened to do one thing at a time.
+    if (b.dataset.view === 'audit' && !auditRows.length) {
+      fillAuditPickers();
+      loadAudit(false).then(fillAuditPickers);
+    }
+  }));
+
+$('auditApply').addEventListener('click', () => loadAudit(false).then(fillAuditPickers));
+$('auditMore').addEventListener('click', () => loadAudit(true).then(fillAuditPickers));
+$('auditCsv').addEventListener('click', auditCsv);
+$('auditWho').addEventListener('keydown', e => {
+  if (e.key === 'Enter') loadAudit(false).then(fillAuditPickers);
+});
 
 document.querySelectorAll('#view-companies th[data-sort]').forEach(th => {
   th.addEventListener('click', () => {
