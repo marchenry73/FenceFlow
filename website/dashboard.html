@@ -318,6 +318,10 @@
   .cal .ev.cont{opacity:.62;border-left:3px solid rgba(255,255,255,.75)}
   .cal .more{font-size:10.5px;color:var(--muted);cursor:pointer;padding:1px 2px}
   .cal-legend{display:flex;gap:14px;flex-wrap:wrap;margin-top:10px;font-size:12px;color:var(--muted)}
+  /* A week has a seventh of the cells a month does, so each one can be
+     tall enough to show every job on it. That is the whole reason to
+     have a week view: nothing hides behind "+1 more". */
+  .cal.week .day{min-height:190px}
   .cal-legend i{width:10px;height:10px;border-radius:3px;display:inline-block;margin-right:5px;vertical-align:-1px}
   /* Pipeline
      THE BOARD WRAPS INSTEAD OF RUNNING OFF THE RIGHT EDGE.
@@ -1442,6 +1446,10 @@
       <div class="cal-head">
           <h2 id="calTitle" style="margin:0"></h2>
           <div class="nav">
+            <!-- Month is the glance, week is where the work is planned.
+                 The choice is remembered, because somebody who plans by the
+                 week plans by the week every time. -->
+            <button class="btn btn-sm btn-grey" id="calViewToggle" data-t="calWeekBtn">Week</button>
             <button class="btn btn-sm btn-grey" id="calPrev" aria-label="Previous month" data-t-title="calPrevTitle" title="Previous month">‹</button>
             <button class="btn btn-sm btn-grey" id="calToday" data-t="calTodayBtn">Today</button>
             <button class="btn btn-sm btn-grey" id="calNext" aria-label="Next month" data-t-title="calNextTitle" title="Next month">›</button>
@@ -1842,10 +1850,15 @@
       <div class="panel" data-tview="entries">
         <h2 data-t="timeHead">Clock In / Out</h2>
         <div class="scroll"><table>
-          <thead><tr><th data-t="timeColWho">Who</th><th data-t="timeColJob">Job</th><th data-t="timeColStarted">Started</th><th data-t="timeColEnded">Ended</th><th data-t="timeColHours">Hours</th><th data-t="timeColLabor">Labor cost</th><th></th></tr></thead>
+          <thead><tr><th data-t="timeColWho">Who</th><th data-t="timeColJob">Job</th><th data-t="timeColStarted">Started</th><th data-t="timeColEnded">Ended</th><th data-t="timeColHours">Hours</th><th data-t="timeColLabor">Labor cost</th><th data-t="timeColState">Signed off</th><th></th></tr></thead>
           <tbody id="timeRows"></tbody></table></div>
         <div class="empty" id="timeEmpty" style="display:none" data-t="timeEmptyMsg">No time logged yet. Crews clock in from the phone app.</div>
         <div id="timeTotals" style="margin-top:12px;font-weight:600"></div>
+        <!-- APPROVE THE CLEAN ONES, in one press. Deputy calls it
+             "approve with no issues"; the point is that the fast path
+             never covers a shift something is wrong with. Anything
+             flagged above stays for a person to look at. -->
+        <div id="timeApproveBar" style="display:none;margin-top:10px"></div>
         <div class="msg" id="timeMsg"></div>
       </div>
 
@@ -4336,6 +4349,7 @@ jobViewAll:'All', jobViewToday:'Today', jobViewWeek:'This week', jobViewUnschedu
     mapPinsSing:'%s job on the map — colours are pipeline stages, tap a pin to open the job.',
     mapPinsPlur:'%s jobs on the map — colours are pipeline stages, tap a pin to open the job.',
     calTodayBtn:'Today', calPrevTitle:'Previous month', calNextTitle:'Next month',
+    calWeekBtn:'Week', calMonthBtn:'Month',
     calUnschedHead:'%s sold with no date yet',
     calUnschedBody:'These are not on the calendar because nobody has given them a day. Oldest first. Click one to open it and set a date.',
     askCancelBtn:'Cancel', askConfirmBtn:'Confirm',
@@ -4365,6 +4379,16 @@ jobViewAll:'All', jobViewToday:'Today', jobViewWeek:'This week', jobViewUnschedu
     timeEmptyMsg:'No time logged yet. Crews clock in from the phone app.',
     timeClockSaid:'clock said %s', timeBreakNote:'&minus; %sm unpaid break',
     timeCorrectBtn:'Correct', timeTotalsLine:'Total: %s hours · %s labor',
+    timeColState:'Signed off',
+    timeStateApproved:'Signed off', timeStateRejected:'Turned down', timeStateWaiting:'Waiting',
+    timeSignBtn:'Sign off', timeRejectBtn:'Turn down',
+    timeSignCleanBtn:'Sign off the %s with nothing flagged',
+    timeRejectAsk:'Why are these hours being turned down? The crew member reads this.',
+    timeSignWorking:'Saving\u2026', timeSignedOk:'Signed off.', timeRejectedOk:'Turned down.',
+    timeSignProgress:'Signing off %s of %s\u2026',
+    timeSignAllOk:'%s shifts signed off.',
+    timeSignPartial:'%s of %s signed off. The rest were refused:',
+    timeSignGone:'That shift is not there any more \u2014 reload and look again.',
     timeRangeThisWeek:'This week', timeRangeLastWeek:'Last week',
     timeRange30:'Last 30 days', timeRange90:'Last 90 days', timeRangeAll:'All time',
     timeFilterWho:'Who', timeFilterJob:'Job',
@@ -6157,6 +6181,7 @@ jobViewAll:'Todos', jobViewToday:'Hoy', jobViewWeek:'Esta semana', jobViewUnsche
     mapPinsSing:'%s trabajo en el mapa — los colores son las etapas del embudo, toque un punto para abrir el trabajo.',
     mapPinsPlur:'%s trabajos en el mapa — los colores son las etapas del embudo, toque un punto para abrir el trabajo.',
     calTodayBtn:'Hoy', calPrevTitle:'Mes anterior', calNextTitle:'Mes siguiente',
+    calWeekBtn:'Semana', calMonthBtn:'Mes',
     calUnschedHead:'%s vendidos sin fecha todavía',
     calUnschedBody:'No están en el calendario porque nadie les ha dado un día. Más antiguos primero. Haga clic en uno para abrirlo y poner la fecha.',
     askCancelBtn:'Cancelar', askConfirmBtn:'Confirmar',
@@ -6186,6 +6211,16 @@ jobViewAll:'Todos', jobViewToday:'Hoy', jobViewWeek:'Esta semana', jobViewUnsche
     timeEmptyMsg:'Todavía no hay horas registradas. Las cuadrillas marcan entrada desde el celular.',
     timeClockSaid:'el reloj marcó %s', timeBreakNote:'&minus; %s min de descanso sin pagar',
     timeCorrectBtn:'Corregir', timeTotalsLine:'Total: %s horas · %s de mano de obra',
+    timeColState:'Aprobado',
+    timeStateApproved:'Aprobado', timeStateRejected:'Rechazado', timeStateWaiting:'Esperando',
+    timeSignBtn:'Aprobar', timeRejectBtn:'Rechazar',
+    timeSignCleanBtn:'Aprobar los %s sin ning\u00fan aviso',
+    timeRejectAsk:'\u00bfPor qu\u00e9 se rechazan estas horas? El trabajador lo lee.',
+    timeSignWorking:'Guardando\u2026', timeSignedOk:'Aprobado.', timeRejectedOk:'Rechazado.',
+    timeSignProgress:'Aprobando %s de %s\u2026',
+    timeSignAllOk:'%s turnos aprobados.',
+    timeSignPartial:'%s de %s aprobados. Los dem\u00e1s fueron rechazados:',
+    timeSignGone:'Ese turno ya no est\u00e1 \u2014 recargue y mire de nuevo.',
     timeRangeThisWeek:'Esta semana', timeRangeLastWeek:'Semana pasada',
     timeRange30:'\u00daltimos 30 d\u00edas', timeRange90:'\u00daltimos 90 d\u00edas', timeRangeAll:'Todo el tiempo',
     timeFilterWho:'Qui\u00e9n', timeFilterJob:'Trabajo',
@@ -7948,6 +7983,7 @@ jobViewAll:'Tous', jobViewToday:'Aujourdhui', jobViewWeek:'Cette semaine', jobVi
     mapPinsSing:'%s chantier sur la carte — les couleurs sont les étapes du pipeline, touchez un point pour ouvrir le chantier.',
     mapPinsPlur:'%s chantiers sur la carte — les couleurs sont les étapes du pipeline, touchez un point pour ouvrir le chantier.',
     calTodayBtn:'Aujourd’hui', calPrevTitle:'Mois précédent', calNextTitle:'Mois suivant',
+    calWeekBtn:'Semaine', calMonthBtn:'Mois',
     calUnschedHead:'%s vendus sans date pour l’instant',
     calUnschedBody:'Ils ne sont pas au calendrier parce que personne ne leur a donné de jour. Les plus anciens d’abord. Cliquez pour ouvrir et fixer une date.',
     askCancelBtn:'Annuler', askConfirmBtn:'Confirmer',
@@ -7977,6 +8013,16 @@ jobViewAll:'Tous', jobViewToday:'Aujourdhui', jobViewWeek:'Cette semaine', jobVi
     timeEmptyMsg:'Aucune heure enregistrée pour l’instant. Les équipes pointent depuis le téléphone.',
     timeClockSaid:'l’horloge indiquait %s', timeBreakNote:'&minus; %s min de pause non payée',
     timeCorrectBtn:'Corriger', timeTotalsLine:'Total : %s heures · %s de main-d’œuvre',
+    timeColState:'Valid\u00e9',
+    timeStateApproved:'Valid\u00e9', timeStateRejected:'Refus\u00e9', timeStateWaiting:'En attente',
+    timeSignBtn:'Valider', timeRejectBtn:'Refuser',
+    timeSignCleanBtn:'Valider les %s sans signalement',
+    timeRejectAsk:'Pourquoi ces heures sont-elles refus\u00e9es ? L\u2019employ\u00e9 le lit.',
+    timeSignWorking:'Enregistrement\u2026', timeSignedOk:'Valid\u00e9.', timeRejectedOk:'Refus\u00e9.',
+    timeSignProgress:'Validation de %s sur %s\u2026',
+    timeSignAllOk:'%s quarts valid\u00e9s.',
+    timeSignPartial:'%s sur %s valid\u00e9s. Les autres ont \u00e9t\u00e9 refus\u00e9s :',
+    timeSignGone:'Ce quart n\u2019existe plus \u2014 rechargez et regardez de nouveau.',
     timeRangeThisWeek:'Cette semaine', timeRangeLastWeek:'Semaine derni\u00e8re',
     timeRange30:'30 derniers jours', timeRange90:'90 derniers jours', timeRangeAll:'Depuis toujours',
     timeFilterWho:'Qui', timeFilterJob:'Chantier',
@@ -14842,10 +14888,36 @@ function renderUnscheduled(){
     b.addEventListener('click', () => showJob(b.dataset.unsched)));
 }
 
+/* month | week. Kept in one place so the renderer, the arrows and the
+   toggle cannot disagree about which one is showing. */
+let calView = (() => {
+  try { return localStorage.getItem('ff-cal-view') === 'week' ? 'week' : 'month'; }
+  catch (e) { return 'month'; }
+})();
+
+/** The Sunday on or before a date, which is where both grids start. */
+function calWeekStart(from){
+  const w = new Date(from);
+  w.setHours(0, 0, 0, 0);
+  w.setDate(w.getDate() - w.getDay());
+  return w;
+}
+
 function renderCal(){
   renderUnscheduled();
+  const week = calView === 'week';
   const y=calMonth.getFullYear(), m=calMonth.getMonth();
-  $('calTitle').textContent=calMonth.toLocaleDateString('en-US',{month:'long',year:'numeric'});
+  // In week mode calMonth is the cursor INTO the week rather than the first
+  // of a month, so the month heading would name whichever month the cursor
+  // happened to land in. The range says what is actually on screen.
+  const weekFrom = calWeekStart(calMonth);
+  const weekTo = new Date(weekFrom); weekTo.setDate(weekTo.getDate() + 6);
+  $('calTitle').textContent = week
+    ? weekFrom.toLocaleDateString(undefined,{month:'short',day:'numeric'}) + ' \u2013 ' +
+      weekTo.toLocaleDateString(undefined,{month:'short',day:'numeric',year:'numeric'})
+    : calMonth.toLocaleDateString('en-US',{month:'long',year:'numeric'});
+  const toggle = $('calViewToggle');
+  if (toggle) toggle.textContent = tr(week ? 'calMonthBtn' : 'calWeekBtn');
   const today=new Date(); today.setHours(0,0,0,0);
   // Who is on each job, lead first then extra crew. This used to look the
   // lead up through assigned_employee_id, a column nothing writes, so no
@@ -14885,7 +14957,12 @@ function renderCal(){
   });
 
   // The month in one line.
-  const inMonth = dt => dt.getFullYear()===y && dt.getMonth()===m;
+  // "In view", not "in month": the three figures under the title have to
+  // describe the grid underneath them. A week showing 2 jobs above a line
+  // reading 11 scheduled is a line about something else.
+  const inMonth = dt => week
+    ? (dt >= weekFrom && dt <= new Date(weekTo.getTime() + 864e5 - 1))
+    : (dt.getFullYear()===y && dt.getMonth()===m);
   const booked = jobs.filter(j=>j.scheduled_date && inMonth(d(j.scheduled_date)));
   const monthHours = (typeof times !== 'undefined' ? times : [])
     .filter(t=>t.started_at && t.ended_at && inMonth(d(t.started_at)))
@@ -14902,17 +14979,22 @@ function renderCal(){
   // shown quietly rather than as holes — a schedule does not stop at midnight
   // on the 31st.
   const first=new Date(y,m,1);
-  const gridStart=new Date(first); gridStart.setDate(1-first.getDay());
+  const gridStart = week ? new Date(weekFrom) : (() => {
+    const g=new Date(first); g.setDate(1-first.getDay()); return g;
+  })();
+  const cells = week ? 7 : 42;
   let html=['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(x=>'<div class="dow">'+x+'</div>').join('');
   const cur=new Date(gridStart);
-  for(let cell=0;cell<42;cell++){
+  for(let cell=0;cell<cells;cell++){
     const k=key(cur);
     const evs=byDay.get(k)||[];
     const hrs=hrsByDay.get(k)||0;
-    const out=cur.getMonth()!==m;
+    // Nothing is "outside" a week: every cell drawn IS the week.
+    const out = week ? false : cur.getMonth()!==m;
     const wkend=cur.getDay()===0||cur.getDay()===6;
     const isToday=cur.getTime()===today.getTime();
-    const hidden=Math.max(0,evs.length-3);
+    // The week has the height to show them all, so nothing is folded away.
+    const hidden = week ? 0 : Math.max(0,evs.length-3);
     const pad2=n=>String(n).padStart(2,'0');
     const isoDate=cur.getFullYear()+'-'+pad2(cur.getMonth()+1)+'-'+pad2(cur.getDate());
     html+='<div class="day'+(isToday?' today':'')+(wkend?' wkend':'')+(out?' out':'')+'" data-date="'+isoDate+'">'
@@ -14929,7 +15011,7 @@ function renderCal(){
         // own, so only the chip on the actual start day can be picked up.
         return '<div class="ev'+(cont?' cont':'')+'" data-id="'+j.id+'"'
           +(cont?'':' draggable="true"')
-          +' style="background:'+(CAL_STAGE[stage]||'#8A93A3')+(i>=3?';display:none':'')+'"'
+          +' style="background:'+(CAL_STAGE[stage]||'#8A93A3')+((!week && i>=3)?';display:none':'')+'"'
           +' title="'+esc(j.customer_name||tr('jobUntitled'))+' — '+esc(stageLabel(stage))
           +(crew.length?' — '+esc(crew.map(e=>e.name||tr('jobCrewUnnamed')).join(', ')):'')+(cont?' (continues)':'')+'">'
           +(emp?'<span class="who">'+esc(initials(emp.name))+(crew.length>1?'+'+(crew.length-1):'')+'</span>':'')
@@ -14940,6 +15022,7 @@ function renderCal(){
     cur.setDate(cur.getDate()+1);
   }
   html+='';
+  $('cal').className = week ? 'cal week' : 'cal';
   $('cal').innerHTML=html;
 
   // The legend names only the stages this month actually shows — a legend for
@@ -15679,6 +15762,79 @@ function fillTimePickers(){
   }
 }
 
+/* ---------- signing off hours from the office -------------------------
+ * Every rule lives in approve_time_entry(). This sends the decision and
+ * reports exactly what came back -- including the refusals, which are
+ * written for the person reading them ('A shift cannot be signed off by
+ * the person being paid for it') and now reach the screen intact.
+ */
+async function decideShift(t, approve, note){
+  const { data, error } = await db.rpc('approve_time_entry', {
+    shift_sync_id: String(t.sync_id), approve, note: note || ''
+  });
+  if (error) return { ok: false, why: plainError(error.message || String(error)) };
+  const r = data || {};
+  if (r.outcome === 'not_found') return { ok: false, why: tr('timeSignGone') };
+  // Patched from what the server SAVED, not from what was asked for: the
+  // row on screen then matches the row in the database field for field.
+  t.approved_at = r.approved_at || null;
+  t.rejected_at = r.rejected_at || null;
+  t.approved_by = r.approved_by || '';
+  t.review_note = r.review_note || '';
+  return { ok: true };
+}
+
+/** Waiting, approved or turned down -- the same pair of columns the
+    reports read, so one screen cannot say approved while another says
+    rejected. */
+function shiftState(t){
+  if (t.rejected_at && !t.approved_at) return 'rejected';
+  if (t.approved_at) return 'approved';
+  return 'waiting';
+}
+
+async function onDecideShift(syncId, approve){
+  const t = times.find(x => String(x.sync_id) === String(syncId));
+  if (!t || !canCorrectTime()) return;
+  let note = '';
+  if (!approve) {
+    // The server refuses a rejection with no reason, and it is right to:
+    // the crew member reads it, and it is what settles a dispute.
+    note = window.prompt(tr('timeRejectAsk')) || '';
+    if (!note.trim()) return;
+  }
+  msg('timeMsg', tr('timeSignWorking'), 'working');
+  const r = await decideShift(t, approve, note);
+  msg('timeMsg', r.ok ? tr(approve ? 'timeSignedOk' : 'timeRejectedOk') : r.why, r.ok ? 'ok' : 'err');
+  renderTime();
+}
+
+/** The shifts the one-press path will take: ended, not yet decided, and
+    tripping none of the flags. A shift with something wrong with it is
+    never in here -- that is the whole safety property. */
+function cleanShiftsToSign(pool){
+  return pool.filter(t => t.ended_at && shiftState(t) === 'waiting'
+    && !TIME_FLAGS.some(f => f.key !== 'waiting' && f.test(t)));
+}
+
+async function signOffClean(pool){
+  const list = cleanShiftsToSign(pool);
+  if (!list.length || !canCorrectTime()) return;
+  let done = 0;
+  const refused = [];
+  for (const t of list) {
+    msg('timeMsg', tr('timeSignProgress', done + 1, list.length), 'working');
+    const r = await decideShift(t, true, '');
+    if (r.ok) done++; else refused.push(shiftWhoName(t) + ': ' + r.why);
+  }
+  // Every refusal named. A bulk action that reports a number and swallows
+  // the reasons is the one that gets trusted when it should not be.
+  msg('timeMsg', refused.length
+    ? tr('timeSignPartial', done, list.length) + ' ' + refused.join(' / ')
+    : tr('timeSignAllOk', done), refused.length ? 'err' : 'ok');
+  renderTime();
+}
+
 async function renderTime(){
   // loadAll() only bounds the first paint's slice of time_entries, so this
   // pulls in the rest before drawing -- the same way Reports does for its
@@ -15728,12 +15884,41 @@ async function renderTime(){
       <td>${h.toFixed(2)}${brk}</td><td>${isPerFootShift(t)
         ? `<span class="sub" title="${esc(tr('timePerFootCellTitle'))}">${esc(tr('timePerFootCell'))}</span>`
         : money(paidHoursOf(t)*(t.hourly_rate||0))}</td>
+      <td>${(() => {
+        const st = shiftState(t);
+        if (st === 'approved') return `<span class="pill ok">${esc(tr('timeStateApproved'))}</span>`
+          + (t.approved_by ? `<div class="sub">${esc(t.approved_by)}</div>` : '');
+        if (st === 'rejected') return `<span class="pill no">${esc(tr('timeStateRejected'))}</span>`
+          + (t.review_note ? `<div class="sub">${esc(t.review_note)}</div>` : '');
+        return `<span class="pill na">${esc(tr('timeStateWaiting'))}</span>`;
+      })()}</td>
       <td>${canCorrectTime()
         ? `<button class="btn btn-sm btn-grey fixtime" data-id="${t.id}">${esc(tr('timeCorrectBtn'))}</button>`
+          + (shiftState(t) === 'approved'
+              ? ''
+              : `<button class="btn btn-sm signshift" data-sid="${esc(String(t.sync_id))}" data-yes="1">${esc(tr('timeSignBtn'))}</button>`)
+          + (shiftState(t) === 'rejected'
+              ? ''
+              : `<button class="btn btn-sm btn-grey signshift" data-sid="${esc(String(t.sync_id))}" data-yes="">${esc(tr('timeRejectBtn'))}</button>`)
         : ''}</td></tr>`;
   }).join('');
   document.querySelectorAll('#timeRows .fixtime').forEach(b =>
     b.addEventListener('click', () => openFixTime(b.dataset.id)));
+  document.querySelectorAll('#timeRows .signshift').forEach(b =>
+    b.addEventListener('click', () => onDecideShift(b.dataset.sid, b.dataset.yes === '1')));
+
+  // The one-press path, counted from the shifts actually in view.
+  const bar = $('timeApproveBar');
+  if (bar) {
+    const clean = cleanShiftsToSign(shown);
+    if (!canCorrectTime() || !clean.length) { bar.style.display = 'none'; bar.innerHTML = ''; }
+    else {
+      bar.style.display = '';
+      bar.innerHTML = `<button type="button" class="btn btn-sm" id="timeSignClean">` +
+        esc(tr('timeSignCleanBtn', clean.length)) + '</button>';
+      $('timeSignClean').addEventListener('click', () => signOffClean(shown));
+    }
+  }
   const th=done.reduce((s,t)=>s+hoursOf(t),0);
   // Paid hours, not clock hours -- see the money column above.
   // Per-foot shifts cost nothing by the hour; their crew's pay is the
@@ -31467,14 +31652,39 @@ $('exportTime').addEventListener('click',()=>downloadCsv('time-detail.csv',
             d(t.started_at).toLocaleTimeString(), d(t.ended_at).toLocaleTimeString(),
             h.toFixed(2), (h*(t.hourly_rate||0)).toFixed(2)];
   })));
+/* The arrows step by whatever is on screen. Stepping a month while looking
+   at a week would jump four weeks and look like the buttons are broken. */
 const stepMonth = by => {
-  calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + by, 1);
+  if (calView === 'week') {
+    const next = new Date(calMonth);
+    next.setDate(next.getDate() + by * 7);
+    calMonth = next;
+  } else {
+    calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth() + by, 1);
+  }
   renderCal();
 };
+
+$('calViewToggle').addEventListener('click', () => {
+  calView = calView === 'week' ? 'month' : 'week';
+  try { localStorage.setItem('ff-cal-view', calView); } catch (e) {}
+  // Switching to the week lands on the week containing TODAY rather than
+  // on the first of whatever month was showing, which is a Sunday weeks
+  // ago and looks like the toggle went somewhere random.
+  if (calView === 'week') { const t = new Date(); t.setHours(0,0,0,0); calMonth = t; }
+  else { calMonth = new Date(calMonth.getFullYear(), calMonth.getMonth(), 1); }
+  renderCal();
+});
 $('calPrev').addEventListener('click',()=>stepMonth(-1));
 $('calNext').addEventListener('click',()=>stepMonth(1));
 $('calToday').addEventListener('click',()=>{
-  calMonth = (() => { const t = new Date(); t.setDate(1); t.setHours(0,0,0,0); return t; })();
+  calMonth = (() => {
+    const t = new Date(); t.setHours(0,0,0,0);
+    // The first of the month for the month grid; today itself for the week,
+    // since the week grid starts from wherever the cursor is.
+    if (calView !== 'week') t.setDate(1);
+    return t;
+  })();
   renderCal();
 });
 
