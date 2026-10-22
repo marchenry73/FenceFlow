@@ -90,7 +90,26 @@ const ok = (label, cond, detail = "") => {
 //
 // WORTH KNOWING FOR NEXT TIME: a66 transcribes the deposit half and compares
 // it against the office and the server, so new deposit checks belong there.
-const JOB_MONEY_FINGERPRINT = "ef59d93ea2a44a3c";
+// Moved 22 Oct 2026, ef59d93ea2a44a3c -> 1555485ff60ad345, for "the deposit
+// follows the price again" (depositIsAuto). The pin fired as designed and the
+// transcription below was re-read against JobMoney.kt function by function
+// before it was moved: netPaid, balance, stillOwed, isAccepted, acceptedAt,
+// extraWorkSinceAcceptance, anchoredTotal and billableTotal -- every function
+// THIS file transcribes -- are unchanged, character for character in meaning.
+//
+// That is not a claim about the hash. `git diff` over JobMoney.kt for that
+// commit reads 32 lines added, 0 removed, and not one of the eight names above
+// appears on an added line: the change is a single new function,
+// depositToStore(), which decides whether a STORED deposit may move with the
+// price. Nothing in this file reads it.
+//
+// WORTH KNOWING FOR NEXT TIME: depositToStore is the third member of the
+// deposit family (ruleDeposit -> depositSuggestion -> depositToSeed ->
+// depositToStore) and, like the rest of it, it belongs in a66, which
+// transcribes the deposit half and compares it against the office and the
+// server. If the office ever starts moving a stored deposit of its own, that
+// is where the two have to be held together.
+const JOB_MONEY_FINGERPRINT = "1555485ff60ad345";
 const jobMoneyNow = createHash("sha256")
   .update(readFileSync("app/src/main/java/com/fenceestimator/app/estimate/JobMoney.kt", "utf8").split(String.fromCharCode(13)).join(""))
   .digest("hex").slice(0, 16);

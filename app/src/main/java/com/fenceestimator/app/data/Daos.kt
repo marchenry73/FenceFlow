@@ -96,6 +96,16 @@ interface JobDao {
             "laborRatePerFt = 0.0, laborFlatFee = 0.0, minimumJobCharge = 0.0, minimumLaborCharge = 0.0, " +
             "teardownFlatFee = 0.0, teardownRatePerFt = 0.0, gateRatePerFt = 20.0, trashHaulFee = 0.0, " +
             "depositAmount = 0.0, amountPaid = 0.0, refundedAmount = 0.0, refundedAt = NULL, refundReason = '', " +
+            // depositIsAuto with it: it is not an amount, but it decides
+            // whether an amount moves on its own, and a demoted phone that
+            // kept it true would carry a job whose deposit still followed
+            // the price. Back to Job's own default, which is false --
+            // somebody chose this figure -- the cautious direction.
+            // (No double quotes in this comment: ScrubMoneyCoverageTest
+            //  rebuilds the query from every quoted run between @Query and
+            //  the function, so a quoted phrase here is spliced into the
+            //  SQL and glues itself to the next column name.)
+            "depositIsAuto = 0, " +
             "paymentStatus = 'UNPAID', isInvoiced = 0, paymentsFromProcessor = 0, " +
             // acceptedTotal joined MONEY_KEYS (accepted_total) with the price
             // stability change and was left off this list, so a phone demoted

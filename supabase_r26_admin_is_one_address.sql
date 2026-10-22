@@ -49,7 +49,20 @@ as $$
 $$;
 
 revoke all on function public.is_platform_admin() from public;
-revoke all on function public.is_platform_admin() from anon;
+-- THE LINE BELOW WAS A MISTAKE AND IS UNDONE BY
+-- supabase_r29_restore_anon_execute.sql. Left here, struck through in words
+-- rather than deleted, because the next person will reach for it too:
+--
+--     revoke all on function public.is_platform_admin() from anon;
+--
+-- Eleven ROW POLICIES on eight tables call this function, and a policy is
+-- evaluated as the CALLER. With no EXECUTE, a signed-out read of any of them
+-- stopped returning an empty list and started returning
+-- 401 "permission denied for function is_platform_admin" -- which names an
+-- internal function to a stranger and breaks the contract the security suite
+-- is written against. The function already answers false for anon, so the
+-- revoke hid nothing. Tighten what a function RETURNS, never who may call it.
+grant execute on function public.is_platform_admin() to anon;
 grant execute on function public.is_platform_admin() to authenticated;
 
 -- ------------------------------------------------------------------------
@@ -77,9 +90,13 @@ select 'the console still answers authenticated',
        case when has_function_privilege('authenticated', 'public.is_platform_admin()', 'execute')
             then 'PASS' else 'FAIL -- nobody can open the console at all' end
 union all
-select 'anon cannot call it',
+-- REVERSED on 22 Oct, the same day. anon MUST be able to call it, or the eight
+-- tables whose policies call it throw at a stranger instead of answering
+-- nothing. See the note above the grants, and
+-- supabase_r29_restore_anon_execute.sql.
+select 'anon can call it, so those policies return empty rather than error',
        case when has_function_privilege('anon', 'public.is_platform_admin()', 'execute')
-            then 'FAIL -- a signed-out visitor can ask' else 'PASS' end
+            then 'PASS' else 'FAIL -- eight tables will 401 a signed-out caller' end
 union all
 -- POSITIVE CONTROL. Before asking who is refused, prove somebody is admitted.
 -- Without this, every refusal below would also "pass" against an empty table.

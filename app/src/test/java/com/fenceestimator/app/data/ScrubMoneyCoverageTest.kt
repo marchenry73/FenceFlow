@@ -19,12 +19,25 @@ import java.io.File
  */
 class ScrubMoneyCoverageTest {
 
-    /** The SQL of JobDao.scrubMoney's @Query, string pieces joined. */
+    /**
+     * The SQL of JobDao.scrubMoney's @Query, string pieces joined.
+     *
+     * COMMENTS ARE STRIPPED FIRST, and that is not tidiness. This rebuilds the
+     * query from every quoted run between @Query( and the function, so a
+     * comment in that block containing a quoted phrase was spliced into the
+     * SQL -- and because the pieces are joined with no separator, it glued
+     * itself to the front of the next column name. On 22 Oct that turned
+     * `depositIsAuto = 0` into `...figuredepositIsAuto = 0`, the word boundary
+     * went, and this file reported a money column as unscrubbed when the
+     * scrub was right. An alarm that cries breach over a comment is worse than
+     * no alarm: the next real one gets argued with.
+     */
     private fun scrubQuery(source: String): String {
         val at = source.indexOf("suspend fun scrubMoney(): Int")
         assertTrue("JobDao.scrubMoney not found in Daos.kt -- if it moved, move this test with it", at > 0)
         val queryStart = source.lastIndexOf("@Query(", at)
         val body = source.substring(queryStart, at)
+            .lines().joinToString("\n") { it.substringBefore("//") }
         return Regex("\"([^\"]*)\"").findAll(body).joinToString("") { it.groupValues[1] }
     }
 
@@ -50,6 +63,24 @@ class ScrubMoneyCoverageTest {
             "JobDao.scrubMoney leaves money on a demoted phone: ${unscrubbed(query)}",
             unscrubbed(query).isEmpty()
         )
+    }
+
+    @Test
+    fun `CANARY a quoted phrase in a comment cannot fake a missing column`() {
+        // The exact shape that fired on 22 Oct: a comment between the string
+        // pieces, carrying a quoted phrase, directly above a column line.
+        val fake = """
+            @Query(
+                "UPDATE jobs SET " +
+                    // a comment saying "somebody chose this figure" about it
+                    "depositAmount = 0.0"
+            )
+            suspend fun scrubMoney(): Int
+        """.trimIndent()
+        val q = scrubQuery(fake)
+        assertFalse("the comment's words reached the SQL", q.contains("somebody"))
+        assertTrue("the column after the comment lost its word boundary: " + q,
+            Regex("\\bdepositAmount\\s*=").containsMatchIn(q))
     }
 
     @Test
