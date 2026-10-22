@@ -512,6 +512,22 @@
   #tab-reports .cat-head{display:none}
   #tab-reports .cat{margin-bottom:0}
   .reptabs{margin:2px 0 14px}
+  /* A 700px-wide dropdown holding the word "All" looks like a mistake, and
+     on the Time tab it was half the screen each for Who and Job. Seen by
+     rendering the page rather than by any test -- the structure was correct
+     and it still looked wrong. */
+  #tab-time .range select, #tab-catalog .range select{max-width:240px}
+  #tab-time .range > div, #tab-catalog .range > div{min-width:0}
+  /* ...and the buttons beside them wrap to the next line rather than being
+     squeezed: "Change prices by %" was folding onto three lines inside a
+     button two words wide. Also only visible by looking at it. */
+  #tab-catalog .range button{white-space:nowrap}
+  /* ...and the group they sit in wraps, so nowrap cannot push the row past
+     the window. The first attempt at this fix did exactly that: the buttons
+     stopped folding and the PAGE started scrolling sideways instead, with
+     the last one cut off at the edge. Caught by measuring the document
+     width in a browser, not by any test. */
+  #tab-catalog .range > div{flex-wrap:wrap}
   /* NOT sticky table headers, deliberately. The filter panel above is
      already position:sticky at top:0 with a higher z-index, so a header row
      stuck at top:0 in the same scrolling page would sit BEHIND it -- the
@@ -1928,9 +1944,36 @@
             <button class="btn btn-sm btn-ghost" type="button" id="catClear" data-t="catClearBtn">Clear</button>
             <button class="btn btn-sm btn-ghost" type="button" id="catExpandAll" data-t="catExpandBtn">Open all</button>
             <button class="btn btn-sm btn-ghost" type="button" id="catCsv" data-t="catCsvBtn">Download CSV</button>
+            <button class="btn btn-sm btn-ghost" type="button" id="catBulkOpen" data-t="catBulkBtn">Change prices by %</button>
           </div>
         </div>
         <div id="catCount" class="range-label" style="margin-bottom:8px"></div>
+
+        <!-- A PERCENTAGE CHANGE, ON WHAT IS ON SCREEN.
+             It acts on the filtered view and nothing else, so the way to
+             limit the damage is the same control that limits what you can
+             see. Apply stays disabled until a preview has been produced for
+             these exact settings. -->
+        <div id="catBulkBox" class="panel" style="display:none;margin:0 0 12px">
+          <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+            <div><label data-t="catBulkPct">Change by (%)</label>
+              <input type="number" id="catBulkPercent" step="0.1" style="max-width:120px"></div>
+            <div><label data-t="catBulkRound">Round to</label>
+              <select id="catBulkRound">
+                <option value="cent" data-t="catBulkRoundCent">The cent</option>
+                <option value="dollar" data-t="catBulkRoundDollar">The dollar</option>
+              </select></div>
+            <button class="btn btn-sm" type="button" id="catBulkPreview" data-t="catBulkPreviewBtn">Preview</button>
+            <button class="btn btn-sm" type="button" id="catBulkApply" disabled data-t="catBulkApplyBtn">Apply</button>
+            <button class="btn btn-sm btn-ghost" type="button" id="catBulkCancel" data-t="catBulkCancelBtn">Close</button>
+          </div>
+          <div class="msg" id="catBulkMsg"></div>
+          <div id="catBulkPreviewBox" style="margin-top:8px"></div>
+          <div id="catBulkDone" style="display:none;margin-top:10px">
+            <span id="catBulkDoneText"></span>
+            <button class="btn btn-sm btn-grey" type="button" id="catBulkUndo" data-t="catBulkUndoBtn">Undo</button>
+          </div>
+        </div>
         <div class="msg" id="catMsg"></div>
         <div class="empty" id="catEmpty" style="display:none">No materials yet. Add them by hand
           below, import a price list from Jobs, or press "Start from FenceFlow's catalog" above
@@ -4743,6 +4786,17 @@ jobViewAll:'All', jobViewToday:'Today', jobViewWeek:'This week', jobViewUnschedu
     catFilterType:'Fence type', catFilterRole:'Role', catFilterSupplier:'Supplier',
     catFilterStatus:'Status', catStatusActive:'In use', catStatusRetired:'Retired', catStatusBoth:'Both',
     catClearBtn:'Clear', catExpandBtn:'Open all', catCsvBtn:'Download CSV',
+    catBulkBtn:'Change prices by %', catBulkPct:'Change by (%)', catBulkRound:'Round to',
+    catBulkRoundCent:'The cent', catBulkRoundDollar:'The dollar',
+    catBulkPreviewBtn:'Preview', catBulkApplyBtn:'Apply', catBulkCancelBtn:'Close', catBulkUndoBtn:'Undo',
+    catBulkNeedPct:'Type a percentage first \u2014 8 to put prices up, -5 to bring them down.',
+    catBulkNothing:'Nothing in the current view has a price to change.',
+    catBulkPreviewLine:'%s items, changed by %s%.',
+    catBulkSkipped:'%s more are shown but have no price, so they are left alone.',
+    catBulkFrom:'Now', catBulkTo:'After',
+    catBulkStale:'The percentage changed since that preview. Press Preview again.',
+    catBulkDoneOk:'%s prices changed.', catBulkDonePartial:'%s of %s prices changed \u2014 the rest were refused.',
+    catBulkUndone:'Put back: %s prices.', catBulkUndonePartial:'Put back %s of %s \u2014 the others have changed since.',
     catCountLine:'Showing %s of %s items',
     catEmptyMsg:'No materials yet. Add them by hand below, import a price list from Jobs, or press "%s" above for a typical starting set you can then correct.',
     catColItem:'Item', catColRole:'Role', catColColour:'Colour', catColUnit:'Unit', catColPrice:'Price', catColCoversFt:'Covers ft',
@@ -6553,6 +6607,17 @@ jobViewAll:'Todos', jobViewToday:'Hoy', jobViewWeek:'Esta semana', jobViewUnsche
     catFilterType:'Tipo de cerca', catFilterRole:'Puesto', catFilterSupplier:'Proveedor',
     catFilterStatus:'Estado', catStatusActive:'En uso', catStatusRetired:'Retirados', catStatusBoth:'Ambos',
     catClearBtn:'Limpiar', catExpandBtn:'Abrir todo', catCsvBtn:'Descargar CSV',
+    catBulkBtn:'Cambiar precios por %', catBulkPct:'Cambiar en (%)', catBulkRound:'Redondear a',
+    catBulkRoundCent:'El centavo', catBulkRoundDollar:'El d\u00f3lar',
+    catBulkPreviewBtn:'Vista previa', catBulkApplyBtn:'Aplicar', catBulkCancelBtn:'Cerrar', catBulkUndoBtn:'Deshacer',
+    catBulkNeedPct:'Escriba un porcentaje primero \u2014 8 para subir, -5 para bajar.',
+    catBulkNothing:'Nada en la vista actual tiene un precio que cambiar.',
+    catBulkPreviewLine:'%s art\u00edculos, cambiados en %s%.',
+    catBulkSkipped:'%s m\u00e1s se muestran pero no tienen precio, as\u00ed que no se tocan.',
+    catBulkFrom:'Ahora', catBulkTo:'Despu\u00e9s',
+    catBulkStale:'El porcentaje cambi\u00f3 desde esa vista previa. Pulse Vista previa otra vez.',
+    catBulkDoneOk:'%s precios cambiados.', catBulkDonePartial:'%s de %s precios cambiados \u2014 el resto fue rechazado.',
+    catBulkUndone:'Restaurados: %s precios.', catBulkUndonePartial:'Restaurados %s de %s \u2014 los dem\u00e1s cambiaron desde entonces.',
     catCountLine:'Mostrando %s de %s artículos',
     catEmptyMsg:'Todavía no hay materiales. Agréguelos a mano abajo, importe una lista de precios desde Trabajos, o presione "%s" arriba para un conjunto inicial típico que luego puede corregir.',
     catColItem:'Artículo', catColRole:'Puesto', catColColour:'Color', catColUnit:'Unidad', catColPrice:'Precio', catColCoversFt:'Cubre pies',
@@ -8333,6 +8398,17 @@ jobViewAll:'Tous', jobViewToday:'Aujourdhui', jobViewWeek:'Cette semaine', jobVi
     catFilterType:'Type de clôture', catFilterRole:'Poste', catFilterSupplier:'Fournisseur',
     catFilterStatus:'État', catStatusActive:'En service', catStatusRetired:'Retirés', catStatusBoth:'Les deux',
     catClearBtn:'Effacer', catExpandBtn:'Tout ouvrir', catCsvBtn:'Télécharger CSV',
+    catBulkBtn:'Changer les prix de %', catBulkPct:'Changer de (%)', catBulkRound:'Arrondir \u00e0',
+    catBulkRoundCent:'Le cent', catBulkRoundDollar:'Le dollar',
+    catBulkPreviewBtn:'Aper\u00e7u', catBulkApplyBtn:'Appliquer', catBulkCancelBtn:'Fermer', catBulkUndoBtn:'Annuler',
+    catBulkNeedPct:'Entrez d\u2019abord un pourcentage \u2014 8 pour augmenter, -5 pour baisser.',
+    catBulkNothing:'Rien dans la vue actuelle n\u2019a de prix \u00e0 changer.',
+    catBulkPreviewLine:'%s articles, modifi\u00e9s de %s%.',
+    catBulkSkipped:'%s autres sont affich\u00e9s mais n\u2019ont pas de prix, ils ne sont pas touch\u00e9s.',
+    catBulkFrom:'Maintenant', catBulkTo:'Apr\u00e8s',
+    catBulkStale:'Le pourcentage a chang\u00e9 depuis cet aper\u00e7u. Appuyez de nouveau sur Aper\u00e7u.',
+    catBulkDoneOk:'%s prix modifi\u00e9s.', catBulkDonePartial:'%s sur %s prix modifi\u00e9s \u2014 le reste a \u00e9t\u00e9 refus\u00e9.',
+    catBulkUndone:'Remis : %s prix.', catBulkUndonePartial:'Remis %s sur %s \u2014 les autres ont chang\u00e9 depuis.',
     catCountLine:'Affichage de %s sur %s articles',
     catEmptyMsg:'Pas encore de matériaux. Ajoutez-les à la main ci-dessous, importez une liste de prix depuis Chantiers, ou appuyez sur « %s » ci-dessus pour un ensemble de départ typique que vous pourrez ensuite corriger.',
     catColItem:'Article', catColRole:'Poste', catColColour:'Couleur', catColUnit:'Unité', catColPrice:'Prix', catColCoversFt:'Couvre (pi)',
@@ -16747,6 +16823,28 @@ function wireCatFilters(){
     catalogGroupByType(catalog).forEach(g => { if (anyClosed) catCollapsed.delete(g.type); else catCollapsed.add(g.type); });
     renderCatalog();
   });
+  const bulkOpen = $('catBulkOpen');
+  if (bulkOpen) bulkOpen.addEventListener('click', () => {
+    const box = $('catBulkBox');
+    if (!box) return;
+    const showing = box.style.display === 'none';
+    box.style.display = showing ? '' : 'none';
+    if (showing) { catBulkPlan = null; $('catBulkApply').disabled = true; $('catBulkPreviewBox').innerHTML = ''; msg('catBulkMsg', '', 'ok'); }
+  });
+  const bulkCancel = $('catBulkCancel');
+  if (bulkCancel) bulkCancel.addEventListener('click', () => { $('catBulkBox').style.display = 'none'; });
+  const bulkPrev = $('catBulkPreview');
+  if (bulkPrev) bulkPrev.addEventListener('click', catBulkBuildPlan);
+  const bulkApply = $('catBulkApply');
+  if (bulkApply) bulkApply.addEventListener('click', catBulkApply);
+  const bulkUndo = $('catBulkUndo');
+  if (bulkUndo) bulkUndo.addEventListener('click', catBulkUndo);
+  // Changing either control after a preview invalidates it, rather than
+  // leaving Apply armed with numbers nobody has seen.
+  ['catBulkPercent', 'catBulkRound'].forEach(id => {
+    const el = $(id);
+    if (el) el.addEventListener('input', () => { catBulkPlan = null; $('catBulkApply').disabled = true; });
+  });
   const csv = $('catCsv');
   if (csv) csv.addEventListener('click', () => {
     // The CURRENT view, the way Square exports items matching the filters --
@@ -16759,6 +16857,109 @@ function wireCatFilters(){
         manufacturerName(c.manufacturer_sync_id) || '', c.unit, c.unit_price,
         c.covers_ft ?? '', c.height_ft ?? '', c.is_active === false ? 'no' : 'yes']));
   });
+}
+
+/* ---------- a percentage change across the filtered view ---------------
+ * Reuses ppWriteRows, the price-list importer's write pipeline: every row
+ * is read back after the update and a write that changed nothing is a
+ * refusal, not a success. The undo is guarded by the updated_at each
+ * write returned, so a row a phone has touched since is left alone and
+ * counted rather than silently overwritten.
+ */
+let catBulkPlan = null;   // {pct, round, rows:[{item, from, to}]}
+let catBulkLast = null;   // {jobs, undone, text}
+
+/** The exact set the screen is showing. Same expression the CSV uses, on
+    purpose: what you export, what you see and what you change are one. */
+function catBulkTargets(){
+  return catStructuralFilter(catalogFilterItems(catalog, $('catFilter')?.value || '', manufacturerName));
+}
+
+function catBulkNewPrice(old, pct, round){
+  const raw = Number(old) * (1 + pct / 100);
+  return round === 'dollar' ? Math.round(raw) : Math.round(raw * 100) / 100;
+}
+
+function catBulkBuildPlan(){
+  const pct = Number($('catBulkPercent').value);
+  const round = $('catBulkRound').value;
+  catBulkPlan = null;
+  $('catBulkApply').disabled = true;
+  $('catBulkPreviewBox').innerHTML = '';
+  if (!isFinite(pct) || pct === 0) { msg('catBulkMsg', tr('catBulkNeedPct'), 'err'); return; }
+  // An item with no price is SKIPPED, never multiplied up from zero: a
+  // blank price means nobody has priced it, and 0 x 1.08 is still 0 but
+  // now looks deliberate.
+  const rows = catBulkTargets()
+    .filter(c => Number(c.unit_price) > 0)
+    .map(c => ({ item: c, from: Number(c.unit_price), to: catBulkNewPrice(c.unit_price, pct, round) }))
+    .filter(r => r.to !== r.from && r.to > 0);
+  if (!rows.length) { msg('catBulkMsg', tr('catBulkNothing'), 'err'); return; }
+  catBulkPlan = { pct, round, rows };
+  const skipped = catBulkTargets().length - rows.length;
+  const head = `<p class="sub" style="margin:0 0 6px">${esc(tr('catBulkPreviewLine', rows.length, pct))}` +
+    (skipped ? ' ' + esc(tr('catBulkSkipped', skipped)) : '') + '</p>';
+  // Every row, not a sample. A preview that shows the first ten of a
+  // hundred is a preview of the wrong thing.
+  const body = rows.map(r =>
+    `<tr><td>${esc(r.item.name)}</td><td>${esc(catFenceTypeLabel(r.item.fence_type))}</td>` +
+    `<td style="text-align:right">${money(r.from)}</td>` +
+    `<td style="text-align:right">${money(r.to)}</td></tr>`).join('');
+  $('catBulkPreviewBox').innerHTML = head +
+    `<div class="scroll" style="max-height:320px"><table><thead><tr>` +
+    `<th>${esc(tr('catColItem'))}</th><th>${esc(tr('catFilterType'))}</th>` +
+    `<th style="text-align:right">${esc(tr('catBulkFrom'))}</th>` +
+    `<th style="text-align:right">${esc(tr('catBulkTo'))}</th></tr></thead><tbody>` +
+    body + '</tbody></table></div>';
+  $('catBulkApply').disabled = false;
+  msg('catBulkMsg', '', 'ok');
+}
+
+async function catBulkApply(){
+  if (!canEdit() || !catBulkPlan) return;
+  // The settings must still be the ones that were previewed. Changing the
+  // percentage after previewing and then pressing Apply is exactly the
+  // accident this whole feature is built around.
+  if (Number($('catBulkPercent').value) !== catBulkPlan.pct || $('catBulkRound').value !== catBulkPlan.round) {
+    $('catBulkApply').disabled = true;
+    return msg('catBulkMsg', tr('catBulkStale'), 'err');
+  }
+  const jobs = catBulkPlan.rows.map(r => ({
+    item: r.item,
+    patch: { unit_price: r.to },
+    before: { unit_price: r.from },
+    snap: { unit_price: r.from, manufacturer_sync_id: r.item.manufacturer_sync_id || null }
+  }));
+  $('catBulkApply').disabled = true;
+  const res = await ppWriteRows(jobs, (dn, n) => msg('catBulkMsg', ppTr('ppApplying', dn, n), 'working'));
+  const saved = res.ok.length, total = jobs.length;
+  const text = saved === total ? tr('catBulkDoneOk', saved) : tr('catBulkDonePartial', saved, total);
+  msg('catBulkMsg', text, saved === total ? 'ok' : 'err');
+  if (!saved) return;
+  catBulkLast = { jobs: res.ok, undone: false, text };
+  catBulkPlan = null;
+  $('catBulkPreviewBox').innerHTML = '';
+  $('catBulkDone').style.display = '';
+  $('catBulkDoneText').textContent = text + ' ';
+  $('catBulkUndo').style.display = '';
+  $('catBulkUndo').disabled = false;
+  await refreshCatalog();
+}
+
+async function catBulkUndo(){
+  if (!canEdit() || !catBulkLast || catBulkLast.undone) return;
+  $('catBulkUndo').disabled = true;
+  const jobs = catBulkLast.jobs.map(w => ({
+    item: w.item, patch: w.before, guard: { updated_at: w.after.updated_at }
+  }));
+  const res = await ppWriteRows(jobs, (dn, n) => msg('catBulkMsg', ppTr('ppApplying', dn, n), 'working'));
+  const back = res.ok.length, total = jobs.length;
+  catBulkLast.undone = true;
+  const text = back === total ? tr('catBulkUndone', back) : tr('catBulkUndonePartial', back, total);
+  msg('catBulkMsg', text, back === total ? 'ok' : 'err');
+  $('catBulkDoneText').textContent = text + ' ';
+  $('catBulkUndo').style.display = 'none';
+  await refreshCatalog();
 }
 
 function renderCatalogSections(containerId, filterValue){
