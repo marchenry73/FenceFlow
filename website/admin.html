@@ -108,6 +108,32 @@
 
   .scroll{overflow-x:auto}
   table{width:100%;border-collapse:collapse;font-size:13.5px}
+  /* THE SECOND LINE IN A CELL. Seven columns instead of twelve, with the
+     facts that belong together stacked rather than spread across the screen:
+     the price under the plan, the build under the last-seen date, the
+     setup track under the company's name. Smaller and quieter, so the first
+     line of each cell is still what the eye reads down the column. */
+  .sub-line{margin-top:3px;font-size:11.5px;color:var(--muted);line-height:1.35}
+  .sub-line .pill{font-size:10.5px}
+  /* Figures people compare down a column read right-aligned and in a tabular
+     face, so the digits line up. */
+  td.num,th.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  /* The company cell is the one that should take the slack; the rest stay as
+     narrow as their content. */
+  table td:first-child{width:34%;min-width:220px}
+  /* A NARROW WINDOW STILL MUST NOT SCROLL SIDEWAYS. Measured, not
+     assumed: seven columns fit a 1280 window with room to spare, and
+     at 1024 they did not until the padding came in, the first column
+     gave up its floor and the two action buttons were allowed to sit
+     one above the other. Reaching the button that manages a company
+     is the whole job of this page; it must never be behind a scroll. */
+  @media (max-width:1200px){
+    table{font-size:12.5px}
+    table th,table td{padding-left:6px;padding-right:6px}
+    table td:first-child{min-width:150px}
+    table td:last-child{white-space:normal !important}
+    table td:last-child button{margin:1px 0}
+  }
   /* Deliberately NOT a blanket white-space:nowrap on every cell the way this
      table used to be styled. That rule is what made the crash list overlap:
      a long, unbroken crash message could not wrap, so the browser either
@@ -377,14 +403,10 @@
               <th data-sort="name" data-t="colCompany">Company</th>
               <th data-sort="subscription_status" data-t="colStatus">Status</th>
               <th data-sort="health" data-t="colHealth">Using it</th>
-              <th data-t="colOnboarding">Onboarding</th>
               <th data-sort="subscription_plan" data-t="colPlan">Plan</th>
-              <th data-sort="monthly_price" data-t="colPriceMo">$/mo</th>
-              <th data-sort="people" data-t="colSeats">Seats</th>
-              <th data-sort="jobs" data-t="colJobs">Jobs</th>
+              <th class="num" data-sort="people" data-t="colSeats">People</th>
+              <th class="num" data-sort="jobs" data-t="colJobs">Jobs</th>
               <th data-sort="last_seen" data-t="colLastSeen">Last seen</th>
-              <th data-t="colVersion">Version</th>
-              <th data-t="colRenewsEnds">Renews / ends</th>
               <th></th>
             </tr></thead>
             <tbody id="rows"></tbody>
@@ -860,7 +882,7 @@ const TL = {
     companiesHead:'Client companies', addCompanyBtn:'Add a company',
     refreshBtn:'Refresh', exportCsvBtn:'Export CSV',
     colCompany:'Company', colStatus:'Status', colOnboarding:'Onboarding', colPlan:'Plan',
-    colPriceMo:'$/mo', colSeats:'Seats', colJobs:'Jobs', colLastSeen:'Last seen',
+    colPriceMo:'$/mo', colSeats:'People', colJobs:'Jobs', colLastSeen:'Last seen',
     colHealth:'Using it',
     healthActive:'Active', healthQuiet:'Quiet', healthDormant:'Dormant',
     healthDetail:'%s seen \u00b7 %s jobs \u00b7 %s quotes',
@@ -1119,7 +1141,7 @@ const TL = {
     companiesHead:'Empresas clientes', addCompanyBtn:'Agregar una empresa',
     refreshBtn:'Actualizar', exportCsvBtn:'Exportar CSV',
     colCompany:'Empresa', colStatus:'Estado', colOnboarding:'Incorporación', colPlan:'Plan',
-    colPriceMo:'$/mes', colSeats:'Cupos', colJobs:'Trabajos', colLastSeen:'Última vez visto',
+    colPriceMo:'$/mes', colSeats:'Personas', colJobs:'Trabajos', colLastSeen:'Última vez visto',
     colHealth:'En uso',
     healthActive:'Activa', healthQuiet:'Tranquila', healthDormant:'Inactiva',
     healthDetail:'%s vistos \u00b7 %s trabajos \u00b7 %s presupuestos',
@@ -1378,7 +1400,7 @@ const TL = {
     companiesHead:'Entreprises clientes', addCompanyBtn:'Ajouter une entreprise',
     refreshBtn:'Actualiser', exportCsvBtn:'Exporter en CSV',
     colCompany:'Entreprise', colStatus:'Statut', colOnboarding:'Intégration', colPlan:'Forfait',
-    colPriceMo:'$/mois', colSeats:'Postes', colJobs:'Chantiers', colLastSeen:'Vu pour la dernière fois',
+    colPriceMo:'$/mois', colSeats:'Personnes', colJobs:'Chantiers', colLastSeen:'Vu pour la dernière fois',
     colHealth:'Utilisation',
     healthActive:'Active', healthQuiet:'Calme', healthDormant:'Dormante',
     healthDetail:'%s vus \u00b7 %s chantiers \u00b7 %s devis',
@@ -2782,20 +2804,19 @@ function renderCompaniesTable() {
                        font-size:11px;font-weight:700;letter-spacing:.4px;
                        background:#4c1d24;color:#ffb3c4;border:1px solid #ffb3c4">YOUR COMPANY</span>` : ''}
           ${identityLines(c)}${isMine(c) ? `
-          <br><span style="color:#ffb3c4;font-size:12px">This is the company your own login is in.</span>` : ''}</td>
+          <br><span style="color:#ffb3c4;font-size:12px">This is the company your own login is in.</span>` : ''}
+          <div class="sub-line">${onboardingTrack(c)}</div></td>
       <td>${statusPill(c)}</td>
       <td>${healthCell(c)}</td>
-      <td>${onboardingTrack(c)}</td>
-      <td>${esc(c.subscription_plan || '—')}</td>
-      <td class="nowrap">${money(c.monthly_price)}</td>
-      <td class="nowrap">${seatsLabel(c)}</td>
-      <td class="nowrap">${c.jobs}</td>
-      <td class="nowrap">${day(c.last_seen)}</td>
-      <td>${versionCell(c)}</td>
-      <td class="nowrap">${c.days_left != null ? tr('daysCount', c.days_left)
-             : c.subscription_ends_at ? day(c.subscription_ends_at)
-             : c.trial_ends_at ? `<span style="color:var(--muted)">${esc(tr('trialEndedOn', day(c.trial_ends_at)))}</span>`
-             : '—'}</td>
+      <td>${esc(c.subscription_plan || '—')}
+          <div class="sub-line">${money(c.monthly_price)}${
+            c.days_left != null ? ' · ' + esc(tr('daysCount', c.days_left))
+            : c.subscription_ends_at ? ' · ' + esc(day(c.subscription_ends_at))
+            : c.trial_ends_at ? ' · ' + esc(tr('trialEndedOn', day(c.trial_ends_at)))
+            : ''}</div></td>
+      <td class="num">${seatsLabel(c)}</td>
+      <td class="num">${c.jobs}</td>
+      <td class="nowrap">${day(c.last_seen)}<div class="sub-line">${versionCell(c)}</div></td>
       <td style="white-space:nowrap">
         ${accessButton(c)}
         ${c.joined_at ? '' :
