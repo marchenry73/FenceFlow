@@ -107,10 +107,15 @@ comment on column public.fence_runs.end_joint is
 -- no role and no flag (docs/JOINING_RUNS.md section 6). Joining does not depend on this column.
 -- Confirm with the owner, and if the item is not wanted DELETE THIS PART and the last two proof
 -- rows before applying anything.
-alter table public.fence_runs add column if not exists is_transition boolean not null default false;
+-- is_transition: NOT CREATED ANY MORE. The transition item was decided
+-- against on 23 Oct 2026 -- a 6 ft fence stepping down to 4 ft is priced as
+-- 6 ft, the raked bay being a standard 6 ft panel cut on site, with no item,
+-- no role and no engine rule (docs/JOINING_RUNS.md section 6, in his words).
+-- The column was already applied on the live database before that: it is left
+-- there, unread, with 0 of 70 runs carrying it, because dropping a column is
+-- irreversible and this one costs nothing. A fresh setup simply does not get
+-- it.
 
-comment on column public.fence_runs.is_transition is
-  'True for the stepped or raked bay between two heights: its panel line is the TRANSITION_PANEL catalog item. Honoured for VINYL, ALUMINUM and ORNAMENTAL_IRON only.';
 
 -- ---------- proof. Every row must read true. ------------------------------
 -- Read-only: each is a plain SELECT, no write, no temp table.
@@ -150,7 +155,10 @@ select 'KNOWN GAP (docs/JOINING_RUNS.md 7.2): the re-approval fingerprint does n
 union all
 -- PART 2 only. Catalog-only, so it reads false (not an error) when PART 2 was left out, which
 -- is the right answer if the item is not being built.
-select 'PART 2 (only if applied): is_transition is boolean NOT NULL default false',
+-- DECIDED AGAINST 23 Oct 2026, so FALSE is now the expected answer here on a
+-- fresh database, and TRUE only means the column was applied before the
+-- decision and left in place. Either way nothing reads it.
+select 'PART 2 (decided against; true only on a database that got it early): is_transition exists',
        (select count(*) = 1
           from information_schema.columns
          where table_schema = 'public' and table_name = 'fence_runs'

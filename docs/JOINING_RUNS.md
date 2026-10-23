@@ -383,9 +383,11 @@ Three answers are possible. Which the engine can express today is the last colum
 |---|---|---|---|
 | **A** | **one ordinary bay of the taller fence**: a standard 6 ft panel, cut on site to rake. Priced as 6 ft | **Yes, the day joining lands** (P10: 11 posts, 10 ordinary panels) | joining and nothing else |
 | B | a one-bay run at an in-between height (a "5 ft" bay) | It parses, and **changes no price**: panel height is never read | nothing useful. Rejected, below |
-| C | a one-bay run **carrying a transition item**: a priced rake or step product | **No.** No column, no role, no catalog row | `is_transition`, `TRANSITION_PANEL`, a catalog row and an engine rule (section 6) |
+| C | a one-bay run **carrying a transition item**: a priced rake or step product | **No.** No column, no role, no catalog row | ~~`is_transition`, `TRANSITION_PANEL`, a catalog row and an engine rule~~ **DECIDED AGAINST, 23 Oct 2026 -- see section 6** |
 
-**Which is wanted is contested, and this document cannot settle it.** The request this track was
+**SETTLED 23 October 2026: answer A.** (It was contested until then; section 6 carries his words.)
+
+~~Which is wanted is contested, and this document cannot settle it.~~ The request this track was
 given said to add a transition item, which is C. Two other pieces of work written the same day record
 that the owner decided the opposite: a 6 ft fence that steps down to 4 ft is priced as 6 ft, the raked
 bay being a standard 6 ft panel cut on site, with no item, no role and no engine rule, which is A (the
@@ -431,75 +433,35 @@ end**: the 6 ft run, the middle bay, the 4 ft run. 30 + 6 + 24 ft is 10 bays and
 
 ---
 
-## 6. The transition item (answer C in 4.2)
+## 6. The transition item: DECIDED AGAINST, 23 October 2026
 
-> **CONTESTED. Do not build this until the owner has been asked.** The request this track was given
-> said to add a transition item. `tests/a32-panel-choice-ignores-height.test.mjs` and
-> `docs/PANEL_HEIGHT_BLINDNESS.md`, written the same day, record an owner decision that no item is
-> needed (answer A in 4.2: priced as 6 ft). If that stands, **delete this section**, PART 2 of
-> `supabase_a32_join_runs.sql`, `tests/a32-join-transition.test.mjs`, and the "(C only)" rows of 7.1.
-> Joining does not depend on any of it.
+The owner settled 4.2 in his own words:
 
-### 6.1 Role and flag
+> "The transition 6 to 4, the panel for the transition is the same price as the 6ft panel
+> (It is a 6ft panel, I cut it to go down to 4 ft). The shared posts is 6ft and when it goes
+> down to 4 ft, it becomes 4ft, charge appropriately."
 
-* New `MaterialRole.TRANSITION_PANEL`. Places that list roles: `Entities.kt` 30-41 (enum),
-  `types.ts` 27-38, `EnumLabels.kt`, the role lists in `website/dashboard.html`,
-  `supabase_r20_seed_new_company_catalog.sql`. A role the phone does not know falls back to `NONE`
-  on pull, so shipping the catalog row ahead of the phone is harmless.
-* New run flag `is_transition` (1.3, PART 2 of the `.sql`).
-* **Rule.** For `VINYL`, `ALUMINUM` and `ORNAMENTAL_IRON` runs with `is_transition`, the `PANEL`
-  entry's role becomes `TRANSITION_PANEL` (same quantity = bays, same preferred width, same
-  quantity reconciliation against the chosen item). Posts, concrete, caps and labour are exactly
-  the run's own. Other fence types **ignore** the flag (T4): wood, composite and split rail are
-  pickets and rails cut to follow a slope, and chain link is fabric. They have no transition panel
-  to sell. A run is not limited to one bay by the engine; the drawing screen should warn when a
-  transition run is longer than one panel width.
-* **No silent substitute.** With no `TRANSITION_PANEL` row in the catalog the run reports it in
-  `unmatched_roles` and carries **no** `PANEL` line (T3). Pricing a rake as a flat panel
-  undercharges and says nothing, which is the failure this repo keeps finding.
+That is **answer A**: one ordinary bay of the taller fence, a standard 6 ft panel cut on site
+to rake, priced as 6 ft. No item, no role, no catalog row, no engine rule. It agrees with what
+`tests/a32-panel-choice-ignores-height.test.mjs` and `docs/PANEL_HEIGHT_BLINDNESS.md` already
+recorded, which is what made this a contest rather than a gap.
 
-### 6.2 Catalog rows
+The specification that stood here -- `TRANSITION_PANEL`, `is_transition`, the catalog row and
+the engine rule -- is removed along with `tests/a32-join-transition.test.mjs`, exactly as that
+file's own header instructed for this answer. Joining depends on none of it, and
+`a32-join-posts.test.mjs` case P10 already pins the 6-to-4 fence priced as ordinary bays.
 
-One per fence type and colour already in the starting list, for the three panel types: for
-example "Transition panel 6'H to 4'H x 6'W - White", `role TRANSITION_PANEL`, `covers_ft` 6.
-**Ship the price as 0.00, flagged**, until a supplier says what they stock (rake, step, or a
-cut-down panel; `FIELD_FEEDBACK_2026-10-01.md` C6 already says to ask on the call about the 4 ft
-prices). A matched item at 0.00 is reported in `zero_priced_names` and the estimate shows it needs a
-price; an invented number would be a fake feature. Whether the starting rows belong in `SeedData.kt`,
-`supabase_r20_seed_new_company_catalog.sql` or both is the catalog work's call
-(`FIELD_FEEDBACK_2026-10-01.md` B2), and must be the same rows.
+**The second half of his answer is about POSTS, and it is already what ships.** The shared post
+at the step is the 6 ft one -- a 6 ft panel cannot hang on a 4 ft post, so the post that gets
+bought is the tall one, which is why the owner of a shared post is the TALLER run
+(`outranks` in FenceGeometry.kt and in `_shared/pricing/joins.ts`, corrected 22 Oct). Past the
+step the 4 ft run's own posts are chosen from its own height, by the same narrowing rule. So
+"charge appropriately" is the behaviour already in both engines; nothing changes for it.
 
-### 6.3 Height is not a selection key (owned elsewhere; why it matters here)
-
-This defect is measured, with a reference fix and its cost, by **`docs/PANEL_HEIGHT_BLINDNESS.md`**
-and `tests/a34-height-blindness.test.mjs`, and tripwired by
-`tests/a32-panel-choice-ignores-height.test.mjs`. I found it independently while reading
-`buildLineItems` (`line-items.ts` 136-156), and those documents are the fuller account. In short: a
-panel was chosen by nearest width, then cheapest, then sync id, and `panel_height_ft` was read by no
-pricing code, so a 6 ft ornamental iron run was priced with the cheaper 4'H panel (the shipped
-`template-08-ornamental-iron-6ft.json` fixture expected it).
-
-> **FIXED, and the fix changes this section. Corrected 1 Oct 2026.** Height is now a selection key
-> for the two panel roles **and for every post role**, narrowing within a width (`line-items.ts`,
-> the `entry.role === "PANEL" || ... || "BLANK_POST"` block; `MaterialItem.heightFt`;
-> `supabase_a40_material_height.sql`, `supabase_a50_post_heights.sql`, Room schema 49,
-> `tests/a51-post-height-choice.test.mjs`). So the bullets below that say height cannot be
-> selected on, or that the 4 ft rows are blocked, are **stale**: they are kept because they are
-> what the reasoning rested on, not because they are still the state. The live consequence for
-> this track is in 11.2.
-
-What it meant for this track:
-
-* **Answer C could not select a transition by height.** A second height pair (8 to 6, 6 to 3) is
-  indistinguishable from the first, so version 1 of C supports **one transition per fence type and
-  colour**, and says so.
-* **The 4 ft rows are blocked on it** (their analysis, and mine): the day a 4'H x 6'W white vinyl
-  panel exists, every 6 ft white vinyl run is priced with it.
-* **Answer A is unaffected.** It adds no catalog row.
-* Read live and aggregate: no ornamental run exists in the live data (17 live runs), so nothing real
-  has been mispriced yet. One company's catalog already holds the pair.
-
----
+**`fence_runs.is_transition` still exists in the database.** It was applied, nothing reads it,
+and 0 of 70 runs carry it. It is left in place rather than dropped: a column drop is
+irreversible and this one costs nothing. Said here so it is a known dead column rather than a
+puzzle for whoever reads the schema next.
 
 ## 7. What the implementation has to touch
 

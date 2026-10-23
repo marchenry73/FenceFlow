@@ -96,23 +96,24 @@ The two buttons on the phone that texted or emailed the link are **gone**.
 
 ---
 
-## 6. Two things only you can decide
+## 6. Both decisions are now made (23 Oct, answered)
 
-1. **Who pays for a shared post.** On 2 Oct you said the **shorter** run owns
-   it ("the fence steps down onto the short post"). On 22 Oct both engines were
-   changed to the **taller** run, because a 6 ft panel cannot hang on a 4 ft
-   post, so the post that gets bought is the tall one. It is not free either
-   way: the post is billed from the owner run's catalog **at its own height**,
-   so shorter-owns buys a 4 ft post for a hole that needs a 6 ft one. Both
-   engines now do taller-wins. Tell me if that is wrong.
+1. **Who pays for the shared post — CONFIRMED.** "The shared posts is 6ft and
+   when it goes down to 4 ft, it becomes 4ft, charge appropriately." That is
+   taller-wins, which is what both engines already do, so nothing changed. The
+   note in the code that was waiting on you is closed.
 
-2. **The 6 ft → 4 ft transition item.** One request asked for a transition
-   item; another says you decided a step-down is simply priced as 6 ft, the
-   raked bay being a standard panel cut on site. `a32-join-transition` is red
-   on purpose until you say which is current. Nothing will be built to it
-   before you do.
+2. **The 6 ft to 4 ft transition item — DECIDED AGAINST.** "It is a 6ft panel,
+   I cut it to go down to 4 ft." So the raked bay is an ordinary 6 ft panel at
+   the 6 ft price. The spec for a priced transition item is removed: its test
+   file, section 6 of the joining document, and the column the migration used
+   to create. The joining test's own case P10 already proves a 6-to-4 fence
+   prices as **10 ordinary panels and zero transition panels**, which is your
+   rule.
 
----
+   The `is_transition` column still exists on the live database — nothing reads
+   it and no run carries it. I left it rather than dropping it: a column drop
+   is irreversible and that one costs nothing.
 
 ## 7. Two things that are not finished
 

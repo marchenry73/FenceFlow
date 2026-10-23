@@ -1216,19 +1216,28 @@ const perRunJson = (adj) => JSON.stringify(Object.keys(adj.perRun).sort().map((k
     if (perRunJson(rf.adj) === perRunJson(r.adj) && rf.fence.total === r.fence.total && rf.fence.corner === r.fence.corner) reverseOk++; else bad.reverse.push(`chain ${n}: drawing direction changed the answer`);
     // A random height decides the owner: the TALLEST member of every joint.
     //
-    // A DECISION THAT REVERSED ONE OF HIS, and it should be put to him rather
-    // than left in a comment. This read "the SHORTEST member, because the
-    // fence steps down onto the short post (March, 2 Oct 2026)" -- his own
-    // instruction. On 22 Oct both engines were changed to the opposite, on the
-    // grounds that a post has to be tall enough for the TALLEST panel on it:
-    // a 6 ft panel cannot hang on a 4 ft post, so the post that is bought and
-    // set is the tall one (JOINING_RUNS 2.4, and FenceGeometry's own @param
-    // heightFt, which had said so all along).
+    // CONFIRMED BY HIM, 23 October 2026, in these words:
+    //
+    //   "The shared posts is 6ft and when it goes down to 4 ft, it becomes
+    //    4ft, charge appropriately."
+    //
+    // So: the shared post at a step is the TALL one, and the short run's own
+    // posts past the step are chosen from its own height. That is what both
+    // engines do.
+    //
+    // It had been worth asking. This read "the SHORTEST member, because the
+    // fence steps down onto the short post (March, 2 Oct 2026)" -- also his
+    // instruction -- and on 22 Oct both engines were changed to the opposite
+    // on the grounds that a post has to be tall enough for the TALLEST panel
+    // on it: a 6 ft panel cannot hang on a 4 ft post, so the post that is
+    // bought and set is the tall one (JOINING_RUNS 2.4, and FenceGeometry's
+    // own @param heightFt, which had said so all along). A later edit
+    // reversing an owner's stated rule is worth putting back to him, and this
+    // one came back confirmed.
     //
     // It is not free either way: the post is billed from the OWNER run's own
-    // catalog at its own height, so shorter-owns buys a 4 ft corner post for a
-    // hole that needs a 6 ft one. That is why the engines were corrected, and
-    // these cases follow what ships -- but the reversal is his to confirm.
+    // catalog at its own height, so shorter-owns would buy a 4 ft corner post
+    // for a hole that needs a 6 ft one.
     const hs = specs.map((s) => ({ ...s, height: [4, 5, 6][Math.floor(rand() * 3)] }));
     const rh = compose(null, hs);
     const ownersRight = rh.adj.posts.every((jp) => {
