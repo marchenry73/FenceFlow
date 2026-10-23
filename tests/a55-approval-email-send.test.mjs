@@ -935,12 +935,19 @@ test("the sender touches the company's own rows only: every company-scoped read 
   }
   // The payment-methods read asks for the one key, not the blob.
   const settings = world.queries.filter((q) => q.table === "company_settings");
-  // TWO named keys now -- the payment methods and the company's own colour
-  // for its letters. Still NAMED keys, never the blob, which is the point
-  // of this assertion: company_settings also holds the labour rate, the
-  // markup and the minimum charge.
+  // THREE named keys now -- the four fixed payment methods, the custom rows
+  // he added himself, and the company's own colour for its letters. Still
+  // NAMED keys, never the blob, which is the whole point of this assertion:
+  // company_settings also holds the labour rate, the markup and the minimum
+  // charge, and none of those has any business near a letter to a customer.
+  //
+  // The third key landed when the contract email started listing the custom
+  // methods (they were on the quote page and the downloaded copy and missing
+  // from the email). This check fired on that change, as it should: a new
+  // company-scoped read has to be shown to be company-filtered, and the loop
+  // above shows it -- same .eq("company_id", job.company_id) as before.
   assert.deepEqual(settings.map((q) => q.cols),
-    ["payment_methods:settings->payment_methods,brand_color:settings->brand_color"]);
+    ["payment_methods:settings->payment_methods,payment_methods_other:settings->payment_methods_other,brand_color:settings->brand_color"]);
   wall();
 });
 

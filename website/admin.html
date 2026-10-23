@@ -80,6 +80,10 @@
         text-transform:uppercase;letter-spacing:.04em}
   .row2{display:grid;grid-template-columns:repeat(auto-fit,minmax(200px,1fr));gap:12px}
   .msg{color:var(--muted);font-size:13px;min-height:18px}
+  /* msg(id, text, kind): a refusal has to look like one. Both colours come
+     from the console's own tokens, so they follow its light and dark. */
+  .msg.err{color:var(--red)}
+  .msg.ok{color:var(--teal)}
   .code-input{max-width:150px;letter-spacing:.3em;font:600 18px ui-monospace,monospace;text-align:center}
   /* A checkbox row, not one of the uppercase field captions above it. */
   label.check{display:flex;gap:8px;align-items:flex-start;font-size:13.5px;cursor:pointer;
@@ -726,6 +730,23 @@
   </div>
   <label style="display:flex;gap:8px;align-items:center;margin:8px 0"><input type="checkbox" id="e_passfee" style="width:auto"><span data-t="editPassFeeLabel">Their subscription price includes the Stripe fee (applies at their next checkout or plan change)</span></label>
   <label data-t="editNotesLabel">Notes (only you see these)</label><textarea id="e_notes" rows="3"></textarea>
+  <!-- THIS COMPANY'S HISTORY. Shut by default: the dialog is opened to change
+       something far more often than to read what happened, and an unrolled
+       audit list would push the Save button off a laptop screen. -->
+  <details id="histBox" style="margin-top:12px">
+    <summary style="cursor:pointer;font-weight:600" data-t="histHead">History</summary>
+    <div id="histLife" class="sub" style="margin:8px 0 10px 0"></div>
+    <div class="scroll">
+      <table class="biz-table"><thead><tr>
+        <th data-t="histColWhen">When</th>
+        <th data-t="histColWho">Who</th>
+        <th data-t="histColWhat">What</th>
+        <th data-t="histColChange">Change</th>
+      </tr></thead><tbody id="histRows"></tbody></table>
+    </div>
+    <div class="sub" id="histNote" style="margin-top:6px"></div>
+    <button class="small" id="histMore" type="button" style="display:none;margin-top:6px" data-t="histMoreBtn">Show more</button>
+  </details>
   <div class="msg" id="editMsg"></div>
   <div style="margin-top:14px;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap">
     <button id="e_cancel" type="button" data-t="cancelBtn">Cancel</button>
@@ -792,6 +813,39 @@ const $ = id => document.getElementById(id);
 const money = n => '$' + Number(n || 0).toFixed(0);
 const d = v => v ? new Date(v) : null;
 const day = v => { const x = d(v); return x ? x.toLocaleDateString() : '—'; };
+
+/* A line of feedback under a panel or in a dialog.
+
+   THIS WAS MISSING AND BEING CALLED. loadBin() and openSpecial() both used
+   msg(...) -- dashboard.html's helper, on the other page -- so the Recycle bin
+   threw on its first line and never loaded, and a refused Special threw
+   instead of saying why. Neither shows up until somebody presses the button:
+   the page parses and asks for no missing element. tests/dashboard-syntax now
+   fails on a call to a function that lives on another page, which is how this
+   was found.
+
+   Same signature as the office's, because that is what the callers assume:
+   msg(elementId, text, kind) with kind 'info' | 'ok' | 'err'.
+
+   THE TEXT IS SHOWN AS IT IS. The office's version routes 'err' through
+   plainError(), which rewords the library's own wording -- useful there, and
+   not wanted here: every caller passes either a sentence this console wrote or
+   a sentence the SERVER raised (purge_job's refusal, Stripe's reason), and
+   rewriting a server's message by code is how 42 deliberate ones were once all
+   replaced with one wrong sentence about the account.
+
+   A missing element warns instead of throwing, for the office's reason: a
+   TypeError here would kill the handler that was trying to report a problem,
+   and take the real error with it. */
+function msg(el, text, kind) {
+  const e = $(el);
+  if (!e) { console.warn('No element #' + el + ' for message:', text); return; }
+  e.textContent = text == null ? '' : String(text);
+  e.className = 'msg ' + (kind || 'info');
+  // An 'ok' is news, not a state: it clears itself so the next thing somebody
+  // reads is not a stale success from two actions ago.
+  if (kind === 'ok') setTimeout(() => { if ($(el) === e) e.className = 'msg'; }, 2500);
+}
 const esc = s => String(s ?? '').replace(/[&<>"]/g, m =>
   ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[m]));
 
@@ -889,6 +943,22 @@ const TL = {
 
     navOverview:'Overview', navCompanies:'Companies', navCrashes:'Crashes',
     navAudit:'Audit log',
+    histHead:'History',
+    histColWhen:'When', histColWho:'Who', histColWhat:'What', histColChange:'Change',
+    histLoading:'Reading this company\u2019s history\u2026',
+    histNone:'Nothing has been written down against this company yet.',
+    histNoDates:'No dates on file for this company yet.',
+    histShowingAll:'%s entries \u2014 that is all of them.',
+    histShowingMore:'Showing the %s most recent.',
+    histMoreBtn:'Show more',
+    histFailed:'Could not read the history: %s',
+    histInvited:'Invited %s', histJoined:'Joined %s',
+    histDetailsDone:'Finished setting up %s', histAgreement:'Signed the agreement %s',
+    histTrialEnds:'Trial ends %s', histGraceEnds:'Grace period ends %s',
+    histSubEnds:'Subscription ends %s',
+    histLastSeen:'Last seen %s', histLastActive:'Last active %s',
+    histPeople30:'%s people active in the last 30 days',
+    histJobs30:'%s jobs in the last 30 days', histQuotes30:'%s quotes in the last 30 days',
     auditHead:'Audit log',
     auditSub:'Every change this product has written down: who, when, which company, which record, and what the value was before and after. Append-only \u2014 no account, this console included, can write to it or edit it.',
     auditFilterCompany:'Company', auditFilterTable:'Table', auditFilterWho:'Who',
@@ -1168,6 +1238,22 @@ const TL = {
 
     navOverview:'Resumen', navCompanies:'Empresas', navCrashes:'Fallos',
     navAudit:'Registro',
+    histHead:'Historial',
+    histColWhen:'Cu\u00e1ndo', histColWho:'Qui\u00e9n', histColWhat:'Qu\u00e9', histColChange:'Cambio',
+    histLoading:'Leyendo el historial de esta empresa\u2026',
+    histNone:'Todav\u00eda no hay nada registrado para esta empresa.',
+    histNoDates:'Todav\u00eda no hay fechas para esta empresa.',
+    histShowingAll:'%s entradas: son todas.',
+    histShowingMore:'Mostrando las %s m\u00e1s recientes.',
+    histMoreBtn:'Mostrar m\u00e1s',
+    histFailed:'No se pudo leer el historial: %s',
+    histInvited:'Invitada el %s', histJoined:'Se uni\u00f3 el %s',
+    histDetailsDone:'Termin\u00f3 la configuraci\u00f3n el %s', histAgreement:'Firm\u00f3 el acuerdo el %s',
+    histTrialEnds:'La prueba termina el %s', histGraceEnds:'El periodo de gracia termina el %s',
+    histSubEnds:'La suscripci\u00f3n termina el %s',
+    histLastSeen:'Visto por \u00faltima vez el %s', histLastActive:'\u00daltima actividad el %s',
+    histPeople30:'%s personas activas en los \u00faltimos 30 d\u00edas',
+    histJobs30:'%s trabajos en los \u00faltimos 30 d\u00edas', histQuotes30:'%s presupuestos en los \u00faltimos 30 d\u00edas',
     auditHead:'Registro de auditor\u00eda',
     auditSub:'Cada cambio que este producto ha anotado: qui\u00e9n, cu\u00e1ndo, qu\u00e9 empresa, qu\u00e9 registro y cu\u00e1l era el valor antes y despu\u00e9s. Solo se agrega \u2014 ninguna cuenta, ni esta consola, puede escribir en \u00e9l ni editarlo.',
     auditFilterCompany:'Empresa', auditFilterTable:'Tabla', auditFilterWho:'Qui\u00e9n',
@@ -1447,6 +1533,22 @@ const TL = {
 
     navOverview:'Aperçu', navCompanies:'Entreprises', navCrashes:'Plantages',
     navAudit:'Journal',
+    histHead:'Historique',
+    histColWhen:'Quand', histColWho:'Qui', histColWhat:'Quoi', histColChange:'Changement',
+    histLoading:'Lecture de l\u2019historique de cette entreprise\u2026',
+    histNone:'Rien n\u2019a encore \u00e9t\u00e9 consign\u00e9 pour cette entreprise.',
+    histNoDates:'Aucune date au dossier pour cette entreprise.',
+    histShowingAll:'%s entr\u00e9es \u2014 ce sont toutes.',
+    histShowingMore:'Affichage des %s plus r\u00e9centes.',
+    histMoreBtn:'Afficher plus',
+    histFailed:'Impossible de lire l\u2019historique : %s',
+    histInvited:'Invit\u00e9e le %s', histJoined:'A rejoint le %s',
+    histDetailsDone:'Configuration termin\u00e9e le %s', histAgreement:'Entente sign\u00e9e le %s',
+    histTrialEnds:'L\u2019essai se termine le %s', histGraceEnds:'Le d\u00e9lai de gr\u00e2ce se termine le %s',
+    histSubEnds:'L\u2019abonnement se termine le %s',
+    histLastSeen:'Vue pour la derni\u00e8re fois le %s', histLastActive:'Derni\u00e8re activit\u00e9 le %s',
+    histPeople30:'%s personnes actives dans les 30 derniers jours',
+    histJobs30:'%s chantiers dans les 30 derniers jours', histQuotes30:'%s devis dans les 30 derniers jours',
     auditHead:'Journal d\u2019audit',
     auditSub:'Chaque changement que ce produit a consign\u00e9 : qui, quand, quelle entreprise, quel enregistrement, et la valeur avant et apr\u00e8s. En ajout seulement \u2014 aucun compte, cette console comprise, ne peut y \u00e9crire ni le modifier.',
     auditFilterCompany:'Entreprise', auditFilterTable:'Table', auditFilterWho:'Qui',
@@ -3871,11 +3973,102 @@ function buildQuickActions(c) {
   }
 }
 
+/* ---- one company's history --------------------------------------------
+   The Audit log view answers "what happened across the platform"; this
+   answers "what happened to THIS one", which is the question actually being
+   asked when somebody has a company's dialog open. Same table, same columns,
+   same escaping -- a second query shape here is a second thing to keep right.
+*/
+const HIST_PAGE = 25;
+let histFrom = 0, histRows = [], histMore = false, histFor = null;
+
+/** The life of the company, from the row already in hand. No extra read. */
+function companyLife(c) {
+  const bits = [];
+  const when = (v) => v ? day(v) : null;
+  const add = (key, v) => { if (v) bits.push(tr(key, v)); };
+  // THE NAMES admin_companies ACTUALLY RETURNS, read off pg_proc rather than
+  // guessed: it has no created_at, and the other two are grace_ends_at and
+  // last_seen (with last_active beside it). The first draft of this asked for
+  // created_at, grace_until and last_seen_at -- and because add() skips a
+  // falsy value, all three lines would have been silently absent on every
+  // company, which looks exactly like a company with no history.
+  add('histInvited', when(c.invited_at));
+  add('histJoined', when(c.joined_at));
+  add('histDetailsDone', when(c.details_completed_at));
+  add('histAgreement', when(c.agreement_signed_at));
+  add('histTrialEnds', when(c.trial_ends_at));
+  add('histGraceEnds', when(c.grace_ends_at));
+  add('histSubEnds', when(c.subscription_ends_at));
+  add('histLastSeen', when(c.last_seen));
+  add('histLastActive', when(c.last_active));
+  // The counts admin_companies already returns, so "is anybody using it" is
+  // answered beside the dates rather than two views away.
+  if (c.active_people_30d != null) bits.push(tr('histPeople30', c.active_people_30d));
+  if (c.jobs_30d != null) bits.push(tr('histJobs30', c.jobs_30d));
+  if (c.quotes_30d != null) bits.push(tr('histQuotes30', c.quotes_30d));
+  return bits;
+}
+
+async function loadCompanyHistory(append) {
+  if (!editing) return;
+  if (!append) { histRows = []; histFrom = 0; histFor = editing.id; }
+  const target = histFor;
+  const { data, error } = await db.from('audit_log')
+    .select('id, at, actor_email, table_name, record_id, action, field, old_value, new_value, label')
+    .eq('company_id', target)
+    .order('at', { ascending: false })
+    .range(histFrom, histFrom + HIST_PAGE - 1);
+  // The dialog may have been closed, or another company opened, while this was
+  // in flight -- in which case these rows belong to nobody on screen.
+  if (!editing || histFor !== target) return;
+  if (error) {
+    $('histNote').textContent = tr('histFailed', error.message || String(error));
+    $('histNote').className = 'msg err';
+    return;
+  }
+  const got = data || [];
+  histRows = histRows.concat(got);
+  histMore = got.length === HIST_PAGE;
+  histFrom += got.length;
+  renderCompanyHistory();
+}
+
+function renderCompanyHistory() {
+  const life = companyLife(editing || {});
+  $('histLife').innerHTML = life.length
+    ? life.map(t => `<div>${esc(t)}</div>`).join('')
+    : `<div>${esc(tr('histNoDates'))}</div>`;
+  $('histNote').className = 'sub';
+  $('histNote').textContent = histRows.length
+    ? tr(histMore ? 'histShowingMore' : 'histShowingAll', histRows.length)
+    : tr('histNone');
+  // Every value escaped: actor_email, label and the old/new values are all
+  // stored text, and one of them is whatever somebody typed into a field.
+  $('histRows').innerHTML = histRows.map(r => `<tr>
+    <td class="nowrap">${esc(day(r.at))}</td>
+    <td>${esc(r.actor_email || tr('auditNoActor'))}</td>
+    <td>${esc(String(r.action || '').toLowerCase())} ${esc(r.table_name || '')}
+      ${r.label ? `<div class="sub">${esc(r.label)}</div>` : ''}</td>
+    <td>${esc(r.field || '\u2014')}: ${esc(auditValue(r.old_value))} \u2192 ${esc(auditValue(r.new_value))}</td>
+  </tr>`).join('');
+  $('histMore').style.display = histMore ? '' : 'none';
+}
+
 function openEdit(id) {
   editing = clients.find(c => c.id === id);
   if (!editing) return;
   $('editTitle').textContent = editing.name || tr('editUnnamedCompany');
   buildQuickActions(editing);
+  // The history is READ ON OPEN, not on every repaint: it is a table read, and
+  // the dialog's own fields are repainted whenever anything is saved.
+  $('histBox').open = false;
+  histRows = []; histFrom = 0; histMore = false; histFor = editing.id;
+  $('histRows').innerHTML = '';
+  $('histNote').className = 'sub';
+  $('histNote').textContent = tr('histLoading');
+  renderCompanyHistory();
+  loadCompanyHistory(false).catch(e => console.error('loadCompanyHistory threw:', e));
 
   // Only what the server understands. Anything already in the column that is
   // not one of these -- a company set up before the box became a list -- is
@@ -4333,6 +4526,10 @@ document.querySelectorAll('.rail button').forEach(b =>
 
 $('auditApply').addEventListener('click', () => loadAudit(false).then(fillAuditPickers));
 $('auditMore').addEventListener('click', () => loadAudit(true).then(fillAuditPickers));
+// One company's own history, in its dialog. Paged the same way the Audit
+// view is: audit_log grows one row per field changed, so it is the table
+// most likely to meet the thousand-row cap first.
+$('histMore').addEventListener('click', () => loadCompanyHistory(true).catch(e => console.error('loadCompanyHistory threw:', e)));
 $('auditCsv').addEventListener('click', auditCsv);
 $('auditWho').addEventListener('keydown', e => {
   if (e.key === 'Enter') loadAudit(false).then(fillAuditPickers);
