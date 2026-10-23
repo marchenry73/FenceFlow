@@ -7,10 +7,16 @@ still stands for anything on it you have not looked at yet.
 (1.743, 1.745, 1.750, all mandatory), the website deployed nine times, and I
 went through all 225 test files. Sections 0 to 6 are that work.
 
-**Since you woke up:** **1.757** and **1.759** are published, both mandatory,
-and all 29 server functions are deployed. That covers everything in sections 7
-and 8 — the drawing fixes, Move Fence, the 0.001 rounding fix, and emailing
-your clients. Nothing on this list is waiting on a build any more.
+**Since you woke up:** **1.757**, **1.759** and **1.762** are published, all
+mandatory, and all 29 server functions are deployed twice over. Nothing on
+this list is waiting on a build.
+
+There is no 1.758, 1.760 or 1.761. Each was built and then not published: 1.758
+because its own gate caught a test my rounding fix had quietly defused, 1.761
+because I edited code mid-build and the APK would no longer have matched the
+commit it claimed. The version number comes from the commit count, so a fix
+moves it on. If you go looking for one of those on the phone you will not find
+it, and that is correct.
 
 Each check is **where to go → what to do → what you should see.** If what you
 see differs, tell me the words on screen.
@@ -234,7 +240,8 @@ deleted change order the same way.
 
 ## 8. Email your clients from the admin console — built
 
-This was the "not started" item. It is deployed and live.
+This was the "not started" item. It is deployed and live, and the console half
+needs no app update — reload the page and it is there.
 
 | Do this | You should see |
 |---|---|
@@ -262,9 +269,81 @@ This was the "not started" item. It is deployed and live.
 > ways in a transaction that rolled back, so your database gained nothing from
 > the test.
 
-## 9. The one thing still not finished
+## 9. Read what you have sent each client, and three more tabs on the phone
 
+### The client emails read as a conversation (console, live now)
+
+| Do this | You should see |
+|---|---|
+| Admin console → **Email clients** → look under the compose box | A list of the clients you have written to, newest first, each with how many messages and the last subject |
+| Click one | Everything you have said to them, oldest at the top so it reads downwards, in the same bubbles the office's mail uses |
+| Read the line above the list | **Replies come back to your support address, which this console does not read.** One side of a conversation, said plainly rather than drawn as an empty half |
+
+> **Your clients can now see how to reply.** The address is named at the
+> bottom of the email and set as a real Reply-To. It was neither before — the
+> mail still reached a FenceFlow mailbox, because a reply defaults to the
+> sending address, but nothing told the client that, which reads as a
+> no-reply. Live now, with the functions.
+
+### The phone's admin area catches up (1.762)
+
+| Do this | You should see |
+|---|---|
+| App → Admin | Nine tabs that scroll sideways, three of them new: **Mail**, **Audit** and **Bin** |
+| **Mail** | The same conversations as the console, read-only. Sending stays on the website — picking nine companies with a thumb is not a thing to do |
+| **Audit** | Who changed what, across every company, newest first, with **Show more**. One line per field changed |
+| **Bin** | Companies you removed, with how many people and jobs come back, and Restore behind a confirmation |
+
+### Deleting a catalog item makes it stay deleted (1.762)
+
+The same fault as the fence line that came back, on the fourth and last table
+it could happen to. Sides, markers and change orders were fixed in 1.757; the
+catalog was left out on purpose then, because a careless fix there could have
+stopped prices syncing between phones altogether. It is now guarded in the one
+place that creates a row, so the part that keeps every phone quoting the same
+price after a supplier invoice is untouched.
+
+| Do this | You should see |
+|---|---|
+| Delete a catalog item, sync twice | It stays gone |
+| On another phone, correct a price | The correction still reaches this one |
+
+## 10. What is still waiting, and on whom
+
+Everything asked for is built. What is left needs you, or needs a decision.
+
+### Needs you — checked against the live database today, not remembered
+
+- **No company has a finished Stripe connection: 0 of 11.** This is the one
+  that holds back everything else about money. Until a company connects,
+  every payment is test mode, no payment reaches the books, and the
+  approve-then-pay flow never fires.
+- **Three payment links ask for the wrong money**, all still pending:
+
+  | Customer | Deposit owed | The link asks |
+  |---|---|---|
+  | James | $3,500.00 | $160.00 |
+  | James | $3,500.00 | $336.82 |
+  | James Bond | $8,101.68 | $21,520.00 |
+
+  The quote correctly withholds the **Pay online** row on all three. Remake
+  them and it appears by itself — nini's link asks exactly its $9,300 deposit
+  and shows the row today, which is the proof the rule works.
 - **The receipt's actual send is the one link I could not exercise.** Every
   piece is proved — the words, the once-only claim, the function boots and
-  gates — but I have no way to make it send without your credentials. Your next
-  test payment will show it, and if it fails the webhook writes why.
+  gates — but I cannot make it send without your credentials. Your next test
+  payment will show it, and if it fails the webhook writes why.
+
+> **One thing that looks wrong and is not.** Several of John Beaunissant's and
+> Marco's links read *paid* while those jobs show nothing paid. That is the
+> rule working: a test payment never touches the books, after four test
+> checkouts once left a job reading $57,240 paid against a $10,595 contract.
+
+### Needs a decision from you, not code
+
+- **Reading client replies inside the console.** Replies route to a mailbox
+  per company, and the platform has none of its own. Giving it one means a
+  mailbox you set up plus a change to mail routing that currently works and
+  carries your real customer correspondence — not something to bolt on
+  unattended. Say the word and I will scope it properly. Until then the
+  console says replies are not read there, so nothing misleads you.
