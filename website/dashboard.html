@@ -992,7 +992,30 @@
   .mr-jobs{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
   .mr-linkbox{display:flex;gap:6px;flex-wrap:wrap;align-items:center}
   .mr-linkbox select{flex:1 1 220px;width:auto}
-  .mm{border:1px solid var(--line);border-radius:10px;margin-bottom:8px;background:var(--surface)}
+  /* A THREAD READS AS A CONVERSATION. Arrived on the left, sent on the right,
+     which is the one thing a stack of identical cards could never show at a
+     glance. data-dir comes from folder_role, the field the unread test already
+     uses. */
+  .mm{border:1px solid var(--line);border-radius:14px;margin-bottom:10px;background:var(--surface);
+      max-width:82%;position:relative}
+  .mm[data-dir="out"]{margin-left:auto;background:var(--paper);border-color:var(--line)}
+  .mm[data-dir="in"]{margin-right:auto}
+  /* The corner that points at who is speaking: squared off on the speaker's
+     side, the way every chat does it, with no pseudo-element to go wrong. */
+  .mm[data-dir="in"]{border-bottom-left-radius:4px}
+  .mm[data-dir="out"]{border-bottom-right-radius:4px}
+  /* A thin edge in the accent on what this company sent, so the two sides are
+     told apart by more than position -- position alone is lost the moment the
+     column is narrow. */
+  .mm[data-dir="out"]{border-right:3px solid var(--info)}
+  .mm[data-dir="in"]{border-left:3px solid var(--line)}
+  /* AN OPEN MESSAGE TAKES THE COLUMN. It is the one that needs the width: a
+     quoted reply, a wide signature, an attachment row. It keeps its side's
+     colour and its tail so it is still obvious who said it. */
+  .mm.open{max-width:100%}
+  /* Who and when, above the words rather than inside them. */
+  .mm-cap{display:block;font-size:11px;color:var(--muted);margin:0 0 2px 2px}
+  .mm[data-dir="out"] .mm-cap{text-align:right;margin-right:2px}
   .mm.collapsed{display:flex;gap:8px;width:100%;text-align:left;padding:8px 11px;cursor:pointer;color:var(--text);font-family:inherit;font-size:13px;align-items:center}
   .mm.collapsed:hover{background:var(--paper)}
   .mm.collapsed.unread .mm-from{font-weight:700}
@@ -1008,6 +1031,20 @@
   .mm-body{margin-top:10px}
   .mail-frame{display:block;width:100%;height:60vh;min-height:320px;border:1px solid var(--line);border-radius:8px;background:#fff}
   .mm-text{white-space:normal;overflow-wrap:anywhere;font-size:14px;line-height:1.5;border:1px solid var(--line);border-radius:8px;padding:12px;max-height:60vh;overflow:auto}
+  /* A BUBBLE STACKS WHEN THE COLUMN IS NARROW. On one line the name takes up to
+     40% and the time is fixed, so on a phone the snippet -- which in a
+     conversation IS the message -- was cut to three words. Name and time on
+     their own line, the words underneath with the whole width.
+     AFTER the .mm rules on purpose: a media query adds no specificity, so
+     these have to come later in the file than the base rule they override. */
+  @media (max-width:900px){
+    .mm{max-width:92%}
+    .mm.collapsed{display:grid;grid-template-columns:1fr auto;gap:2px 8px;align-items:baseline}
+    .mm.collapsed .mm-from{max-width:none;grid-column:1;grid-row:1}
+    .mm.collapsed .mm-date{grid-column:2;grid-row:1}
+    .mm.collapsed .mm-snip{grid-column:1 / -1;grid-row:2;white-space:normal;
+      overflow:visible;text-overflow:clip;overflow-wrap:anywhere}
+  }
   .mm-text a{color:var(--info)}
   .mm-atts{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}
   .mail-att{background:var(--paper);border:1px solid var(--line);border-radius:8px;padding:5px 10px;font-size:12.5px;cursor:pointer;color:var(--text);font-family:inherit}
@@ -29936,7 +29973,9 @@ function renderMailReader(){
     + (lblChips || lblPick ? `<div class="mr-labels">${lblChips}${lblPick}</div>` : '')
     + `<div class="mr-jobs">${chips}${t.linking ? '' : `<button type="button" class="btn btn-sm btn-grey" data-act="linkjob">${esc(tr('mailLinkJobBtn'))}</button>`}</div>`
     + `${linkBox}</div>`
-    + t.msgs.map(m => mailExpanded.has(m.id) ? `<div class="mm open" data-msg="${esc(m.id)}"></div>` : mailCollapsedHtml(m)).join('');
+    + t.msgs.map(m => mailExpanded.has(m.id)
+        ? `<div class="mm open" data-dir="${mailDir(m)}" data-msg="${esc(m.id)}"></div>`
+        : mailCollapsedHtml(m)).join('');
   box.querySelectorAll('.mm.open').forEach(el => {
     const m = t.msgs.find(x => x.id === el.dataset.msg);
     if (m) fillMailMessage(el, m);
@@ -29946,9 +29985,22 @@ function renderMailReader(){
 function mailCollapsedHtml(m){
   const unread = m.folder_role === 'inbox' && !m.is_seen;
   const snip = cleanLine(m.snippet) + (m.server_gone_at ? ' · ' + tr('mailGoneNote') : '');
-  return `<button type="button" class="mm collapsed${unread ? ' unread' : ''}" data-act="expand" data-msg="${esc(m.id)}">`
+  // SIDE, from the field the unread test above already reads: what arrived
+  // sits left, what this company sent sits right. One attribute, so the whole
+  // conversation layout is CSS and nothing here has to know about it.
+  return `<button type="button" class="mm collapsed${unread ? ' unread' : ''}" `
+    + `data-dir="${mailDir(m)}" data-act="expand" data-msg="${esc(m.id)}">`
     + `<span class="mm-from">${esc(mailFromName(m))}</span><span class="mm-snip">${esc(snip)}</span>`
     + `<span class="mm-date">${esc(mailWhen(m))}</span></button>`;
+}
+
+/* Which side of the conversation a message belongs on.
+   'inbox' is something that arrived; anything else is something this company
+   sent. Named rather than inlined because the reader asks twice -- once for a
+   collapsed bubble and once for an open one -- and two copies of the test is
+   how the two come to disagree about who said something. */
+function mailDir(m){
+  return m && m.folder_role === 'inbox' ? 'in' : 'out';
 }
 
 function mailHeaderHtml(m){
