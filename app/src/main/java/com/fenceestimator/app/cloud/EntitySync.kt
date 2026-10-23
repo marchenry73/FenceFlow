@@ -2943,6 +2943,35 @@ object EntitySync {
         if (jobIdBySyncId.isEmpty()) return 0
         var added = 0
 
+        // DELETES THIS PHONE HAS MADE AND THE CLOUD HAS NOT TAKEN YET.
+        //
+        // A delete here hard-removes the local row and queues a tombstone. Until
+        // the cloud accepts it the cloud row is STILL LIVE, so the reads below
+        // return it -- and "I cannot find it locally" is exactly what a
+        // just-deleted row looks like. Every create branch in this pull has to
+        // refuse those, or deleting something puts it back on the next sync.
+        //
+        // That is the bug he reported for a fence run ("I also saw past line
+        // show up after I had deleted a side"); the same hole was open here for
+        // site markers and change orders, both of which he deletes by hand.
+        //
+        // ONE READ, split by table: pendingDeletionsForSync() clears stale
+        // line-item entries as a side effect, so asking three times would be
+        // three different moments as well as three times the work.
+        val queued = repository.pendingDeletionsForSync()
+        val queuedDeletes = queued
+            .filter { it.tableName == "estimate_line_items" }
+            .map { it.syncId }
+            .toSet()
+        val queuedMarkerDeletes = queued
+            .filter { it.tableName == "site_markers" }
+            .map { it.syncId }
+            .toSet()
+        val queuedOrderDeletes = queued
+            .filter { it.tableName == "change_orders" }
+            .map { it.syncId }
+            .toSet()
+
         // Line items, gated on scope: UNKNOWN cannot tell which table is safe
         // to trust and skips both the read and the merge entirely. DENIED
         // reads the money-free view and the merge below never lets a price
@@ -2980,10 +3009,6 @@ object EntitySync {
             // pendingDeletionsForSync, so a stale entry for a line that is
             // alive again (an old build's) no longer stops this phone taking
             // the office's changes to it.
-            val queuedDeletes = repository.pendingDeletionsForSync()
-                .filter { it.tableName == "estimate_line_items" }
-                .map { it.syncId }
-                .toSet()
 
             // Refuse legacy orphans outright rather than pulling them and cleaning
             // up afterwards. A row with a real material role but no run was pushed
@@ -3249,6 +3274,10 @@ object EntitySync {
             // cleared by a terms edit from coming straight back.
             if (existing != null && !pullMayWriteOrder(existing)) return@forEach
             if (existing == null) {
+                // Not one this phone has just deleted and the cloud has not
+                // tombstoned yet. Creation only: an order still held locally is
+                // merged by the branch above.
+                if (row.syncId in queuedOrderDeletes) return@forEach
                 skipIfOrphaned { repository.saveChangeOrderFromCloud(
                     ChangeOrder(
                         syncId = row.syncId, jobId = jobId,
@@ -3560,6 +3589,9 @@ object EntitySync {
             // marker goes up next pass and the cloud's copy arrives then.
             if (!pullMayWriteMarker(existing)) return@forEach
             if (existing == null) {
+                // Not one this phone has just deleted, for the reason the queue
+                // is read at the top of this pull: its cloud row is still live.
+                if (row.syncId in queuedMarkerDeletes) return@forEach
                 // FromCloud: this row came from the cloud, so it is not waiting
                 // to go back to it.
                 skipIfOrphaned { repository.addSiteMarkerFromCloud(
@@ -3773,6 +3805,23 @@ object EntitySync {
         val localBySyncId = jobIdBySyncId.values
             .flatMap { repository.getFenceRuns(it) }.associateBy { it.syncId }
 
+        // DELETES THIS PHONE MADE AND THE CLOUD HAS NOT TAKEN YET.
+        //
+        // "I also saw past line show up after I had deleted a side." Deleting a
+        // side hard-removes the local row and queues a tombstone; until that
+        // tombstone is accepted the cloud row is still live, so the read above
+        // returns it and the branch below -- "I cannot find it locally" -- is
+        // exactly what a just-deleted side looks like. Any sync landing in that
+        // window put the side straight back on the drawing.
+        //
+        // The same guard, in the same words, as the line-items pull: their
+        // cloud rows are still live and must not be written back while the
+        // delete waits. fence_runs never had it.
+        val queuedRunDeletes = repository.pendingDeletionsForSync()
+            .filter { it.tableName == "fence_runs" }
+            .map { it.syncId }
+            .toSet()
+
         var added = 0
         cloud.forEach { row ->
             val localJobId = jobIdBySyncId[row.jobSyncId] ?: return@forEach
@@ -3780,6 +3829,10 @@ object EntitySync {
                 .getOrDefault(FenceType.VINYL)
             val existing = localBySyncId[row.syncId]
             if (existing == null) {
+                // NOT ONE THIS PHONE HAS JUST DELETED. Only creation is
+                // withheld: a run still held locally is merged below exactly as
+                // before, because refusing an update would freeze a live side.
+                if (row.syncId in queuedRunDeletes) return@forEach
                 // A job gone mid-pass skips the run: see OrphanRows.
                 skipIfOrphaned { repository.createFenceRunFromCloud(
                     FenceRun(
