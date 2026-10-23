@@ -273,8 +273,32 @@ test("the transcription is of the Kotlin that is actually in the tree", () => {
   // Moved 2 Oct 2026 for this change. When one of these fires: re-read the
   // transcribed block above against the Kotlin, function by function, THEN
   // move the pin. Moving the pin first is how a guard stops guarding.
+  //
+  // Moved 23 Oct 2026, ef59d93ea2a44a3c -> 43f6fa9bc04acede.
+  //
+  // IT HAD BEEN RED SINCE COMMIT #732 -- through 1.733, 1.734, 1.743 and
+  // 1.745 -- so the one check that holds the phone, the server and the office
+  // to a single meaning of "the deposit" was dark for four releases. That is
+  // the cost of moving a pin late, and it is why the reading below is written
+  // out rather than summarised.
+  //
+  // The pin was set at commit #575. The two JobMoney changes since are #732
+  // and #743, and git diff #575..HEAD over that file is 81 lines added and
+  // ZERO REMOVED: nothing was changed in place. The only definitions on an
+  // added line are depositToStore(), depositFollow() and the DepositFollow
+  // enum -- whether a STORED deposit may move with the price, and the same
+  // gates turned round so a screen can say which one is holding. None of the
+  // ten functions transcribed above is redefined, and nothing here reads
+  // either addition.
+  //
+  // A NEAR MISS WORTH RECORDING: `git log --since` over the same file does
+  // show removals inside nextRequestAmount and nextRequestLabel, both of
+  // which ARE transcribed here. They belong to commit #567, which is before
+  // the pin, so the transcription already reflects them. Dating the pin to a
+  // COMMIT rather than to a day is what told the two apart -- by date they
+  // looked like changes this pin had never seen.
   const pins = {
-    [JOB_MONEY]: "ef59d93ea2a44a3c",
+    [JOB_MONEY]: "43f6fa9bc04acede",
     [PROJECT_STATUS]: "1ccd57a4590503be",
   };
   for (const [path, want] of Object.entries(pins)) {

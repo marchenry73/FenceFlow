@@ -477,20 +477,28 @@ section("6. WHO IS BILLED THE SHARED POST");
   // The SHORTER run keeps the post where the heights differ. March's field
   // rule, 2 Oct 2026: where a 6 ft side meets a 4 ft side the fence steps DOWN
   // onto a 4 ft post, rather than a 6 ft post standing two feet proud of the
-  // low side. This reverses the original rule here, which read "the taller run
-  // keeps the post, because that is the post that has to be built" -- true of
-  // a post carrying two runs of EQUAL height, and not how he builds a step.
+  // THE TALLER RUN IS BILLED, and this case said the opposite until 23 Oct
+  // 2026. Both engines read "shorter wins" until 22 Oct, were wrong in the
+  // same direction -- which is exactly why parity never caught it -- and were
+  // corrected together. joins.ts carries the reasoning:
+  //
+  //   a post has to be tall enough for the TALLEST panel on it, because a 6 ft
+  //   panel cannot hang on a 4 ft post. The post that is bought and set is the
+  //   tall one, so the tall run carries its cost. JOINING_RUNS 2.4 and
+  //   FenceGeometry's own @param heightFt said so all along, and a32's case D2
+  //   carried it red the whole time.
   //
   // It matters in money, and the direction is not free: the post is billed in
-  // the OWNER run's own catalog at its own height, so this corner now wants a
-  // 4 ft corner post row. Equal heights never reach this branch and still fall
-  // through to sort order, then id.
+  // the OWNER run's own catalog at its own height, so this corner wants a 6 ft
+  // corner post row. Equal heights never reach this branch and still fall
+  // through to sort order, then id, which is what keeps the answer independent
+  // of list order.
   const tall = run(U(1), LEG_A, { sort_order: 1, panel_height_ft: 6 });
   const short = run(U(2), LEG_B_UP, { sort_order: 0, panel_height_ft: 4, panel_width_ft: 6 });
   const out = price([{ ...tall, end_joint: U(30) }, { ...short, start_joint: U(30) }]);
   const cornerOn = out.runs.filter((r) => r.posts.corner > 0).map((r) => r.run_sync_id);
-  eq("6a", "the SHORTER run is billed the shared post -- the 6 ft side steps down onto the 4 ft post",
-    cornerOn, [U(2)]);
+  eq("6a", "the TALLER run is billed the shared post -- a 6 ft panel cannot hang on a 4 ft post",
+    cornerOn, [U(1)]);
   eq("6a-ii", "and it is billed to exactly ONE of them, never both",
     out.runs.filter((r) => r.posts.corner > 0).length, 1);
 

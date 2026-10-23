@@ -75,8 +75,24 @@ import { computePostCounts } from "../supabase/functions/_shared/pricing/takeoff
 import { f32 } from "../supabase/functions/_shared/pricing/f32.ts";
 
 // Output of KOTLIN_HARNESS (bottom of this file): FenceGeometry.kt compiled standalone (kotlinc 2.0.21, with SideLength.kt and GateSpan.kt, which it
-// already depends on; JDK 21) and run over every scenario registered below, on 2026-10-01. One line per fact, scenario|kind|...
+// already depends on; JDK 17 here, 21 originally -- the three files use kotlin.math and java.lang.Math only) and run over every scenario registered
+// below. One line per fact, scenario|kind|...
 // To regenerate, see the recipe above KOTLIN_HARNESS. The test fails if the transcription ever disagrees with a single line.
+//
+// REGENERATED 2026-10-23, three weeks after it first froze on 2026-10-01, and the reason is worth keeping:
+//
+// On 22 Oct the owner rule changed in BOTH engines -- a post must be tall enough for the TALLEST panel on it, because a 6 ft panel cannot hang on a
+// 4 ft post, so the tall run carries its cost where both engines had read "shorter wins". This golden kept the old answer, AND the transcription
+// below kept it too, so the two agreed with each other and this file printed 125 ok. Agreement is not truth: a snapshot and a hand copy of the same
+// stale rule confirm each other perfectly.
+//
+// The only check that noticed was a61 case 1a, which compares joins.ts against this golden. It reported joins.ts saying ADJ|A|1 where "a33 (and the
+// compiled Kotlin)" said 0 -- so it read as joins.ts being wrong, when the compiler had simply not been asked since the rule moved. Re-running the
+// harness produced 463 lines differing from the frozen ones in exactly three, all in e-gate-run-gives-up, all the owner moving from B to A, and all
+// matching joins.ts. The two engines had agreed with each other the whole time.
+//
+// THE LESSON FOR WHOEVER CHANGES RunJoinArithmetic NEXT: re-run this harness in the same commit. The source checks (7c-7k) do not catch a changed
+// NUMBER, only changed text they know to look for, so between the change and the re-run this file is a green check on the previous rule.
 const KOTLIN_GOLDEN = `a-unjoined|SAVED|0
 a-straight|ADJ|A|1|0|-1
 a-straight|ADJ|B|0|0|-1
@@ -145,9 +161,9 @@ e-gate-line-to-wall|ADJ|A|1|0|-1
 e-gate-line-to-wall|ADJ|B|0|0|-1
 e-gate-line-to-wall|POST|J1|LINE|A|A,B
 e-gate-line-to-wall|SAVED|1
-e-gate-run-gives-up|ADJ|A|0|0|-1
-e-gate-run-gives-up|ADJ|B|1|0|-1
-e-gate-run-gives-up|POST|J1|LINE|B|A,B
+e-gate-run-gives-up|ADJ|A|1|0|-1
+e-gate-run-gives-up|ADJ|B|0|0|-1
+e-gate-run-gives-up|POST|J1|LINE|A|A,B
 e-gate-run-gives-up|SAVED|1
 f-no-joints|SAVED|0
 f-dangling-ids|IGN|J1|FEWER_THAN_TWO_LIVE_RUNS
@@ -539,8 +555,7 @@ sweep-170|SAVED|1
 sweep-179|ADJ|A|0|1|-1
 sweep-179|ADJ|B|0|0|-1
 sweep-179|POST|J1|CORNER|A|A,B
-sweep-179|SAVED|1
-`;
+sweep-179|SAVED|1`;
 
 // ---------------------------------------------------------------------------
 // Reporting
@@ -598,8 +613,18 @@ function turnDegrees(first, second) {
   return turnDeg;
 }
 
+/* THE TALLER RUN OWNS THE SHARED POST. The twin of outranks() in
+   FenceGeometry.kt and in _shared/pricing/joins.ts -- all three or none.
+
+   This read `<` (shorter wins) until 23 Oct 2026, which is what both ENGINES
+   read until 22 Oct. They were corrected and this copy was not, and because
+   KOTLIN_GOLDEN had been frozen since 1 Oct it still held the old answer too,
+   so a stale snapshot and a stale hand copy agreed with each other and this
+   file printed 125 ok. A post has to be tall enough for the tallest panel on
+   it: a 6 ft panel cannot hang on a 4 ft post, so the post that is bought and
+   set is the tall one and the tall run carries its cost. */
 const outranks = (a, b) => {
-  if (a.heightFt !== b.heightFt) return a.heightFt < b.heightFt;
+  if (a.heightFt !== b.heightFt) return a.heightFt > b.heightFt;
   if (a.sortOrder !== b.sortOrder) return a.sortOrder < b.sortOrder;
   return a.id < b.id;
 };
@@ -1054,7 +1079,11 @@ console.log("\n4. OWNER, KIND AND IGNORED JOINTS -- the rules, one number each")
   const eq = pair({}, {});
   expectEq("4a", "equal heights: the LOWER sort order is billed the shared post (A keeps 6, B drops 4 -> 3)", [eq.byId.A.total, eq.byId.B.total], [6, 3]);
   const tall = pair({ height: 4 }, { height: 6 });
-  expectEq("4b", "the SHORTER run is billed the post even when it sorts later (B is 6 ft high, A 4 ft high): A keeps 6 posts, B gives its end up and drops 4 -> 3", [tall.byId.A.total, tall.byId.B.total], [6, 3],
+  // THE TALLER RUN KEEPS THE POST, whatever it sorts. B is 6 ft and holds its
+  // 4 posts; A is 4 ft, is 6 posts alone, and gives its end up to 5. This case
+  // read the other way until 23 Oct 2026 -- see the note at 6d, which carries
+  // the decision behind it.
+  expectEq("4b", "the TALLER run is billed the post even when it sorts earlier (B is 6 ft high, A 4 ft high): B keeps its 4 posts, A gives its end up and drops 6 -> 5", [tall.byId.A.total, tall.byId.B.total], [5, 4],
     "RIGHT: the post stays with the taller run B (4 posts); A, 6 posts alone, gives its end up (5).");
   expectEq("4c", "...and the post's TYPE is unchanged by who owns it: same fence total either way", [eq.fence.total, tall.fence.total], [9, 9]);
   const idTie = compose(null, [R("Z", A_PTS, { sort: 0, end: "J1" }), R("M", B_STRAIGHT, { sort: 0, start: "J1" })]);
@@ -1185,22 +1214,35 @@ const perRunJson = (adj) => JSON.stringify(Object.keys(adj.perRun).sort().map((k
     const flipped = specs.map((s) => (rand() < 0.5 ? reverseSpec(s) : s));
     const rf = compose(n < 8 ? `rnd-chain-${n}-flipped` : null, flipped);
     if (perRunJson(rf.adj) === perRunJson(r.adj) && rf.fence.total === r.fence.total && rf.fence.corner === r.fence.corner) reverseOk++; else bad.reverse.push(`chain ${n}: drawing direction changed the answer`);
-    // a random height decides the owner: the SHORTEST member of every joint,
-    // because the fence steps down onto the short post (March, 2 Oct 2026)
+    // A random height decides the owner: the TALLEST member of every joint.
+    //
+    // A DECISION THAT REVERSED ONE OF HIS, and it should be put to him rather
+    // than left in a comment. This read "the SHORTEST member, because the
+    // fence steps down onto the short post (March, 2 Oct 2026)" -- his own
+    // instruction. On 22 Oct both engines were changed to the opposite, on the
+    // grounds that a post has to be tall enough for the TALLEST panel on it:
+    // a 6 ft panel cannot hang on a 4 ft post, so the post that is bought and
+    // set is the tall one (JOINING_RUNS 2.4, and FenceGeometry's own @param
+    // heightFt, which had said so all along).
+    //
+    // It is not free either way: the post is billed from the OWNER run's own
+    // catalog at its own height, so shorter-owns buys a 4 ft corner post for a
+    // hole that needs a 6 ft one. That is why the engines were corrected, and
+    // these cases follow what ships -- but the reversal is his to confirm.
     const hs = specs.map((s) => ({ ...s, height: [4, 5, 6][Math.floor(rand() * 3)] }));
     const rh = compose(null, hs);
     const ownersRight = rh.adj.posts.every((jp) => {
       const members = hs.filter((s) => jp.memberRunIds.includes(s.id));
-      const low = Math.min(...members.map((m) => m.height));
+      const high = Math.max(...members.map((m) => m.height));
       const owner = members.find((m) => m.id === jp.ownerRunId);
-      return owner.height === low && members.filter((m) => m.height === low).every((m) => m.sort >= owner.sort);
+      return owner.height === high && members.filter((m) => m.height === high).every((m) => m.sort >= owner.sort);
     });
     if (ownersRight && rh.fence.total === r.fence.total) ownerOk++; else bad.owner.push(`chain ${n}: owner is not the shortest / lowest-sorted`);
   }
   expectEq("6a", "40 random rectilinear chains (2-6 legs, mixed turns incl. straight): joined == the real engine's ONE polyline, line/corner/end/total, and saves legs-1 posts", chainsOk, 40, bad.chain.slice(0, 3).join(" ; "));
   expectEq("6b", "...the list order of the runs never changes the answer", orderOk, 40, bad.order.slice(0, 3).join(" ; "));
   expectEq("6c", "...the drawing direction of each run (points reversed, ends swapped) never changes the answer", reverseOk, 40, bad.reverse.slice(0, 3).join(" ; "));
-  expectEq("6d", "...the shared post always goes to the SHORTEST member, then the lowest sort order, and the fence total never depends on who owns it", ownerOk, 40, bad.owner.slice(0, 3).join(" ; "));
+  expectEq("6d", "...the shared post always goes to the TALLEST member, then the lowest sort order, and the fence total never depends on who owns it", ownerOk, 40, bad.owner.slice(0, 3).join(" ; "));
 
   // WHERE THE POLYLINE COMPARISON STOPS HOLDING, pinned so nobody "fixes" the join to match it. A polyline rounds its bays up ONCE over
   // the whole length; joined runs round up PER RUN. Two 7 ft legs: 2 bays each (a 7 ft bay will not take a 6 ft panel), so 3 + 3 posts

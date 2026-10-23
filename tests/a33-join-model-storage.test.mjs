@@ -197,7 +197,10 @@ function freshDb(statements) {
  *       yet, so only these go up and the pull leaves them alone. Markers were the one child table
  *       pushed wholesale from every device with NO pull guard, which is why a dragged house
  *       reverted.
- * Bump this line, and nothing else here, when a 53 lands.
+ *   53  jobs.depositIsAuto -- whether the stored deposit is the app's own suggestion or a figure
+ *       a person chose. One bit, and it is what lets the deposit follow the price without ever
+ *       overwriting somebody's own number. Shipped in 1.734.
+ * Bump this line, and nothing else here, when a 54 lands.
  *
  * NOTE for whoever lands the owed DROP TABLE mentioned below: it was written expecting to be
  * SchemaV51. 51 went to the marker sizes and 52 to the marker mark, so that drop is now a 53.
@@ -211,7 +214,7 @@ function freshDb(statements) {
  * RunJoin::class leaves that list, THIS file is replaced by a59-join-storage-roundtrip.test.mjs -- do
  * not retire it before then.
  */
-const DB_VERSION = 52;
+const DB_VERSION = 53;
 
 /** Differences between the RunJoin entity and a SQLite built from the migration's statements, plus the wiring. Empty is good. */
 function schemaViolations(runJoinKt, appDatabaseKt) {
