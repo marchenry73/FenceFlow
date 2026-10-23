@@ -95,15 +95,74 @@ class TypedLengthTakeoffTest {
         )
     }
 
-    // --- Planted failure: the same diagonal through the old slide orders a ninth panel. ---
+    /**
+     * The old slide still overshoots -- and as of 23 Oct 2026 that overshoot
+     * no longer reaches the panel count.
+     *
+     * THIS TEST USED TO ASSERT NINE PANELS, and it was right to: a typed 48 ft
+     * run through the old slide landed the corner a hair past 48, and
+     * `ceil(48.00000x / 6)` is 9. That was the planted failure proving the
+     * typed-length path above is load-bearing.
+     *
+     * [EstimateEngine.COUNT_TOLERANCE_FT] now absorbs exactly that hair, so
+     * the old slide buys eight panels too. The canary did not rot -- what it
+     * planted was FLOAT NOISE, and float noise is the thing the tolerance was
+     * added to defend against, so a second line of defence grew in front of
+     * it. Asserted here rather than deleted, because "the old slide's
+     * overshoot is smaller than a thousandth of a foot" is a fact about the
+     * slide worth pinning, and because a planted failure that silently stops
+     * firing is how a suite comes to prove nothing.
+     *
+     * THE CANARY IS REPLANTED BELOW with an overshoot the tolerance must NOT
+     * absorb. If that half ever reads eight, the tolerance has grown big
+     * enough to swallow real fence.
+     */
     @Test
-    fun `planted failure - the old slide turned a typed 48 feet into nine panels`() {
+    fun `planted failure - the old slide overshoots, and that overshoot is now float noise`() {
         val points = listOf(p(2508.652f, 394.14835f), p(2190.7705f, 304.57584f))
         val old = storedRun(stretchSegment(points, 0, 48f * gridPxPerFt)!!)
         val linear = EstimateEngine.linearFeet(job(), listOf(old))
+
+        // Still the wrong way to set a length: it does not land on the number.
         assertTrue("expected the old slide to overshoot, got $linear", linear > 48f)
-        val s = EstimateEngine.suggestQuantities(old, gridPxPerFt)
-        assertEquals(9.0, s.entries.filter { it.role == MaterialRole.PANEL }.sumOf { it.quantity }, 0.0)
+        // And the overshoot is under a thousandth of a foot -- a hundredth of
+        // an inch -- which is what makes it noise rather than fence.
+        assertTrue(
+            "the old slide overshot by ${linear - 48f} ft, which is more than the count " +
+                "tolerance absorbs; this test's reasoning no longer holds",
+            linear - 48f <= EstimateEngine.COUNT_TOLERANCE_FT
+        )
+        assertEquals(
+            8.0,
+            EstimateEngine.suggestQuantities(old, gridPxPerFt)
+                .entries.filter { it.role == MaterialRole.PANEL }.sumOf { it.quantity },
+            0.0
+        )
+    }
+
+    /**
+     * The replanted canary: an overshoot that is REAL fence still buys the
+     * next panel.
+     *
+     * 48.05 ft is six tenths of an inch past eight bays. A tape can read it,
+     * so it must be charged. This is the half that proves the tolerance has
+     * not quietly become a licence to round real footage away.
+     */
+    @Test
+    fun `planted failure - an overshoot bigger than the tolerance still buys the ninth panel`() {
+        val run = type("48' 1\"", listOf(p(1000f, 1000f), p(1962f, 1000f)), 0)
+        val linear = EstimateEngine.linearFeet(job(), listOf(run))
+        assertTrue("expected just over 48 ft, got $linear", linear > 48f)
+        assertTrue(
+            "this case must sit OUTSIDE the tolerance to mean anything, overshoot ${linear - 48f} ft",
+            linear - 48f > EstimateEngine.COUNT_TOLERANCE_FT
+        )
+        assertEquals(
+            9.0,
+            EstimateEngine.suggestQuantities(run, gridPxPerFt)
+                .entries.filter { it.role == MaterialRole.PANEL }.sumOf { it.quantity },
+            0.0
+        )
     }
 
     @Test
