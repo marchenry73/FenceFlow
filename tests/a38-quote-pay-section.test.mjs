@@ -406,9 +406,22 @@ test('the downloaded copy of the quote does not carry payment details', () => {
   // customer saves and forwards must not become a place the contractor's bank
   // details live. If someone adds #payMethods to it, that is a decision to make
   // on purpose, so it fails here first.
-  const start = src.indexOf('function downloadQuoteCopy');
-  assert.ok(start > 0);
-  const body = src.slice(start, src.indexOf('\n}\n', start));
+  // LINE ENDINGS NORMALISED FIRST. git stores this file with LF and checks it
+  // out with CRLF on some machines, and the end marker below is written with
+  // LF -- so on such a checkout indexOf returned -1, slice ran to the END OF
+  // THE FILE, and this check reported that the downloaded copy carries the
+  // contractor's bank details when it carries none of them. The sources in
+  // this repo are already mixed, so normalising is the only answer that works
+  // both ways.
+  const lf = src.split('\r\n').join('\n');
+  const start = lf.indexOf('function downloadQuoteCopy');
+  assert.ok(start > 0, 'downloadQuoteCopy is gone');
+  const end = lf.indexOf('\n}\n', start);
+  // A slice that runs off the end of the file is what made this look like a
+  // real finding. Say so rather than widening silently.
+  assert.ok(end > start, 'could not find the end of downloadQuoteCopy -- the slice would be the rest of the file');
+  const body = lf.slice(start, end);
+  assert.ok(body.length < 6000, `the downloadQuoteCopy slice is ${body.length} chars -- that is not one function`);
   assert.ok(!/payMethods|payHow|payNotes|paymentMethods/.test(body));
 });
 
