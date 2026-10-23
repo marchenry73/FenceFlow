@@ -116,6 +116,20 @@ verify_jwt = false
 [functions.quote-approval-email]
 verify_jwt = false
 
+# Called by stripe-webhook (and square-webhook) once a payment has cleared, to
+# send the customer her receipt. Same reasoning as quote-approval-email just
+# above: the caller is another function, not a person, so there is no JWT to
+# verify, and the door that replaces the gateway's check is the shared
+# NOTIFY_TRIGGER_SECRET compared in constant time.
+#
+# What a caller holding the secret can cause is deliberately narrow: it passes
+# a payment id and nothing else -- no amount, no address, no subject -- so the
+# only possible outcome is the one receipt for a payment that really cleared,
+# to the address already on that job (or, for a test payment, to the company's
+# own), once, because the send is claimed atomically.
+[functions.payment-receipt]
+verify_jwt = false
+
 # Public imagery and geocoding proxy for the 3D quote page; nothing behind
 # it is sensitive and its callers hold no JWT.
 [functions.quote-map]

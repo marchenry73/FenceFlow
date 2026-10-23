@@ -200,8 +200,28 @@ async function applyPaymentToJob(admin: any, payment: any) {
   // the AR aging and the app itself summed it as real collected cash, and
   // the app then rebuilt amount_paid from that ledger, undoing the scoping
   // below. Nothing about a test checkout may touch the books.
-  if (!livemode) return;
-
+  if (!livemode) {
+    // SAID OUT LOUD, AND STILL NOT BOOKED.
+    //
+    // "I also did a test payment and it did not show on the app."
+    //
+    // It did not, and it must not -- see the paragraph above, which this
+    // branch does not weaken: nothing below here runs, so amount_paid,
+    // payment_status and the ledger are as untouched as they were when this
+    // was a bare return. The only thing added is that somebody is told.
+    //
+    // Worded so it can never read as money arriving. "TEST" first, the figure
+    // second, and the sentence says in full that nothing was recorded --
+    // because the one failure that matters here is a test push that gets
+    // glanced at on a lock screen and taken for a real payment.
+    await notifyTestPayment(admin, job, Number(payment.amount_cents || 0) / 100);
+    // AND THE RECEIPT, marked as a test and addressed to HIM -- "it should
+    // also send an email when the person make a payment even if it was a test
+    // one". payment-receipt is what refuses to send a test receipt to the
+    // customer; this branch simply asks, exactly as the live one does.
+    await askForReceipt(payment.id);
+    return;
+  }
 
 
   // The ledger row first, so the paid figure below can be summed from the
@@ -252,6 +272,11 @@ async function applyPaymentToJob(admin: any, payment: any) {
 
 
   await notifyPaid(admin, job, Number(payment.amount_cents || 0) / 100, paidDollars);
+
+  // HER RECEIPT, last: after the ledger row, after amount_paid, after the
+  // push. A receipt is a statement about money that has been recorded, so
+  // nothing sends one until the recording has happened.
+  await askForReceipt(payment.id);
 }
 
 /**
@@ -408,6 +433,98 @@ async function notifyPaid(admin: any, job: any, justPaid: number, totalPaid: num
           data: {
             title: `Payment received: $${justPaid.toFixed(2)}`,
             body: `${who} paid $${justPaid.toFixed(2)}. Total paid on this job is now $${totalPaid.toFixed(2)}.`,
+            jobId: String(job.id ?? ""),
+          },
+          android: { priority: "HIGH" },
+        },
+      }),
+    }).catch(() => {});
+  }
+}
+
+/**
+ * Ask payment-receipt to send the customer her receipt.
+ *
+ * WHAT IS NOT DECIDED HERE: who it goes to. payment-receipt reads the payment
+ * row itself and sends a live receipt to the customer and a TEST one to the
+ * company's own address -- so this call is the same on both branches and
+ * cannot turn a test into a letter to a homeowner. It also claims the send
+ * (public.claim_payment_receipt), so a redelivered event cannot send twice.
+ *
+ * NEVER FAILS THIS WEBHOOK. A refused or unanswered receipt must not make the
+ * handler answer non-2xx: Stripe would retry the whole event for the sake of
+ * an email, and the failure is logged where it happened.
+ */
+async function askForReceipt(paymentId: unknown) {
+  const secret = Deno.env.get("NOTIFY_TRIGGER_SECRET") ?? "";
+  const base = (Deno.env.get("SUPABASE_URL") ?? "").replace(/\/+$/, "");
+  if (!secret || !base) {
+    console.error("stripe-webhook: no receipt sent -- NOTIFY_TRIGGER_SECRET or SUPABASE_URL is not set");
+    return;
+  }
+  if (typeof paymentId !== "string" || !paymentId) return;
+  const call = (async () => {
+    try {
+      const res = await fetch(`${base}/functions/v1/payment-receipt`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", "x-fenceflow-trigger": secret },
+        body: JSON.stringify({ payment_id: paymentId }),
+      });
+      if (!res.ok) {
+        console.error("stripe-webhook: payment-receipt answered", res.status,
+          (await res.text().catch(() => "")).slice(0, 200));
+      }
+    } catch (e) {
+      console.error("stripe-webhook: could not reach payment-receipt",
+        String((e as Error)?.message ?? e));
+    }
+  })();
+  // Kept alive after the 200 goes back to Stripe, so a slow send is not cut
+  // off with the response -- quote-view keeps the contract email the same way.
+  try {
+    // deno-lint-ignore no-explicit-any
+    (globalThis as any).EdgeRuntime?.waitUntil?.(call);
+  } catch (_e) { /* no such runtime */ }
+  await call;
+}
+
+/**
+ * A TEST payment landed. Nothing was booked, and this says which.
+ *
+ * Deliberately NOT notifyPaid with a different title: that one names a total
+ * paid on the job, and on this branch there is no such figure -- the books
+ * were not touched, so quoting one would be inventing it. This names the test
+ * amount and nothing else.
+ *
+ * Same audience as notifyPaid (moneyDevices): a test checkout is the owner
+ * testing his own product, and crew have no use for it.
+ */
+async function notifyTestPayment(admin: any, job: any, amount: number) {
+  const raw = Deno.env.get("FIREBASE_SERVICE_ACCOUNT");
+  if (!raw) return;
+  // No job row yet means no company to look devices up by, and nothing on a
+  // phone to open. The payment is in job_payments either way.
+  if (!job) return;
+
+  const devices = await moneyDevices(admin, job.company_id);
+  if (!devices.length) return;
+
+  const sa = JSON.parse(raw);
+  const token = await fcmAccessToken(sa);
+  const who = job.customer_name || "a customer";
+
+  for (const d of devices) {
+    await fetch(`https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+      body: JSON.stringify({
+        message: {
+          token: d.token,
+          data: {
+            title: `TEST payment went through: $${amount.toFixed(2)}`,
+            body: `The card checkout worked for ${who}. This was Stripe test mode, ` +
+              `so NOTHING has been recorded against the job -- no payment, no deposit paid, ` +
+              `no change to what is owed. A live card will record itself.`,
             jobId: String(job.id ?? ""),
           },
           android: { priority: "HIGH" },

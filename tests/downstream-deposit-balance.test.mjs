@@ -109,7 +109,30 @@ const ok = (label, cond, detail = "") => {
 // transcribes the deposit half and compares it against the office and the
 // server. If the office ever starts moving a stored deposit of its own, that
 // is where the two have to be held together.
-const JOB_MONEY_FINGERPRINT = "1555485ff60ad345";
+// Moved 23 Oct 2026, 1555485ff60ad345 -> 43f6fa9bc04acede, for "Set deposit no
+// longer turns off the deposit following the price". The pin fired as designed
+// and the transcription below was re-read against JobMoney.kt function by
+// function before it was moved: netPaid, balance, stillOwed, isAccepted,
+// acceptedAt, extraWorkSinceAcceptance, anchoredTotal and billableTotal --
+// every function THIS file transcribes -- are unchanged, character for
+// character in meaning.
+//
+// Again, that is not a claim about the hash. git diff over JobMoney.kt for
+// that commit reads 49 lines added and 0 REMOVED -- so nothing was changed in
+// place -- and the only two definitions on an added line are the DepositFollow
+// enum and depositFollow(), which turn depositToStore's three gates round so a
+// SCREEN can say which one is holding a deposit still. Not one of the eight
+// names above appears on an added line, and nothing in this file reads either
+// addition.
+//
+// WORTH KNOWING FOR NEXT TIME: the bug that commit fixed was not in JobMoney
+// at all. applySuggestedDeposit() in JobDetailViewModel stored the app's OWN
+// suggested figure as depositIsAuto = false, so the button that puts a deposit
+// on a job was also the act that stopped that deposit ever following the price
+// again. It is pinned in DepositProvenanceTest.kt, with the shipped mistake as
+// a canary -- a question about WHO wrote a figure rather than about what the
+// figure is, which is why nothing in this file could have caught it.
+const JOB_MONEY_FINGERPRINT = "43f6fa9bc04acede";
 const jobMoneyNow = createHash("sha256")
   .update(readFileSync("app/src/main/java/com/fenceestimator/app/estimate/JobMoney.kt", "utf8").split(String.fromCharCode(13)).join(""))
   .digest("hex").slice(0, 16);
