@@ -137,3 +137,60 @@ test("CANARY: the fall-through check fails when the return is removed", () => {
   assert.doesNotMatch(guard, /return;/,
     "a guard with no return was not detected, so the real check has no teeth");
 });
+
+// ============================================================================
+// A refusal with NO SESSION is a sign-in problem, never a missing grant.
+//
+// 22 October, from the live office: "FenceFlow is missing a database
+// permission for mail_list_threads2. That is a fault on our side." The grants
+// on that function are perfectly fine -- authenticated has EXECUTE and the
+// call works. What produced the sentence was a SIGNED-OUT call: anon has no
+// EXECUTE, so Postgres answers 401 "permission denied for function
+// mail_list_threads2", and the grant rule added that morning read our own
+// correct refusal as our own bug.
+//
+// Reproduced against the live project before the fix was written, with the
+// shipped publishable key and no user token, and it returned exactly that
+// body. The cost of getting this wrong is not cosmetic: it sends a false bug
+// report about a function that is working.
+
+test("a permission refusal with no session reads as a sign-in problem", () => {
+  const r = region("function plainError(text)", "const TECH_ERRORS = [");
+  assert.match(r, /hasLiveSession\(\)/,
+    "plainError no longer asks whether anybody is signed in, so a signed-out refusal is blamed on a missing grant again");
+  assert.match(r, /return tr\('errSession'\)/,
+    "the signed-out branch does not return the sign-in wording");
+});
+
+test("the session check runs BEFORE the grant rule, or it changes nothing", () => {
+  // Ends at the function AFTER plainError. reportOfficeError sits BEFORE it
+  // in the file, so using that as the closing landmark found nothing.
+  const whole = region("function plainError(text)", "function savedNote(");
+  const sessionAt = whole.indexOf("hasLiveSession()");
+  const grantAt = whole.indexOf("errGrantMissing");
+  assert.ok(sessionAt > -1 && grantAt > -1, "one of the two is gone");
+  assert.ok(sessionAt < grantAt,
+    "the grant rule is reached first, so a signed-out caller is still told it is our bug");
+});
+
+test("it only catches the permission family, not every error", () => {
+  // A network failure or a server error is what it says it is whether or not
+  // anybody is signed in; widening this would turn every error on a
+  // signed-out page into 'your sign-in expired'.
+  const r = region("function plainError(text)", "const TECH_ERRORS = [");
+  const guard = /if\s*\(\/([^/]+)\/i\.test\(String\(text \|\| ''\)\) && !hasLiveSession\(\)\)/.exec(r);
+  assert.ok(guard, "the guard is no longer a pattern test against the message");
+  for (const word of ["permission denied", "42501"]) {
+    assert.ok(new RegExp(guard[1], "i").test(word), `${word} is no longer caught`);
+  }
+  for (const other of ["failed to fetch", "could not reach the server", "timeout"]) {
+    assert.ok(!new RegExp(guard[1], "i").test(other),
+      `${other} is caught by the session guard, so a network failure on a signed-out page lies about why`);
+  }
+});
+
+test("hasLiveSession cannot throw the page over", () => {
+  const r = region("function hasLiveSession()", "function plainError");
+  assert.match(r, /try\s*\{/, "no try/catch: a client without auth attached takes the whole error path down");
+  assert.match(r, /catch[\s\S]*return false/, "a failure to read the session must answer false, not throw");
+});

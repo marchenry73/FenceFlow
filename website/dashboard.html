@@ -10761,7 +10761,37 @@ function hideRoleStrip(){
   if (el) { el.style.display = 'none'; el.textContent = ''; }
 }
 
+/**
+ * Is there a signed-in session on this page RIGHT NOW?
+ *
+ * Read from the client's own cached session rather than awaited, because
+ * plainError is called from synchronous render paths. Unknown answers false,
+ * which only ever costs a slightly less specific message.
+ */
+function hasLiveSession(){
+  try { return !!(db && db.auth && db.auth.currentSession && db.auth.currentSession.access_token); }
+  catch (e) { return false; }
+}
+
 function plainError(text){
+  // A REFUSAL WITH NO SESSION IS A SIGN-IN PROBLEM, NEVER A MISSING GRANT.
+  //
+  // Postgres says "permission denied for function mail_list_threads2" to a
+  // caller with no user token, because the anon role has no EXECUTE on it --
+  // which is correct and deliberate. The grant rule below then read that as
+  // OUR bug and told him FenceFlow was missing a database permission, which
+  // sent a false report about a function whose grants are perfectly fine.
+  // Reproduced against the live project before this was written: the office
+  // page makes the call signed out (a session that expired while the tab sat
+  // open, or a fetch that beat the session being restored) and gets exactly
+  // that sentence.
+  //
+  // Checked FIRST, because every rule below is about a caller who is signed
+  // in. Only for the permission family -- a network failure or a server error
+  // is still what it says it is whether or not anybody is signed in.
+  if (/permission denied|42501|not authorized|jwt/i.test(String(text || '')) && !hasLiveSession()) {
+    return tr('errSession');
+  }
   const TECH_ERRORS = [
     [/failed to fetch|networkerror|load failed|network request failed|fetch failed/i, 'errNetwork'],
     [/jwt expired|invalid jwt|refresh token not found|auth session missing/i, 'errSession'],
