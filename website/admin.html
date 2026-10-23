@@ -2164,7 +2164,7 @@ async function loadBin() {
     // when the question could not be asked is the shape of lie this console
     // has been bitten by before.
     empty.style.display = 'none';
-    return msg('binMsg', plainError(error.message), 'err');
+    return msg('binMsg', error.message, 'err');
   }
   const rows = data || [];
   empty.style.display = rows.length ? 'none' : 'block';
@@ -2231,7 +2231,7 @@ async function openSpecial(companyId) {
     msg('msg', tr('specialDone', c.name || '', money(data.now), String(data.months), money(data.reverts_to)), 'ok');
     loadAll();
   } catch (e) {
-    msg('msg', plainError(String(e && e.message || e)), 'err');
+    msg('msg', String(e && e.message || e), 'err');
   }
 }
 
@@ -2242,7 +2242,7 @@ function switchView(name) {
   document.querySelectorAll('.rail button').forEach(b => b.classList.toggle('on', b.dataset.view === name));
   // Read when it is opened, and read again every time: a company removed or
   // restored since the last look must not leave a stale bin on screen.
-  if (name === 'bin') loadBin().catch(e => msg('binMsg', plainError(String(e)), 'err'));
+  if (name === 'bin') loadBin().catch(e => msg('binMsg', String(e && e.message || e), 'err'));
 }
 
 /* ---------------------------------------------------------------- data ---- */
