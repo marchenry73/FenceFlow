@@ -197,22 +197,41 @@ object TrashBin {
         }
 
     /**
-     * Removes a record for good.
+     * Destroys a deleted JOB for good, unless money is recorded against it.
      *
-     * The tombstone is what makes a delete recoverable, so clearing it out is
-     * the only genuinely irreversible action in the app -- and the only place
-     * that word is honest. Kept separate from restore, behind its own
-     * confirmation, and gone from every device rather than only this one.
+     * AN RPC, NOT A DELETE, and that is the whole reason this works. The
+     * previous version of this function issued a plain DELETE, which the
+     * database refuses for every role -- there is no DELETE policy on these
+     * tables for anybody, owner included. It returned success and destroyed
+     * nothing, so whoever pressed the button watched the item come back on the
+     * next load. public.purge_job (supabase_r33_purge_job_never_money.sql) is
+     * SECURITY DEFINER, which is the only way past that, and it carries the
+     * rules in the one place both phones and the office read:
+     *
+     *   - the caller must hold DELETE_RECORDS;
+     *   - the job must already be in the bin, so purge is the second step of a
+     *     decision somebody already made, never a shortcut past the first;
+     *   - a job with ANY payment recorded against it is refused, in either
+     *     ledger, including rows already soft-deleted. "Permanent delete, but
+     *     never money."
+     *
+     * It also discovers the twenty-two tables carrying a job_sync_id at run
+     * time rather than from a list in here, so a table added next year is
+     * cleaned up by the same call instead of leaving orphans behind.
+     *
+     * THE SERVER'S SENTENCE IS THE ANSWER. A refusal arrives as the message
+     * raised by purge_job -- "That job has 2 payment record(s) against it.
+     * Money is never destroyed" -- and callers show it as it is. Replacing it
+     * with wording of our own is how 42 deliberate server messages were once
+     * all turned into one wrong sentence about the account.
      */
-    suspend fun purge(companyId: String, record: TrashedRecord): Result<Unit> =
+    suspend fun purgeJob(jobSyncId: String): Result<Unit> =
         withContext(Dispatchers.IO) {
             runCatching {
-                SupabaseModule.client.postgrest.from(record.table).delete {
-                    filter {
-                        eq("company_id", companyId)
-                        eq("sync_id", record.syncId)
-                    }
-                }
+                SupabaseModule.client.postgrest.rpc(
+                    "purge_job",
+                    buildJsonObject { put("p_job_sync_id", jobSyncId) }
+                )
                 Unit
             }
         }

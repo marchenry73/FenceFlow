@@ -1339,6 +1339,7 @@
         <div class="nav-head" data-t="navAdmin">Account</div>
         <button class="tab" data-tab="settings" data-t="tabSettings">Settings</button>
         <button class="tab" data-tab="billing" data-t="tabBilling">Billing</button>
+        <button class="tab" data-tab="trash" data-t="tabTrash">Deleted items</button>
       </div>
     </div>
 
@@ -2431,6 +2432,21 @@
           <button class="btn btn-sm btn-grey mail-back" id="mailBack" type="button" data-t="mailBackBtn">Back</button>
           <div id="mailReaderBody"><div class="empty" data-t="mailSelectThread">Select an email to read it.</div></div>
         </div>
+      </div>
+    </div>
+
+    <div id="tab-trash" style="display:none">
+      <div class="panel">
+        <h2 style="margin-top:0" data-t="trashHead">Deleted items</h2>
+        <p class="sub" data-t="trashLead">Everything deleted on any device, newest first, with who
+          deleted it and when. Deleting is a tombstone rather than a removal, which is why this
+          list can exist at all &mdash; and why a mistake made on somebody else's phone is
+          recoverable from here.</p>
+        <p class="sub" data-t="trashRestoreOnPhone">Put something back from the app, under Account
+          &rarr; Deleted items. Restoring a job also brings back the parts deleted with it, and
+          that rule lives in the app so there is only one copy of it.</p>
+        <div class="msg" id="trashMsg"></div>
+        <div id="trashList" class="section-loading" data-t="loadingSection">Loading&hellip;</div>
       </div>
     </div>
 
@@ -3717,6 +3733,18 @@ const TL = {
     tabProd:'Production', tabMaterials:'To order', tabCrew:'Crew', tabTime:'Time',
     tabCatalog:'Catalog', tabReports:'Reports', tabAutomation:'Automation',
     tabSettings:'Settings', tabBilling:'Billing',
+    tabTrash:'Deleted items',
+    trashHead:'Deleted items', trashSignIn:'Sign in to see what has been deleted.',
+    trashLead:'Everything deleted on any device, newest first, with who deleted it and when. Deleting is a tombstone rather than a removal, which is why this list can exist at all \u2014 and why a mistake made on somebody else\u2019s phone is recoverable from here.',
+    trashRestoreOnPhone:'Put something back from the app, under Account \u2192 Deleted items. Restoring a job also brings back the parts deleted with it, and that rule lives in the app so there is only one copy of it.',
+    trashEmpty:'Nothing has been deleted.', trashUnnamed:'(no name)',
+    trashColWhat:'What', trashColKind:'Kind', trashColWhen:'Deleted', trashColWho:'By',
+    trashKindJob:'Job', trashKindChangeOrder:'Change order', trashKindExpense:'Expense',
+    trashKindCrew:'Crew member', trashKindCatalogItem:'Catalog item',
+    trashKindFenceRun:'Fence run', trashKindPunchItem:'Punch list item',
+    trashPurge:'Delete forever', trashPurgeTitle:'Delete this job forever?',
+    trashPurgeBody:'\u201c%s\u201d and everything on it \u2014 the drawing, the estimate, the photos, the change orders, the notes \u2014 are destroyed on every device. This cannot be undone. A job with a payment recorded against it will be refused: money is never destroyed.',
+    trashPurged:'\u201c%s\u201d is gone for good.', trashPurgeFailed:'It was not deleted.',
     // Company email (Email tab, compose, Settings -> Company email, seat
     // column). The mailErr* sentences are word for word the server's own
     // MESSAGES in supabase/functions/_shared/mail/errors.ts, which is how the
@@ -5579,6 +5607,18 @@ jobViewAll:'All', jobViewToday:'Today', jobViewWeek:'This week', jobViewUnschedu
     tabProd:'Producción', tabMaterials:'Por pedir', tabCrew:'Cuadrilla', tabTime:'Horas',
     tabCatalog:'Catálogo', tabReports:'Informes', tabAutomation:'Automatización',
     tabSettings:'Ajustes', tabBilling:'Facturación',
+    tabTrash:'Elementos eliminados',
+    trashHead:'Elementos eliminados', trashSignIn:'Inicie sesi\u00f3n para ver lo que se ha eliminado.',
+    trashLead:'Todo lo eliminado en cualquier dispositivo, lo m\u00e1s reciente primero, con qui\u00e9n lo elimin\u00f3 y cu\u00e1ndo. Eliminar deja una marca en lugar de borrar la fila, y por eso esta lista puede existir \u2014 y por eso un error cometido en el tel\u00e9fono de otra persona se puede recuperar desde aqu\u00ed.',
+    trashRestoreOnPhone:'Restaure desde la aplicaci\u00f3n, en Cuenta \u2192 Elementos eliminados. Al restaurar un trabajo tambi\u00e9n vuelven las partes que se eliminaron con \u00e9l, y esa regla vive en la aplicaci\u00f3n para que haya una sola copia.',
+    trashEmpty:'No se ha eliminado nada.', trashUnnamed:'(sin nombre)',
+    trashColWhat:'Qu\u00e9', trashColKind:'Tipo', trashColWhen:'Eliminado', trashColWho:'Por',
+    trashKindJob:'Trabajo', trashKindChangeOrder:'Orden de cambio', trashKindExpense:'Gasto',
+    trashKindCrew:'Miembro del equipo', trashKindCatalogItem:'Art\u00edculo del cat\u00e1logo',
+    trashKindFenceRun:'Tramo de cerca', trashKindPunchItem:'Pendiente',
+    trashPurge:'Eliminar para siempre', trashPurgeTitle:'\u00bfEliminar este trabajo para siempre?',
+    trashPurgeBody:'\u00ab%s\u00bb y todo lo que contiene \u2014 el dibujo, el presupuesto, las fotos, las \u00f3rdenes de cambio, las notas \u2014 se destruyen en todos los dispositivos. No se puede deshacer. Un trabajo con un pago registrado ser\u00e1 rechazado: el dinero nunca se destruye.',
+    trashPurged:'\u00ab%s\u00bb ya no existe.', trashPurgeFailed:'No se elimin\u00f3.',
     tabMail:'Correo', mailUnreadTitle:'%s sin leer',
 jobViewAll:'Todos', jobViewToday:'Hoy', jobViewWeek:'Esta semana', jobViewUnscheduled:'Sin programar', jobViewBlocked:'Bloqueados',
     dashGroupToday:'Hoy', dashGroupSales:'Ventas', dashGroupMoney:'Dinero',
@@ -7407,6 +7447,18 @@ jobViewAll:'Todos', jobViewToday:'Hoy', jobViewWeek:'Esta semana', jobViewUnsche
     tabProd:'Production', tabMaterials:'À commander', tabCrew:'Équipe', tabTime:'Heures',
     tabCatalog:'Catalogue', tabReports:'Rapports', tabAutomation:'Automatisation',
     tabSettings:'Paramètres', tabBilling:'Facturation',
+    tabTrash:'\u00c9l\u00e9ments supprim\u00e9s',
+    trashHead:'\u00c9l\u00e9ments supprim\u00e9s', trashSignIn:'Connectez-vous pour voir ce qui a \u00e9t\u00e9 supprim\u00e9.',
+    trashLead:'Tout ce qui a \u00e9t\u00e9 supprim\u00e9 sur n\u2019importe quel appareil, du plus r\u00e9cent au plus ancien, avec qui l\u2019a supprim\u00e9 et quand. Une suppression laisse une trace au lieu d\u2019effacer la ligne : c\u2019est pour cela que cette liste existe \u2014 et qu\u2019une erreur faite sur le t\u00e9l\u00e9phone de quelqu\u2019un d\u2019autre est r\u00e9cup\u00e9rable ici.',
+    trashRestoreOnPhone:'Restaurez depuis l\u2019application, dans Compte \u2192 \u00c9l\u00e9ments supprim\u00e9s. Restaurer un chantier ram\u00e8ne aussi ce qui a \u00e9t\u00e9 supprim\u00e9 avec lui, et cette r\u00e8gle vit dans l\u2019application pour qu\u2019il n\u2019en existe qu\u2019une copie.',
+    trashEmpty:'Rien n\u2019a \u00e9t\u00e9 supprim\u00e9.', trashUnnamed:'(sans nom)',
+    trashColWhat:'Quoi', trashColKind:'Type', trashColWhen:'Supprim\u00e9', trashColWho:'Par',
+    trashKindJob:'Chantier', trashKindChangeOrder:'Ordre de modification', trashKindExpense:'D\u00e9pense',
+    trashKindCrew:'Membre de l\u2019\u00e9quipe', trashKindCatalogItem:'Article du catalogue',
+    trashKindFenceRun:'Tron\u00e7on de cl\u00f4ture', trashKindPunchItem:'Point \u00e0 finir',
+    trashPurge:'Supprimer d\u00e9finitivement', trashPurgeTitle:'Supprimer ce chantier d\u00e9finitivement ?',
+    trashPurgeBody:'\u00ab %s \u00bb et tout ce qu\u2019il contient \u2014 le dessin, le devis, les photos, les ordres de modification, les notes \u2014 sont d\u00e9truits sur tous les appareils. C\u2019est irr\u00e9versible. Un chantier avec un paiement enregistr\u00e9 sera refus\u00e9 : l\u2019argent n\u2019est jamais d\u00e9truit.',
+    trashPurged:'\u00ab %s \u00bb n\u2019existe plus.', trashPurgeFailed:'Il n\u2019a pas \u00e9t\u00e9 supprim\u00e9.',
     tabMail:'E-mails', mailUnreadTitle:'%s non lus',
 jobViewAll:'Tous', jobViewToday:'Aujourdhui', jobViewWeek:'Cette semaine', jobViewUnscheduled:'Non planifiés', jobViewBlocked:'Bloqués',
     dashGroupToday:'Aujourdhui', dashGroupSales:'Ventes', dashGroupMoney:'Argent',
@@ -12766,6 +12818,132 @@ const PLANS = [
 // is documented as cheap and in-memory, and an async function there would also
 // escape its try/catch, so a re-fetch is the wrong shape for that caller.
 let billingAnswer = null;
+
+/* WHAT IS WORTH SHOWING AS DELETED, and the column that names each row.
+
+   THE SAME LIST AS TrashBin.kt's RECOVERABLE, and tests/a74-deleted-items.test.mjs
+   holds the two together -- it reads both files and compares table names and
+   label columns, so a table added to one and not the other turns red instead
+   of leaving the office quietly blind to a kind of deletion the phone lists.
+   Not every synced table is here: a deleted job step or site marker is noise
+   in a recovery list. */
+const TRASH_TABLES = [
+  { table:'jobs',             label:'customer_name', kind:'trashKindJob' },
+  { table:'change_orders',    label:'description',   kind:'trashKindChangeOrder' },
+  { table:'expenses',         label:'description',   kind:'trashKindExpense' },
+  { table:'employees',        label:'name',          kind:'trashKindCrew' },
+  { table:'material_items',   label:'name',          kind:'trashKindCatalogItem' },
+  { table:'fence_runs',       label:'label',         kind:'trashKindFenceRun' },
+  { table:'punch_list_items', label:'description',   kind:'trashKindPunchItem' },
+];
+
+let trashRows = [];
+
+async function loadTrash(){
+  const box = $('trashList');
+  if(!profile || !profile.company_id){ box.textContent = tr('trashSignIn'); return; }
+  box.textContent = tr('loadingSection');
+
+  // One table at a time, and a failure on one must not empty the list: a
+  // recovery screen showing nothing because a single query broke is
+  // indistinguishable from having nothing to recover. Same reasoning as
+  // TrashBin.list, in the same words.
+  const found = [];
+  for(const spec of TRASH_TABLES){
+    try{
+      // PAGED. The API caps a response at a thousand rows without saying so,
+      // and a company that has deleted more than that would silently stop
+      // seeing its oldest items -- which is the same thing as them being gone.
+      let from = 0;
+      for(;;){
+        const { data, error } = await db.from(spec.table)
+          .select('sync_id, deleted_at, deleted_by, ' + spec.label)
+          .eq('company_id', profile.company_id)
+          .not('deleted_at','is',null)
+          .order('deleted_at',{ ascending:false })
+          .range(from, from + 499);
+        if(error) throw error;
+        (data||[]).forEach(r=>found.push({
+          table: spec.table,
+          kind: spec.kind,
+          syncId: r.sync_id,
+          label: String(r[spec.label] || '').trim() || tr('trashUnnamed'),
+          deletedAt: r.deleted_at,
+          deletedBy: String(r.deleted_by || '').trim(),
+        }));
+        if(!data || data.length < 500) break;
+        from += 500;
+      }
+    }catch(e){
+      console.error('loadTrash ' + spec.table, e && e.message);
+    }
+  }
+  found.sort((a,b)=> String(b.deletedAt||'').localeCompare(String(a.deletedAt||'')));
+  trashRows = found;
+  renderTrash();
+}
+
+function renderTrash(){
+  const box = $('trashList');
+  box.classList.remove('section-loading');
+  if(!trashRows.length){ box.textContent = tr('trashEmpty'); return; }
+
+  box.innerHTML = '<div class="scroll"><table class="biz-table"><thead><tr>'
+    + '<th>' + esc(tr('trashColWhat')) + '</th>'
+    + '<th>' + esc(tr('trashColKind')) + '</th>'
+    + '<th>' + esc(tr('trashColWhen')) + '</th>'
+    + '<th>' + esc(tr('trashColWho')) + '</th>'
+    + '<th></th></tr></thead><tbody>'
+    + trashRows.map((r,i)=>'<tr>'
+        + '<td>' + esc(r.label) + '</td>'
+        + '<td>' + esc(tr(r.kind)) + '</td>'
+        + '<td>' + esc(r.deletedAt ? d(r.deletedAt).toLocaleString() : '') + '</td>'
+        // deleted_by is an email the app wrote, so it is escaped like any
+        // other stored text rather than trusted as our own.
+        + '<td>' + esc(r.deletedBy) + '</td>'
+        + '<td>' + (r.table === 'jobs'
+            ? '<button class="btn btn-sm" data-purge="' + i + '">' + esc(tr('trashPurge')) + '</button>'
+            : '') + '</td>'
+      + '</tr>').join('')
+    + '</tbody></table></div>';
+
+  // DELETE FOREVER, on a job, and nowhere else: purge_job takes a job's sync
+  // id and discovers the tables that point at one. There is nothing equivalent
+  // for a catalog item, so the control is offered where it works instead of
+  // everywhere and failing on six kinds out of seven.
+  box.querySelectorAll('[data-purge]').forEach(b=>
+    b.addEventListener('click', ()=>purgeTrashRow(Number(b.dataset.purge))));
+}
+
+async function purgeTrashRow(i){
+  const row = trashRows[i];
+  if(!row || row.table !== 'jobs') return;
+  const yes = await ask({
+    title: tr('trashPurgeTitle'),
+    body: tr('trashPurgeBody', row.label),
+    confirmLabel: tr('trashPurge'),
+    danger: true,
+  });
+  if(!yes) return;
+
+  // NOTHING IS CHECKED HERE. purge_job refuses a caller without
+  // DELETE_RECORDS, a job that is not already deleted, and ANY job with a
+  // payment recorded against it -- "Permanent delete, but never money". Asking
+  // the same questions on this side as well is how the two come to answer
+  // differently, and the refusal already says exactly why in a sentence.
+  const { error } = await db.rpc('purge_job', { p_job_sync_id: row.syncId });
+  if(error){
+    // The server's own words. Rewriting a refusal by code is what once
+    // replaced 42 deliberate server messages with one wrong sentence.
+    // The server's own words, and they survive the trip: plainError only
+    // rewords known technical shapes (failed to fetch, JWT, permission
+    // denied), and purge_job's refusal is a sentence this project wrote.
+    msg('trashMsg', error.message || tr('trashPurgeFailed'), 'err');
+    return;
+  }
+  msg('trashMsg', tr('trashPurged', row.label), 'ok');
+  await loadTrash();
+}
 
 async function loadBilling(){
   billingAnswer = await db.rpc('my_billing_status');
@@ -31556,7 +31734,7 @@ function switchTab(name){
   const btn = document.querySelector(`.tab[data-tab="${name}"]`);
   if (btn && btn.style.display === 'none') name = 'dash';
   document.querySelectorAll('.tab').forEach(t=>t.classList.toggle('on',t.dataset.tab===name));
-  ['dash','jobs','mail','cal','pipe','prod','materials','crew','time','catalog','reports','automation','settings','billing']
+  ['dash','jobs','mail','cal','pipe','prod','materials','crew','time','catalog','reports','automation','settings','billing','trash']
     .forEach(n=>$('tab-'+n).style.display=(n===name)?'block':'none');
   // Company email loads when opened and keeps checking while it stays open
   // (openMailTab); its Settings panel reads mail-connect's status the same
@@ -31584,6 +31762,9 @@ function switchTab(name){
   // the placeholder for ever, because nothing on this path put it back.
   // Opening the tab now asks again rather than trusting a load from hours ago.
   if(name==='billing') loadBilling().catch(e=>console.error('loadBilling threw:', e));
+  // Read on open, never cached: the whole point of this list is to show a
+  // delete that happened somewhere else a moment ago.
+  if(name==='trash') loadTrash().catch(e=>console.error('loadTrash threw:', e));
 }
 document.querySelectorAll('.tab').forEach(t=>
   t.addEventListener('click',()=>switchTab(t.dataset.tab)));

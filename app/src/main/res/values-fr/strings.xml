@@ -547,6 +547,12 @@
     <string name="acct_trash_deleted_on">supprimé le %1$s</string>
     <string name="acct_trash_deleted_by">par %1$s</string>
     <string name="acct_trash_put_it_back">Restaurer</string>
+    <string name="acct_trash_purge">Supprimer définitivement</string>
+    <string name="acct_trash_purge_title">Supprimer ce chantier définitivement ?</string>
+    <string name="acct_trash_purge_body">« %1$s » et tout ce qu’il contient — le dessin, le devis, les photos, les ordres de modification, les notes — sont détruits sur tous les appareils. C’est la seule chose dans cette application qui ne peut pas être annulée.\n\nUn chantier avec un paiement enregistré sera refusé : l’argent n’est jamais détruit.</string>
+    <string name="acct_trash_purge_confirm">Supprimer définitivement</string>
+    <string name="vm_purged_forever">« %1$s » n’existe plus.</string>
+    <string name="vm_couldnt_purge">Il n’a pas été supprimé. %1$s</string>
     <string name="acct_trash_delete_for_good">Supprimer définitivement</string>
     <string name="acct_trash_restore_everyone">La restauration remet l\'enregistrement en place pour tout le monde, pas seulement sur ce téléphone.</string>
     <string name="acct_refresh">Actualiser</string>

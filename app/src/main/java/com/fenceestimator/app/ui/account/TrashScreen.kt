@@ -11,6 +11,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -22,12 +23,15 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -67,6 +71,32 @@ fun TrashScreen(onBack: () -> Unit) {
     LaunchedEffect(message) { messageText?.let { snackbarHostState.showSnackbar(it) } }
 
     val dayFormat = remember { java.text.SimpleDateFormat("d MMM yyyy, h:mm a", java.util.Locale.US) }
+
+    // WHICH job is about to be destroyed, held by the screen.
+    //
+    // A confirmation is not what makes this safe -- purge_job refuses a job
+    // with any payment on it whatever anybody taps -- but it is what stops the
+    // one irreversible control in the app from being a single tap beside the
+    // reversible one it sits next to.
+    var pendingPurge by remember { mutableStateOf<com.fenceestimator.app.cloud.TrashedRecord?>(null) }
+    pendingPurge?.let { record ->
+        AlertDialog(
+            onDismissRequest = { pendingPurge = null },
+            title = { Text(stringResource(R.string.acct_trash_purge_title)) },
+            text = { Text(stringResource(R.string.acct_trash_purge_body, record.label)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    pendingPurge = null
+                    viewModel.purge(record)
+                }) { Text(stringResource(R.string.acct_trash_purge_confirm)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { pendingPurge = null }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            }
+        )
+    }
 
     Scaffold(
         topBar = {
@@ -127,6 +157,27 @@ fun TrashScreen(onBack: () -> Unit) {
                             onClick = { viewModel.restore(record) },
                             modifier = Modifier.fillMaxWidth()
                         ) { Text(stringResource(R.string.acct_trash_put_it_back)) }
+
+                        // PERMANENT DELETE, on a job, and nowhere else.
+                        //
+                        // Below Restore and quieter than it, on purpose: these
+                        // two sit on the same card and one of them cannot be
+                        // undone. A job carrying a payment is refused by the
+                        // server in its own words -- the button is not hidden
+                        // for those, because "why can I not delete this one"
+                        // is a question the refusal answers and a missing
+                        // button does not.
+                        if (viewModel.canPurge(record)) {
+                            TextButton(
+                                onClick = { pendingPurge = record },
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Text(
+                                    stringResource(R.string.acct_trash_purge),
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                            }
+                        }
                     }
                 }
             }

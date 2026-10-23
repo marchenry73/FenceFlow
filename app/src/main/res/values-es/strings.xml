@@ -547,6 +547,12 @@
     <string name="acct_trash_deleted_on">eliminado %1$s</string>
     <string name="acct_trash_deleted_by">por %1$s</string>
     <string name="acct_trash_put_it_back">Recuperar</string>
+    <string name="acct_trash_purge">Eliminar para siempre</string>
+    <string name="acct_trash_purge_title">¿Eliminar este trabajo para siempre?</string>
+    <string name="acct_trash_purge_body">«%1$s» y todo lo que contiene —el dibujo, el presupuesto, las fotos, las órdenes de cambio, las notas— se destruyen en todos los dispositivos. Es lo único en esta aplicación que no se puede deshacer.\n\nUn trabajo con un pago registrado será rechazado: el dinero nunca se destruye.</string>
+    <string name="acct_trash_purge_confirm">Eliminar para siempre</string>
+    <string name="vm_purged_forever">«%1$s» ya no existe.</string>
+    <string name="vm_couldnt_purge">No se eliminó. %1$s</string>
     <string name="acct_trash_delete_for_good">Eliminar definitivamente</string>
     <string name="acct_trash_restore_everyone">Al restaurar, el registro vuelve para todos, no solo en este teléfono.</string>
     <string name="acct_refresh">Actualizar</string>

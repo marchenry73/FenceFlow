@@ -578,6 +578,13 @@
     <string name="acct_trash_deleted_on">deleted %1$s</string>
     <string name="acct_trash_deleted_by">by %1$s</string>
     <string name="acct_trash_put_it_back">Put it back</string>
+    <!-- Permanent delete, for a job in the bin. purge_job refuses any job with a payment on it. -->
+    <string name="acct_trash_purge">Delete forever</string>
+    <string name="acct_trash_purge_title">Delete this job forever?</string>
+    <string name="acct_trash_purge_body">“%1$s” and everything on it — the drawing, the estimate, the photos, the change orders, the notes — are destroyed on every device. This is the only thing in this app that cannot be undone.\n\nA job with a payment recorded against it will be refused: money is never destroyed.</string>
+    <string name="acct_trash_purge_confirm">Delete forever</string>
+    <string name="vm_purged_forever">“%1$s” is gone for good.</string>
+    <string name="vm_couldnt_purge">It was not deleted. %1$s</string>
     <string name="acct_trash_delete_for_good">Delete for good</string>
     <string name="acct_trash_restore_everyone">Restoring puts the record back for everyone, not just this phone.</string>
     <string name="acct_refresh">Refresh</string>

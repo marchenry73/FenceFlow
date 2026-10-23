@@ -48,12 +48,58 @@ class TrashViewModel(
      * rather than only this one, and it comes down the path that has already
      * been made to behave correctly.
      */
-    // "Purge forever" used to call TrashBin.purge, which the database refuses
-    // for every role -- there is no DELETE policy on this table for anyone,
-    // owner included. The call returned success and did nothing, so someone
-    // who purged an item saw it come right back on the next load with no
-    // explanation. Removed rather than fixed: nothing in this app is meant to
-    // be destroyed, and Restore already covers the only path anyone needs.
+    /**
+     * Whether this record can be destroyed at all.
+     *
+     * Jobs only. purge_job takes a job's sync id and knows the tables that
+     * point at one; there is nothing equivalent for a catalog item or a change
+     * order, so the control is offered where it works rather than everywhere
+     * and failing on six of the seven kinds.
+     *
+     * Whether this PARTICULAR job may go -- payments, the delete right, being
+     * in the bin at all -- is the server's decision, and it is not guessed at
+     * here. Asking twice in two places is how the two come to disagree.
+     */
+    fun canPurge(record: TrashedRecord): Boolean = record.table == "jobs"
+
+    /**
+     * Destroy a deleted job for good.
+     *
+     * "Permanent delete, but never money." The refusal for a job with payments
+     * on it comes from purge_job and is shown in the server's own words -- see
+     * TrashBin.purgeJob. This method does not pre-check it: a rule enforced in
+     * two places is a rule that will one day be enforced differently in each.
+     */
+    fun purge(record: TrashedRecord) {
+        if (!canPurge(record)) return
+        viewModelScope.launch {
+            _busy.value = true
+            TrashBin.purgeJob(record.syncId)
+                .onSuccess {
+                    _message.value = UiMessage(R.string.vm_purged_forever, listOf(record.label))
+                    // Nothing to sync: the rows are gone cloud-side, and this
+                    // phone's copy went when it was deleted. The list is
+                    // re-read so the item is off the screen as a fact rather
+                    // than because it was hidden locally.
+                    load()
+                }
+                .onFailure {
+                    // The server's sentence, as it is. The money refusal is the
+                    // one that matters and it already says exactly why.
+                    _message.value = UiMessage(
+                        R.string.vm_couldnt_purge,
+                        listOf(
+                            com.fenceestimator.app.cloud.shownError(
+                                it, it.message.orEmpty()
+                            )
+                        )
+                    )
+                    _busy.value = false
+                }
+            _busy.value = false
+        }
+    }
+
     fun restore(record: TrashedRecord) {
         val companyId = session.state.value.companyId ?: return
         viewModelScope.launch {
