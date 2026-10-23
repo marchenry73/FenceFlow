@@ -173,6 +173,44 @@ object AdminRepository {
         @SerialName("last_at") val lastAt: String? = null,
     )
 
+    /** A company in the recycle bin: removed, with everything of theirs intact. */
+    @Serializable
+    data class RemovedCompany(
+        val id: String = "",
+        val name: String = "",
+        val email: String? = null,
+        @SerialName("removed_at") val removedAt: String? = null,
+        val people: Long = 0,
+        val jobs: Long = 0,
+    )
+
+    /** One client's conversation, as the console's Email clients screen lists them. */
+    @Serializable
+    data class ClientEmailThread(
+        @SerialName("company_id") val companyId: String = "",
+        @SerialName("company_name") val companyName: String? = null,
+        @SerialName("to_email") val toEmail: String = "",
+        val messages: Long = 0,
+        @SerialName("sent_count") val sentCount: Long = 0,
+        @SerialName("failed_count") val failedCount: Long = 0,
+        @SerialName("unconfirmed_count") val unconfirmedCount: Long = 0,
+        @SerialName("last_at") val lastAt: String? = null,
+        @SerialName("last_subject") val lastSubject: String? = null,
+    )
+
+    /** One message in that conversation. */
+    @Serializable
+    data class ClientEmail(
+        val id: Long = 0,
+        @SerialName("created_at") val createdAt: String? = null,
+        @SerialName("to_email") val toEmail: String = "",
+        val subject: String = "",
+        val body: String = "",
+        @SerialName("send_state") val sendState: String = "",
+        @SerialName("send_error") val sendError: String? = null,
+        @SerialName("sent_by_email") val sentByEmail: String? = null,
+    )
+
     private suspend fun <T> io(block: suspend () -> T): Result<T> =
         withContext(Dispatchers.IO) { runCatching { block() } }
 
@@ -496,6 +534,82 @@ object AdminRepository {
                 limit(limit.toLong())
             }
             .decodeList<Drift>()
+    }
+
+    /**
+     * The global audit log, newest first.
+     *
+     * READ STRAIGHT OFF THE TABLE, not through an RPC, because the table
+     * already answers the right question for this caller: `audit_log` carries
+     * an `audit_log_admin_read` policy whose whole condition is
+     * `is_platform_admin()`. An ordinary owner reading the same table sees
+     * their own company's rows through the other policy, which is correct and
+     * is also why this cannot be used to build a non-admin screen by mistake.
+     *
+     * Paged for the reason [drift] is capped: PostgREST truncates an unpaged
+     * read at a thousand rows with NO error, and audit_log grows one row per
+     * field changed, so it meets that cap sooner than anything else here. A
+     * screen that silently stopped at a thousand would read as "that is all
+     * there is".
+     */
+    suspend fun auditLog(limit: Int = 50, offset: Int = 0): Result<List<AuditEntry>> = io {
+        SupabaseModule.client.postgrest.from("audit_log")
+            .select(
+                // The same columns [companyHistory] reads, through the same
+                // model: one table, one shape. Asking for more here would
+                // mean a second AuditEntry, and two models for one table is
+                // how two screens come to disagree about what a row holds.
+                Columns.list("at", "actor_email", "table_name", "action", "field", "old_value", "new_value", "label")
+            ) {
+                order("at", io.github.jan.supabase.postgrest.query.Order.DESCENDING)
+                range(offset.toLong(), (offset + limit - 1).toLong())
+            }
+            .decodeList<AuditEntry>()
+    }
+
+    /**
+     * The recycle bin: companies removed, with everything of theirs still here.
+     *
+     * Through the RPC rather than the table, because `admin_removed_companies`
+     * also counts their people and their jobs -- the two figures that make
+     * "restore" a decision rather than a guess.
+     */
+    suspend fun removedCompanies(): Result<List<RemovedCompany>> = io {
+        SupabaseModule.client.postgrest.rpc("admin_removed_companies")
+            .decodeList<RemovedCompany>()
+    }
+
+    /** Put a removed company back, exactly as it was. */
+    suspend fun restoreCompany(companyId: String): Result<Unit> = io {
+        SupabaseModule.client.postgrest.rpc(
+            "admin_restore_company",
+            buildJsonObject { put("p_company_id", companyId) }
+        )
+        Unit
+    }
+
+    /**
+     * Who has been written to, newest conversation first.
+     *
+     * The same function the console's Email clients screen reads, so the two
+     * cannot come to disagree about what was said to whom -- including the
+     * ordering, which lives in SQL rather than in either client.
+     */
+    suspend fun clientEmailThreads(limit: Int = 50): Result<List<ClientEmailThread>> = io {
+        SupabaseModule.client.postgrest.rpc(
+            "admin_client_email_threads",
+            buildJsonObject { put("p_limit", limit); put("p_offset", 0) }
+        ).decodeList<ClientEmailThread>()
+    }
+
+    /** One client's conversation, oldest first so it reads downwards. */
+    suspend fun clientEmailThread(companyId: String, limit: Int = 200): Result<List<ClientEmail>> = io {
+        SupabaseModule.client.postgrest.rpc(
+            "admin_client_email_thread",
+            buildJsonObject {
+                put("p_company_id", companyId); put("p_limit", limit); put("p_offset", 0)
+            }
+        ).decodeList<ClientEmail>()
     }
 
     /** Stop a group of errors being reported again until it recurs. */

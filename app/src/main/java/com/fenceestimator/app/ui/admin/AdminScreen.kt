@@ -2,6 +2,7 @@ package com.fenceestimator.app.ui.admin
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -14,6 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -25,6 +27,7 @@ import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Tab
+import androidx.compose.material3.ScrollableTabRow
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -175,8 +178,16 @@ fun AdminScreen(onBack: () -> Unit) {
                 }
 
                 AdminEntry.OPEN -> {
-                    val tabs = listOf("Overview", "Companies", "Releases", "Errors", "Drift", "Sign-ins")
-                    TabRow(selectedTabIndex = tab) {
+                    // NINE TABS DO NOT FIT ON A PHONE SIDE BY SIDE, so this is
+                    // a ScrollableTabRow. TabRow divides the width evenly and
+                    // would shrink every label until none of them could be
+                    // read -- the three added here (Mail, Audit, Bin) are the
+                    // last of the console's views the phone did not have.
+                    val tabs = listOf(
+                        "Overview", "Companies", "Mail", "Releases",
+                        "Errors", "Drift", "Audit", "Bin", "Sign-ins",
+                    )
+                    ScrollableTabRow(selectedTabIndex = tab, edgePadding = 0.dp) {
                         tabs.forEachIndexed { i, title ->
                             Tab(selected = tab == i, onClick = { tab = i }, text = { Text(title) })
                         }
@@ -184,9 +195,12 @@ fun AdminScreen(onBack: () -> Unit) {
                     when (tab) {
                         0 -> OverviewTab()
                         1 -> CompaniesTab()
-                        2 -> ReleasesTab()
-                        3 -> ErrorsTab()
-                        4 -> DriftTab()
+                        2 -> ClientMailTab()
+                        3 -> ReleasesTab()
+                        4 -> ErrorsTab()
+                        5 -> DriftTab()
+                        6 -> AuditTab()
+                        7 -> BinTab()
                         else -> SignInsTab()
                     }
                 }
@@ -1042,6 +1056,279 @@ private fun DriftTab() {
                 "Job " + d.jobSyncId.take(8),
             )
         )
+    }
+}
+
+/**
+ * THE GLOBAL AUDIT LOG -- who changed what, across every company.
+ *
+ * The console has had this since September and the phone had every other
+ * admin view without it, which left the one question you ask away from a desk
+ * ("who changed that, and when") answerable only at a desk.
+ *
+ * PAGED, with a button rather than on scroll. audit_log carries a row PER
+ * FIELD changed, so a handful of edits is a screenful; a reader who wants the
+ * whole history is asking a different question from one who wants to know
+ * what happened in the last minute, and the button is where the two part.
+ */
+@Composable
+private fun AuditTab() {
+    val scope = rememberCoroutineScope()
+    var state by remember { mutableStateOf<Load<AdminRepository.AuditEntry>>(Load.Loading) }
+    var rows by remember { mutableStateOf<List<AdminRepository.AuditEntry>>(emptyList()) }
+    var reachedEnd by remember { mutableStateOf(false) }
+    var busy by remember { mutableStateOf(false) }
+    val page = 50
+
+    suspend fun load(more: Boolean) {
+        val offset = if (more) rows.size else 0
+        AdminRepository.auditLog(limit = page, offset = offset)
+            .onSuccess { got ->
+                rows = if (more) rows + got else got
+                // FEWER THAN A FULL PAGE MEANS THE END. Asked this way rather
+                // than by counting the table: a count is another round trip
+                // and would be stale by the time it arrived.
+                reachedEnd = got.size < page
+                state = Load.Rows(rows)
+            }
+            .onFailure { state = Load.Failed(shownError(it, "unknown error")) }
+    }
+
+    LaunchedEffect(Unit) { load(false) }
+
+    Column {
+        Box(Modifier.weight(1f, fill = false)) {
+            Section(state, "Nothing has been changed yet.") { e ->
+                AdminCard(
+                    // The label the log writes for itself where there is one:
+                    // "Job: Smith" says more than "jobs".
+                    title = e.label?.takeIf { it.isNotBlank() } ?: e.tableName,
+                    lines = listOf(
+                        listOfNotNull(
+                            e.field?.takeIf { it.isNotBlank() },
+                            e.action.takeIf { it.isNotBlank() },
+                        ).joinToString(" - "),
+                        // Old and new side by side: an audit line that says
+                        // only the new value cannot answer "what was it
+                        // before", which is the whole reason to read one.
+                        if (e.oldValue != null || e.newValue != null) {
+                            (e.oldValue?.takeIf { it.isNotBlank() } ?: "(blank)") +
+                                "  ->  " + (e.newValue?.takeIf { it.isNotBlank() } ?: "(blank)")
+                        } else "",
+                        listOfNotNull(
+                            // actorEmail is a non-null String on this model --
+                            // blank, never null, for a change nothing was
+                            // signed in for.
+                            e.actorEmail.takeIf { it.isNotBlank() },
+                            e.at,
+                        ).joinToString("   "),
+                    )
+                )
+            }
+        }
+        if (state is Load.Rows && rows.isNotEmpty() && !reachedEnd) {
+            OutlinedButton(
+                enabled = !busy,
+                onClick = { scope.launch { busy = true; load(true); busy = false } },
+                modifier = Modifier.fillMaxWidth().padding(top = Space.sm)
+            ) { Text(if (busy) "Reading..." else "Show more") }
+        }
+    }
+}
+
+/**
+ * THE RECYCLE BIN: companies removed, and nothing of theirs deleted.
+ *
+ * Restore is the whole point of the screen, so the counts come with it: how
+ * many people and how many jobs come back is what makes putting a company
+ * back a decision rather than a guess.
+ */
+@Composable
+private fun BinTab() {
+    val scope = rememberCoroutineScope()
+    var state by remember { mutableStateOf<Load<AdminRepository.RemovedCompany>>(Load.Loading) }
+    var confirming by remember { mutableStateOf<AdminRepository.RemovedCompany?>(null) }
+    var busy by remember { mutableStateOf(false) }
+    var note by remember { mutableStateOf<String?>(null) }
+
+    suspend fun refresh() {
+        state = AdminRepository.removedCompanies()
+            .fold({ Load.Rows(it) }, { Load.Failed(shownError(it, "unknown error")) })
+    }
+    LaunchedEffect(Unit) { refresh() }
+
+    Column {
+        note?.let {
+            Text(
+                it,
+                style = MaterialTheme.typography.bodySmall,
+                modifier = Modifier.padding(bottom = Space.sm)
+            )
+        }
+        Section(state, "Nothing has been removed.") { c ->
+            AdminCard(
+                title = c.name,
+                lines = listOfNotNull(
+                    c.email?.takeIf { it.isNotBlank() },
+                    "${c.people} people, ${c.jobs} jobs - all still here",
+                    c.removedAt?.let { "Removed $it" },
+                ),
+                footer = {
+                    OutlinedButton(
+                        onClick = { confirming = c },
+                        modifier = Modifier.padding(top = Space.sm)
+                    ) { Text("Restore") }
+                }
+            )
+        }
+    }
+
+    // Confirmed, like every other way a company's standing changes. Restoring
+    // puts their people back in and their office back online, which is not a
+    // thing to do by brushing a list.
+    confirming?.let { c ->
+        AlertDialog(
+            onDismissRequest = { confirming = null },
+            title = { Text("Put ${c.name} back?") },
+            text = {
+                Text(
+                    "Their office opens again and their ${c.people} people can sign in. " +
+                        "Nothing of theirs was deleted, so their ${c.jobs} jobs, payments, " +
+                        "drawings and email all come back exactly as they were."
+                )
+            },
+            confirmButton = {
+                Button(
+                    enabled = !busy,
+                    onClick = {
+                        scope.launch {
+                            busy = true
+                            AdminRepository.restoreCompany(c.id)
+                                .onSuccess { note = "${c.name} is back."; confirming = null; refresh() }
+                                .onFailure { note = shownError(it, "That could not be undone.") }
+                            busy = false
+                        }
+                    }
+                ) { Text(if (busy) "Restoring..." else "Restore") }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { confirming = null }) { Text("Cancel") }
+            }
+        )
+    }
+}
+
+/**
+ * WHAT HAS BEEN SAID TO EACH CLIENT, read as a conversation.
+ *
+ * READ ONLY, deliberately. The console composes and sends; this is the half
+ * worth having in a pocket -- "have I already told them" is a question that
+ * comes up away from a desk, and "send this to nine companies" is not a thing
+ * to do with a thumb.
+ *
+ * ONE SPEAKER. FenceFlow's mail tables are company-scoped and the platform has
+ * no inbox, so a client's reply goes to the support address and nothing here
+ * ingests it. The screen says that rather than leaving a gap where the
+ * replies would be.
+ *
+ * Both lists come from the same SQL the console reads, ordering included, so
+ * the phone and the desk cannot come to disagree about what was said to whom.
+ */
+@Composable
+private fun ClientMailTab() {
+    val scope = rememberCoroutineScope()
+    var state by remember { mutableStateOf<Load<AdminRepository.ClientEmailThread>>(Load.Loading) }
+    var open by remember { mutableStateOf<AdminRepository.ClientEmailThread?>(null) }
+    var thread by remember { mutableStateOf<List<AdminRepository.ClientEmail>>(emptyList()) }
+    var threadError by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(Unit) {
+        state = AdminRepository.clientEmailThreads()
+            .fold({ Load.Rows(it) }, { Load.Failed(shownError(it, "unknown error")) })
+    }
+
+    val chosen = open
+    if (chosen == null) {
+        Column {
+            Text(
+                "Replies come back to your support address, which this app does not read. " +
+                    "What you sent is here. Sending is on the admin website.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = Space.sm)
+            )
+            Section(state, "Nothing has been sent to a client yet.") { t ->
+                AdminCard(
+                    title = t.companyName?.takeIf { it.isNotBlank() } ?: t.toEmail,
+                    lines = listOfNotNull(
+                        buildString {
+                            append("${t.messages} sent")
+                            if (t.failedCount > 0) append("  -  ${t.failedCount} could not send")
+                            if (t.unconfirmedCount > 0) append("  -  ${t.unconfirmedCount} not confirmed")
+                        },
+                        t.lastSubject?.takeIf { it.isNotBlank() },
+                        t.lastAt?.let { "Last $it" },
+                    ),
+                    footer = {
+                        OutlinedButton(
+                            onClick = {
+                                open = t
+                                threadError = null
+                                thread = emptyList()
+                                scope.launch {
+                                    AdminRepository.clientEmailThread(t.companyId)
+                                        .onSuccess { thread = it }
+                                        .onFailure { threadError = shownError(it, "unknown error") }
+                                }
+                            },
+                            modifier = Modifier.padding(top = Space.sm)
+                        ) { Text("Read") }
+                    }
+                )
+            }
+        }
+    } else {
+        Column {
+            OutlinedButton(
+                onClick = { open = null; thread = emptyList(); threadError = null },
+                modifier = Modifier.padding(bottom = Space.sm)
+            ) { Text("All clients") }
+            Text(
+                "To " + (chosen.companyName?.takeIf { it.isNotBlank() } ?: chosen.toEmail),
+                style = MaterialTheme.typography.titleSmall
+            )
+            threadError?.let {
+                EmptyState("Could not load this: $it")
+            }
+            // Oldest first, which is the SQL's ordering: a conversation reads
+            // downwards, newest at the bottom where a reply would go.
+            LazyColumn(
+                contentPadding = PaddingValues(vertical = Space.sm),
+                verticalArrangement = Arrangement.spacedBy(Space.sm)
+            ) {
+                items(thread) { m ->
+                    AdminCard(
+                        title = m.subject,
+                        lines = listOfNotNull(
+                            m.body,
+                            // Only when it is not the ordinary outcome: a line
+                            // saying "Sent" on every message is a line nobody
+                            // reads.
+                            when (m.sendState) {
+                                "sent" -> null
+                                "failed" -> "Could not send" +
+                                    (m.sendError?.takeIf { it.isNotBlank() }?.let { ": $it" } ?: "")
+                                else -> "Could not confirm - it may have gone. Check before sending again."
+                            },
+                            listOfNotNull(
+                                m.sentByEmail?.takeIf { it.isNotBlank() },
+                                m.createdAt,
+                            ).joinToString("   ").takeIf { it.isNotBlank() },
+                        )
+                    )
+                }
+            }
+        }
     }
 }
 
