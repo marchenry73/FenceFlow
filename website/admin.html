@@ -366,6 +366,7 @@
     <button data-view="releases" type="button" data-t="navReleases">Releases</button>
     <button data-view="drift" type="button" data-t="navDrift">Pricing drift</button>
     <button data-view="audit" type="button" data-t="navAudit">Audit log</button>
+    <button data-view="bin" type="button" data-t="navBin">Recycle bin</button>
     <button data-view="account" type="button" data-t="navAccount">Account</button>
   </nav>
 
@@ -506,6 +507,27 @@
             <tbody id="driftRows"></tbody>
           </table>
         </div>
+      </div>
+    </section>
+
+    <section id="view-bin" style="display:none">
+      <div class="panel">
+        <h2 data-t="binHead">Recycle bin</h2>
+        <p class="sub" data-t="binSub">Companies you removed. Nothing of theirs was deleted — their jobs, payments, drawings and email are all still here, and Restore brings the whole company back exactly as it was.</p>
+        <div class="msg" id="binMsg"></div>
+        <div class="scroll">
+          <table>
+            <thead><tr>
+              <th data-t="colCompany">Company</th>
+              <th class="num" data-t="colSeats">People</th>
+              <th class="num" data-t="colJobs">Jobs</th>
+              <th data-t="binRemovedOn">Removed</th>
+              <th></th>
+            </tr></thead>
+            <tbody id="binRows"></tbody>
+          </table>
+        </div>
+        <div class="empty" id="binEmpty" style="display:none" data-t="binEmpty">Nothing has been removed.</div>
       </div>
     </section>
 
@@ -879,6 +901,14 @@ const TL = {
     auditShowingMore:'Showing the %s most recent that match \u2014 there are older ones.',
     auditFailed:'The audit log could not be read: %s',
     navReleases:'Releases', navDrift:'Pricing drift', navAccount:'Account',
+    navBin:'Recycle bin', removeBtn:'Remove', restoreBtn:'Restore',
+    binHead:'Recycle bin',
+    binSub:'Companies you removed. Nothing of theirs was deleted — their jobs, payments, drawings and email are all still here, and Restore brings the whole company back exactly as it was.',
+    binEmpty:'Nothing has been removed.', binRemovedOn:'Removed',
+    confirmRemoveTitle:'Remove %s?',
+    confirmRemoveBody:'Their office stops opening and they disappear from this list. Nothing of theirs is deleted — every job, payment, drawing and email stays exactly where it is, and you can bring the whole company back from the recycle bin.',
+    confirmRestoreTitle:'Bring this company back?',
+    confirmRestoreBody:'Their office opens again and they return to the list, exactly as they were.',
 
     overviewHead:'Overview',
     overviewSub:'Your clients, not theirs — who\'s paying, who isn\'t, and what to do about it.',
@@ -1138,6 +1168,14 @@ const TL = {
     auditShowingMore:'Mostrando los %s m\u00e1s recientes que coinciden \u2014 hay m\u00e1s antiguos.',
     auditFailed:'No se pudo leer el registro de auditor\u00eda: %s',
     navReleases:'Versiones', navDrift:'Diferencia de precios', navAccount:'Cuenta',
+    navBin:'Papelera', removeBtn:'Quitar', restoreBtn:'Restaurar',
+    binHead:'Papelera',
+    binSub:'Empresas que usted quitó. No se borró nada de ellas — sus trabajos, pagos, dibujos y correos siguen aquí, y Restaurar devuelve la empresa completa tal como estaba.',
+    binEmpty:'No se ha quitado nada.', binRemovedOn:'Quitada',
+    confirmRemoveTitle:'¿Quitar %s?',
+    confirmRemoveBody:'Su oficina deja de abrir y desaparece de esta lista. No se borra nada suyo — cada trabajo, pago, dibujo y correo se queda donde está, y usted puede devolver la empresa completa desde la papelera.',
+    confirmRestoreTitle:'¿Devolver esta empresa?',
+    confirmRestoreBody:'Su oficina vuelve a abrir y regresa a la lista, tal como estaba.',
 
     overviewHead:'Resumen',
     overviewSub:'Sus clientes, no los de ellos — quién paga, quién no, y qué hacer al respecto.',
@@ -1397,6 +1435,14 @@ const TL = {
     auditShowingMore:'Affichage des %s plus r\u00e9cents correspondants \u2014 il y en a de plus anciens.',
     auditFailed:'Le journal d\u2019audit n\u2019a pas pu \u00eatre lu : %s',
     navReleases:'Versions', navDrift:'Écart de prix', navAccount:'Compte',
+    navBin:'Corbeille', removeBtn:'Retirer', restoreBtn:'Rétablir',
+    binHead:'Corbeille',
+    binSub:'Entreprises que vous avez retirées. Rien de ce qui leur appartient n’a été supprimé — leurs chantiers, paiements, dessins et courriels sont toujours là, et Rétablir ramène l’entreprise entière telle quelle.',
+    binEmpty:'Rien n’a été retiré.', binRemovedOn:'Retirée',
+    confirmRemoveTitle:'Retirer %s ?',
+    confirmRemoveBody:'Leur bureau cesse d’ouvrir et l’entreprise disparaît de cette liste. Rien de ce qui leur appartient n’est supprimé — chaque chantier, paiement, dessin et courriel reste où il est, et vous pouvez ramener l’entreprise entière depuis la corbeille.',
+    confirmRestoreTitle:'Ramener cette entreprise ?',
+    confirmRestoreBody:'Leur bureau rouvre et elle revient dans la liste, telle quelle.',
 
     overviewHead:'Aperçu',
     overviewSub:'Vos clients, pas les leurs — qui paie, qui ne paie pas, et quoi faire à ce sujet.',
@@ -2074,11 +2120,54 @@ async function afterSignedIn(session) {
   await loadAll();
 }
 
+/* ------------------------------------------------------- recycle bin ---- */
+/**
+ * The companies that were removed, and the one control that undoes it.
+ *
+ * Loaded when the view is opened rather than with the page: it is the view
+ * nobody opens most days, and a list of what is NOT there is not worth a
+ * request on every sign-in.
+ */
+async function loadBin() {
+  const body = $('binRows');
+  const empty = $('binEmpty');
+  body.innerHTML = '';
+  msg('binMsg', '', 'info');
+  const { data, error } = await db.rpc('admin_removed_companies');
+  if (error) {
+    // A failed read is NOT an empty bin. Saying "nothing has been removed"
+    // when the question could not be asked is the shape of lie this console
+    // has been bitten by before.
+    empty.style.display = 'none';
+    return msg('binMsg', plainError(error.message), 'err');
+  }
+  const rows = data || [];
+  empty.style.display = rows.length ? 'none' : 'block';
+  body.innerHTML = rows.map(r => `
+    <tr>
+      <td><b>${esc(r.name || tr('rowUnnamedCompany'))}</b><div class="sub-line">${esc(r.email || '')}</div></td>
+      <td class="num">${r.people}</td>
+      <td class="num">${r.jobs}</td>
+      <td class="nowrap">${day(r.removed_at)}</td>
+      <td style="white-space:nowrap"><button data-restore="${r.id}" type="button">${esc(tr('restoreBtn'))}</button></td>
+    </tr>`).join('');
+  body.querySelectorAll('[data-restore]').forEach(b =>
+    b.addEventListener('click', () => adminAction(
+      'admin_restore_company', { target: b.dataset.restore }, {
+        title: tr('confirmRestoreTitle'),
+        body: tr('confirmRestoreBody'),
+        confirmLabel: tr('restoreBtn')
+      }, b)));
+}
+
 /* -------------------------------------------------------------- nav ---- */
-const VIEWS = ['overview', 'companies', 'crashes', 'releases', 'drift', 'audit', 'account'];
+const VIEWS = ['overview', 'companies', 'crashes', 'releases', 'drift', 'audit', 'bin', 'account'];
 function switchView(name) {
   VIEWS.forEach(v => { $('view-' + v).style.display = (v === name) ? '' : 'none'; });
   document.querySelectorAll('.rail button').forEach(b => b.classList.toggle('on', b.dataset.view === name));
+  // Read when it is opened, and read again every time: a company removed or
+  // restored since the last look must not leave a stale bin on screen.
+  if (name === 'bin') loadBin().catch(e => msg('binMsg', plainError(String(e)), 'err'));
 }
 
 /* ---------------------------------------------------------------- data ---- */
@@ -2856,6 +2945,8 @@ function renderCompaniesTable() {
              data-name="${esc(c.name || '')}" data-reinvite="${c.invited_at ? '1' : '0'}"
              type="button">${c.invited_at ? esc(tr('reinviteBtn')) : esc(tr('inviteBtn'))}</button>`}
         <button data-edit="${c.id}" type="button">${esc(tr('manageBtn'))}</button>
+        ${isMine(c) ? '' :
+          `<button data-remove="${c.id}" type="button">${esc(tr('removeBtn'))}</button>`}
       </td>
     </tr>`).join('');
 
@@ -2865,6 +2956,21 @@ function renderCompaniesTable() {
 
   document.querySelectorAll('[data-edit]').forEach(b =>
     b.addEventListener('click', () => openEdit(b.dataset.edit)));
+
+  // REMOVE, never "delete". It stamps a date and nothing else: every job,
+  // payment, drawing and email that company has stays exactly where it is,
+  // and Restore brings the whole thing back. The confirmation says that,
+  // because a button that reads as destroying somebody's records is one
+  // nobody will press when they should -- or will press once when they
+  // should not.
+  document.querySelectorAll('[data-remove]').forEach(b =>
+    b.addEventListener('click', () => adminAction(
+      'admin_remove_company', { target: b.dataset.remove }, {
+        title: tr('confirmRemoveTitle', named(b.dataset.remove)),
+        body: tr('confirmRemoveBody'),
+        confirmLabel: tr('removeBtn'),
+        danger: true
+      }, b)));
 
   const named = id => (clients.find(c => c.id === id) || {}).name || tr('companyFallbackWord');
 
