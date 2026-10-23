@@ -886,6 +886,7 @@ async function viaMailbox(caller: MailCaller, deps: SendDeps, req: SendRequest, 
     signature: typeof account.signature === "string" ? account.signature : null,
     logoUrl: await logoUrlFor(caller),
     logoAlt: caller.companyName,
+    brandColor: await brandColorFor(caller),
   });
   const built = buildMime({
     from,
@@ -1204,6 +1205,34 @@ function brevoSaid(answer: unknown): string {
  * signed is a job that stalls.
  */
 const LOGO_URL_TTL_SECONDS = 60 * 60 * 24 * 365;
+
+/**
+ * The company's own colour for its letters, or null.
+ *
+ * One read, one key -- company_settings also holds the labour rate, the
+ * markup and the minimum charge, and a letter has no business seeing any of
+ * them. Returned raw: composeBody is the one place that decides what counts
+ * as a colour, so a value that is not #rrggbb falls back there rather than
+ * being judged twice in two places that could disagree.
+ *
+ * A failure answers null. A letter that goes out in the default steel blue
+ * is a letter; one that does not go out because a colour could not be read
+ * is a quote the customer never sees.
+ */
+async function brandColorFor(caller: MailCaller): Promise<string | null> {
+  try {
+    const { data, error } = await caller.admin
+      .from("company_settings")
+      .select("brand_color:settings->brand_color")
+      .eq("company_id", caller.companyId)
+      .maybeSingle();
+    if (error) return null;
+    const v = (data as { brand_color?: unknown } | null)?.brand_color;
+    return typeof v === "string" ? v : null;
+  } catch {
+    return null;
+  }
+}
 
 async function logoUrlFor(caller: MailCaller): Promise<string | null> {
   const path = String(caller.companyLogoPath ?? "").trim();

@@ -337,6 +337,8 @@ interface Loaded {
   recipient: string;
   companyEmail: string | null;
   companyName: string;
+  /** The company's own colour for its letters, as stored. May be anything. */
+  brandColor: string | null;
   /** companies.logo_path, or "" -- signed below for the letterhead. */
   companyLogoPath: string;
 }
@@ -348,14 +350,24 @@ async function loadFacts(db: Db, deps: Deps, job: Row): Promise<Loaded> {
       .select("label, fence_type, color_or_finish, points_encoded, gates_encoded, closed_loop, panel_height_ft, " +
         "manual_linear_feet, fabric_height_ft, is_teardown")
       .eq("company_id", job.company_id).eq("job_sync_id", job.sync_id).is("deleted_at", null),
-    db.from("company_settings").select("payment_methods:settings->payment_methods").eq("company_id", job.company_id).maybeSingle(),
+    // Two keys of the blob, named -- never the blob, which also holds the
+    // labour rate, the markup and the minimum charge, and none of those has
+    // any business near a letter to a customer.
+    db.from("company_settings")
+      .select("payment_methods:settings->payment_methods,brand_color:settings->brand_color")
+      .eq("company_id", job.company_id).maybeSingle(),
     db.from("payment_connections").select("processor, external_id, access_token").eq("company_id", job.company_id).maybeSingle(),
     db.from("follow_up_settings").select("timezone").eq("company_id", job.company_id).maybeSingle(),
   ]);
   const co = must(company, "company");
   if (!co) throw new Error("company: not found");
   const runRows: Row[] = must(runs, "runs") ?? [];
-  const paymentMethods = publicPaymentMethods(must(settings, "payment methods")?.payment_methods);
+  const settingsRow = must(settings, "payment methods");
+  const paymentMethods = publicPaymentMethods(settingsRow?.payment_methods);
+  // Passed on raw: composeBody is the one place that decides what counts as
+  // a colour, so a value that is not #rrggbb falls back there rather than
+  // being judged in two places that could disagree.
+  const brandColorRaw = typeof settingsRow?.brand_color === "string" ? settingsRow.brand_color : null;
   const conn = must(connection, "payment connection");
   // The same test quote-view's paymentsReady uses: a real checkout exists.
   const cardOnline = !!(conn && (
@@ -430,6 +442,7 @@ async function loadFacts(db: Db, deps: Deps, job: Row): Promise<Loaded> {
     companyEmail: String(co.email ?? "").trim() || null,
     companyName: facts.companyName,
     companyLogoPath: String(co.logo_path ?? "").trim(),
+    brandColor: brandColorRaw,
   };
 }
 
@@ -568,6 +581,7 @@ async function sendViaFenceflow(
     footer: fenceflowFooter(loaded.companyName),
     logoUrl,
     logoAlt: loaded.companyName,
+    brandColor: loaded.brandColor,
   });
   const messageId = newMessageId(from.address, deps.uuid());
   const payload = buildResendEmail({

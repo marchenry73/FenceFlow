@@ -2530,6 +2530,11 @@
           <label data-t="settingsLabelLogo">Company logo</label>
           <p style="font-size:11px;color:var(--muted);margin:2px 0 8px" data-t="settingsLogoNote">Printed on your PDF quotes and contracts, shown on the quote page your customer opens, and at the top of the emails FenceFlow sends them. PNG, JPG or WEBP, up to 20&nbsp;MB -- it is shrunk here before it is sent, so a big file straight off a camera is fine. A wide logo on a light background reads best.</p>
           <p id="s_logoOwnerNote" style="display:none;font-size:11px;color:var(--muted);margin:0 0 8px" data-t="settingsLogoOwnerOnly">Only the owner can change the logo.</p>
+          <div style="display:flex;align-items:center;gap:10px;margin:6px 0 10px">
+            <label for="s_brandColor" style="margin:0" data-t="settingsBrandColor">Your colour</label>
+            <input id="s_brandColor" type="color" value="#1f3b57" style="width:52px;height:34px;padding:2px;cursor:pointer">
+            <span style="font-size:11px;color:var(--muted)" data-t="settingsBrandColorNote">Used on the button, the line under your logo and a light wash behind the emails FenceFlow sends your customers. Leave it as it is and they stay the FenceFlow blue.</span>
+          </div>
           <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
             <!-- A checkered-ish neutral tile behind it, so a white logo with a
                  transparent background is still visible here instead of
@@ -4576,6 +4581,7 @@ jobViewAll:'All', jobViewToday:'Today', jobViewWeek:'This week', jobViewUnschedu
     settingsLogoOwnerOnly:'Only the owner can change the logo.',
     settingsLogoWhoYouAre:'You are signed in as %s, whose role here is %s.',
     settingsLogoNone:'No logo yet.',
+    settingsBrandColor:'Your colour', settingsBrandColorNote:'Used on the button, the line under your logo and a light wash behind the emails FenceFlow sends your customers. Leave it as it is and they stay the FenceFlow blue.',
     settingsLogoUploadBtn:'Upload',
     settingsLogoRemoveBtn:'Remove',
     settingsLogoMissing:'The logo file is missing. Upload it again.',
@@ -6433,6 +6439,7 @@ jobViewAll:'Todos', jobViewToday:'Hoy', jobViewWeek:'Esta semana', jobViewUnsche
     settingsLogoOwnerOnly:'Solo el propietario puede cambiar el logotipo.',
     settingsLogoWhoYouAre:'Ha iniciado sesión como %s, cuyo rol aquí es %s.',
     settingsLogoNone:'Aún no hay logotipo.',
+    settingsBrandColor:'Su color', settingsBrandColorNote:'Se usa en el botón, en la línea bajo su logo y en un fondo suave de los correos que FenceFlow envía a sus clientes. Si no lo cambia, se quedan en el azul de FenceFlow.',
     settingsLogoUploadBtn:'Subir',
     settingsLogoRemoveBtn:'Quitar',
     settingsLogoMissing:'Falta el archivo del logotipo. Súbalo de nuevo.',
@@ -8260,6 +8267,7 @@ jobViewAll:'Tous', jobViewToday:'Aujourdhui', jobViewWeek:'Cette semaine', jobVi
     settingsLogoOwnerOnly:'Seul le propriétaire peut changer le logo.',
     settingsLogoWhoYouAre:'Vous êtes connecté en tant que %s, dont le rôle ici est %s.',
     settingsLogoNone:'Pas encore de logo.',
+    settingsBrandColor:'Votre couleur', settingsBrandColorNote:'Utilisée sur le bouton, sur le trait sous votre logo et en fond léger des courriels que FenceFlow envoie à vos clients. Si vous n’y touchez pas, ils restent au bleu de FenceFlow.',
     settingsLogoUploadBtn:'Téléverser',
     settingsLogoRemoveBtn:'Retirer',
     settingsLogoMissing:'Le fichier du logo est introuvable. Téléversez-le de nouveau.',
@@ -28299,7 +28307,13 @@ const SET={s_businessName:'business_name',s_ownerName:'owner_name',s_phone:'phon
   s_license:'license_number',s_tax:'tax_rate',s_markup:'markup',s_labor:'labor_rate',
   s_spacing:'post_spacing',s_bags:'concrete_bags',s_pw:'panel_width',s_ph:'panel_height',
   s_min:'min_job_charge',s_min_labor:'min_labor_charge',
-  s_order:'order_template',s_hoa:'hoa_template',s_review:'review_template'};
+  s_order:'order_template',s_hoa:'hoa_template',s_review:'review_template',
+  // The one colour on the letters FenceFlow sends for this company: the
+  // button, a rule under the logo, and a light tint behind the card. An
+  // <input type=color> can only ever produce #rrggbb, and composeBody
+  // refuses anything that is not, so a bad value falls back to the
+  // product's own blue rather than being repaired.
+  s_brandColor:'brand_color'};
 const SET_NUM=['s_tax','s_markup','s_labor','s_spacing','s_bags','s_pw','s_ph','s_min','s_min_labor'];
 
 async function loadSettings(){

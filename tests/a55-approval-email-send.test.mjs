@@ -190,10 +190,16 @@ function execute(table, st) {
 }
 
 function finish(hit, st) {
-  const alias = /^(\w+):settings->(\w+)$/.exec(String(st.cols).trim());
+  // ONE OR MORE `alias:settings->key`, which is what PostgREST takes and what
+  // the sender asks for now that it reads the company's letter colour beside
+  // its payment methods. Every part must name ONE key: a select that reached
+  // for the whole blob still falls through to the plain projection below,
+  // which is what the leak test watches for.
   const cols = String(st.cols).split(",").map((c) => c.trim()).filter(Boolean);
+  const parts = cols.map((c) => /^(\w+):settings->(\w+)$/.exec(c));
+  const alias = parts.length > 0 && parts.every(Boolean) ? parts : null;
   const out = hit.map((r) => {
-    if (alias) return { [alias[1]]: clone(r.settings?.[alias[2]]) };
+    if (alias) return Object.fromEntries(alias.map((a) => [a[1], clone(r.settings?.[a[2]])]));
     if (!cols.length || cols.includes("*")) return clone(r);
     return Object.fromEntries(cols.map((c) => [c, clone(r[c]) ?? null]));
   });
@@ -929,7 +935,12 @@ test("the sender touches the company's own rows only: every company-scoped read 
   }
   // The payment-methods read asks for the one key, not the blob.
   const settings = world.queries.filter((q) => q.table === "company_settings");
-  assert.deepEqual(settings.map((q) => q.cols), ["payment_methods:settings->payment_methods"]);
+  // TWO named keys now -- the payment methods and the company's own colour
+  // for its letters. Still NAMED keys, never the blob, which is the point
+  // of this assertion: company_settings also holds the labour rate, the
+  // markup and the minimum charge.
+  assert.deepEqual(settings.map((q) => q.cols),
+    ["payment_methods:settings->payment_methods,brand_color:settings->brand_color"]);
   wall();
 });
 

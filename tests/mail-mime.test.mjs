@@ -476,3 +476,59 @@ test("composeBody: everything in the header and the footer is still escaped", ()
   assert.ok(!html.includes("<script>"), "a company name reached the HTML as markup");
   assert.ok(!html.includes("<b>not bold</b>"), "a footer reached the HTML as markup");
 });
+
+// ============================================================ brand colour ==
+//
+// One colour the company picks, on the things where colour earns its keep:
+// the button, a rule under the header, and a light tint behind the card.
+// NOT a different colour each time (a letter that looks different on every
+// send reads as a different sender, and is a phishing copy's best friend),
+// and NOT the page background at full strength (on a phone the card fills
+// the screen, so the background is a margin nobody sees).
+
+test("composeBody: with no colour chosen, nothing changes", () => {
+  const plain = composeBody({ text: "Open it here: https://example.test/q/a", logoAlt: "Acme" });
+  for (const bad of [null, undefined, "", "red", "#abc", "#12345g", "#123456;background:url(x)"]) {
+    const got = composeBody({ text: "Open it here: https://example.test/q/a", logoAlt: "Acme", brandColor: bad });
+    assert.equal(got.html, plain.html, `"${bad}" was treated as a colour`);
+  }
+});
+
+test("composeBody: the chosen colour lands on the button and the header rule", () => {
+  const { html } = composeBody({
+    text: "Open it here: https://example.test/q/a",
+    logoAlt: "Acme",
+    brandColor: "#8A1C2B",
+  });
+  assert.match(html, /background:#8a1c2b/, "the button is not in the company's colour");
+  assert.match(html, /border-bottom:3px solid #8a1c2b/, "the header rule is not in the company's colour");
+});
+
+test("composeBody: the page is a TINT, never the colour at full strength", () => {
+  const { html } = composeBody({ text: "Hi", logoAlt: "Acme", brandColor: "#8a1c2b" });
+  const body = /<body style="[^"]*background:(#[0-9a-f]{6})/.exec(html);
+  assert.ok(body, "the body has no background colour at all");
+  assert.notEqual(body[1], "#8a1c2b", "the whole page is the brand colour, which reads as a flyer");
+  // Every channel at least as light as the colour itself, and close to white.
+  const ch = (h, i) => parseInt(h.slice(1 + i * 2, 3 + i * 2), 16);
+  for (let i = 0; i < 3; i++) {
+    assert.ok(ch(body[1], i) >= ch("#8a1c2b", i), `channel ${i} got darker, not lighter`);
+    assert.ok(ch(body[1], i) > 220, `channel ${i} is not a light tint`);
+  }
+});
+
+test("composeBody: button text is readable on whatever colour was picked", () => {
+  // The whole reason this is computed. White on a pale yellow is a button a
+  // customer cannot read, on the one email that asks for money.
+  const dark = composeBody({ text: "Open it here: https://e.test/a", brandColor: "#10243a" }).html;
+  assert.match(dark, /color:#ffffff;text-decoration:none/, "white text was not used on a dark colour");
+  const pale = composeBody({ text: "Open it here: https://e.test/a", brandColor: "#ffe14d" }).html;
+  assert.match(pale, /color:#111111;text-decoration:none/, "white text on a pale yellow -- unreadable");
+});
+
+test("PLANTED FAILURE: always-white really would fail on the pale colour", () => {
+  // Proves the check above is discriminating rather than agreeing by luck.
+  const pale = composeBody({ text: "Open it here: https://e.test/a", brandColor: "#ffe14d" }).html;
+  assert.ok(!/color:#ffffff;text-decoration:none/.test(pale),
+    "the pale case still renders white text, so the luminance rule is not running");
+});

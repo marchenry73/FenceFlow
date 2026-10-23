@@ -475,8 +475,58 @@ const MAIL_CARD_BG = "#ffffff";
 const MAIL_BORDER = "#dfe4ea";
 const MAIL_INK = "#1a1a1a";
 const MAIL_MUTED = "#6b7280";
-/** The one colour on the page, and it is on the one thing to press. */
+/** The one colour on the page when the company has not chosen one. */
 const MAIL_ACCENT = "#1f3b57";
+
+/**
+ * A #rrggbb the company chose, or null.
+ *
+ * Strict on purpose. This value is interpolated into a style attribute, so
+ * anything that is not exactly six hex digits is dropped rather than repaired
+ * -- a "colour" like `red;background:url(...)` is not a colour, and a
+ * near-miss silently becoming black is worse than falling back to the default
+ * the whole product already looks like.
+ */
+function brandColor(raw: unknown): string | null {
+  const v = String(raw ?? "").trim();
+  return /^#[0-9a-fA-F]{6}$/.test(v) ? v.toLowerCase() : null;
+}
+
+/**
+ * Black or white, whichever can actually be read on [hex].
+ *
+ * WCAG relative luminance, not a guess at "is it dark". A mid yellow and a
+ * mid blue have wildly different luminance at the same apparent brightness,
+ * and white text on a pale brand colour is a button a customer cannot read --
+ * which on the one email that asks for money is not a cosmetic problem.
+ */
+function readableOn(hex: string): string {
+  const channel = (i: number) => {
+    const v = parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16) / 255;
+    return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4);
+  };
+  const lum = 0.2126 * channel(0) + 0.7152 * channel(1) + 0.0722 * channel(2);
+  // 0.179 is where white and black contrast equally against a colour; above
+  // it black wins, below it white does.
+  return lum > 0.179 ? "#111111" : "#ffffff";
+}
+
+/**
+ * The page behind the card, as a very light wash of the brand colour.
+ *
+ * Mixed with white at 92%, so it reads as a tint rather than as the colour
+ * itself -- a full-strength brand colour across a whole page is the thing
+ * that makes an email look like a flyer. Computed rather than asked for,
+ * because one colour to pick is a setting somebody fills in and two is a
+ * setting somebody gets wrong.
+ */
+function tintOf(hex: string): string {
+  const mix = (i: number) => {
+    const v = parseInt(hex.slice(1 + i * 2, 3 + i * 2), 16);
+    return Math.round(v + (255 - v) * 0.92).toString(16).padStart(2, "0");
+  };
+  return "#" + mix(0) + mix(1) + mix(2);
+}
 
 /** At most one URL, and not much else: the line that becomes the button. */
 const CTA_LINE_RE = /^\s*(.{0,40}?)\s*(https?:\/\/[^\s<>"'`]+)\s*$/;
@@ -488,7 +538,7 @@ const CTA_LINE_RE = /^\s*(.{0,40}?)\s*(https?:\/\/[^\s<>"'`]+)\s*$/;
  * A line is only ever promoted ONCE -- a second link line stays a link -- so
  * an email cannot turn into a row of buttons.
  */
-function htmlLetter(text: string): string {
+function htmlLetter(text: string, accent: string, onAccent: string): string {
   const lines = normalizeNewlines(String(text ?? "")).split("\n");
   let used = false;
   const out: string[] = [];
@@ -502,9 +552,9 @@ function htmlLetter(text: string): string {
       const href = escapeHtml(m[2]);
       out.push(
         `<table role="presentation" cellpadding="0" cellspacing="0" border="0" style="margin:18px 0">` +
-          `<tr><td style="border-radius:6px;background:${MAIL_ACCENT}">` +
+          `<tr><td style="border-radius:6px;background:${accent}">` +
           `<a href="${href}" style="display:inline-block;padding:12px 26px;font-family:Arial,Helvetica,sans-serif;` +
-          `font-size:15px;font-weight:bold;color:#ffffff;text-decoration:none;border-radius:6px">` +
+          `font-size:15px;font-weight:bold;color:${onAccent};text-decoration:none;border-radius:6px">` +
           `${escapeHtml(label || "Open")}</a></td></tr></table>`,
       );
       // The address in full underneath, small and grey. A button with no
@@ -522,7 +572,7 @@ function htmlLetter(text: string): string {
 }
 
 /** The header: the logo if it arrives, and the company's name whether it does or not. */
-function htmlHeader(logo: string | null, company: string): string {
+function htmlHeader(logo: string | null, company: string, accent: string): string {
   const name = company
     ? `<div style="font-size:17px;font-weight:bold;color:${MAIL_INK};letter-spacing:.2px">${escapeHtml(company)}</div>`
     : "";
@@ -531,11 +581,14 @@ function htmlHeader(logo: string | null, company: string): string {
       `style="display:block;max-height:52px;max-width:220px;width:auto;border:0;margin:0 0 8px">`
     : "";
   if (!img && !name) return "";
-  return `<tr><td style="padding:22px 28px 14px 28px;border-bottom:1px solid ${MAIL_BORDER}">${img}${name}</td></tr>`;
+  // A 3px rule in the company's own colour, under its own name. One line,
+  // and it is the thing that makes the letter look like theirs rather than
+  // like a template with their name typed into it.
+  return `<tr><td style="padding:22px 28px 14px 28px;border-bottom:3px solid ${accent}">${img}${name}</td></tr>`;
 }
 
 /** The whole card: header, letter, footer. */
-function htmlCard(header: string, letter: string, footer: string): string {
+function htmlCard(header: string, letter: string, footer: string, page: string): string {
   const foot = footer
     ? `<tr><td style="padding:14px 28px 22px 28px;border-top:1px solid ${MAIL_BORDER};` +
       `font-size:12px;line-height:1.5;color:${MAIL_MUTED}">${footer}</td></tr>`
@@ -547,10 +600,10 @@ function htmlCard(header: string, letter: string, footer: string): string {
   // type afterwards and undoing the spacing.
   return `<!doctype html><html><head><meta charset="utf-8">` +
     `<meta name="viewport" content="width=device-width,initial-scale=1"></head>` +
-    `<body style="margin:0;padding:0;background:${MAIL_PAGE_BG};` +
+    `<body style="margin:0;padding:0;background:${page};` +
     `-webkit-text-size-adjust:100%;text-size-adjust:100%">` +
     `<table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0" ` +
-    `style="background:${MAIL_PAGE_BG};padding:24px 12px">` +
+    `style="background:${page};padding:24px 12px">` +
     `<tr><td align="center">` +
     // NO width="600" ATTRIBUTE. It was there for Outlook on Windows, and on a
     // phone it forced the whole page to 600px: the card rendered a third of
@@ -605,6 +658,12 @@ export function composeBody(input: {
   footer?: string | null;
   logoUrl?: string | null;
   logoAlt?: string | null;
+  /**
+   * The company's own colour, as #rrggbb. Anything else -- absent, blank,
+   * three-digit, a named colour, something with a semicolon in it -- falls
+   * back to the product's own steel blue rather than being repaired.
+   */
+  brandColor?: string | null;
 }): {
   text: string;
   html: string;
@@ -614,12 +673,15 @@ export function composeBody(input: {
   const footer = cleanSubject(input.footer ?? "");
   const logo = httpsOnly(input.logoUrl);
   const company = cleanDisplayName(input.logoAlt) || "";
+  const accent = brandColor(input.brandColor) ?? MAIL_ACCENT;
+  const onAccent = readableOn(accent);
+  const page = brandColor(input.brandColor) ? tintOf(accent) : MAIL_PAGE_BG;
   let text = body;
   // The letter, and the one link in it as a button. The plain-text part below
   // is assembled exactly as it always was -- same sentences, same order, same
   // separator before the signature -- because a reader on plain text must get
   // the letter they got yesterday.
-  let html = htmlLetter(body);
+  let html = htmlLetter(body, accent, onAccent);
   if (sig) {
     text += `\n\n-- \n${sig}`;
     html += `\n<div style="margin-top:18px;padding-top:14px;border-top:1px solid ${MAIL_BORDER}">` +
@@ -632,7 +694,7 @@ export function composeBody(input: {
   }
   return {
     text: `${text}\n`,
-    html: htmlCard(htmlHeader(logo, company), html, foot),
+    html: htmlCard(htmlHeader(logo, company, accent), html, foot, page),
   };
 }
 
