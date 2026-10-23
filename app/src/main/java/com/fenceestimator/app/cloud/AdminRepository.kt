@@ -207,6 +207,56 @@ object AdminRepository {
 
     // ---------------------------------------------------------------- read
 
+    /** How many history rows one tap asks for. */
+    const val HISTORY_PAGE: Long = 25
+
+    /**
+     * One line of a company's history: who changed what, and when.
+     *
+     * The same audit_log rows the console's Audit log shows, read for ONE
+     * company -- which is the question somebody actually has when they have
+     * that company's dialog open. Only the columns the screen prints: the row
+     * also carries a record id and a company id, and neither is anything a
+     * person reads.
+     */
+    @Serializable
+    data class AuditEntry(
+        val at: String? = null,
+        @SerialName("actor_email") val actorEmail: String = "",
+        @SerialName("table_name") val tableName: String = "",
+        val action: String = "",
+        val field: String? = null,
+        @SerialName("old_value") val oldValue: String? = null,
+        @SerialName("new_value") val newValue: String? = null,
+        val label: String? = null,
+    )
+
+    /**
+     * A page of one company's history, newest first.
+     *
+     * PAGED, and not merely limited: audit_log gains a row for every field
+     * changed, so it is the table most likely to pass a thousand rows for a
+     * busy company -- and a read that asks for everything gets exactly a
+     * thousand back with no error and no sign that there was more. [offset]
+     * is how the screen asks for the next page rather than re-reading the
+     * first.
+     */
+    suspend fun companyHistory(
+        companyId: String,
+        offset: Long = 0,
+        limit: Long = HISTORY_PAGE,
+    ): Result<List<AuditEntry>> = io {
+        SupabaseModule.client.postgrest.from("audit_log")
+            .select(
+                Columns.list("at", "actor_email", "table_name", "action", "field", "old_value", "new_value", "label")
+            ) {
+                filter { eq("company_id", companyId) }
+                order("at", io.github.jan.supabase.postgrest.query.Order.DESCENDING)
+                range(offset, offset + limit - 1)
+            }
+            .decodeList<AuditEntry>()
+    }
+
     /** Every fence company on the platform, with the server's own verdicts. */
     suspend fun companies(): Result<List<Company>> = io {
         SupabaseModule.client.postgrest.rpc("admin_companies").decodeList<Company>()

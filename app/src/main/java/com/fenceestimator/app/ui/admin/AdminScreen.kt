@@ -486,6 +486,31 @@ private fun CompaniesTab() {
         var billing by remember(c.id) { mutableStateOf("") }
         var notes by remember(c.id) { mutableStateOf(c.adminNotes) }
         var saving by remember(c.id) { mutableStateOf(false) }
+        // HISTORY, read on demand. Keyed on c.id so opening a second company
+        // never shows the first one's rows while its own are in flight.
+        var showHistory by remember(c.id) { mutableStateOf(false) }
+        var history by remember(c.id) { mutableStateOf<List<AdminRepository.AuditEntry>>(emptyList()) }
+        var historyBusy by remember(c.id) { mutableStateOf(false) }
+        var historyMore by remember(c.id) { mutableStateOf(false) }
+        var historyError by remember(c.id) { mutableStateOf<String?>(null) }
+        val loadHistory: () -> Unit = {
+            if (!historyBusy) {
+                historyBusy = true
+                historyError = null
+                scope.launch {
+                    AdminRepository.companyHistory(c.id, offset = history.size.toLong())
+                        .onSuccess { page ->
+                            history = history + page
+                            // A full page means there is probably another; a
+                            // short one is the end. The same test every paged
+                            // read in this project makes.
+                            historyMore = page.size.toLong() == AdminRepository.HISTORY_PAGE
+                        }
+                        .onFailure { historyError = shownError(it, "Could not read the history.") }
+                    historyBusy = false
+                }
+            }
+        }
         AlertDialog(
             onDismissRequest = { if (!saving) managing = null },
             title = { Text(c.name.ifBlank { "(unnamed)" }) },
@@ -525,6 +550,85 @@ private fun CompaniesTab() {
                         label = { Text("Notes") }, enabled = !saving, minLines = 2,
                         modifier = Modifier.fillMaxWidth()
                     )
+
+                    // ---- THIS COMPANY'S HISTORY --------------------------
+                    //
+                    // "I also want to be able to click on the company on the
+                    // app and the website and to see all the details about
+                    // the company along with its histories."
+                    //
+                    // Shut until asked for: this dialog is opened to change
+                    // something far more often than to read what happened,
+                    // and the rows are a table read.
+                    TextButton(onClick = {
+                        showHistory = !showHistory
+                        if (showHistory && history.isEmpty() && historyError == null) loadHistory()
+                    }) {
+                        Text(if (showHistory) "Hide history" else "History and details")
+                    }
+                    if (showHistory) {
+                        // WHAT THE LIST ALREADY KNOWS. No extra read: these come
+                        // off the Company row admin_companies returned.
+                        val dates = buildList {
+                            c.joinedAt?.let { add("Joined " + it.take(10)) }
+                            c.trialEndsAt?.let { add("Trial ends " + it.take(10)) }
+                            c.lastActive?.let { add("Last active " + it.take(10)) }
+                            c.daysLeft?.let { add("$it days left") }
+                            add("${c.people} people, ${c.jobs} jobs")
+                            add("Last 30 days: ${c.activePeople30d} active, ${c.jobs30d} jobs, ${c.quotes30d} quotes")
+                            if (c.billingEmail?.isNotBlank() == true) add("Billing " + c.billingEmail)
+                        }
+                        for (line in dates) {
+                            Text(
+                                line,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+
+                        historyError?.let { problem ->
+                            Text(
+                                problem,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                        }
+                        if (history.isEmpty() && !historyBusy && historyError == null) {
+                            Text(
+                                "Nothing has been written down against this company yet.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        for (h in history) {
+                            Column(Modifier.padding(top = Space.xs)) {
+                                Text(
+                                    (h.at?.let { it.take(10) } ?: "") + "  " +
+                                        h.action.lowercase() + " " + h.tableName,
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                                Text(
+                                    // The field and what it became. Both are
+                                    // stored text, shown as they are.
+                                    (h.field ?: "") +
+                                        (if (h.field != null) ": " else "") +
+                                        (h.oldValue ?: "-") + " -> " + (h.newValue ?: "-") +
+                                        (h.actorEmail.takeIf { it.isNotBlank() }?.let { "  (" + it + ")" } ?: ""),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        if (historyBusy) {
+                            Text(
+                                "Reading...",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        } else if (historyMore) {
+                            TextButton(onClick = loadHistory) { Text("Show more") }
+                        }
+                    }
                 }
             },
             confirmButton = {
