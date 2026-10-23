@@ -143,8 +143,11 @@
   th, td{text-align:left;padding:10px 12px;border-bottom:1px solid var(--line);vertical-align:top}
   th{color:var(--muted);font-weight:600;font-size:11px;text-transform:uppercase;letter-spacing:.04em;
      white-space:nowrap;cursor:default;user-select:none}
-  th[data-sort]{cursor:pointer}
-  th[data-sort]:hover{color:var(--text)}
+  th [data-sort],th[data-sort]{cursor:pointer}
+  th [data-sort]:hover,th[data-sort]:hover{color:var(--text)}
+  /* The slash between two sorts in one header. Not clickable, and quiet
+     enough that the two labels either side read as the controls. */
+  .th-or{color:var(--line);margin:0 2px;cursor:default}
   th.sort-on{color:var(--text)}
   th .arrow{font-size:9px;margin-left:3px}
   .nowrap{white-space:nowrap}
@@ -403,10 +406,14 @@
               <th data-sort="name" data-t="colCompany">Company</th>
               <th data-sort="subscription_status" data-t="colStatus">Status</th>
               <th data-sort="health" data-t="colHealth">Using it</th>
-              <th data-sort="subscription_plan" data-t="colPlan">Plan</th>
+              <th><span data-sort="subscription_plan" data-t="colPlan">Plan</span>
+                  <span class="th-or">/</span>
+                  <span data-sort="monthly_price" data-t="colPriceMo">$/mo</span></th>
               <th class="num" data-sort="people" data-t="colSeats">People</th>
               <th class="num" data-sort="jobs" data-t="colJobs">Jobs</th>
-              <th data-sort="last_seen" data-t="colLastSeen">Last seen</th>
+              <th><span data-sort="last_seen" data-t="colLastSeen">Last seen</span>
+                  <span class="th-or">/</span>
+                  <span data-sort="version" data-t="colVersion">Version</span></th>
               <th></th>
             </tr></thead>
             <tbody id="rows"></tbody>
@@ -2524,8 +2531,18 @@ function onboardingTrack(c) {
   // Labels only -- the .on booleans that actually drive the caption and the
   // dot colours are computed straight off the row's own timestamps and
   // subscription_status, never off this translated text.
+  // "INVITED" IS SATISFIED BY HAVING JOINED, and that is a correctness fix
+  // rather than a nicety. Not every company arrived through an invitation --
+  // his own was created directly and has invited_at null -- so the first bead
+  // was dark on a company that is signed in, has signed the agreement, is on
+  // a plan and has thirteen jobs on it. The caption then named the first
+  // unticked step and told him his own live business had "not started".
+  //
+  // Nobody joins without starting. A company with joined_at set cleared that
+  // stage whichever door it came through.
+  const started = !!c.invited_at || !!c.joined_at;
   const steps = [
-    { on: !!c.invited_at,          label: tr('onbInvited') },
+    { on: started,                 label: tr('onbInvited') },
     { on: !!c.joined_at,           label: tr('onbSignedIn') },
     { on: !!c.agreement_signed_at, label: tr('onbAgreementSigned') },
     { on: ['active', 'trialing'].includes(c.subscription_status), label: tr('onbPlanChosen') },
@@ -2535,9 +2552,13 @@ function onboardingTrack(c) {
       background:${s.on ? 'var(--teal)' : 'var(--line)'}"></span>`).join('');
   const next = steps.find(s => !s.on);
   const done = steps.every(s => s.on);
+  // "Not started" only when NOTHING is done. It used to key off step one
+  // alone, so a company three steps in with no invitation on record read as
+  // not started at all.
+  const anyDone = steps.some(s => s.on);
   const caption = done
     ? tr('onbUpRunning')
-    : (steps[0].on ? tr('onbWaitingPrefix') : tr('onbNotStartedPrefix')) + (next ? next.label.toLowerCase() : '');
+    : (anyDone ? tr('onbWaitingPrefix') : tr('onbNotStartedPrefix')) + (next ? next.label.toLowerCase() : '');
   return `<div style="display:flex;gap:4px;align-items:center">${beads}</div>
     <span style="font-size:11.5px;color:${done ? 'var(--teal)' : 'var(--muted)'}">${esc(caption)}</span>`;
 }
@@ -2761,12 +2782,23 @@ function accessButton(c) {
   return `<button class="danger" data-suspend="${c.id}" type="button">${esc(tr('suspendBtn'))}</button>`;
 }
 
+/** The newest build a company's phones have reported, as a number. 0 when
+ *  none have -- the same parse the crash screen uses on a version name. */
+function versionRank(c) {
+  const m = /(\d+)\s*$/.exec(String(c && c.newest_app_version || ''));
+  return m ? Number(m[1]) : 0;
+}
+
 function compareClients(a, b) {
   let av = a[sortKey], bv = b[sortKey];
   // 'health' is not a column on the row -- it is the rule healthOf() applies
   // to three of them -- so it gets its own rank rather than a[sortKey],
   // which would be undefined for every row and leave the order untouched.
   if (sortKey === 'health') { av = healthRank(a); bv = healthRank(b); }
+  // A version sorts by its NUMBER, not as text: "1.9" is after "1.10" as a
+  // string and before it as a build. A company with no phones reporting
+  // sorts last rather than first, which is where "nothing to say" belongs.
+  if (sortKey === 'version') { av = versionRank(a); bv = versionRank(b); }
   if (typeof av === 'string' || typeof bv === 'string') { av = (av ?? '').toString().toLowerCase(); bv = (bv ?? '').toString().toLowerCase(); }
   else { av = av ?? -Infinity; bv = bv ?? -Infinity; }
   if (av < bv) return -1 * sortDir;
@@ -4063,18 +4095,21 @@ $('auditWho').addEventListener('keydown', e => {
   if (e.key === 'Enter') loadAudit(false).then(fillAuditPickers);
 });
 
-document.querySelectorAll('#view-companies th[data-sort]').forEach(th => {
-  th.addEventListener('click', () => {
-    const key = th.dataset.sort;
+// [data-sort] on the HEADER or on a span inside it. A merged column carries
+// two of them -- "Plan / $/mo" -- because folding two columns into one must
+// not quietly take away the sort that came with each.
+document.querySelectorAll('#view-companies [data-sort]').forEach(el => {
+  el.addEventListener('click', () => {
+    const key = el.dataset.sort;
     sortDir = (sortKey === key) ? -sortDir : 1;
     sortKey = key;
-    document.querySelectorAll('#view-companies th[data-sort]').forEach(t => {
+    document.querySelectorAll('#view-companies [data-sort]').forEach(t => {
       t.classList.remove('sort-on');
       const arrow = t.querySelector('.arrow');
       if (arrow) arrow.remove();
     });
-    th.classList.add('sort-on');
-    th.insertAdjacentHTML('beforeend', `<span class="arrow">${sortDir > 0 ? '▲' : '▼'}</span>`);
+    el.classList.add('sort-on');
+    el.insertAdjacentHTML('beforeend', `<span class="arrow">${sortDir > 0 ? '▲' : '▼'}</span>`);
     renderCompaniesTable();
   });
 });
