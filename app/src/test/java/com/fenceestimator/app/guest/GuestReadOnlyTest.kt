@@ -667,13 +667,20 @@ class GuestReadOnlyTest {
             "expected editable to be defined from the guest flag",
             text.contains("val editable = !session.isGuestDemo")
         )
-        val modes = block(text, "val visibleModes = remember(usingGrid, editable) {", "the drawing mode switcher")
+        val modes = block(text, "val visibleModes = remember(usingGrid, editable, canDeleteHere) {", "the drawing mode switcher")
         val editableGate = block(modes, "if (editable) {", "the write-tool gate inside visibleModes")
         listOf(
             "add(SurveyMode.DRAW to R.string.mode_draw)",
             "add(SurveyMode.GATE to R.string.mode_gate)",
             "add(SurveyMode.MARKER to R.string.mode_mark_site)",
-            "add(SurveyMode.ADJUST to R.string.mode_adjust)"
+            "add(SurveyMode.ADJUST to R.string.mode_adjust)",
+            // Move Fence moves every stored coordinate of the job, and
+            // Remove takes sides, gates and markers off it. Both are writes,
+            // so both belong behind the same gate as the rest -- a guest gets
+            // panning and zooming to look, never a tool whose taps go
+            // nowhere.
+            "add(SurveyMode.MOVE_ALL to R.string.mode_move_fence)",
+            "if (canDeleteHere) add(SurveyMode.ERASE to R.string.mode_remove)"
         ).forEach { modeAdd ->
             assertTrue("$modeAdd must be inside the editable gate", editableGate.contains(modeAdd))
         }
@@ -688,7 +695,7 @@ class GuestReadOnlyTest {
     @Test
     fun `the mode switcher check has teeth -- planted failure`() {
         val text = src("ui/survey/SurveyDrawScreen.kt")
-        val modes = block(text, "val visibleModes = remember(usingGrid, editable) {", "the drawing mode switcher")
+        val modes = block(text, "val visibleModes = remember(usingGrid, editable, canDeleteHere) {", "the drawing mode switcher")
         // Simulates the pre-fix shape: every mode, including the write
         // tools, added unconditionally with no editable gate at all.
         val before = """

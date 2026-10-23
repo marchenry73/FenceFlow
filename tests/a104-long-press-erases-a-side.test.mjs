@@ -102,8 +102,21 @@ test("erasing a side he long-pressed does not move the selection out from under 
 
 test("the hit test takes the NEAREST side, and scales its reach with zoom", () => {
   assert.match(VM, /fun runNearest\(p: FencePoint, reach: Float\): FenceRun\?/);
-  const near = VM.slice(VM.indexOf("fun runNearest("), VM.indexOf("fun runNearest(") + 900);
+  // runNearest DELEGATES -- it is `wallNearest(p, reach)?.first` and has been
+  // since a wall index was needed as well as a run. So the nearest-wins rule
+  // is read from wallNearest, whose body holds it. This used to read 900
+  // characters from runNearest and happened to reach into wallNearest below
+  // it; a doc comment grew and the check went red with nothing wrong, which
+  // is a guard pinned to a layout rather than to a rule.
+  assert.match(VM, /fun runNearest\([^)]*\): FenceRun\? = wallNearest\(p, reach\)\?\.first/,
+    "runNearest no longer delegates to wallNearest -- re-read this check");
+  const from = VM.indexOf("fun wallNearest(");
+  assert.ok(from > 0, "wallNearest is gone");
+  const near = VM.slice(from, VM.indexOf("fun gateNearest("));
+  assert.ok(near.length > 300 && near.length < 4000, `wallNearest read ${near.length} chars`);
   assert.match(near, /bestDistance/, "it must keep the closest, not the first within reach");
+  assert.match(near, /if \(d <= bestDistance\)/,
+    "it no longer compares each candidate against the best so far");
   // A fixed distance in drawing units makes every side pressable at once when
   // zoomed out, and none of them reachable when zoomed in.
   assert.match(SCREEN, /VERTEX_HIT_RADIUS_PX \/ transform\.scale/,

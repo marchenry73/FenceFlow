@@ -37,6 +37,7 @@ import com.fenceestimator.app.geometry.RedoPlan
 import com.fenceestimator.app.geometry.UndoHistory
 import com.fenceestimator.app.geometry.UndoNoneReason
 import com.fenceestimator.app.geometry.UndoPlan
+import com.fenceestimator.app.geometry.WholeDrawingMove
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
 import com.fenceestimator.app.cloud.CrashReporter
@@ -67,7 +68,23 @@ import java.io.File
 import java.io.FileOutputStream
 import java.util.UUID
 
-enum class SurveyMode { DRAW, CALIBRATE, GATE, MARKER, ADJUST, JOIN, PAN, CURVE }
+/**
+ * What a finger on the drawing means right now.
+ *
+ * [PAN] moves the VIEW -- where the drawing is looked at from, changing no
+ * stored coordinate. [MOVE_ALL] moves the DRAWING: every side, gate and
+ * marker, together, which is what is wanted when the whole fence was traced in
+ * the wrong place ("I need to be able to move the entire fence and everything
+ * connected to wherever I want on the drawing"). The two labels say which --
+ * Move view against Move fence -- because the gesture is identical and only
+ * the thing that ends up somewhere else is different.
+ *
+ * [ERASE] removes whatever one tap lands on: a side, a gate, a marker ("Need
+ * to be able to click on something on the drawing to remove it"). Its own mode
+ * and not a tap in [DRAW], where a tap places a corner and must go on doing
+ * so.
+ */
+enum class SurveyMode { DRAW, CALIBRATE, GATE, MARKER, ADJUST, JOIN, PAN, CURVE, MOVE_ALL, ERASE }
 
 /**
  * An attachment (or a detachment) waiting for him to say yes, and what it does
@@ -2631,6 +2648,19 @@ class SurveyViewModel(
                 val run = repository.getFenceRun(runId)?.takeIf { it.jobId == jobId } ?: return@withLock
                 val points = FenceCodec.decodePoints(run.pointsEncoded)
                 val gates = FenceCodec.decodeGates(run.gatesEncoded)
+
+                // THE CLOSING SIDE OF A CLOSED LOOP: there is no point to drop
+                // for it, because it is drawn by the flag and not by a corner.
+                // Erasing that stretch of fence is opening the loop, and the
+                // takeoff then stops billing it -- the same one edit the
+                // close/open control makes, so Undo takes it back the same way.
+                // SegmentErase is right to know nothing about it: it works on a
+                // polyline, and this is not one of its segments.
+                if (run.closedLoop && points.size > 2 && segmentIndex == points.size - 1) {
+                    commitEdit(run, run.copy(closedLoop = false))
+                    return@withLock
+                }
+
                 val plan = SegmentErase.plan(points, gates, segmentIndex)
 
                 if (plan.eraseWholeRun) {
@@ -2708,6 +2738,14 @@ class SurveyViewModel(
      * The wall index is what lets a long-press erase one wall of an L rather
      * than the whole side. Segment i runs from points[i] to points[i + 1],
      * which is the numbering SegmentErase uses.
+     *
+     * A CLOSED LOOP'S CLOSING SIDE IS INCLUDED, as index points.size - 1 --
+     * the same numbering [isClosingSide] and [segmentFeet] already use. It was
+     * not, so the one side of a square yard that gets drawn by closing the
+     * loop could not be reached at all: a finger on it found whichever other
+     * side was next nearest, or nothing. Tapping it does not remove a point
+     * (there is none to remove); it OPENS the loop, which is what erasing that
+     * stretch of fence means. [eraseSegment] carries that out.
      */
     fun wallNearest(p: FencePoint, reach: Float): Pair<FenceRun, Int>? {
         var best: Pair<FenceRun, Int>? = null
@@ -2719,6 +2757,13 @@ class SurveyViewModel(
                 if (d <= bestDistance) {
                     bestDistance = d
                     best = run to (i - 1)
+                }
+            }
+            if (run.closedLoop && pts.size > 2) {
+                val d = distanceToSegment(p, pts.last(), pts.first())
+                if (d <= bestDistance) {
+                    bestDistance = d
+                    best = run to (pts.size - 1)
                 }
             }
         }
@@ -2738,6 +2783,182 @@ class SurveyViewModel(
             FenceCodec.decodeGates(run.gatesEncoded),
             segmentIndex,
         )
+    }
+
+    /**
+     * The gate nearest [p] within [reach], and which run it hangs on.
+     *
+     * ANY run, not the selected one. The gate controls act on the selected run
+     * because that is the one being edited, but "remove whatever I tapped" has
+     * to find a gate on the side next to it too -- otherwise tapping a gate
+     * would silently remove the fence line under it instead, which is a
+     * different thing and a much bigger one.
+     */
+    fun gateNearest(p: FencePoint, reach: Float): Pair<FenceRun, GateMarker>? {
+        var best: Pair<FenceRun, GateMarker>? = null
+        var bestDistance = reach
+        for (run in runs.value) {
+            for (g in FenceCodec.decodeGates(run.gatesEncoded)) {
+                val d = kotlin.math.hypot((p.x - g.x).toDouble(), (p.y - g.y).toDouble()).toFloat()
+                if (d <= bestDistance) {
+                    bestDistance = d
+                    best = run to g
+                }
+            }
+        }
+        return best
+    }
+
+    /**
+     * Takes a gate off the run it is actually on, named by id.
+     *
+     * [removeGate] acts on the selected run, which is right for the gate tool.
+     * Remove-by-tap can land on a gate hanging on another side, and removing
+     * "the same gate" from the selected run instead would either do nothing or
+     * take off a different gate that happened to match field for field.
+     */
+    fun removeGateFrom(runId: Long, gate: GateMarker) {
+        if (!viewerMayDelete()) return
+        editRun(runId) { run ->
+            val gates = FenceCodec.decodeGates(run.gatesEncoded).toMutableList()
+            if (!gates.remove(gate)) return@editRun
+            commitEdit(run, run.copy(gatesEncoded = FenceCodec.encodeGates(gates)))
+        }
+    }
+
+    // -----------------------------------------------------------------------
+    // MOVING THE WHOLE DRAWING
+    //
+    // "I need to be able to move the entire fence and everything connected to
+    //  wherever I want on the drawing."
+    //
+    // The arithmetic and every refusal live in
+    // com.fenceestimator.app.geometry.WholeDrawingMove, which is pure and
+    // tested off device -- including the proof that matters: the takeoff
+    // measures the same footage, the same side lengths and the same post kinds
+    // after a move as before it. A translation changes no distance, so this
+    // tool cannot move a price. That is worth being able to point at.
+    // -----------------------------------------------------------------------
+
+    /**
+     * The last whole-drawing move, kept so it can be put back exactly.
+     *
+     * Why a delta and not a snapshot: the per-run Undo stack holds ONE drawing
+     * per run and Undo acts on the SELECTED run only, so a drawing-wide move
+     * recorded that way would be undone one side at a time -- leaving the
+     * fence in two places with nothing on screen saying which half had been
+     * put back. A translation is undone by its own negation, exactly, so the
+     * delta is all that has to be kept.
+     */
+    private val _lastWholeMove = MutableStateFlow<Pair<Float, Float>?>(null)
+    val lastWholeMove: StateFlow<Pair<Float, Float>?> = _lastWholeMove
+
+    /**
+     * Moves every side, every gate and every site marker of this job by
+     * ([dx], [dy]) drawing units, as ONE write per row under the drawing lock.
+     *
+     * ALL OR NOTHING, decided by [WholeDrawingMove.plan]: if any coordinate
+     * would come out non-finite nothing is written at all. Half a move is the
+     * worst outcome available here -- the sides that moved and the sides that
+     * did not are now in different places and every joint between them is
+     * nonsense.
+     *
+     * NonCancellable, like [moveSiteMarker] and for the same reason: a drag
+     * finished as the screen closes must not be cancelled at a Room
+     * suspension point with the runs written and the markers not.
+     *
+     * The per-run Undo history is dropped ([clearDrawingHistory]), the same as
+     * for a scale change and for the same reason: every snapshot in it
+     * describes a run where it used to be, and putting one back would move
+     * that side alone. [putWholeDrawingBack] is what takes this back.
+     */
+    fun moveWholeDrawing(dx: Float, dy: Float, offerPutBack: Boolean = true) {
+        if (viewerIsGuestDemo()) return
+        if (!WholeDrawingMove.isUsableOffset(dx, dy)) return
+        viewModelScope.launch {
+            withContext(NonCancellable) {
+                drawingWrites.withLock {
+                    val rows = repository.getFenceRuns(jobId)
+                    val markers = repository.getSiteMarkers(jobId)
+                    val plan = WholeDrawingMove.plan(
+                        runs = rows.map {
+                            WholeDrawingMove.RunShift(
+                                FenceCodec.decodePoints(it.pointsEncoded),
+                                FenceCodec.decodeGates(it.gatesEncoded)
+                            )
+                        },
+                        markers = markers.map { FencePoint(it.x, it.y) },
+                        dx = dx, dy = dy
+                    ) ?: return@withLock
+                    // A ROW WITH NOTHING TO MOVE IS NOT WRITTEN.
+                    //
+                    // An empty side -- one added and not yet drawn, and most
+                    // jobs have one -- comes out of the plan identical to how
+                    // it went in. Writing it anyway would stamp a new
+                    // `updatedAt` on it, and fence runs sync last-edit-wins on
+                    // that clock: this phone's untouched copy would then look
+                    // newer than an office edit that has not come down yet,
+                    // and win. A write that changes nothing must not be able
+                    // to beat a write that changes something. The same rule
+                    // commitEdit follows for every ordinary edit.
+                    //
+                    // Written only after every row's new value is in hand, so
+                    // a refusal above costs nothing and a crash here cannot
+                    // leave the drawing split between two places.
+                    var wrote = false
+                    rows.forEachIndexed { i, run ->
+                        val shifted = plan.runs[i]
+                        val points = FenceCodec.encodePoints(shifted.points)
+                        val gates = FenceCodec.encodeGates(shifted.gates)
+                        if (points == run.pointsEncoded && gates == run.gatesEncoded) {
+                            return@forEachIndexed
+                        }
+                        repository.updateFenceRun(
+                            run.copy(pointsEncoded = points, gatesEncoded = gates)
+                        )
+                        wrote = true
+                    }
+                    markers.forEachIndexed { i, marker ->
+                        val to = plan.markers[i]
+                        if (to.x == marker.x && to.y == marker.y) return@forEachIndexed
+                        repository.updateSiteMarker(marker.copy(x = to.x, y = to.y))
+                        wrote = true
+                    }
+                    // Nothing moved -- an empty drawing, or a job of empty
+                    // sides. Recording a delta would offer a put-back for
+                    // something that never happened, and clearing the undo
+                    // history would throw away work for nothing.
+                    if (!wrote) return@withLock
+
+                    clearDrawingHistory()
+                    // Set INSIDE the lock, after the writes, so the put-back
+                    // is only ever offered for a move that actually landed.
+                    // [offerPutBack] is false when this call IS a put-back:
+                    // otherwise the put-back would record its own delta and
+                    // the two would sit there undoing each other for ever.
+                    _lastWholeMove.value = if (offerPutBack) dx to dy else null
+                }
+            }
+        }
+    }
+
+    /**
+     * Puts the last whole-drawing move back, exactly, and then has nothing
+     * more to put back.
+     *
+     * Right to within one float rounding step -- about a ten-thousandth of an
+     * inch here, and it does not accumulate. See [WholeDrawingMove.putBack],
+     * which says why that is not the same as "exact" and why nothing the app
+     * shows or bills can tell the difference.
+     *
+     * Cleared before the work starts, so a second press while the first is
+     * still writing cannot move the drawing twice as far the other way.
+     */
+    fun putWholeDrawingBack() {
+        val (dx, dy) = _lastWholeMove.value ?: return
+        _lastWholeMove.value = null
+        val (bx, by) = WholeDrawingMove.putBack(dx, dy)
+        moveWholeDrawing(bx, by, offerPutBack = false)
     }
 
     /** Perpendicular distance from [p] to the segment [a]..[b], in drawing units. */
@@ -3324,6 +3545,63 @@ class SurveyViewModel(
         // pins this flag to EntitySync.JOIN_COLUMNS_LIVE and to price-job's
         // RUN_COLUMNS, so neither can move without the others.
         const val JOIN_STORAGE_READY = true
+
+        /**
+         * Whether MOVE FENCE -- sliding the whole drawing, every side, gate
+         * and marker at once -- is offered.
+         *
+         * FALSE, and the tool is built and tested behind it. He asked for it
+         * in these words: "I need to be able to move the entire fence and
+         * everything connected to wherever I want on the drawing." What stops
+         * it being offered is not the tool; it is one thing I measured rather
+         * than assumed, and it moves money.
+         *
+         * THE CLAIM I MADE AND THEN DISPROVED. A translation adds the same
+         * offset to every coordinate, so algebraically every length is
+         * unchanged: a length is a difference, and a constant added to both
+         * ends of a difference cancels. In float32 it does not. `x1 + d` and
+         * `x2 + d` are each rounded to the nearest representable float, and
+         * their difference can land a rounding step away from `x1 - x2`.
+         *
+         * MEASURED, over 200,000 grid-like drawings: 12.5% of moves change the
+         * measured total by up to 0.0004 ft -- five thousandths of an inch,
+         * which no tape can see and no screen shows. That part is harmless.
+         *
+         * WHAT IS NOT HARMLESS: every bay, panel and picket count is
+         * `ceil(netFt / size)`, with no tolerance, in both engines. A side
+         * whose length is an EXACT multiple of the post spacing -- 96 ft at 8
+         * ft spacing, an ordinary yard -- gains a whole bay the moment its
+         * length reads a hair over. Aimed deliberately at that boundary, 4.5%
+         * of moves flipped a bay count: one more post, one more panel, one
+         * more cap, one more bag of concrete, on a quote the customer may
+         * already have signed. A cosmetic drag must never be able to do that.
+         *
+         * WHY NOT JUST PICK A BETTER OFFSET. Tried and measured: the requested
+         * offset, the offset rounded to whole drawing pixels, and 81
+         * whole-pixel neighbours, keeping the first for which every side's
+         * length is bit-identical. It works for every grid-like drawing but
+         * fails for two thirds of long runs traced on a photo, where the
+         * coordinates carry full mantissas. There is no offset search that
+         * makes this safe in general.
+         *
+         * THE REAL FIX IS ONE LINE IN EACH ENGINE, AND IT IS HIS CALL: a
+         * tolerance of 0.001 ft taken off the length before the ceil, in
+         * EstimateEngine's four `ceil(netFt / ...)` sites and in
+         * supabase/functions/_shared/pricing/f32.ts's `ceilRoundToInt`, which
+         * the port routes every one of those counts through. It absorbs noise
+         * of up to a hundredth of an inch -- 2.5x the worst measured -- and
+         * preserves any overhang a tape could read. It is not applied because
+         * it changes a quantity on exactly the jobs float noise is
+         * mis-charging today: those would lose a surplus post and panel, which
+         * means a cheaper quote, which can make an approved job need
+         * re-approving. That is a decision about live customer prices, so it
+         * is his to make and not one to take while he is asleep.
+         *
+         * Absent rather than present-and-refusing, the same rule
+         * [JOIN_STORAGE_READY] followed: a tool he can press that quietly
+         * misprices is worse than no tool.
+         */
+        const val WHOLE_DRAWING_MOVE_READY = false
 
         /**
          * "The point just added, whichever index that turned out to be."

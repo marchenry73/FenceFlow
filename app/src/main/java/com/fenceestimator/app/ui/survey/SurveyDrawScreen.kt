@@ -336,6 +336,21 @@ fun SurveyDrawScreen(
     // way, so selecting on long-press also throws away his zoom and pan.
     //
     // Carrying the id means neither has to move.
+    // MOVE FENCE: how far the finger has dragged the whole drawing, in SCREEN
+    // pixels, before anything is written. Null when no such drag is in hand.
+    // The canvas draws the fence, its gates and the markers shifted by this
+    // while the photo and the grid under them stay put; the write happens once,
+    // when the finger lifts. See SurveyMode.MOVE_ALL.
+    var wholeMoveDraft by remember { mutableStateOf<Offset?>(null) }
+    // REMOVE: what one tap landed on and is now being asked about. A gate
+    // carries the run it hangs on, because the tap may well have found a gate
+    // on a side that is not the selected one.
+    var pendingGateErase by remember { mutableStateOf<Pair<FenceRun, GateMarker>?>(null) }
+    var pendingMarkerErase by remember { mutableStateOf<SiteMarker?>(null) }
+    // A tap that found nothing. Counted rather than flagged so that a second
+    // miss says so again instead of looking ignored -- the target is a line a
+    // few pixels wide and missing it twice is ordinary.
+    var removeMisses by remember { mutableStateOf(0) }
     var pendingEraseRunId by remember { mutableStateOf<Long?>(null) }
     // WHICH WALL. A side is a polyline, so an L is one side with two walls
     // and the whole-side erase took both. -1 means the whole side, which is
@@ -658,6 +673,60 @@ fun SurveyDrawScreen(
     LaunchedEffect(mode) {
         if (mode != SurveyMode.DRAW && mode != SurveyMode.ADJUST) viewModel.dismissSnapJoinOffer()
     }
+
+    // LEAVING A TOOL PUTS DOWN WHAT IT WAS HOLDING.
+    //
+    // Both of these are reachable, and neither is cosmetic.
+    //
+    // The move draft lives on the gesture, and the gesture is a
+    // pointerInput(mode, ...): changing mode CANCELS that coroutine, and a
+    // cancelled detectDragGestures does not call onDragCancel. So a mode
+    // change with a finger down left a draft standing for ever -- the canvas
+    // goes on drawing the fence shifted, nothing has been written, and there
+    // is no gesture left that could ever clear it. The drawing looks moved and
+    // is not.
+    //
+    // The two pending questions are the same shape: a tap in Remove that
+    // raised a dialog, answered by switching tool instead, would leave the
+    // question to reappear over Draw.
+    LaunchedEffect(mode) {
+        if (mode != SurveyMode.MOVE_ALL) wholeMoveDraft = null
+        if (mode != SurveyMode.ERASE) {
+            pendingGateErase = null
+            pendingMarkerErase = null
+        }
+    }
+
+    // REMOVE: a tap that found nothing says so.
+    val removeNothingThereMessage = stringResource(R.string.draw_remove_nothing_there)
+    LaunchedEffect(removeMisses) {
+        if (removeMisses > 0) snackbarHostState.showSnackbar(removeNothingThereMessage)
+    }
+
+    // MOVE FENCE: the put-back.
+    //
+    // A whole-drawing move is not a step the per-run Undo can take back -- that
+    // stack holds one drawing per run and Undo acts on the SELECTED run, so it
+    // would put one side back and leave the rest where they were moved to. A
+    // translation is undone by its own negation, exactly, so the offer here is
+    // the whole of Undo for this tool and it is offered the moment the move
+    // lands, which is when he can see whether it went where he wanted.
+    //
+    // Letting the snackbar time out is not a refusal of anything: the move is
+    // already written and stays written. The offer simply stops being made.
+    val wholeMovePutBack by viewModel.lastWholeMove.collectAsState()
+    val movedMessage = stringResource(R.string.draw_move_all_done)
+    val putBackAction = stringResource(R.string.draw_move_all_put_back)
+    LaunchedEffect(wholeMovePutBack) {
+        if (wholeMovePutBack == null) return@LaunchedEffect
+        val result = snackbarHostState.showSnackbar(
+            message = movedMessage,
+            actionLabel = putBackAction,
+            withDismissAction = true,
+            duration = SnackbarDuration.Long
+        )
+        if (result == SnackbarResult.ActionPerformed) viewModel.putWholeDrawingBack()
+    }
     // Leaving the tool puts down anything half-attached: a lifted end that
     // survived a trip through Draw would attach itself to whatever was tapped
     // next, which is the thing he must never have happen.
@@ -895,7 +964,12 @@ fun SurveyDrawScreen(
 
             }
 
-            val visibleModes = remember(usingGrid, editable) {
+            // Read into a local BEFORE the list is built, and a key of it, for
+            // the reason the erase dialog gives further down: a permission read
+            // once and acted on later survives the screen being recomposed with
+            // a different session, so the list has to be rebuilt when it moves.
+            val canDeleteHere = session.canDelete
+            val visibleModes = remember(usingGrid, editable, canDeleteHere) {
                 buildList {
                     // Every mode but Move View can write -- Draw and Calibrate
                     // place points, Gate and Marker place or remove gates and
@@ -923,6 +997,30 @@ fun SurveyDrawScreen(
                         if (SurveyViewModel.JOIN_STORAGE_READY) {
                             add(SurveyMode.JOIN to R.string.mode_attach)
                         }
+                        // MOVE FENCE, next to Move View on purpose: the gesture
+                        // is the same drag and only the thing that ends up
+                        // somewhere else differs, so the two labels have to be
+                        // read against each other to tell them apart.
+                        //
+                        // "I need to be able to move the entire fence and
+                        //  everything connected to wherever I want on the
+                        //  drawing."
+                        //
+                        // Behind a flag that is FALSE today, and the reason is
+                        // worth reading before flipping it: a float32
+                        // translation is not exactly rigid, and a bay count is
+                        // a ceil with no tolerance, so a cosmetic drag can add
+                        // a post and a panel to a signed quote. Measured, not
+                        // supposed -- see
+                        // SurveyViewModel.WHOLE_DRAWING_MOVE_READY, which
+                        // carries the numbers and the one-line fix.
+                        if (SurveyViewModel.WHOLE_DRAWING_MOVE_READY) {
+                            add(SurveyMode.MOVE_ALL to R.string.mode_move_fence)
+                        }
+                        // REMOVE. Behind canDelete like every other way to take
+                        // something off the drawing -- a crew phone gets a tool
+                        // that is absent rather than one whose taps are refused.
+                        if (canDeleteHere) add(SurveyMode.ERASE to R.string.mode_remove)
                     }
                     add(SurveyMode.PAN to R.string.mode_move_view)
                 }
@@ -938,6 +1036,13 @@ fun SurveyDrawScreen(
             // no longer offers a button to leave it by.
             LaunchedEffect(editable) {
                 if (!editable && mode != SurveyMode.PAN) viewModel.setMode(SurveyMode.PAN)
+            }
+            // Same for Remove when the right to delete goes away mid-visit (a
+            // role change pushed down while the drawing is open): the button
+            // leaves the picker above, which would strand the canvas in a mode
+            // with nothing to leave it by.
+            LaunchedEffect(canDeleteHere) {
+                if (!canDeleteHere && mode == SurveyMode.ERASE) viewModel.setMode(SurveyMode.DRAW)
             }
             val activeRun = runs.firstOrNull { it.id == selectedRunId }
             val job2 = job
@@ -1358,6 +1463,46 @@ fun SurveyDrawScreen(
                                 // (Move View, Adjust) gets the canvas to itself.
                                 when (mode) {
                                     SurveyMode.PAN -> detectDragGestures { _, dragAmount -> viewPan += dragAmount }
+                                    // MOVE THE DRAWING ITSELF, not the view.
+                                    //
+                                    // "I need to be able to move the entire
+                                    //  fence and everything connected to
+                                    //  wherever I want on the drawing."
+                                    //
+                                    // The finger drags a DRAFT offset in screen
+                                    // pixels and nothing is written until it
+                                    // lifts -- so one slide across the yard is
+                                    // one write per row and one put-back, not a
+                                    // write per frame. The draft is what the
+                                    // canvas draws the fence, the gates and the
+                                    // markers shifted by, while the photo, the
+                                    // satellite tile and the grid underneath
+                                    // stay where they are: that is the whole
+                                    // point of the tool, and it is also what
+                                    // makes it look different from panning.
+                                    //
+                                    // Converted out of screen pixels by the
+                                    // view's own scale at the moment of the
+                                    // lift, so what gets stored is the distance
+                                    // the finger moved ON THE DRAWING, the same
+                                    // zoomed in and zoomed out.
+                                    SurveyMode.MOVE_ALL -> detectDragGestures(
+                                        onDragStart = { wholeMoveDraft = Offset.Zero },
+                                        onDragCancel = { wholeMoveDraft = null },
+                                        onDragEnd = {
+                                            val moved = wholeMoveDraft
+                                            wholeMoveDraft = null
+                                            val scale = viewTransform(
+                                                canvasContentSize.first, canvasContentSize.second,
+                                                canvasSize, viewZoom, viewPan,
+                                            ).scale
+                                            if (moved != null && scale > 0f) {
+                                                viewModel.moveWholeDrawing(moved.x / scale, moved.y / scale)
+                                            }
+                                        }
+                                    ) { _, dragAmount ->
+                                        wholeMoveDraft = (wholeMoveDraft ?: Offset.Zero) + dragAmount
+                                    }
                                     // Adjust needs BOTH: drag to move roughly, tap
                                     // to select a point for the arrow pad. One
                                     // pointer stream can't run two detectors, so
@@ -1700,26 +1845,122 @@ fun SurveyDrawScreen(
                                                 } else VERTEX_HIT_RADIUS_PX
                                                 viewModel.tapJoinEnd(imgPoint, reach)
                                             }
+                                            // REMOVE: one tap takes off whatever
+                                            // it landed on.
+                                            //
+                                            // "Need to be able to click on
+                                            //  something on the drawing to
+                                            //  remove it."
+                                            //
+                                            // Its own mode, and not a tap in
+                                            // Draw: a tap there places a corner
+                                            // and has to go on doing so. The
+                                            // long-press erase in Draw stays as
+                                            // it is -- this is a second way to
+                                            // the same confirmations, not a new
+                                            // delete path, and both end at the
+                                            // same viewModel calls.
+                                            //
+                                            // ORDER: gate, then marker, then
+                                            // fence line. Smallest and most
+                                            // specific target first. A gate sits
+                                            // ON the line, so letting the line
+                                            // win would make a gate unremovable
+                                            // by tap and would take away a whole
+                                            // stretch of fence instead -- a much
+                                            // bigger thing than what was aimed
+                                            // at. A marker box is large and
+                                            // often has fence tied into it, so
+                                            // it comes before the line it
+                                            // contains but after the gate.
+                                            //
+                                            // Every arm confirms. Nothing here
+                                            // removes anything on the tap alone.
+                                            SurveyMode.ERASE -> {
+                                                val scale = transform.scale.takeIf { it > 0f } ?: 1f
+                                                val gateHit = viewModel.gateNearest(imgPoint, GATE_TAP_SLOP / scale)
+                                                // The same footprint-plus-slop
+                                                // the house is GRABBED by in
+                                                // Adjust, so the area that
+                                                // answers is the area he can
+                                                // see. See markerGrabDistance.
+                                                val markerHit = markersLive.value
+                                                    .mapNotNull { m ->
+                                                        val c = transform.toCanvas(FencePoint(m.x, m.y))
+                                                        markerGrabDistance(
+                                                            cx = c.x, cy = c.y,
+                                                            halfW = (m.widthFt * gridPxPerFt / 2f) * transform.scale,
+                                                            halfH = (m.heightFt * gridPxPerFt / 2f) * transform.scale,
+                                                            rotationDeg = m.rotationDeg,
+                                                            tapX = tapOffset.x, tapY = tapOffset.y,
+                                                            slopPx = VERTEX_HIT_RADIUS_PX,
+                                                        )?.let { d -> m to d }
+                                                    }
+                                                    .minByOrNull { (_, d) -> d }
+                                                    ?.first
+                                                val wallHit = viewModel.wallNearest(
+                                                    imgPoint, VERTEX_HIT_RADIUS_PX / scale
+                                                )
+                                                when {
+                                                    gateHit != null -> pendingGateErase = gateHit
+                                                    markerHit != null -> pendingMarkerErase = markerHit
+                                                    wallHit != null -> {
+                                                        pendingEraseRunId = wallHit.first.id
+                                                        pendingEraseWall = wallHit.second
+                                                    }
+                                                    // A MISS SAYS SO. A tool
+                                                    // whose taps silently do
+                                                    // nothing reads as broken,
+                                                    // and the thing he is aiming
+                                                    // at is a line a few pixels
+                                                    // wide.
+                                                    else -> removeMisses++
+                                                }
+                                            }
                                             else -> {}
                                         }
                                     }
                                 }
                             }
                     ) {
-                        val transform = viewTransform(canvasContentSize.first, canvasContentSize.second, IntSize(size.width.toInt(), size.height.toInt()), viewZoom, viewPan)
+                        val viewOnly = viewTransform(canvasContentSize.first, canvasContentSize.second, IntSize(size.width.toInt(), size.height.toInt()), viewZoom, viewPan)
+                        // MOVE FENCE, while the finger is still down: the
+                        // DRAWING is drawn shifted and the ground under it is
+                        // not. Everything below reads `transform`, so shifting
+                        // it here carries the fence lines, the gates, the
+                        // markers, the dimension labels and the joint dots
+                        // together -- which is exactly the set the write moves
+                        // when the finger lifts. The photo and the satellite
+                        // tile are drawn from `photoTransform`, derived just
+                        // below from `viewOnly`, so they stay put: that
+                        // difference is the whole point of the tool and what
+                        // tells it apart from panning.
+                        //
+                        // Nothing is persisted here. If the gesture is
+                        // cancelled the draft is dropped and this frame's shift
+                        // simply stops happening.
+                        val transform = wholeMoveDraft?.let {
+                            viewOnly.copy(offsetX = viewOnly.offsetX + it.x, offsetY = viewOnly.offsetY + it.y)
+                        } ?: viewOnly
 
                         // While FITTING, the photo alone is drawn moved and zoomed by
                         // the draft; the drawing, the grid and everything on top of it
                         // keep the ordinary transform, so what is being lined up
                         // against the photo does not move.
+                        //
+                        // From `viewOnly`, NOT `transform`: a whole-drawing
+                        // move in progress must not drag the ground along with
+                        // the fence, or there would be nothing on screen to
+                        // judge the move against. The two are the same
+                        // transform whenever no such move is in hand.
                         val fitting = fitDraft
                         val photoTransform = if (fitting != null) {
                             FitTransform(
-                                transform.scale * fitting.scale,
-                                transform.offsetX + transform.scale * fitting.dx,
-                                transform.offsetY + transform.scale * fitting.dy
+                                viewOnly.scale * fitting.scale,
+                                viewOnly.offsetX + viewOnly.scale * fitting.dx,
+                                viewOnly.offsetY + viewOnly.scale * fitting.dy
                             )
-                        } else transform
+                        } else viewOnly
                         drawSurveyBackground(
                             bmp, photoTransform, canvasContentSize.first, canvasContentSize.second,
                             job2.gridFeetPerSquare, gridPxPerFt, satelliteOn, satelliteAnchor, satelliteTiles
@@ -2244,6 +2485,27 @@ fun SurveyDrawScreen(
                         if (mode == SurveyMode.ADJUST && selectedPoint == null) {
                             CanvasHint(text = stringResource(R.string.misc_survey_adjust_canvas_hint))
                         }
+                        // MOVE FENCE sits next to MOVE VIEW in the picker and
+                        // the gesture is the same drag, so the hint has to say
+                        // which one is in hand -- and, in the same breath, that
+                        // nothing it does costs anything, because sliding a
+                        // whole priced fence across the yard is the sort of
+                        // thing somebody is right to hesitate over.
+                        if (mode == SurveyMode.MOVE_ALL) {
+                            CanvasHint(
+                                modifier = Modifier.widthIn(max = 320.dp),
+                                text = stringResource(R.string.draw_move_all_hint)
+                            )
+                        }
+                        // REMOVE names the three things a tap can land on, so
+                        // the tool does not have to be discovered by tapping
+                        // and seeing what disappears.
+                        if (mode == SurveyMode.ERASE) {
+                            CanvasHint(
+                                modifier = Modifier.widthIn(max = 320.dp),
+                                text = stringResource(R.string.draw_remove_hint)
+                            )
+                        }
                         // Attach says which of the two taps it is waiting for,
                         // because a tool whose first tap looks like nothing
                         // happened is a tool people tap twice on the same end.
@@ -2616,7 +2878,17 @@ fun SurveyDrawScreen(
             // Splitting a side in two means four end posts where there were
             // two, and a gate on the wall goes with the wall. Finding either
             // out afterwards, from a price that moved, is no good.
-            val plan = if (pendingEraseWall >= 0)
+            // THE CLOSING SIDE OF A CLOSED LOOP is its own case and its own
+            // sentence. It is not a point to drop -- it exists because the
+            // loop is closed -- so erasing it opens the loop, and
+            // SegmentErase, which works on a polyline, rightly knows nothing
+            // about it and would report "nothing to erase". Asking it for a
+            // preview here would print the whole-run warning over an edit that
+            // takes no corner away at all.
+            val closingSide = pendingEraseWall >= 0 &&
+                eraseTarget.closedLoop &&
+                pendingEraseWall == FenceCodec.decodePoints(eraseTarget.pointsEncoded).size - 1
+            val plan = if (pendingEraseWall >= 0 && !closingSide)
                 viewModel.erasePreview(eraseTarget.id, pendingEraseWall) else null
             val eraseName = eraseTarget.label.takeIf { it.isNotBlank() }
                 ?: stringResource(R.string.misc_survey_untitled)
@@ -2624,12 +2896,17 @@ fun SurveyDrawScreen(
                 onDismissRequest = { pendingEraseRunId = null },
                 title = {
                     Text(stringResource(
-                        if (plan != null && !plan.eraseWholeRun) R.string.draw_erase_wall_title
-                        else R.string.draw_erase_run_title
+                        when {
+                            closingSide -> R.string.draw_erase_closing_title
+                            plan != null && !plan.eraseWholeRun -> R.string.draw_erase_wall_title
+                            else -> R.string.draw_erase_run_title
+                        }
                     ))
                 },
                 text = {
-                    if (plan != null && !plan.eraseWholeRun) {
+                    if (closingSide) {
+                        Text(stringResource(R.string.draw_erase_closing_body, eraseName))
+                    } else if (plan != null && !plan.eraseWholeRun) {
                         // The two surprises spelled out, and only when they
                         // apply: a warning that is always there is a warning
                         // nobody reads.
@@ -2676,6 +2953,95 @@ fun SurveyDrawScreen(
                 },
                 dismissButton = {
                     OutlinedButton(onClick = { pendingEraseRunId = null }) {
+                        Text(stringResource(R.string.action_cancel))
+                    }
+                }
+            )
+        }
+    }
+
+    // REMOVE, the gate arm. Same shape as the fence-line dialog above and for
+    // the same reasons: the permission is read again here rather than trusted
+    // to the tap that set the flag, and the thing being named is re-found from
+    // the live list so a gate that went while the question was up cannot be
+    // answered for.
+    pendingGateErase?.let { (gateRun, gate) ->
+        if (!session.canDelete) {
+            pendingGateErase = null
+        } else {
+            val stillThere = runs.firstOrNull { it.id == gateRun.id }
+                ?.let { FenceCodec.decodeGates(it.gatesEncoded).contains(gate) } == true
+            if (!stillThere) {
+                pendingGateErase = null
+            } else {
+                val onName = gateRun.label.takeIf { it.isNotBlank() }
+                    ?: stringResource(R.string.misc_survey_untitled)
+                AlertDialog(
+                    onDismissRequest = { pendingGateErase = null },
+                    title = { Text(stringResource(R.string.draw_remove_gate_title)) },
+                    text = {
+                        // "4 ft", not "4.0 ft"; a 7.5 ft gate keeps its half.
+                        val width = if (gate.widthFt % 1f == 0f) {
+                            gate.widthFt.toInt().toString()
+                        } else gate.widthFt.toString()
+                        Text(stringResource(
+                            R.string.draw_remove_gate_body,
+                            stringResource(R.string.posts_why_feet, width),
+                            onName
+                        ))
+                    },
+                    confirmButton = {
+                        // NOT red. Undo takes a gate back -- removeGateFrom
+                        // goes through commitEdit like every other drawing
+                        // edit -- and red is spent only on what it cannot,
+                        // which is the rule the rest of the app follows.
+                        Button(
+                            onClick = {
+                                viewModel.removeGateFrom(gateRun.id, gate)
+                                pendingGateErase = null
+                            }
+                        ) { Text(stringResource(R.string.draw_remove)) }
+                    },
+                    dismissButton = {
+                        OutlinedButton(onClick = { pendingGateErase = null }) {
+                            Text(stringResource(R.string.action_cancel))
+                        }
+                    }
+                )
+            }
+        }
+    }
+
+    // REMOVE, the marker arm. A marker is priced from nothing, so the sentence
+    // says so: the fear when tapping near the house is that the fence goes
+    // with it.
+    pendingMarkerErase?.let { marker ->
+        if (!session.canDelete || siteMarkers.none { it.id == marker.id }) {
+            pendingMarkerErase = null
+        } else {
+            val markerName = marker.label.takeIf { it.isNotBlank() }
+                ?: stringResource(markerPickerLabelRes(marker.kind))
+            AlertDialog(
+                onDismissRequest = { pendingMarkerErase = null },
+                title = { Text(stringResource(R.string.draw_remove_marker_title)) },
+                text = { Text(stringResource(R.string.draw_remove_marker_body, markerName)) },
+                confirmButton = {
+                    // Red: a marker is NOT in the per-run Undo history --
+                    // deleteSiteMarker writes straight through -- so this one
+                    // cannot be taken back here.
+                    Button(
+                        onClick = {
+                            viewModel.deleteSiteMarker(marker)
+                            pendingMarkerErase = null
+                        },
+                        colors = androidx.compose.material3.ButtonDefaults.buttonColors(
+                            containerColor = MaterialTheme.colorScheme.error,
+                            contentColor = MaterialTheme.colorScheme.onError
+                        )
+                    ) { Text(stringResource(R.string.draw_remove)) }
+                },
+                dismissButton = {
+                    OutlinedButton(onClick = { pendingMarkerErase = null }) {
                         Text(stringResource(R.string.action_cancel))
                     }
                 }

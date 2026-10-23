@@ -336,6 +336,22 @@
     <string name="draw_erase_run_title">Erase this fence run?</string>
     <string name="draw_erase_run_body">%1$s comes off this drawing, with its fence line, its gates and the materials priced from it. Undo will not bring it back. It goes to the trash, so the office can still restore it.</string>
     <string name="draw_erase">Erase</string>
+    <!-- Erasing the closing side of a closed loop: there is no corner to drop
+         for it, so the loop opens and the takeoff stops billing that stretch. -->
+    <string name="draw_erase_closing_title">Erase the side that closes the loop?</string>
+    <string name="draw_erase_closing_body">%1$s stops being a closed loop. The stretch of fence between its last corner and its first comes off the drawing, and off the estimate. The rest of the side stays exactly as it is.</string>
+    <!-- Tap-to-remove: one tap takes off whatever it lands on. -->
+    <string name="mode_remove">Remove</string>
+    <string name="draw_remove_hint">Tap a side, a gate or a marker to take it off.</string>
+    <string name="draw_remove_nothing_there">Nothing there to remove. Tap a fence line, a gate or a marker.</string>
+    <string name="draw_remove_gate_body">The %1$s gate on %2$s comes off the drawing, and the opening closes up. The fence is priced across it again, so the total goes up by that much fence. Undo brings it back.</string>
+    <string name="draw_remove_marker_title">Remove this marker?</string>
+    <string name="draw_remove_marker_body">%1$s comes off the drawing. It is only a mark on the plan, so nothing is priced from it and no fence changes.</string>
+    <!-- Moving the whole drawing: every side, gate and marker together. -->
+    <string name="mode_move_fence">Move Fence</string>
+    <string name="draw_move_all_hint">Drag anywhere to move the whole drawing. Nothing changes length, so no price moves.</string>
+    <string name="draw_move_all_done">Drawing moved.</string>
+    <string name="draw_move_all_put_back">Put it back</string>
     <string name="draw_mark_spot">Mark this spot</string>
     <string name="draw_note_optional">Note (optional)</string>
     <string name="draw_already_marked">Already marked:</string>
