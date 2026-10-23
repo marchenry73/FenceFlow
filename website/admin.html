@@ -904,6 +904,10 @@ const TL = {
     navReleases:'Releases', navDrift:'Pricing drift', navAccount:'Account',
     navBin:'Recycle bin', removeBtn:'Remove', restoreBtn:'Restore',
     specialBtn:'Special',
+    extendAskBody:'How many more days should %s get? Their trial is extended from the day it ends now, not from today.',
+    extendAskDays:'Days to add', extendAskNext:'Next',
+    extendBadDays:'Type a number of days between 1 and 365.',
+    extendConfirmBody:'%s gets %s more days. Their trial will end on %s.',
     specialTitle:'A special for %s',
     specialBody:'What should they pay a month, and for how long? Stripe takes the difference off their bill and puts them back on the normal price by itself when the months are up. Nothing is typed over their real price — Stripe owns that.',
     specialPrice:'They pay, per month ($)', specialMonths:'For how many months',
@@ -1179,6 +1183,10 @@ const TL = {
     navReleases:'Versiones', navDrift:'Diferencia de precios', navAccount:'Cuenta',
     navBin:'Papelera', removeBtn:'Quitar', restoreBtn:'Restaurar',
     specialBtn:'Promoción',
+    extendAskBody:'¿Cuántos días más debe tener %s? La prueba se extiende desde el día en que termina ahora, no desde hoy.',
+    extendAskDays:'Días a agregar', extendAskNext:'Siguiente',
+    extendBadDays:'Escriba un número de días entre 1 y 365.',
+    extendConfirmBody:'%s recibe %s días más. Su prueba terminará el %s.',
     specialTitle:'Promoción para %s',
     specialBody:'¿Cuánto deben pagar al mes, y por cuánto tiempo? Stripe descuenta la diferencia y los regresa al precio normal por su cuenta cuando terminan los meses. No se escribe nada sobre su precio real: ese lo maneja Stripe.',
     specialPrice:'Pagan, por mes ($)', specialMonths:'Por cuántos meses',
@@ -1454,6 +1462,10 @@ const TL = {
     navReleases:'Versions', navDrift:'Écart de prix', navAccount:'Compte',
     navBin:'Corbeille', removeBtn:'Retirer', restoreBtn:'Rétablir',
     specialBtn:'Offre',
+    extendAskBody:'Combien de jours de plus pour %s ? L’essai est prolongé à partir du jour où il se termine actuellement, pas d’aujourd’hui.',
+    extendAskDays:'Jours à ajouter', extendAskNext:'Suivant',
+    extendBadDays:'Saisissez un nombre de jours entre 1 et 365.',
+    extendConfirmBody:'%s reçoit %s jours de plus. Son essai se terminera le %s.',
     specialTitle:'Une offre pour %s',
     specialBody:'Combien doivent-ils payer par mois, et pendant combien de temps ? Stripe retire la différence de leur facture et les remet au prix normal tout seul à la fin. Rien n’est écrit par-dessus leur vrai prix : c’est Stripe qui le détient.',
     specialPrice:'Ils paient, par mois ($)', specialMonths:'Pendant combien de mois',
@@ -3064,14 +3076,35 @@ function renderCompaniesTable() {
   // The new end date is named before it is granted, not after. This was the
   // one action with no question at all.
   document.querySelectorAll('[data-extend]').forEach(b =>
-    b.addEventListener('click', () => {
-      const c = clients.find(x => x.id === b.dataset.extend) || {};
+    b.addEventListener('click', async () => {
+      const id = b.dataset.extend;
+      const c = clients.find(x => x.id === id) || {};
+      // HOW LONG IS TYPED, NOT ASSUMED. Fourteen days was the only answer
+      // this button had, and a trial that needs three more days or another
+      // month had to be nudged in fourteens.
+      const answer = await ask({
+        title: tr('confirmExtendTitle'),
+        // The company is NAMED in the question, before any number is typed:
+        // these rows look alike, several share a contact address, and the
+        // one thing worth being certain of is which business this is about.
+        body: tr('extendAskBody', c.name || named(id)),
+        confirmLabel: tr('extendAskNext'),
+        fields: [{ id: 'ex_days', label: tr('extendAskDays'), value: '14' }],
+      });
+      if (!answer) return;
+      const days = Math.round(Number(String(answer.ex_days ?? '').replace(/[^0-9]/g, '')));
+      if (!Number.isFinite(days) || days < 1 || days > 365) {
+        return msg('msg', tr('extendBadDays'), 'err');
+      }
       const from = c.trial_ends_at && new Date(c.trial_ends_at) > new Date()
         ? new Date(c.trial_ends_at) : new Date();
-      const to = new Date(from.getTime() + 14 * 86400000);
-      adminAction('admin_extend_trial', { target: b.dataset.extend, days: 14 }, {
+      const to = new Date(from.getTime() + days * 86400000);
+      // Then the confirmation, with the company AND the date it lands on --
+      // worked out from where their trial actually ends, not from today, so
+      // the date shown is the date granted.
+      adminAction('admin_extend_trial', { target: id, days }, {
         title: tr('confirmExtendTitle'),
-        body: tr('confirmExtendBody', named(b.dataset.extend), day(to.toISOString())),
+        body: tr('extendConfirmBody', c.name || named(id), String(days), day(to.toISOString())),
         confirmLabel: tr('confirmExtendLabel', day(to.toISOString()))
       }, b);
     }));

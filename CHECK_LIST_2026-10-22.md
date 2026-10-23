@@ -128,9 +128,9 @@ forever; it was never disorganised, it was all unrolled.
 
 | Do this | You should see (once published) |
 |---|---|
-| Open any job | **Progress**, **Customer** and **Payment** are open. Everything else is shut |
-| Look at a shut card | A line under the heading saying what is in it — the customer's name and number, how many sides, how many change orders |
-| Tap a heading | It opens. Tap again, it shuts |
+| Open any job | **Progress**, **Customer** and **Payment** are open. Everything else is closed up |
+| Look at one of the closed sections | A line under the heading saying what is in it — the customer's name and number, how many sides, how many change orders |
+| Tap a heading | It opens. Tap it again, it closes |
 | Turn the phone | It stays how you left it |
 
 ### The estimate — **NEEDS A PUBLISH**

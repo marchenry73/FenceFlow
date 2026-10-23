@@ -13,6 +13,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -34,6 +35,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -173,7 +175,7 @@ fun AdminScreen(onBack: () -> Unit) {
                 }
 
                 AdminEntry.OPEN -> {
-                    val tabs = listOf("Overview", "Companies", "Releases", "Errors", "Sign-ins")
+                    val tabs = listOf("Overview", "Companies", "Releases", "Errors", "Drift", "Sign-ins")
                     TabRow(selectedTabIndex = tab) {
                         tabs.forEachIndexed { i, title ->
                             Tab(selected = tab == i, onClick = { tab = i }, text = { Text(title) })
@@ -184,6 +186,7 @@ fun AdminScreen(onBack: () -> Unit) {
                         1 -> CompaniesTab()
                         2 -> ReleasesTab()
                         3 -> ErrorsTab()
+                        4 -> DriftTab()
                         else -> SignInsTab()
                     }
                 }
@@ -334,6 +337,8 @@ private fun CompaniesTab() {
     // the dialog survives the list reloading underneath it.
     var pending by remember { mutableStateOf<Pair<AdminRepository.Company, AdminAction>?>(null) }
     var actionError by remember { mutableStateOf<String?>(null) }
+    /** The company whose plan, price, billing address and notes are open. */
+    var managing by remember { mutableStateOf<AdminRepository.Company?>(null) }
 
     suspend fun load() {
         state = AdminRepository.companies()
@@ -450,6 +455,10 @@ private fun CompaniesTab() {
             ) {
                 OutlinedButton(
                     enabled = !busy,
+                    onClick = { actionError = null; managing = c },
+                ) { Text("Manage") }
+                OutlinedButton(
+                    enabled = !busy,
                     onClick = { actionError = null; pending = c to AdminAction.ExtendOneDay },
                 ) { Text("+1 day") }
                 OutlinedButton(
@@ -469,6 +478,87 @@ private fun CompaniesTab() {
                 }
             }
         }
+    }
+
+    managing?.let { c ->
+        var plan by remember(c.id) { mutableStateOf(c.subscriptionPlan ?: "") }
+        var price by remember(c.id) { mutableStateOf(c.monthlyPrice?.let { "%.2f".format(it) } ?: "") }
+        var billing by remember(c.id) { mutableStateOf("") }
+        var notes by remember(c.id) { mutableStateOf(c.adminNotes) }
+        var saving by remember(c.id) { mutableStateOf(false) }
+        AlertDialog(
+            onDismissRequest = { if (!saving) managing = null },
+            title = { Text(c.name.ifBlank { "(unnamed)" }) },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(Space.sm)) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(Space.sm)) {
+                        for (p in listOf("solo", "crew", "pro")) {
+                            OutlinedButton(
+                                enabled = !saving && plan != p,
+                                onClick = { plan = p }
+                            ) { Text(if (plan == p) p.uppercase() else p) }
+                        }
+                    }
+                    OutlinedTextField(
+                        value = price, onValueChange = { price = it },
+                        label = { Text("Monthly price") }, singleLine = true, enabled = !saving,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    // Said where the box is, not in a comment nobody reads:
+                    // Stripe decides what they are charged and overwrites this
+                    // on its next event.
+                    Text(
+                        "Stripe sets what they actually pay. This is a note, and the next " +
+                            "subscription event overwrites it. To take money off a bill, use a special.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    OutlinedTextField(
+                        value = billing, onValueChange = { billing = it },
+                        // Blank leaves it: the column is NOT NULL, so an empty
+                        // string saves perfectly while wiping where invoices go.
+                        label = { Text("Billing email (blank leaves it: " + (c.billingEmail ?: "none") + ")") },
+                        singleLine = true, enabled = !saving, modifier = Modifier.fillMaxWidth()
+                    )
+                    OutlinedTextField(
+                        value = notes, onValueChange = { notes = it },
+                        label = { Text("Notes") }, enabled = !saving, minLines = 2,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !saving,
+                    onClick = {
+                        saving = true
+                        scope.launch {
+                            AdminRepository.updateCompany(
+                                companyId = c.id,
+                                plan = plan.takeIf { it.isNotBlank() && it != c.subscriptionPlan },
+                                // A BLANK PRICE IS NOT A PRICE OF ZERO. num("")
+                                // is 0, and a blank box writing a real zero over
+                                // a real figure is the bug the office's own save
+                                // was fixed for.
+                                monthlyPrice = price.trim().takeIf { it.isNotEmpty() }?.toDoubleOrNull(),
+                                billingEmail = billing.trim().takeIf { it.isNotEmpty() },
+                                // Notes go as typed, blank included: the box is
+                                // pre-filled with what is stored, so deleting
+                                // the text is the only way to clear a note and
+                                // there is no ambiguity about what blank means.
+                                adminNotes = notes,
+                            ).onFailure { actionError = shownError(it, "That did not go through.") }
+                            saving = false
+                            managing = null
+                            load()
+                        }
+                    }
+                ) { Text(if (saving) "Saving..." else "Save") }
+            },
+            dismissButton = {
+                TextButton(enabled = !saving, onClick = { managing = null }) { Text("Cancel") }
+            }
+        )
     }
 
     pending?.let { p: Pair<AdminRepository.Company, AdminAction> ->
@@ -737,12 +827,47 @@ private fun ReleasesTab() {
 private fun ErrorsTab() {
     val scope = rememberCoroutineScope()
     var state by remember { mutableStateOf<Load<AdminRepository.ErrorGroup>>(Load.Loading) }
+    var currentOnly by remember { mutableStateOf(false) }
+    // What "the current build" means: the newest release on record, not this
+    // handset's own version. An admin looking at crashes is asking about the
+    // fleet, and the phone in his hand may not be on the newest build itself.
+    var newestVersion by remember { mutableStateOf<String?>(null) }
     suspend fun load() {
         state = AdminRepository.errorSummary()
             .fold({ Load.Rows(it) }, { Load.Failed(shownError(it, "unknown error")) })
+        newestVersion = AdminRepository.releases().getOrNull()
+            ?.maxByOrNull { it.versionCode }?.versionName
     }
     LaunchedEffect(Unit) { load() }
-    Section(state, "Nothing has failed in the last 14 days.") { e ->
+
+    Row(
+        Modifier.fillMaxWidth().padding(bottom = Space.sm),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Checkbox(checked = currentOnly, onCheckedChange = { currentOnly = it })
+        Text(
+            newestVersion?.let { "Only still happening on $it" } ?: "Only on the current build",
+            style = MaterialTheme.typography.bodyMedium
+        )
+    }
+
+    val shown = when (val st = state) {
+        is Load.Rows -> Load.Rows(
+            st.rows.filter { e ->
+                // AN OFFICE ERROR IS NEVER HIDDEN BY THIS FILTER. It carries
+                // the word "office" where a version belongs, so a build
+                // comparison can never be satisfied by it -- and with the box
+                // ticked, which is how somebody hunting a live problem reads
+                // this screen, every office failure disappeared. The web
+                // console had exactly this bug until it was fixed this
+                // morning; the rule is written here rather than rediscovered.
+                !currentOnly || e.isOffice || newestVersion == null || e.latestVersion == newestVersion
+            }
+        )
+        else -> state
+    }
+
+    Section(shown, "Nothing has failed in the last 14 days.") { e ->
         Card(
             modifier = Modifier.fillMaxWidth().clickable {
                 scope.launch {
@@ -755,9 +880,26 @@ private fun ErrorsTab() {
             Column(Modifier.padding(Space.md)) {
                 Text(e.message, fontWeight = FontWeight.Medium, style = MaterialTheme.typography.bodyMedium)
                 Text(
-                    "${e.whereAt} - ${e.occurrences} times" + (e.lastSeen?.let { ", last $it" } ?: ""),
+                    "${e.whereAt} - ${e.occurrences} times" +
+                        (if (e.devices > 0) " on ${e.devices} phones" else "") +
+                        (e.lastSeen?.let { ", last $it" } ?: ""),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                // WHICH BUILD, or that it is not a build at all. Printing
+                // "office" as though it were a version number is what made an
+                // office failure read as a phone crash on a build nobody can
+                // find.
+                Text(
+                    when {
+                        e.isOffice -> "Office website"
+                        e.latestVersion.isNullOrBlank() -> "No version recorded"
+                        else -> "Newest on ${e.latestVersion}"
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Medium,
+                    color = if (e.isOffice) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
                     "Tap to mark seen",
@@ -766,6 +908,36 @@ private fun ErrorsTab() {
                 )
             }
         }
+    }
+}
+
+/**
+ * Jobs where the two pricing engines disagreed about a total.
+ *
+ * The figure that matters is the GAP, so it leads. Both totals are shown
+ * under it because which way round it went decides who was undercharged, and
+ * the engine versions because a disagreement between two different versions
+ * is a different thing from one between two copies of the same version.
+ */
+@Composable
+private fun DriftTab() {
+    var state by remember { mutableStateOf<Load<AdminRepository.Drift>>(Load.Loading) }
+    LaunchedEffect(Unit) {
+        state = AdminRepository.drift()
+            .fold({ Load.Rows(it) }, { Load.Failed(shownError(it, "unknown error")) })
+    }
+    Section(state, "The two engines have not disagreed about a total.") { d ->
+        AdminCard(
+            title = "$" + String.format("%,.2f", d.gap) + " apart",
+            lines = listOf(
+                "Office $" + String.format("%,.2f", d.officeTotal) +
+                    "   Phone $" + String.format("%,.2f", d.phoneTotal),
+                "Engines " + d.officeEngine + " / " + d.phoneEngine,
+                d.notedAt?.let { "Noted $it" } ?: "",
+                if (d.seenAt == null) "Not looked at yet" else "Seen",
+                "Job " + d.jobSyncId.take(8),
+            )
+        )
     }
 }
 

@@ -536,6 +536,55 @@ object JobMoney {
      *
      * Returns the figure to write. The caller keeps depositIsAuto true.
      */
+    /**
+     * Why the stored deposit is not the figure the price suggests.
+     *
+     * The three gates of [depositToStore], turned round so a SCREEN can say
+     * which one is holding -- because a deposit that is deliberately frozen
+     * and a deposit that is broken looked exactly the same on the estimate,
+     * and that is why this was reported as broken twice.
+     *
+     * One function rather than a screen re-deriving the guards: a second copy
+     * of this reasoning would eventually disagree with the one that does the
+     * writing, and then the screen would explain a refusal that did not happen.
+     */
+    enum class DepositFollow {
+        /** It is the app's and it already matches the price. Nothing to say. */
+        FOLLOWING,
+
+        /** Somebody typed this figure. It is theirs, and it never moves on its own. */
+        TYPED_BY_HAND,
+
+        /**
+         * The customer has approved, signed, or paid. A deposit that changes
+         * after they agreed is a different deal from the one they agreed to.
+         */
+        CUSTOMER_AGREED,
+
+        /** There is no suggestion to compare against (nothing priced yet). */
+        NOTHING_TO_SUGGEST,
+    }
+
+    /**
+     * [DepositFollow] for this job, and the figure the price suggests.
+     *
+     * CUSTOMER_AGREED is tested BEFORE the typed check, in the order the
+     * refusals actually bind: on a signed job it does not matter who chose the
+     * figure, and offering "follow the price again" there would be offering to
+     * change a deposit the customer has agreed to.
+     */
+    fun depositFollow(
+        job: Job,
+        materialsToBuy: Double,
+        billableTotal: Double
+    ): Pair<DepositFollow, Double> {
+        val want = depositSuggestion(job, materialsToBuy, billableTotal).amount
+        if (want <= 0.0) return DepositFollow.NOTHING_TO_SUGGEST to 0.0
+        if (customerIsInIt(job)) return DepositFollow.CUSTOMER_AGREED to want
+        if (!job.depositIsAuto && job.depositAmount > 0.005) return DepositFollow.TYPED_BY_HAND to want
+        return DepositFollow.FOLLOWING to want
+    }
+
     fun depositToStore(job: Job, materialsToBuy: Double, billableTotal: Double): Double? {
         if (!job.depositIsAuto) return null
         if (customerIsInIt(job)) return null

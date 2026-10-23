@@ -80,6 +80,7 @@ const PIECES = [
   grabFn('payMethodsFrom'), grabFn('payHowModel'), grabFn('payNameList'),
   grabFn('payCopyOutcome'), grabFn('selectNodeContents'),
   'let payList=[];', grabFn('renderHowToPay'), grabFn('copyPayRow'),
+  grabFn('payDocModel'),
 ].join('\n');
 
 /* A fresh page "instance": its own language, fake DOM and fake clipboard. */
@@ -91,6 +92,7 @@ function page({ lang = 'en', dueNow = 0, clipboard, execCopy = () => false, sele
   const win = { getSelection: () => (select ? selection : null) };
   const factory = new Function('LANG', '$', 'esc', 'dueNow', 'navigator', 'document', 'window', 'setTimeout', 'clearTimeout',
     PIECES + '\nreturn { L, tr, payMethodsFrom, payHowModel, payNameList, payCopyOutcome, renderHowToPay, copyPayRow,'
+    + ' payDocModel,'
     + ' getList: () => payList };');
   return { ...factory(lang, el, esc, () => dueNow, { clipboard }, doc, win, () => 0, () => {}), els, selection };
 }
@@ -470,7 +472,10 @@ test('FEE TRUTH: no percentage or surcharge figure appears in the new copy', () 
 
 const NEW_KEYS = ['howToPayHead', 'howToPayLead', 'pmCard', 'pmCardHow', 'pmCashApp', 'pmZelle', 'pmWire', 'pmCash', 'pmCashHow',
   'pmCashAppIn', 'pmZelleIn', 'pmWireIn', 'pmCashIn', 'pmCopy', 'pmCopied', 'pmCopyAria', 'pmSelected', 'pmSkipCard', 'pmNameNote',
-  'pmZelleHow'];
+  'pmZelleHow',
+  // His own payment link for the job, added when it stopped travelling on its
+  // own: 'I still need the link, but i need to be able to sent it with the quote'.
+  'pmPayLink', 'pmPayLinkHow', 'pmPayLinkIn'];
 // Proper nouns that are legitimately identical in every language. Everything
 // else must actually be translated -- compared by KEY, never by looking for a
 // particular word inside the text.
@@ -659,4 +664,193 @@ test('the Copy button\'s accessible name says what it copies, in the reader\'s l
   const p = page({ lang: 'es' });
   p.renderHowToPay(quoteWith({ zelle: 'pay@testfence.example' }), 900);
   assert.ok(p.els.payMethods.innerHTML.includes('aria-label="Copiar Zelle"'), p.els.payMethods.innerHTML);
+});
+
+
+/* =========================================================================
+   HIS OWN PAYMENT LINK, as the first row of this section.
+
+   "I have 2 places where I can click send email link for the payment, and
+    also on the quote, need to remove one. I still need the link, but i need to
+    be able to sent it with the quote, you can remove the sms link and email
+    link in the app."
+
+   The two buttons on the phone that sent the link in a message of its own are
+   gone (tests/a24-paylink-role-gate.test.mjs pins that they are), and the link
+   arrives on the quote instead: quote-view sends `payLink` and this section
+   draws it first.
+
+   THE STALENESS RULE IS THE SERVER'S, deliberately -- a payment link bills the
+   figure it was created for and goes on billing it after the price moves, and
+   only a surface that is re-read on every open can refuse it every time. These
+   tests cover the half that is this file's: given a link, draw it correctly and
+   say nothing untrue beside it; given no link, draw nothing.
+   ========================================================================= */
+
+const PAY_URL = 'https://pay.example.invalid/x/TESTLINK1';
+
+/** A quote with a payment link on it, and whatever methods are passed. */
+function quoteWithLink(m, url = PAY_URL) {
+  return { ...quoteWith(m), payLink: url };
+}
+
+test('the payment link is drawn, first, as a tappable link', () => {
+  const p = page({ dueNow: 3100 });
+  p.renderHowToPay(quoteWithLink(FULL), 12400);
+  const html = p.els.payMethods.innerHTML;
+  assert.ok(html.includes('data-method="link"'), 'no link row: ' + html);
+  assert.ok(html.includes('href="' + PAY_URL + '"'), 'the row is not a link: ' + html);
+  assert.ok(html.includes(esc(LTABLE.en.pmPayLink)), 'the row is not named');
+  assert.ok(html.includes(esc(LTABLE.en.pmPayLinkHow)), 'the row has no explanation line');
+  // FIRST. He said the hosted link is the priority.
+  assert.ok(html.indexOf('data-method="link"') < html.indexOf('data-method="cashapp"'),
+    'the payment link is not the first method');
+});
+
+test('no payLink means no row at all, and the rest of the section is untouched', () => {
+  const withLink = page({ dueNow: 3100 });
+  withLink.renderHowToPay(quoteWithLink(FULL), 12400);
+  const without = page({ dueNow: 3100 });
+  without.renderHowToPay(quoteWith(FULL), 12400);
+  assert.ok(!without.els.payMethods.innerHTML.includes('data-method="link"'),
+    'a link row appeared with no payLink on the quote');
+  // CONTROL: the two renders really did differ, so "absent" is a fact about
+  // the payLink and not about a render that produced nothing either way.
+  assert.notEqual(without.els.payMethods.innerHTML, withLink.els.payMethods.innerHTML);
+  assert.ok(without.els.payMethods.innerHTML.includes('data-method="cashapp"'),
+    'the control render is empty -- the comparison above means nothing');
+});
+
+test('a payLink that is not a plain https URL is refused by the page too', () => {
+  // quote-view tests the shape before sending it; this is the second test, at
+  // the point where the string is about to become an href.
+  for (const bad of [
+    'http://pay.example.invalid/x',            // not https
+    'javascript:alert(1)',                     // not a URL at all
+    'https://pay.example.invalid/"onmouseover=x', // a quote that would break out
+    'https://pay.example.invalid/<script>',    // angle brackets
+    '',
+    '   ',
+  ]) {
+    const p = page({ dueNow: 3100 });
+    p.renderHowToPay(quoteWithLink({}, bad), 12400);
+    assert.ok(!p.els.payMethods.innerHTML.includes('data-method="link"'),
+      'drew a row for a refused payLink: ' + JSON.stringify(bad));
+  }
+  // CANARY: the loop must be capable of passing something, or it proves nothing.
+  const good = page({ dueNow: 3100 });
+  good.renderHowToPay(quoteWithLink({}, PAY_URL), 12400);
+  assert.ok(good.els.payMethods.innerHTML.includes('data-method="link"'),
+    'THE CANARY FAILED: a valid link was refused too, so the loop above is vacuous');
+});
+
+test('the link alone is enough to show the section', () => {
+  // He may take card payments through his link and nothing else. Before this,
+  // an empty paymentMethods meant no section at all.
+  const p = page({ dueNow: 3100 });
+  p.renderHowToPay(quoteWithLink({}), 12400);
+  assert.equal(p.els.payHow.style.display, '', 'the section is hidden with a link on the quote');
+  assert.ok(p.els.payMethods.innerHTML.includes('data-method="link"'));
+});
+
+test('nothing left to pay still hides the section, link or no link', () => {
+  const p = page({ dueNow: 0 });
+  p.renderHowToPay(quoteWithLink(FULL), 0);
+  assert.equal(p.els.payHow.style.display, 'none');
+});
+
+test('no figure is attached to the payment link', () => {
+  // The Cash App link carries dueNow() by design. This one must not: it was
+  // CREATED for an amount, and quote-view only sends it when that amount still
+  // matches. Appending another would be a second opinion about the bill.
+  const p = page({ dueNow: 3100 });
+  p.renderHowToPay(quoteWithLink({}), 12400);
+  const html = p.els.payMethods.innerHTML;
+  const hrefs = [...html.matchAll(/href="([^"]+)"/g)].map((m) => m[1]);
+  assert.deepEqual(hrefs, [PAY_URL], 'the href is not the link exactly as sent: ' + hrefs.join(', '));
+  for (const figure of ['3100', '3,100', '3100.00', '12400', '12,400']) {
+    assert.ok(!html.includes(figure), 'a figure reached the link row: ' + figure);
+  }
+});
+
+test('the "skips the card checkout" sentence never names the payment link', () => {
+  // It says paying this way goes straight to the contractor. His payment link
+  // is very often a card checkout (Stripe, Square), so naming it there would
+  // tell her the opposite of what happens when she taps it.
+  const p = page({ dueNow: 3100 });
+  p.renderHowToPay(quoteWithLink({ zelle: 'pay@testfence.example' }), 12400);
+  const notes = p.els.payNotes.innerHTML;
+  assert.ok(notes.includes(esc(LTABLE.en.pmZelleIn)), 'the sentence lost Zelle: ' + notes);
+  assert.ok(!notes.includes(esc(LTABLE.en.pmPayLinkIn)),
+    'the skip-card sentence names the payment link: ' + notes);
+
+  // And with the link as the ONLY method there is no such sentence at all,
+  // rather than one with an empty list in it.
+  const alone = page({ dueNow: 3100 });
+  alone.renderHowToPay(quoteWithLink({}), 12400);
+  assert.ok(!alone.els.payNotes.innerHTML.includes('skips'),
+    'a skip-card sentence was written about nothing: ' + alone.els.payNotes.innerHTML);
+});
+
+test('"put your name in the note" is not said about a hosted payment page', () => {
+  const alone = page({ dueNow: 3100 });
+  alone.renderHowToPay(quoteWithLink({}), 12400);
+  assert.ok(!alone.els.payNotes.innerHTML.includes(esc(LTABLE.en.pmNameNote)),
+    'asked her to put her name in the note of a checkout page');
+  // CONTROL: it IS still said when a method that has a note is offered.
+  const withZelle = page({ dueNow: 3100 });
+  withZelle.renderHowToPay(quoteWithLink({ zelle: 'pay@testfence.example' }), 12400);
+  assert.ok(withZelle.els.payNotes.innerHTML.includes(esc(LTABLE.en.pmNameNote)),
+    'the note sentence is gone for Zelle too');
+});
+
+test('three languages: the link row is named and explained in each, and the URL is not', () => {
+  for (const lang of ['en', 'es', 'fr']) {
+    const p = page({ lang, dueNow: 3100 });
+    p.renderHowToPay(quoteWithLink({}), 12400);
+    const html = p.els.payMethods.innerHTML;
+    assert.ok(html.includes(esc(LTABLE[lang].pmPayLink)), lang + ': the row is not named in that language');
+    assert.ok(html.includes(esc(LTABLE[lang].pmPayLinkHow)), lang + ': no explanation in that language');
+    assert.ok(html.includes('href="' + PAY_URL + '"'), lang + ': the URL changed with the language');
+  }
+  // CONTROL: the three names are genuinely different text.
+  assert.equal(new Set(['en', 'es', 'fr'].map((l) => LTABLE[l].pmPayLink)).size, 3,
+    'two languages share the same name for the payment link');
+  assert.equal(new Set(['en', 'es', 'fr'].map((l) => LTABLE[l].pmPayLinkHow)).size, 3,
+    'two languages share the same explanation');
+});
+
+/* =========================================================================
+   THE DOWNLOADABLE COPY named his custom payment methods NOTHING.
+
+   payDocModel read tr(PAY_NAME_KEY[p.key]), and PAY_NAME_KEY has no 'other'
+   -- so every method he added himself ("Check", "Money order") appeared on the
+   screen with its name and in the copy the customer downloads with none, and
+   a nameless row was additionally told to hand it to the crew.
+   ========================================================================= */
+
+test('the downloaded copy names a custom payment method by his own words', () => {
+  const p = page({ dueNow: 3100 });
+  const methods = [
+    { key: 'other', label: 'Money order', value: 'Payable to Example Fence LLC' },
+    { key: 'other', label: 'Check', value: null },
+    { key: 'cash', value: null },
+  ];
+  const doc = p.payDocModel(methods, null);
+  assert.equal(doc.rows[0].name, 'Money order');
+  assert.equal(doc.rows[1].name, 'Check');
+  assert.equal(doc.rows[2].name, LTABLE.en.pmCash);
+  // And only cash is told to hand it over.
+  assert.equal(doc.rows[1].how, '', 'a custom method was given the cash sentence');
+  assert.equal(doc.rows[2].how, LTABLE.en.pmCashHow);
+});
+
+test('the downloaded copy carries the payment link row too', () => {
+  const p = page({ dueNow: 3100 });
+  const doc = p.payDocModel([{ key: 'link', value: PAY_URL }], null);
+  assert.equal(doc.rows[0].name, LTABLE.en.pmPayLink);
+  assert.equal(doc.rows[0].value, PAY_URL);
+  assert.equal(doc.rows[0].how, LTABLE.en.pmPayLinkHow);
+  // Not asked to write her name in a note that does not exist.
+  assert.ok(!doc.notes.includes(LTABLE.en.pmNameNote));
 });

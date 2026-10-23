@@ -240,6 +240,33 @@ class EstimateViewModel(
         }
     }
 
+    /**
+     * Hand a deposit somebody typed back to the price, from the estimate.
+     *
+     * The same write [seedDepositIfUnset] makes, with the provenance bit set
+     * first -- which is the whole difference between "this figure is mine" and
+     * "this figure is the app's". Refused once the customer is in it, read off
+     * the row rather than off the screen's snapshot, because this is money and
+     * the row can have moved since the last emission.
+     */
+    fun followPriceAgain() {
+        if (session.state.value.isGuestDemo) return
+        if (!TakeoffRefresher.mayReprice(session.state.value)) return
+        val currentTotals = totals.value
+        val orders = changeOrders.value
+        viewModelScope.launch {
+            val fresh = repository.getJob(jobId) ?: return@launch
+            if (com.fenceestimator.app.estimate.JobMoney.customerIsInIt(fresh)) return@launch
+            val materials = com.fenceestimator.app.estimate.JobMoney.materialsToBuy(currentTotals, orders)
+            val billable =
+                com.fenceestimator.app.estimate.JobMoney.billableTotal(fresh, currentTotals.grandTotal, orders)
+            val want = com.fenceestimator.app.estimate.JobMoney
+                .depositSuggestion(fresh, materials, billable).amount
+            if (want <= 0.0) return@launch
+            repository.updateJob(fresh.copy(depositAmount = want, depositIsAuto = true))
+        }
+    }
+
     val changeOrders: StateFlow<List<ChangeOrder>> = repository.observeChangeOrders(jobId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 

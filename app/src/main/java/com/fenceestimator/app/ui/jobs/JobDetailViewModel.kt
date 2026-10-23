@@ -159,12 +159,42 @@ class JobDetailViewModel(
         return JobMoney.depositSuggestion(current, materialCost.value, billableTotal(current))
     }
 
+    /**
+     * "Set deposit" -- the button that fills in the app's OWN suggested figure.
+     *
+     * IT STAYS AUTOMATIC, and that is a correction. This wrote
+     * depositIsAuto = false, treating the app's own suggestion as a figure a
+     * person had chosen -- so pressing the button that puts a deposit on a job
+     * was also the act that stopped the deposit ever following the price again.
+     * He pressed it (we told him to), reported that the deposit no longer
+     * moved, and he was right.
+     *
+     * Accepting the app's number is not choosing a number. Typing one IS, and
+     * the deposit FIELD still writes false for exactly that reason.
+     */
     fun applySuggestedDeposit() {
         val amount = suggestedDeposit()
         if (amount <= 0.0) return
-        // Set deliberately -- from the suggestion button or a typed figure --
-        // so it is a person's number now and the price no longer moves it.
-        update { it.copy(depositAmount = amount, depositIsAuto = false) }
+        update { it.copy(depositAmount = amount, depositIsAuto = true) }
+    }
+
+    /**
+     * Hand a deposit somebody typed back to the price.
+     *
+     * The field's comment used to say "there is no way back to automatic by
+     * design". That was the wrong call: one tap on the number field, or a
+     * figure typed before the layout was finished, left the job frozen for
+     * good with nothing on screen to say so. This is the way back, and it is
+     * refused exactly where it should be -- [JobMoney.customerIsInIt] is
+     * checked inside [JobMoney.depositToStore], so a signed or part-paid job
+     * cannot be put back on automatic by this or anything else.
+     */
+    fun followPriceAgain() {
+        val current = job.value ?: return
+        if (com.fenceestimator.app.estimate.JobMoney.customerIsInIt(current)) return
+        val amount = suggestedDeposit()
+        if (amount <= 0.0) return
+        update { it.copy(depositAmount = amount, depositIsAuto = true) }
     }
 
     /**

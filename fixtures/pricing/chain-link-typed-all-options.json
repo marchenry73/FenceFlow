@@ -2,7 +2,7 @@
   "schema": 1,
   "engine": {
     "version": "2026.10.13",
-    "generated_at": "2026-10-08T18:57:51.598350500Z"
+    "generated_at": "2026-10-23T02:42:17.176755Z"
   },
   "case": "chain-link-typed-all-options",
   "note": "Chain link 6 ft fabric with top rail, tension wire, barbed arms and slats; bands per terminal post = ceil(fabric height).",

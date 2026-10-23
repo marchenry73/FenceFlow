@@ -153,6 +153,7 @@ import com.fenceestimator.app.ui.runs.FenceRunListViewModel
 import com.fenceestimator.app.ui.theme.Space
 import kotlinx.coroutines.launch
 import com.fenceestimator.app.cloud.CrashReporter
+import com.fenceestimator.app.cloud.JobMail
 import com.fenceestimator.app.cloud.CloudTime
 import com.fenceestimator.app.cloud.SupabaseModule
 import io.github.jan.supabase.postgrest.postgrest
@@ -388,6 +389,7 @@ fun JobDetailScreen(
                     )
                 }
             }
+            item { JobMailSection(currentJob.syncId) }
             item {
                 // Everything already saves as you type -- this is here because
                 // an app with no Save button leaves people unsure whether their
@@ -1450,6 +1452,62 @@ private fun TemplateMenuItem(template: com.fenceestimator.app.data.BuildTemplate
     )
 }
 
+
+/**
+ * The emails sent and received about this job.
+ *
+ * Read only. Replying needs the compose window, attachments, drafts and the
+ * rate ledger; what was asked for is to SEE them, and a list that is honest
+ * about being a list beats half a mail client.
+ *
+ * DRAWN ONLY WHEN THERE IS SOMETHING TO DRAW. mail_for_job runs under the
+ * caller's own rights, so a login with no mail access gets an empty list --
+ * and an empty "Email" card on every job would imply a feature that login
+ * does not have. A failure is silent for the same reason: this is history
+ * beside the job, not the job, and it must never be the reason a job sheet
+ * shows an error.
+ */
+@Composable
+private fun JobMailSection(jobSyncId: String) {
+    var threads by remember(jobSyncId) { mutableStateOf<List<JobMail.Thread>>(emptyList()) }
+    LaunchedEffect(jobSyncId) {
+        threads = JobMail.forJob(jobSyncId).getOrDefault(emptyList())
+    }
+    if (threads.isEmpty()) return
+
+    val dateFormat = remember { SimpleDateFormat("MMM d, h:mm a", Locale.US) }
+    SectionCard(
+        title = stringResource(R.string.jd_section_email),
+        icon = Icons.Filled.Email,
+        summary = stringResource(R.string.jd_email_count, threads.size)
+    ) {
+        for (t in threads) {
+            Column(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+                Text(t.title, fontWeight = FontWeight.Medium, style = MaterialTheme.typography.bodyMedium)
+                if (t.snippet.isNotBlank()) {
+                    Text(
+                        t.snippet,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 2
+                    )
+                }
+                Text(
+                    listOfNotNull(
+                        t.participants.firstOrNull()?.takeIf { it.isNotBlank() },
+                        // The server sends an ISO instant; a date that cannot
+                        // be parsed prints nothing rather than "null" or the
+                        // epoch.
+                        CloudTime.parseMillis(t.lastMessageAt)?.let { dateFormat.format(Date(it)) },
+                        if (t.messageCount > 1) stringResource(R.string.jd_email_messages, t.messageCount) else null,
+                    ).joinToString("  ·  "),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
 @Composable
 private fun SectionCard(
     title: String,
@@ -2968,70 +3026,27 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
         Spacer(Modifier.height(8.dp))
     }
 
-    if (job.paymentLinkUrl.isNotBlank()) {
-        // Naming the amount in the message means the customer can
-        // check it against the estimate before they tap anything.
-        val amountText = if (job.paymentLinkAmount > 0.0) " " + stringResource(R.string.jd_for_amount, Money.format(job.paymentLinkAmount).removePrefix("$")) else ""
-        val greetingName = job.customerName.ifBlank { stringResource(R.string.jd_there) }
-        val smsBody = stringResource(R.string.jd_payment_sms_body, greetingName, amountText, job.address, job.paymentLinkUrl)
-        val emailBody = stringResource(R.string.jd_payment_email_body, greetingName, amountText, job.address, job.paymentLinkUrl)
-        val emailSubject = stringResource(R.string.jd_payment_email_subject)
-        val sentToText = stringResource(R.string.jd_payment_emailed_to)
-        var sendingPayEmail by remember(job.id) { mutableStateOf(false) }
-        var payEmailMsg by remember(job.id) { mutableStateOf<String?>(null) }
-        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            OutlinedButton(
-                onClick = { IntentHelpers.openSmsDraft(context, job.phone, smsBody) },
-                enabled = job.phone.isNotBlank() && !linkIsStale,
-                modifier = Modifier.weight(1f)
-            ) { Text(stringResource(R.string.jd_text_link)) }
-            Button(
-                onClick = {
-                    if (sendingPayEmail) return@Button
-                    sendingPayEmail = true
-                    payEmailMsg = null
-                    scope.launch {
-                        // The same path the quote email takes: mail-send with
-                        // from_account_id "fenceflow", which is the office's
-                        // own path. It answers only once the provider has the
-                        // message, so "sent" here is a fact rather than the
-                        // observation that a mail app opened.
-                        val r = com.fenceestimator.app.cloud.QuoteEmailApi.send(
-                            jobSyncId = job.syncId,
-                            to = job.email,
-                            subject = emailSubject,
-                            body = emailBody,
-                        )
-                        sendingPayEmail = false
-                        payEmailMsg = when (r) {
-                            is com.fenceestimator.app.cloud.QuoteEmailApi.Result.Sent ->
-                                sentToText.format(job.email)
-                            // NO QUIET FALLBACK TO A DRAFT. He has just been
-                            // told it did not send; a mail app appearing would
-                            // read as it having gone after all, and the long
-                            // press below is there when he wants one.
-                            is com.fenceestimator.app.cloud.QuoteEmailApi.Result.Failed -> r.why
-                        }
-                    }
-                },
-                enabled = job.email.isNotBlank() && !linkIsStale && !sendingPayEmail,
-                modifier = Modifier.weight(1f)
-            ) {
-                Text(
-                    if (sendingPayEmail) stringResource(R.string.jd_sending)
-                    else stringResource(R.string.jd_email_link)
-                )
-            }
-        }
-        payEmailMsg?.let {
-            Text(
-                it,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(top = 4.dp)
-            )
-        }
-    }
+    // WHERE THE PAYMENT LINK GOES NOW.
+    //
+    // There were two buttons here -- Text Link and Email Link -- that sent the
+    // link to the customer on its own, in a message of its own, which had to be
+    // remembered and sent separately from the quote every time. They are gone:
+    // "you can remove the sms link and email link in the app."
+    //
+    // The link reaches her on the QUOTE instead. quote-view reads
+    // payment_link_url for the job and the quote page draws it as the first row
+    // of "How to pay", so Send quote sends the way to pay with it.
+    //
+    // THAT IS ALSO SAFER, not just fewer buttons. A payment link bills the
+    // figure it was created for and goes on billing it after the price moves --
+    // which is why these buttons had to be disabled whenever linkIsStale, and
+    // why an email already in her inbox could still carry a link asking for
+    // last week's money. The page is re-read every time she opens it, so
+    // quote-view can refuse to show a link whose amount no longer matches what
+    // is due, every time, instead of only at the moment somebody pressed send.
+    //
+    // The link, the field above and the stale warning all stay exactly as they
+    // were. Nothing about the money moved.
     }
 
     androidx.compose.foundation.layout.Spacer(Modifier.height(4.dp))

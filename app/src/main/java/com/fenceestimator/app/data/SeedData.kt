@@ -162,12 +162,24 @@ object SeedData {
         unitPrice: Double,
         taxable: Boolean = true,
         coversFt: Float? = null,
+        /**
+         * How tall the fence this is FOR, in feet. Null means "not stated",
+         * which prices exactly as it always did.
+         *
+         * It exists because of what happened to ornamental steel: the 4'H and
+         * 6'H panels are both six feet WIDE, the engine picked by width and
+         * then by price, and the cheaper 4 ft panel won every 6 ft job --
+         * $40 a panel out of his pocket, silently. A 4 ft vinyl panel beside
+         * a 6 ft one of the same width is the same trap, so the heights go on
+         * together with the row that would spring it.
+         */
+        heightFt: Float? = null,
         colorOrFinish: String = "",
         sourceDoc: String
     ) = MaterialItem(
         category = category, role = role, fenceType = fenceType, name = name, unit = unit,
-        unitPrice = unitPrice, taxable = taxable, coversFt = coversFt, colorOrFinish = colorOrFinish,
-        sourceDoc = sourceDoc
+        unitPrice = unitPrice, taxable = taxable, coversFt = coversFt, heightFt = heightFt,
+        colorOrFinish = colorOrFinish, sourceDoc = sourceDoc
     )
 
     /**
@@ -207,8 +219,15 @@ object SeedData {
     private fun vinylItems(): List<MaterialItem> {
         val t = FenceType.VINYL
         return listOf(
-            item(MaterialCategory.PANEL, MaterialRole.PANEL, t, "Panel T&G Vinyl Privacy 6'H x 6'W - White", unitPrice = 52.35, taxable = true, coversFt = 6f, colorOrFinish = "White", sourceDoc = SEEDED),
-            item(MaterialCategory.PANEL, MaterialRole.PANEL, t, "Panel T&G Vinyl Privacy 6'H x 8'W - White", unitPrice = 71.40, taxable = true, coversFt = 8f, colorOrFinish = "White", sourceDoc = SEEDED),
+            item(MaterialCategory.PANEL, MaterialRole.PANEL, t, "Panel T&G Vinyl Privacy 6'H x 6'W - White", unitPrice = 52.35, taxable = true, coversFt = 6f, heightFt = 6f, colorOrFinish = "White", sourceDoc = SEEDED),
+            item(MaterialCategory.PANEL, MaterialRole.PANEL, t, "Panel T&G Vinyl Privacy 6'H x 8'W - White", unitPrice = 71.40, taxable = true, coversFt = 8f, heightFt = 6f, colorOrFinish = "White", sourceDoc = SEEDED),
+            // The 4 ft he asked for, and it is Flori's Melrose flat-top at his
+            // own quoted price -- not a short privacy panel. His 4 ft products
+            // are semi-privacy styles and they cost MORE than the 6 ft solid
+            // panel, which is why "4 ft instead of 6 ft" was never the right
+            // way to think about it. heightFt is what stops it taking 6 ft
+            // jobs by being a different price at the same width.
+            item(MaterialCategory.PANEL, MaterialRole.PANEL, t, "Panel Vinyl Melrose Flat-Top 4'H x 6'W - White (Flori)", unitPrice = 61.74, taxable = true, coversFt = 6f, heightFt = 4f, colorOrFinish = "White", sourceDoc = SEEDED),
             item(MaterialCategory.POST, MaterialRole.LINE_POST, t, "5\"x5\" Co-Ex Line Post, White", unitPrice = 16.56, colorOrFinish = "White", sourceDoc = SEEDED),
             item(MaterialCategory.POST, MaterialRole.END_POST, t, "5\"x5\" Co-Ex End Post, White", unitPrice = 16.56, colorOrFinish = "White", sourceDoc = SEEDED),
             item(MaterialCategory.POST, MaterialRole.CORNER_POST, t, "5\"x5\" Co-Ex Corner Post, White", unitPrice = 16.56, colorOrFinish = "White", sourceDoc = SEEDED),
@@ -228,9 +247,9 @@ object SeedData {
             item(MaterialCategory.TRIM, MaterialRole.TRIM, t, "7/8 x 1-1/2 x 62 1/4 Trim U-Channel, White", unitPrice = 2.00, colorOrFinish = "White", sourceDoc = SEEDED),
 
             // Color variants (placeholder -- correct once you have real supplier pricing per color)
-            item(MaterialCategory.PANEL, MaterialRole.PANEL, t, "Panel T&G Vinyl Privacy 6'H x 6'W - Tan", unitPrice = 54.50, taxable = true, coversFt = 6f, colorOrFinish = "Tan", sourceDoc = SEEDED),
-            item(MaterialCategory.PANEL, MaterialRole.PANEL, t, "Panel T&G Vinyl Privacy 6'H x 6'W - Gray", unitPrice = 54.50, taxable = true, coversFt = 6f, colorOrFinish = "Gray", sourceDoc = SEEDED),
-            item(MaterialCategory.PANEL, MaterialRole.PANEL, t, "Panel T&G Vinyl Privacy 6'H x 8'W - Tan", unitPrice = 73.90, taxable = true, coversFt = 8f, colorOrFinish = "Tan", sourceDoc = SEEDED),
+            item(MaterialCategory.PANEL, MaterialRole.PANEL, t, "Panel T&G Vinyl Privacy 6'H x 6'W - Tan", unitPrice = 54.50, taxable = true, coversFt = 6f, heightFt = 6f, colorOrFinish = "Tan", sourceDoc = SEEDED),
+            item(MaterialCategory.PANEL, MaterialRole.PANEL, t, "Panel T&G Vinyl Privacy 6'H x 6'W - Gray", unitPrice = 54.50, taxable = true, coversFt = 6f, heightFt = 6f, colorOrFinish = "Gray", sourceDoc = SEEDED),
+            item(MaterialCategory.PANEL, MaterialRole.PANEL, t, "Panel T&G Vinyl Privacy 6'H x 8'W - Tan", unitPrice = 73.90, taxable = true, coversFt = 8f, heightFt = 6f, colorOrFinish = "Tan", sourceDoc = SEEDED),
             item(MaterialCategory.POST, MaterialRole.LINE_POST, t, "5\"x5\" Co-Ex Line Post, Tan", unitPrice = 17.25, colorOrFinish = "Tan", sourceDoc = SEEDED),
             item(MaterialCategory.POST, MaterialRole.LINE_POST, t, "5\"x5\" Co-Ex Line Post, Gray", unitPrice = 17.25, colorOrFinish = "Gray", sourceDoc = SEEDED)
         )

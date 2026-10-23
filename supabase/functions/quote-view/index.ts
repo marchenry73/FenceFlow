@@ -288,6 +288,57 @@ async function readPaymentMethods(
 }
 
 /**
+ * THE CONTRACTOR'S OWN PAYMENT LINK, for this job.
+ *
+ * "I still need the link, but I need to be able to send it with the quote."
+ *
+ * jobs.payment_link_url is either a link FenceFlow made through Stripe
+ * (JobDetailScreen's Request payment) or one he typed himself -- Square,
+ * PayPal, Venmo, whatever he already uses. Until now the only way it reached
+ * a customer was two buttons on the phone that opened a text or an email, so
+ * it travelled on its own, separately from the quote, and he had to remember
+ * to send it. Now it rides on the quote page: he sends the quote, and the way
+ * to pay is on it.
+ *
+ * A SEPARATE READ, not another column on JOB_COLUMNS. That select already
+ * steps down twice for columns an older database may not have, and a third
+ * reason to fall back would put the whole page at the mercy of this one
+ * feature. A failure here returns null and the page is exactly what it was.
+ *
+ * THE AMOUNT IS WHAT MAKES IT SAFE, and it is checked by the caller, not
+ * here: a Stripe link bills the figure it was created for and goes on billing
+ * it after the price changes. payment_link_amount is that figure. See the
+ * payLink block at the bottom of the handler for the rule.
+ */
+async function readJobPayLink(
+  admin: ReturnType<typeof createClient>,
+  jobId: string,
+): Promise<{ url: string; amount: number } | null> {
+  try {
+    const { data, error } = await admin
+      .from("jobs")
+      .select("payment_link_url, payment_link_amount")
+      .eq("id", jobId)
+      .maybeSingle();
+    if (error) {
+      console.error("quote-view pay link", error.message);
+      return null;
+    }
+    const row = data as { payment_link_url?: unknown; payment_link_amount?: unknown } | null;
+    const url = String(row?.payment_link_url ?? "").trim();
+    // https only, and nothing that could carry a quote or a bracket into an
+    // href on a customer's page. Same test safeUrl() applies to the quote link
+    // itself in _shared/email-templates.ts.
+    if (!/^https:\/\/[^\s<>"'\\]{1,400}$/.test(url)) return null;
+    const amount = Number(row?.payment_link_amount);
+    return { url, amount: Number.isFinite(amount) ? amount : 0 };
+  } catch (e) {
+    console.error("quote-view pay link", String((e as Error)?.message ?? e));
+    return null;
+  }
+}
+
+/**
  * job-files is private, so the path itself is useless to a browser -- and the
  * path is never handed out anyway (comment on quote_approved_signature_path
  * says why). A short-lived signed URL is what the page, and the downloadable
@@ -1239,7 +1290,7 @@ Deno.serve(async (req) => {
   }
 
   const [{ data: company }, figures, { data: runs }, { data: houseMarkers }, { data: conn },
-         signatureUrl, paymentMethods] =
+         signatureUrl, paymentMethods, jobPayLink] =
     await Promise.all([
       admin.from("companies").select("name, phone, email, logo_path").eq("id", job.company_id).single(),
       pageFigures(admin, job),
@@ -1279,6 +1330,9 @@ Deno.serve(async (req) => {
       // above: that select answers for the company's name, and a database
       // without payment settings (or a failed read) must never blank it.
       readPaymentMethods(admin, job.company_id),
+      // His own payment link for THIS job. Read raw; whether it is fit to
+      // show is decided below, where the figures exist.
+      readJobPayLink(admin, job.id),
     ]);
 
   // The first open is worth knowing about; later opens are just reading.
@@ -1300,6 +1354,40 @@ Deno.serve(async (req) => {
   const approvalBlocked = (canRecordAcceptance && !job.quote_approved_at && priceShortfall(job, total))
     ? "price_below_agreed"
     : null;
+
+  // HIS OWN PAYMENT LINK, or nothing.
+  //
+  // THE RULE IS THE AMOUNT. A payment link bills the figure it was created
+  // for, for ever -- Stripe does not take it down when the price changes, and
+  // neither does Square. The phone already knows this: the Email Link button
+  // it replaces was DISABLED whenever payment_link_amount had drifted from
+  // what was due (linkIsStale in JobDetailScreen). Putting the link on a page
+  // that is re-read every time she opens it would otherwise mean the one
+  // surface that always shows the current price also carries a button that
+  // charges last week's.
+  //
+  // So it is shown only when it still asks for the right money:
+  //   - amount == 0: an open link he typed (a Square or PayPal page where she
+  //     enters the amount). Nothing to go stale; shown.
+  //   - amount == what is due: the link and the page agree; shown.
+  //   - anything else: WITHHELD. Not a warning on her page -- a figure she was
+  //     never told about does not become her problem. He sees the stale notice
+  //     in the office and on the phone, where it can be fixed.
+  //
+  // Nothing due means nothing to pay, and payHowModel hides the whole section
+  // in that case anyway; the link is dropped here too so the page is never
+  // handed one it would have to know not to draw.
+  const payLink = (() => {
+    if (!jobPayLink) return null;
+    const due = Number(money.due);
+    if (!(due > 0.005)) return null;
+    const amount = Number(jobPayLink.amount);
+    if (amount > 0.005 && Math.abs(amount - due) > 0.005) return null;
+    // The URL only. NOT the amount: this page's own rule is that no figure is
+    // restated anywhere a second copy could come to disagree with the first,
+    // and the figure is already on it twice over.
+    return jobPayLink.url;
+  })();
 
   // Whether the deposit button can do anything. A connected processor means
   // create-payment-link's token path will produce a real checkout.
@@ -1389,6 +1477,9 @@ Deno.serve(async (req) => {
     // There is NO card-fee field: create-payment-link adds no fee to a
     // customer's payment (stripeFee = 0), so nothing here may say there is one.
     ...(paymentMethods ? { paymentMethods } : {}),
+    // His own payment link, when it still asks for the right money. See the
+    // payLink block above for the rule; absent means "do not draw one".
+    ...(payLink ? { payLink } : {}),
     // Teardown runs ride along too. The old fence is half the sales pitch:
     // the customer sees the weathered thing they hate standing in the yard,
     // then removes it with one tap and looks at the new one alone.

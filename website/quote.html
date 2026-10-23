@@ -343,6 +343,10 @@ const L = {
     pmCard: 'Credit or debit card',
     pmCardHow: 'Pay online with the payment button below.',
     pmCashApp: 'Cash App',
+    // His own payment page -- Stripe, Square, PayPal, whatever he uses. Named
+    // by what it DOES, not by a brand: the page is never told which one it is.
+    pmPayLink: 'Pay online',
+    pmPayLinkHow: 'Opens your contractor’s secure payment page.',
     pmZelleHow: 'For Zelle, open your own banking app and send to the address above.',
     pmZelle: 'Zelle',
     pmWire: 'Wire transfer',
@@ -351,6 +355,7 @@ const L = {
     // The same four, as they read inside a sentence (lower case where the
     // language lowercases a common noun; Cash App and Zelle never change).
     pmCashAppIn: 'Cash App',
+    pmPayLinkIn: 'the payment link',
     pmZelleIn: 'Zelle',
     pmWireIn: 'wire transfer',
     pmCashIn: 'cash',
@@ -443,12 +448,15 @@ const L = {
     pmCard: 'Tarjeta de crédito o débito',
     pmCardHow: 'Pague en línea con el botón de pago de abajo.',
     pmCashApp: 'Cash App',
+    pmPayLink: 'Pagar en línea',
+    pmPayLinkHow: 'Abre la página de pago segura de su contratista.',
     pmZelleHow: 'Para Zelle, abra la aplicación de su banco y envíe a la dirección de arriba.',
     pmZelle: 'Zelle',
     pmWire: 'Transferencia bancaria',
     pmCash: 'Efectivo',
     pmCashHow: 'Se acepta efectivo. Pregunte a su contratista cuándo y dónde entregarlo.',
     pmCashAppIn: 'Cash App',
+    pmPayLinkIn: 'el enlace de pago',
     pmZelleIn: 'Zelle',
     pmWireIn: 'transferencia bancaria',
     pmCashIn: 'efectivo',
@@ -541,12 +549,15 @@ const L = {
     pmCard: 'Carte de crédit ou de débit',
     pmCardHow: 'Payez en ligne avec le bouton de paiement ci-dessous.',
     pmCashApp: 'Cash App',
+    pmPayLink: 'Payer en ligne',
+    pmPayLinkHow: 'Ouvre la page de paiement sécurisée de votre entreprise.',
     pmZelleHow: 'Pour Zelle, ouvrez l’application de votre banque et envoyez à l’adresse ci-dessus.',
     pmZelle: 'Zelle',
     pmWire: 'Virement bancaire',
     pmCash: 'Espèces',
     pmCashHow: 'Les espèces sont acceptées. Demandez à votre entreprise quand et où les remettre.',
     pmCashAppIn: 'Cash App',
+    pmPayLinkIn: 'le lien de paiement',
     pmZelleIn: 'Zelle',
     pmWireIn: 'virement bancaire',
     pmCashIn: 'espèces',
@@ -962,9 +973,11 @@ function render(){
   // Falls back to the old subtraction only for a page served by a quote-view
   // deployed before balanceDue existed, so an old function keeps working
   // rather than rendering a blank where a figure belongs.
-  const balance=(q.balanceDue!=null)
-    ? Math.max(0, Number(q.balanceDue)||0)
-    : Math.max(0, (Number(q.total)||0)-(Number(q.deposit)||0));
+  // balanceOwed() is this same rule, named, for the callers that have only
+  // the module-level `quote` to hand. Kept as one expression in one place so
+  // the figure on the page and the figure the pay panel is drawn against
+  // cannot disagree.
+  const balance=balanceOwed();
   if(balance>0.005){
     rows.push('<div><span>'+tr('balanceDue')+'</span><span>'+money(balance)+'</span></div>');
   } else {
@@ -1121,8 +1134,12 @@ function showPayButton(){
    take plain values so tests/a38-quote-pay-*.test.mjs can run them standalone;
    renderHowToPay and copyPayRow are the thin halves that touch the DOM. */
 const PAY_ORDER=['cashapp','zelle','wire','cash'];
-const PAY_NAME_KEY={cashapp:'pmCashApp',zelle:'pmZelle',wire:'pmWire',cash:'pmCash'};
-const PAY_IN_KEY={cashapp:'pmCashAppIn',zelle:'pmZelleIn',wire:'pmWireIn',cash:'pmCashIn'};
+/* 'link' is deliberately NOT in PAY_ORDER: it does not come from the company's
+   settings like the four fixed methods, it comes from THIS JOB (quote-view's
+   payLink), and it goes at the FRONT of the list rather than being ordered
+   among them -- "priority is the stripe or whatever the company has setup". */
+const PAY_NAME_KEY={link:'pmPayLink',cashapp:'pmCashApp',zelle:'pmZelle',wire:'pmWire',cash:'pmCash'};
+const PAY_IN_KEY={link:'pmPayLinkIn',cashapp:'pmCashAppIn',zelle:'pmZelleIn',wire:'pmWireIn',cash:'pmCashIn'};
 
 /** The contract with quote-view (supabase_a38_company_payment_methods.sql,
  * PART 1): one top-level key,
@@ -1180,6 +1197,20 @@ function cashAppLink(tag, amount){
 function payMethodsFrom(q){
   const src=(q && q.paymentMethods && typeof q.paymentMethods==='object') ? q.paymentMethods : {};
   const out=[];
+  // HIS OWN PAYMENT LINK FOR THIS JOB, first in the list.
+  //
+  // "I still need the link, but I need to be able to send it with the quote."
+  // It used to travel on its own, from two buttons on the phone that opened a
+  // text or an email, which meant remembering to send it separately every
+  // time. Now it is on the quote: sending the quote sends it.
+  //
+  // quote-view withholds it unless it still asks for the right money (see the
+  // payLink block in that function -- a payment link goes on billing the
+  // figure it was made for after the price moves). This file does not
+  // second-guess that, but it does re-test the SHAPE, because a URL off the
+  // wire is about to become an href on a customer's page.
+  const payLink=String((q && q.payLink) || '').trim();
+  if(/^https:\/\/[^\s<>"'\\]{1,400}$/.test(payLink)) out.push({key:'link', value:payLink});
   PAY_ORDER.forEach(key=>{
     const v=src[PAY_FIELD[key]];
     if(key==='cash'){ if(v===true) out.push({key, value:null}); return; }
@@ -1223,8 +1254,10 @@ function payHowModel(q, balance, cardOffered){
     card:!!cardOffered,
     // Only worth saying when there is a card option to contrast with.
     skipCard:!!cardOffered,
-    // "Put your name in the note" makes no sense for handing over cash.
-    nameNote:methods.some(m=>m.key!=='cash'),
+    // "Put your name in the note" makes no sense for handing over cash -- nor
+    // on a hosted payment page, which has no note box and already knows which
+    // job it is for.
+    nameNote:methods.some(m=>m.key!=='cash' && m.key!=='link'),
   };
 }
 
@@ -1301,6 +1334,7 @@ function renderHowToPay(q, balance){
     }
     return '<div class="pm" data-method="'+p.key+'">'
       +'<div class="pm-name">'+esc(name)+'</div>'
+      +(p.key==='link' ? '<div class="pm-how">'+esc(tr('pmPayLinkHow'))+'</div>' : '')
       +'<div class="pm-line">'
         +(()=>{
           // Cash App gets a link; everything else stays plain text. The tag is
@@ -1311,7 +1345,12 @@ function renderHowToPay(q, balance){
           // Built ONCE and held, rather than called in the test and again in
           // the href: two calls are two chances for the figure in the link to
           // stop being the figure that was checked.
-          const tap = (p.key==='cashapp') ? cashAppLink(p.value, dueNow()) : null;
+          // A payment link is already a URL: it IS the tap. No amount is
+          // appended to it -- unlike the Cash App link, it was CREATED for an
+          // amount, and quote-view has already refused to send it here unless
+          // that amount still matches what is due.
+          const tap = (p.key==='cashapp') ? cashAppLink(p.value, dueNow())
+                    : (p.key==='link') ? p.value : null;
           return '<div class="pm-val" id="pmv'+i+'">'
             + (tap ? '<a href="'+esc(tap)+'" target="_blank" rel="noopener">'+esc(p.value)+'</a>'
                    : esc(p.value))
@@ -1325,7 +1364,14 @@ function renderHowToPay(q, balance){
   }).join('');
   $('payMethods').innerHTML=html;
   let notes='';
-  if(m.skipCard) notes+='<p class="sub paynote">'+esc(tr('pmSkipCard', payNameList(m.methods)))+'</p>';
+  // NOT the payment link. That sentence says paying this way "skips the card
+  // checkout and goes straight to your contractor" -- and his payment link is
+  // very often a card checkout (Stripe, Square). Naming it there would tell
+  // her the opposite of what happens when she taps it.
+  if(m.skipCard){
+    const direct=m.methods.filter(p=>p.key!=='link');
+    if(direct.length) notes+='<p class="sub paynote">'+esc(tr('pmSkipCard', payNameList(direct)))+'</p>';
+  }
   if(m.nameNote) notes+='<p class="sub paynote">'+esc(tr('pmNameNote'))+'</p>';
   // Zelle runs inside each bank's own app and has no link that can open
   // anything, so there is no button for it and this says why. Shown only when
@@ -1665,14 +1711,22 @@ function payDocModel(methods, asOf){
     heading: tr('howToPayHead'),
     lead: tr('howToPayLead'),
     rows: methods.map(p=>({
-      name: tr(PAY_NAME_KEY[p.key]),
+      // The owner's own words first, exactly as the live panel does it. This
+      // read tr(PAY_NAME_KEY['other']) for a custom method -- undefined -- so
+      // every payment method he added himself was NAMELESS in the copy the
+      // customer downloads, while being named correctly on the screen above it.
+      name: p.label ? p.label : tr(PAY_NAME_KEY[p.key]),
       value: p.value,
-      how: p.value===null ? tr('pmCashHow') : '',
+      // And only CASH gets the cash sentence. A custom row with no detail
+      // ("Check") was being told to hand it to the crew, which is the live
+      // panel's own recorded reason for saying nothing there instead.
+      how: p.key==='cash' ? tr('pmCashHow')
+         : p.key==='link' ? tr('pmPayLinkHow') : '',
     })),
     notes: [].concat(
       // Same rule as the live panel's nameNote: naming yourself in the note
-      // makes no sense for handing over cash.
-      methods.some(p=>p.key!=='cash') ? [tr('pmNameNote')] : [],
+      // makes no sense for handing over cash, or on a hosted payment page.
+      methods.some(p=>p.key!=='cash' && p.key!=='link') ? [tr('pmNameNote')] : [],
       asOf ? [tr('dlPayAsOf', asOf)] : []
     ),
   };
@@ -1815,9 +1869,54 @@ async function doApprove(thenPay){
       perr.style.display='block';
     }
   }
-  // Approved but not paid, either by choice or because the link failed: the
-  // deposit is still owed, so leave a way to pay it.
+  // APPROVED AND STILL OWING SOMETHING. Either he chose not to pay now, or
+  // the card page did not open, or there is no deposit to take but a balance
+  // remains -- and in every one of those cases the next thing a customer
+  // wants is a way to pay.
+  //
+  // The card comes FIRST when the company has a processor connected, because
+  // that is the one that settles instantly and it is what he asked for. The
+  // rest -- Zelle, Cash App, a cheque, anything else he takes -- sit under it
+  // as the alternatives they are. Nothing is invented: renderHowToPay already
+  // shows only the methods he filled in, and hides the whole panel when he
+  // filled in none.
   showPayButton();
+  revealWaysToPay();
+}
+
+/**
+ * After approving, put the ways to pay in front of her rather than leaving
+ * them further down a page she has stopped reading.
+ *
+ * The panel is drawn by renderHowToPay against the balance, and it had
+ * already been drawn once -- before she approved, when she was reading rather
+ * than paying. Drawing it again here is what makes the card button appear
+ * beside the other methods at the moment it is wanted, and the scroll is what
+ * stops "approved, thank you" being the last thing she sees on a job that
+ * still owes money.
+ */
+/** What is still owed, by the page's own rule -- the server's figure when it
+ *  sent one, and total minus deposit for a function deployed before it did.
+ *  The same expression render() uses, said once so the two cannot drift. */
+function balanceOwed(){
+  if(!quote) return 0;
+  return (quote.balanceDue!=null)
+    ? Math.max(0, Number(quote.balanceDue)||0)
+    : Math.max(0, (Number(quote.total)||0)-(Number(quote.deposit)||0));
+}
+
+function revealWaysToPay(){
+  try{
+    renderHowToPay(quote, balanceOwed());
+    const panel=$('payHow');
+    const target=(panel && panel.style.display!=='none') ? panel : $('payBtn');
+    if(target && target.style.display!=='none'){
+      target.scrollIntoView({behavior:'smooth', block:'center'});
+    }
+  }catch(e){
+    // A failure to scroll is never allowed to swallow an approval that
+    // already succeeded on the server.
+  }
 }
 
 $('approveBtn').addEventListener('click', ()=>doApprove(dueNow()>0));

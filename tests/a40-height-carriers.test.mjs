@@ -366,7 +366,11 @@ function migrationHeights(sql) {
 }
 const checkPart3 = (s) => {
   const seed = seedPanelRows(s.seed), list = migrationHeights(s.sql);
-  assert.equal(seed.length, 15, "control: the seed reader found " + seed.length + " PANEL / GATE_PANEL rows, expected 15");
+  assert.equal(seed.length, 16, "control: the seed reader found " + seed.length + " PANEL / GATE_PANEL rows, expected 16");
+  // 15 until the Flori 4 ft vinyl panel was added ("4ft VInyl is Flori fence").
+  // The count is a control, not the rule: the deepEqual below is what holds
+  // PART 3 to the seed. It is here so a seed row that stops being READ by the
+  // parser above cannot quietly shrink both sides of that comparison at once.
   const key = (r) => r.name + "|" + r.role + "|" + r.fence_type;
   assert.deepEqual(list.map(key).sort(), seed.map(key).sort(), "PART 3 is not the starting list's panel and gate-panel rows: a row is missing from it, or it names one the seed does not ship");
   assert.equal(new Set(list.map(key)).size, list.length, "a row is listed twice");

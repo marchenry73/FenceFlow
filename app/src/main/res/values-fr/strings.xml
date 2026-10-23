@@ -342,6 +342,7 @@
     <string name="est_send_contract">Envoyer le contrat au client</string>
     <string name="est_send_material_list">Envoyer la liste au fournisseur</string>
     <string name="est_send_invoice">Envoyer la facture</string>
+    <string name="est_need_a_pdf">Besoin d’une facture en PDF ?</string>
     <string name="est_working_copy">Votre copie de travail</string>
     <string name="est_edit_line_item">Modifier le poste</string>
     <string name="est_delete_line_item_title">Supprimer ce poste ?</string>
@@ -716,6 +717,9 @@
     <string name="jd_payment_email_subject">Lien de paiement pour votre clôture</string>
     <string name="jd_text_link">Envoyer par SMS</string>
     <string name="jd_email_link">Envoyer par e-mail</string>
+    <string name="jd_section_email">Courriel</string>
+    <string name="jd_email_count">%1$d conversations</string>
+    <string name="jd_email_messages">%1$d messages</string>
     <string name="jd_sending">Envoi en cours…</string>
     <string name="jd_payment_emailed_to">Envoyé à %1$s depuis votre propre adresse.</string>
     <string name="jd_tip_label">Pourboire ($) -- 100% pour le poseur</string>
@@ -971,6 +975,9 @@
     <string name="est2_minimum_labor_charge_applied">Montant minimum de main-d\'œuvre de %1$s appliqué</string>
     <string name="est2_deposit_asked">Acompte demandé</string>
     <string name="est2_balance_due">Solde</string>
+    <string name="est2_deposit_typed">Cet acompte a été saisi à la main : il ne suit pas le prix. À ce prix, il serait de %1$s.</string>
+    <string name="est2_deposit_agreed">Le client a accepté cet acompte : il reste tel quel. À ce prix, il serait de %1$s.</string>
+    <string name="est2_deposit_follow_again">Suivre le prix à nouveau</string>
     <string name="est2_send_document">Envoyer %1$s</string>
     <string name="est2_changed_after_signed_title">Ce devis a changé après sa signature</string>
     <string name="est2_changed_after_signed_body">Depuis la signature, %1$s. Rien ne peut être envoyé tant que %2$s n\'a pas signé les nouveaux montants.</string>

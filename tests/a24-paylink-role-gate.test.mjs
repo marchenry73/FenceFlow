@@ -212,8 +212,24 @@ console.log("\n2. seeing the money and seeing an existing link survive losing th
     rest.includes("jd_payment_link") && rest.includes("ReadOnlyField(stringResource(R.string.jd_payment_link)"));
   ok("the stale-link warning is still shown to everyone reaching this card",
     rest.includes("linkIsStale") && rest.includes("jd_link_stale"));
-  ok("the text/email share buttons for an existing link are still shown to everyone reaching this card",
-    rest.includes("jd_text_link") && rest.includes("jd_email_link"));
+  // THE SHARE BUTTONS ARE GONE, ON PURPOSE -- and what they did has not been
+  // lost, which is the only thing this section exists to check.
+  //
+  // "I have 2 places where I can click send email link for the payment, and
+  //  also on the quote, need to remove one. I still need the link, but i need
+  //  to be able to sent it with the quote, you can remove the sms link and
+  //  email link in the app."
+  //
+  // The link now reaches the customer ON THE QUOTE: quote-view reads
+  // payment_link_url and the quote page draws it as the first row of "How to
+  // pay". So this asserts the two things that matter instead of the two
+  // buttons: the link is still here to be read and copied (the field check
+  // above), and nothing in this file sends it on its own any more. If somebody
+  // re-adds a second send path, this goes red.
+  ok("neither share button is left behind on the phone",
+    !rest.includes("jd_text_link") && !rest.includes("jd_email_link"));
+  ok("and nothing here opens a text or a mail app with the link in it",
+    !rest.includes("openSmsDraft"));
 
   // And the money summary card above PaymentFields (contract total / paid /
   // still owed) was never inside PaymentFields, let alone inside this gate --

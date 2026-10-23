@@ -36,6 +36,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
@@ -90,7 +91,23 @@ fun EstimateScreen(jobId: Long, onBack: () -> Unit, onOpenSupplierPrices: (Long)
     // the job has any price at all, so the deposit was written once and never
     // again however much the price moved afterwards. That, with the refusal
     // inside depositToSeed, is why the deposit on the estimate did not update.
-    LaunchedEffect(job?.id, seedTotals.grandTotal) {
+    // KEYED ON THE MATERIALS FIGURE TOO, which is the one this needed and did
+    // not have. depositSuggestion() answers NONE while materials are zero, and
+    // materials come from the line items -- which can still be empty, or
+    // priced at nothing, on the pass where grandTotal first goes above zero
+    // (labour and fees alone put it there). The seed was refused on that pass
+    // and never asked again, because grandTotal did not move again: "a brand
+    // new job deposit is 0 until the price changes". With materials in the key
+    // the refused attempt is retried the moment they land.
+    //
+    // Still idempotent: depositToSeed refuses a job that already has one and
+    // depositToStore refuses a figure that already matches, so a key that
+    // changes twice writes once.
+    val seedOrders by viewModel.changeOrders.collectAsState()
+    val seedMaterials = remember(seedTotals, seedOrders) {
+        JobMoney.materialsToBuy(seedTotals, seedOrders)
+    }
+    LaunchedEffect(job?.id, seedTotals.grandTotal, seedMaterials) {
         if (job != null && seedTotals.grandTotal > 0.0) viewModel.seedDepositIfUnset()
     }
     val runs by viewModel.runs.collectAsState()
@@ -190,7 +207,7 @@ fun EstimateScreen(jobId: Long, onBack: () -> Unit, onOpenSupplierPrices: (Long)
                 LineItemRow(item, onClick = { editingItem = item })
             }
 
-            item { TotalsCard(totals, currentJob, changeOrders) }
+            item { TotalsCard(totals, currentJob, changeOrders, viewModel::followPriceAgain) }
             if (warnings.isNotEmpty()) {
                 item { WarningsCard(warnings) }
             }
@@ -582,7 +599,9 @@ private fun LineItemRow(item: EstimateLineItem, onClick: () -> Unit) {
 private fun TotalsCard(
     totals: EstimateEngine.Totals,
     job: Job?,
-    changeOrders: List<ChangeOrder>
+    changeOrders: List<ChangeOrder>,
+    /** Hand a hand-typed deposit back to the price. See the deposit line below. */
+    onFollowPrice: () -> Unit = {}
 ) {
     val session by com.fenceestimator.app.ui.components.currentApp().session.state.collectAsState()
     Card(modifier = Modifier.fillMaxWidth()) {
@@ -737,6 +756,46 @@ private fun TotalsCard(
                 if (depositAsked > 0.0) {
                     TotalRow(stringResource(R.string.est2_deposit_asked), Money.format(depositAsked))
                     TotalRow(stringResource(R.string.est2_balance_due), Money.format(JobMoney.balance(job, billable)))
+                }
+
+                // WHY THE DEPOSIT IS NOT THE FIGURE THE PRICE SUGGESTS.
+                //
+                // Nothing said this before, so a deposit frozen on purpose and
+                // a deposit that was not following looked the same here -- and
+                // the second reading is the one that got reported, twice.
+                //
+                // Shown only when the two figures actually differ, so a job
+                // whose deposit IS following says nothing at all. The one case
+                // with no line is NOTHING_TO_SUGGEST: there is no figure to
+                // name, and "we cannot suggest a deposit" on a job that is
+                // still being priced is noise.
+                val (follow, suggested) = JobMoney.depositFollow(
+                    job, JobMoney.materialsToBuy(totals, changeOrders), billable
+                )
+                val differs = kotlin.math.abs(suggested - job.depositAmount) > 0.005
+                if (differs && follow != JobMoney.DepositFollow.NOTHING_TO_SUGGEST &&
+                    follow != JobMoney.DepositFollow.FOLLOWING
+                ) {
+                    Text(
+                        stringResource(
+                            when (follow) {
+                                JobMoney.DepositFollow.CUSTOMER_AGREED -> R.string.est2_deposit_agreed
+                                else -> R.string.est2_deposit_typed
+                            },
+                            Money.format(suggested)
+                        ),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    // The way back, and ONLY where it is safe. On a job the
+                    // customer has agreed to there is no button: changing that
+                    // deposit is changing the deal, and the re-approval path is
+                    // what that goes through.
+                    if (follow == JobMoney.DepositFollow.TYPED_BY_HAND && !session.isGuestDemo) {
+                        TextButton(onClick = onFollowPrice) {
+                            Text(stringResource(R.string.est2_deposit_follow_again))
+                        }
+                    }
                 }
             }
 
@@ -1053,6 +1112,23 @@ private fun ExportSection(
         )
         Spacer(Modifier.height(Space.sm))
 
+        // THE INVOICE IS NOT A STEP ANY MORE, it is a document you ask for.
+        //
+        // The quote page already shows the price, what is included, the
+        // deposit and the balance; the approval email already sends the copy
+        // she keeps; the payment link already bills the exact figure. What
+        // the invoice still gives that none of those do is a PDF somebody can
+        // print, file, or hand to an accountant or an HOA -- which is a thing
+        // you go and get, not a stage in getting paid.
+        //
+        // Nothing is removed and nothing can be missed: it is one tap behind
+        // a line that says what is under it. Its own locks are unchanged.
+        var showInvoice by remember(job.id) { mutableStateOf(false) }
+        if (!showInvoice) {
+            TextButton(onClick = { showInvoice = true }, modifier = Modifier.fillMaxWidth()) {
+                Text(stringResource(R.string.est_need_a_pdf))
+            }
+        } else {
         OutlinedButton(
             onClick = { shareDocument(com.fenceestimator.app.estimate.JobDocument.CUSTOMER_INVOICE) },
             // A bill for a job nobody agreed to is how disputes start. The
@@ -1080,6 +1156,7 @@ private fun ExportSection(
             color = if (needsResign || zeroQuoteBlocked || !com.fenceestimator.app.estimate.JobMoney.isAccepted(job)) MaterialTheme.colorScheme.error
             else MaterialTheme.colorScheme.onSurfaceVariant
         )
+        }
         Spacer(Modifier.height(Space.sm))
 
         // The internal copy shows what the job costs YOU -- supplier prices,

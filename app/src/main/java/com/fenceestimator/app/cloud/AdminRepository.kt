@@ -64,6 +64,7 @@ object AdminRepository {
         @SerialName("last_active") val lastActive: String? = null,
         @SerialName("admin_notes") val adminNotes: String = "",
         @SerialName("subscription_plan") val subscriptionPlan: String? = null,
+        @SerialName("billing_email") val billingEmail: String? = null,
         @SerialName("monthly_price") val monthlyPrice: Double? = null,
         /**
          * HOW ALIVE THIS COMPANY IS -- the same three counts the web console
@@ -123,7 +124,47 @@ object AdminRepository {
         @SerialName("where_at") val whereAt: String = "",
         val occurrences: Long = 0,
         @SerialName("last_seen") val lastSeen: String? = null,
-    )
+        /** How many handsets, and how many companies, have hit it. */
+        val devices: Long = 0,
+        val companies: Long = 0,
+        @SerialName("first_seen") val firstSeen: String? = null,
+        /**
+         * The newest build this was seen on -- or the word "office".
+         *
+         * The office web app files its failures to the same table with
+         * version_name 'office' and no version code, so this is NOT always a
+         * version number and must never be compared as one. [isOffice] is the
+         * only test that should be applied to it.
+         */
+        @SerialName("latest_version") val latestVersion: String? = null,
+        @SerialName("any_unseen") val anyUnseen: Boolean = true,
+    ) {
+        /** Came from the office website, not from a phone. */
+        val isOffice: Boolean get() = latestVersion.equals("office", ignoreCase = true)
+    }
+
+    /**
+     * One job where the two pricing engines disagreed about a total.
+     *
+     * Read straight from the table, the way the console reads it: pricing_drift
+     * carries one policy and it is the platform operator's, so this returns
+     * nothing at all to anybody else rather than relying on the screen to hide
+     * it.
+     */
+    @Serializable
+    data class Drift(
+        val id: String = "",
+        @SerialName("job_sync_id") val jobSyncId: String = "",
+        @SerialName("office_total") val officeTotal: Double = 0.0,
+        @SerialName("phone_total") val phoneTotal: Double = 0.0,
+        @SerialName("office_engine") val officeEngine: String = "",
+        @SerialName("phone_engine") val phoneEngine: String = "",
+        @SerialName("noted_at") val notedAt: String? = null,
+        @SerialName("seen_at") val seenAt: String? = null,
+    ) {
+        /** What the disagreement is worth, which is the number worth sorting on. */
+        val gap: Double get() = kotlin.math.abs(officeTotal - phoneTotal)
+    }
 
     @Serializable
     data class SignInAttemptGroup(
@@ -336,6 +377,45 @@ object AdminRepository {
     // that something still reads that table.
 
     /**
+     * Change a company's plan, price, billing address or notes.
+     *
+     * A DIRECT WRITE, as the web console does it. There is no RPC for this
+     * and none is needed: protect_billing_columns() on the companies table
+     * waves a platform admin through and quietly reverts these columns for
+     * anybody else, so the database is the gate here exactly as it is behind
+     * every admin_* function on this screen.
+     *
+     * Only the keys the caller passes are sent. Null means "leave it", and
+     * the screen decides what a blank box means per field -- a blank price is
+     * not a price of zero, and a blank billing address is not an instruction
+     * to wipe where invoices go.
+     *
+     * NOTE ON PRICE. Stripe owns what a company is actually charged:
+     * stripe-webhook overwrites monthly_price from the subscription on every
+     * event. Typing a figure here records a note that the next webhook will
+     * correct, and charges nobody anything. Taking money off a bill is a
+     * Stripe discount, not a number in this box.
+     */
+    suspend fun updateCompany(
+        companyId: String,
+        plan: String? = null,
+        monthlyPrice: Double? = null,
+        billingEmail: String? = null,
+        adminNotes: String? = null,
+    ): Result<Unit> = io {
+        val patch = buildJsonObject {
+            plan?.let { put("subscription_plan", it) }
+            monthlyPrice?.let { put("monthly_price", it) }
+            billingEmail?.let { put("billing_email", it) }
+            adminNotes?.let { put("admin_notes", it) }
+        }
+        if (patch.isEmpty()) return@io Unit
+        SupabaseModule.client.postgrest.from("companies")
+            .update(patch) { filter { eq("id", companyId) } }
+        Unit
+    }
+
+    /**
      * Hand a limited release to EVERY company.
      *
      * The one control that matters after a staged rollout, and the reason it
@@ -349,6 +429,23 @@ object AdminRepository {
             buildJsonObject { put("target_id", releaseId) }
         )
         Unit
+    }
+
+    /**
+     * Jobs the two engines priced differently, newest first.
+     *
+     * Capped at 100 rather than read whole: PostgREST truncates an unpaged
+     * read at a thousand rows with no error of any kind, and a screen that
+     * silently stopped at a thousand would be worse than one that says it
+     * shows the hundred most recent.
+     */
+    suspend fun drift(limit: Int = 100): Result<List<Drift>> = io {
+        SupabaseModule.client.postgrest.from("pricing_drift")
+            .select(Columns.raw("id,job_sync_id,office_total,phone_total,office_engine,phone_engine,noted_at,seen_at")) {
+                order("noted_at", io.github.jan.supabase.postgrest.query.Order.DESCENDING)
+                limit(limit.toLong())
+            }
+            .decodeList<Drift>()
     }
 
     /** Stop a group of errors being reported again until it recurs. */

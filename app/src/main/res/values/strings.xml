@@ -371,6 +371,7 @@
     <string name="est_send_contract">Send Contract to Customer</string>
     <string name="est_send_material_list">Send Material List to Supplier</string>
     <string name="est_send_invoice">Send Invoice</string>
+    <string name="est_need_a_pdf">Need an invoice PDF?</string>
     <string name="est_working_copy">Your Working Copy</string>
     <string name="est_edit_line_item">Edit Line Item</string>
     <string name="est_delete_line_item_title">Delete this line item?</string>
@@ -748,6 +749,9 @@
     <string name="jd_payment_email_subject">Payment link for your fence</string>
     <string name="jd_text_link">Text Link</string>
     <string name="jd_email_link">Email Link</string>
+    <string name="jd_section_email">Email</string>
+    <string name="jd_email_count">%1$d conversations</string>
+    <string name="jd_email_messages">%1$d messages</string>
     <string name="jd_sending">Sending…</string>
     <string name="jd_payment_emailed_to">Emailed to %1$s from your own address.</string>
     <string name="jd_tip_label">Tip ($) -- goes 100% to the installer</string>
@@ -1004,6 +1008,10 @@
     <string name="est2_minimum_labor_charge_applied">Minimum labor charge of %1$s applied</string>
     <string name="est2_deposit_asked">Deposit asked</string>
     <string name="est2_balance_due">Balance</string>
+    <!-- Why the stored deposit is not the figure the price suggests. %1$s is that figure. -->
+    <string name="est2_deposit_typed">This deposit was typed by hand, so it does not follow the price. At this price it would be %1$s.</string>
+    <string name="est2_deposit_agreed">The customer has agreed to this deposit, so it stays as it is. At this price it would be %1$s.</string>
+    <string name="est2_deposit_follow_again">Follow the price again</string>
     <string name="est2_send_document">Send %1$s</string>
     <string name="est2_changed_after_signed_title">This estimate changed after it was signed</string>
     <string name="est2_changed_after_signed_body">Since it was signed, %1$s. Nothing can be sent out until %2$s signs the new figures.</string>

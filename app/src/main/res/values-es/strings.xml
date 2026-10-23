@@ -342,6 +342,7 @@
     <string name="est_send_contract">Enviar contrato al cliente</string>
     <string name="est_send_material_list">Enviar lista de materiales al proveedor</string>
     <string name="est_send_invoice">Enviar factura</string>
+    <string name="est_need_a_pdf">¿Necesita una factura en PDF?</string>
     <string name="est_working_copy">Tu copia de trabajo</string>
     <string name="est_edit_line_item">Editar concepto</string>
     <string name="est_delete_line_item_title">¿Eliminar este concepto?</string>
@@ -716,6 +717,9 @@
     <string name="jd_payment_email_subject">Enlace de pago de tu cerca</string>
     <string name="jd_text_link">Enviar por SMS</string>
     <string name="jd_email_link">Enviar por correo</string>
+    <string name="jd_section_email">Correo</string>
+    <string name="jd_email_count">%1$d conversaciones</string>
+    <string name="jd_email_messages">%1$d mensajes</string>
     <string name="jd_sending">Enviando…</string>
     <string name="jd_payment_emailed_to">Enviado a %1$s desde su propia dirección.</string>
     <string name="jd_tip_label">Propina ($) -- va 100% al instalador</string>
@@ -971,6 +975,9 @@
     <string name="est2_minimum_labor_charge_applied">Se aplicó el cargo mínimo de mano de obra de %1$s</string>
     <string name="est2_deposit_asked">Depósito solicitado</string>
     <string name="est2_balance_due">Saldo</string>
+    <string name="est2_deposit_typed">Este depósito se escribió a mano, así que no sigue al precio. A este precio sería %1$s.</string>
+    <string name="est2_deposit_agreed">El cliente ya aceptó este depósito, así que se queda igual. A este precio sería %1$s.</string>
+    <string name="est2_deposit_follow_again">Que vuelva a seguir al precio</string>
     <string name="est2_send_document">Enviar %1$s</string>
     <string name="est2_changed_after_signed_title">Este presupuesto cambió después de firmarse</string>
     <string name="est2_changed_after_signed_body">Desde que se firmó, %1$s. No se puede enviar nada hasta que %2$s firme las nuevas cifras.</string>
