@@ -328,7 +328,18 @@ export function buildLineItems(
       const actualCoverage = chosen.coversFt ?? preferred;
       if (actualCoverage > 0 && Math.abs(f32(actualCoverage - preferred)) > f32(0.01)) {
         // Double division of the two Floats, as `feetToCover.toDouble() / actualCoverage.toDouble()`.
-        quantity = Math.ceil(feetToCover / actualCoverage);
+        //
+        // With the same thousandth of a foot of slack every other count
+        // takes, and in Double because this arithmetic is Double on both
+        // engines. Without it a run whose footage is an exact multiple of the
+        // chosen panel's width buys an extra panel the moment float
+        // arithmetic hands back a length a hair over -- see
+        // EstimateEngine.COUNT_TOLERANCE_FT, which carries the measurements.
+        // The slack is taken off only a span bigger than it, which is the
+        // phone's rule.
+        const tol = 0.001;
+        const measured = feetToCover > tol ? feetToCover - tol : feetToCover;
+        quantity = Math.ceil(measured / actualCoverage);
       }
     }
 

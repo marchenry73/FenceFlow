@@ -366,6 +366,7 @@
   <nav class="rail">
     <button data-view="overview" class="on" type="button" data-t="navOverview">Overview</button>
     <button data-view="companies" type="button" data-t="navCompanies">Companies</button>
+    <button data-view="email" type="button" data-t="navEmail">Email clients</button>
     <button data-view="crashes" type="button" data-t="navCrashes">Crashes</button>
     <button data-view="releases" type="button" data-t="navReleases">Releases</button>
     <button data-view="drift" type="button" data-t="navDrift">Pricing drift</button>
@@ -425,6 +426,70 @@
           </table>
         </div>
         <div class="msg" id="empty" style="display:none" data-t="companiesEmpty">No client companies yet.</div>
+      </div>
+    </section>
+
+    <section id="view-email" style="display:none">
+      <div class="panel">
+        <h2 style="margin-top:0" data-t="emHead">Email clients</h2>
+        <p class="sub" data-t="emSub">Writes to the companies that use FenceFlow, from FenceFlow. Each one gets its own email — nobody sees who else it went to.</p>
+        <div class="msg" id="emMsg"></div>
+
+        <div class="scroll" style="max-height:260px">
+          <table>
+            <thead><tr>
+              <th style="width:2.2rem"><input type="checkbox" id="emAll" aria-label="Select all"></th>
+              <th data-t="colCompany">Company</th>
+              <th data-t="emColAddress">Goes to</th>
+            </tr></thead>
+            <tbody id="emRows"></tbody>
+          </table>
+        </div>
+        <!-- The sentence that stops a surprise: ticked, mailable, and why the
+             two differ. -->
+        <p class="sub" id="emCount" style="margin:.6rem 0 0"></p>
+
+        <label class="lbl" for="emSubject" data-t="emSubject">Subject</label>
+        <input id="emSubject" type="text" maxlength="200" autocomplete="off">
+        <label class="lbl" for="emBody" data-t="emBody">Message</label>
+        <textarea id="emBody" rows="9" maxlength="20000"></textarea>
+        <p class="sub" data-t="emFooterNote">A line is added at the end saying why they received it and how to reply.</p>
+
+        <div class="row" style="margin-top:.7rem">
+          <button id="emSend" type="button" class="primary" data-t="emSendBtn">Send</button>
+          <button id="emClear" type="button" data-t="emClearBtn">Clear</button>
+        </div>
+
+        <div id="emResults" style="display:none;margin-top:1rem">
+          <h3 style="margin:0 0 .4rem" data-t="emResultsHead">What happened</h3>
+          <div class="scroll">
+            <table>
+              <thead><tr>
+                <th data-t="colCompany">Company</th>
+                <th data-t="emColOutcome">Outcome</th>
+              </tr></thead>
+              <tbody id="emResultRows"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2 style="margin-top:0" data-t="emLogHead">Already sent</h2>
+        <div class="msg" id="emLogMsg"></div>
+        <div class="scroll">
+          <table>
+            <thead><tr>
+              <th data-t="histColWhen">When</th>
+              <th data-t="colCompany">Company</th>
+              <th data-t="emColSubject">Subject</th>
+              <th data-t="emColOutcome">Outcome</th>
+              <th data-t="emColBy">Sent by</th>
+            </tr></thead>
+            <tbody id="emLogRows"></tbody>
+          </table>
+        </div>
+        <div class="empty" id="emLogEmpty" style="display:none" data-t="emLogEmpty">Nothing has been sent to a client from here yet.</div>
       </div>
     </section>
 
@@ -941,6 +1006,34 @@ const TL = {
     signedOutEverywhere:'Signed out of every device, this one included.',
     inviteNoticeOtherBusiness:'Invitation sent to %s — but that address already has a FenceFlow account in another business, so it cannot become this company\'s owner. Use a different address for this company.',
 
+    navEmail:'Email clients',
+    emHead:'Email clients',
+    emSub:'Writes to the companies that use FenceFlow, from FenceFlow. Each one gets its own email \u2014 nobody sees who else it went to.',
+    emColAddress:'Goes to', emColOutcome:'Outcome', emColSubject:'Subject', emColBy:'Sent by',
+    emSubject:'Subject', emBody:'Message',
+    emFooterNote:'A line is added at the end saying why they received it and how to reply.',
+    emSendBtn:'Send', emClearBtn:'Clear',
+    emResultsHead:'What happened',
+    emLogHead:'Already sent',
+    emLogEmpty:'Nothing has been sent to a client from here yet.',
+    emNoAddress:'no address on file',
+    emCountLine:'%s ticked. %s of %s companies can be emailed \u2014 the rest are test companies or have no address on file.',
+    emPickSomebody:'Tick at least one client first.',
+    emNeedSubject:'Give the email a subject.',
+    emNeedBody:'The email is empty.',
+    emNoSendId:'This browser could not make a send id, so nothing was sent. Reload the page.',
+    emConfirm:'Send this to %s client(s)?\n\n%s\n\nSubject: %s',
+    emSending:'Sending to %s\u2026',
+    emAllSent:'Sent to %s.',
+    emSomeFailed:'%s sent, %s did not. See the list below.',
+    emFailed:'That could not be sent.',
+    emOutSent:'Sent',
+    emOutDuplicate:'Already sent \u2014 nothing sent again',
+    emOutUnconfirmed:'Could not confirm \u2014 it may have gone. Check before sending again.',
+    emOutSkipped:'Skipped',
+    emOutFailed:'Could not send',
+    emOutFailedWhy:'Could not send: %s',
+    emSkippedNote:'%s ticked company(s) could not be emailed: a test company, removed, or no address on file.',
     navOverview:'Overview', navCompanies:'Companies', navCrashes:'Crashes',
     navAudit:'Audit log',
     histHead:'History',
@@ -1236,6 +1329,34 @@ const TL = {
     signedOutEverywhere:'Sesión cerrada en todos los dispositivos, incluido este.',
     inviteNoticeOtherBusiness:'Invitación enviada a %s — pero esa dirección ya tiene una cuenta de FenceFlow en otra empresa, así que no puede ser la propietaria de esta. Use otra dirección para esta empresa.',
 
+    navEmail:'Correo a clientes',
+    emHead:'Correo a clientes',
+    emSub:'Escribe a las empresas que usan FenceFlow, de parte de FenceFlow. Cada una recibe su propio correo \u2014 nadie ve a qui\u00e9n m\u00e1s se envi\u00f3.',
+    emColAddress:'Se env\u00eda a', emColOutcome:'Resultado', emColSubject:'Asunto', emColBy:'Enviado por',
+    emSubject:'Asunto', emBody:'Mensaje',
+    emFooterNote:'Al final se a\u00f1ade una l\u00ednea que explica por qu\u00e9 lo recibieron y c\u00f3mo responder.',
+    emSendBtn:'Enviar', emClearBtn:'Limpiar',
+    emResultsHead:'Qu\u00e9 pas\u00f3',
+    emLogHead:'Ya enviados',
+    emLogEmpty:'Todav\u00eda no se ha enviado nada a un cliente desde aqu\u00ed.',
+    emNoAddress:'sin direcci\u00f3n registrada',
+    emCountLine:'%s marcadas. %s de %s empresas pueden recibir correo \u2014 las dem\u00e1s son de prueba o no tienen direcci\u00f3n registrada.',
+    emPickSomebody:'Marca al menos un cliente.',
+    emNeedSubject:'Pon un asunto al correo.',
+    emNeedBody:'El correo est\u00e1 vac\u00edo.',
+    emNoSendId:'Este navegador no pudo crear un identificador de env\u00edo, as\u00ed que no se envi\u00f3 nada. Recarga la p\u00e1gina.',
+    emConfirm:'\u00bfEnviar esto a %s cliente(s)?\n\n%s\n\nAsunto: %s',
+    emSending:'Enviando a %s\u2026',
+    emAllSent:'Enviado a %s.',
+    emSomeFailed:'%s enviados, %s no. Mira la lista de abajo.',
+    emFailed:'No se pudo enviar.',
+    emOutSent:'Enviado',
+    emOutDuplicate:'Ya enviado \u2014 no se volvi\u00f3 a enviar',
+    emOutUnconfirmed:'No se pudo confirmar \u2014 puede que s\u00ed saliera. Comprueba antes de reenviar.',
+    emOutSkipped:'Omitido',
+    emOutFailed:'No se pudo enviar',
+    emOutFailedWhy:'No se pudo enviar: %s',
+    emSkippedNote:'%s empresa(s) marcada(s) no pod\u00edan recibir correo: de prueba, eliminada, o sin direcci\u00f3n.',
     navOverview:'Resumen', navCompanies:'Empresas', navCrashes:'Fallos',
     navAudit:'Registro',
     histHead:'Historial',
@@ -1462,6 +1583,34 @@ const TL = {
     copyIdCopied:'Copiado', copyIdFailed:'No se pudo copiar',
   },
   fr: {
+    navEmail:'Courriel aux clients',
+    emHead:'Courriel aux clients',
+    emSub:'\u00c9crit aux entreprises qui utilisent FenceFlow, de la part de FenceFlow. Chacune re\u00e7oit son propre courriel \u2014 personne ne voit \u00e0 qui d\u2019autre il a \u00e9t\u00e9 envoy\u00e9.',
+    emColAddress:'Envoy\u00e9 \u00e0', emColOutcome:'R\u00e9sultat', emColSubject:'Objet', emColBy:'Envoy\u00e9 par',
+    emSubject:'Objet', emBody:'Message',
+    emFooterNote:'Une ligne est ajout\u00e9e \u00e0 la fin expliquant pourquoi ils l\u2019ont re\u00e7u et comment r\u00e9pondre.',
+    emSendBtn:'Envoyer', emClearBtn:'Effacer',
+    emResultsHead:'Ce qui s\u2019est pass\u00e9',
+    emLogHead:'D\u00e9j\u00e0 envoy\u00e9s',
+    emLogEmpty:'Rien n\u2019a encore \u00e9t\u00e9 envoy\u00e9 \u00e0 un client depuis ici.',
+    emNoAddress:'aucune adresse au dossier',
+    emCountLine:'%s coch\u00e9e(s). %s entreprises sur %s peuvent recevoir un courriel \u2014 les autres sont des entreprises de test ou n\u2019ont pas d\u2019adresse.',
+    emPickSomebody:'Cochez au moins un client.',
+    emNeedSubject:'Donnez un objet au courriel.',
+    emNeedBody:'Le courriel est vide.',
+    emNoSendId:'Ce navigateur n\u2019a pas pu cr\u00e9er un identifiant d\u2019envoi, donc rien n\u2019a \u00e9t\u00e9 envoy\u00e9. Rechargez la page.',
+    emConfirm:'Envoyer ceci \u00e0 %s client(s) ?\n\n%s\n\nObjet : %s',
+    emSending:'Envoi \u00e0 %s\u2026',
+    emAllSent:'Envoy\u00e9 \u00e0 %s.',
+    emSomeFailed:'%s envoy\u00e9(s), %s non. Voyez la liste ci-dessous.',
+    emFailed:'Cela n\u2019a pas pu \u00eatre envoy\u00e9.',
+    emOutSent:'Envoy\u00e9',
+    emOutDuplicate:'D\u00e9j\u00e0 envoy\u00e9 \u2014 rien de r\u00e9envoy\u00e9',
+    emOutUnconfirmed:'Impossible de confirmer \u2014 il est peut-\u00eatre parti. V\u00e9rifiez avant de r\u00e9envoyer.',
+    emOutSkipped:'Ignor\u00e9',
+    emOutFailed:'Impossible d\u2019envoyer',
+    emOutFailedWhy:'Impossible d\u2019envoyer : %s',
+    emSkippedNote:'%s entreprise(s) coch\u00e9e(s) ne pouvaient pas recevoir de courriel : de test, retir\u00e9e, ou sans adresse.',
     searchPh:'Rechercher des entreprises — nom, courriel, forfait, statut',
     signOut:'Se déconnecter',
     langLabel:'Langue',
@@ -2349,14 +2498,235 @@ async function openSpecial(companyId) {
   }
 }
 
+/* ------------------------------------------------------ email clients ---- */
+/* The screen for admin-mail-send. The function carries the reasoning for how
+   a send behaves; this is the part he touches.
+
+   ONE client_send_id PER COMPOSE WINDOW. Minted when the view is opened and
+   again after a send that got all the way through, and NEVER per press:
+   pressing Send twice with the same id is precisely the case the claim in the
+   database exists to refuse, and that refusal is what makes a double click
+   safe. A send that failed outright keeps its id, because the claim for a
+   refused address is released and a corrected retry is meant to go out under
+   the same id. */
+let emSendId = null;
+/* Who is mailable, from the database rather than from this page's judgement:
+   admin_email_recipients drops test companies, removed ones and any with no
+   address, and it is the same function the send itself uses. Asking it here is
+   what lets the page say "6 of 11" BEFORE he writes anything. */
+let emMailable = [];
+
+function emNewSendId() {
+  emSendId = (crypto.randomUUID && crypto.randomUUID()) || null;
+}
+
+async function loadEmailClients() {
+  msg('emMsg', '', '');
+  // clients is the admin_companies list this page already holds. The picker
+  // offers every company; which of them can actually be mailed is the
+  // database's answer, below.
+  const all = (clients || []).slice().sort((a, b) =>
+    String(a.name || '').localeCompare(String(b.name || '')));
+  const ids = all.map(c => c.id);
+  emMailable = [];
+  if (ids.length) {
+    const { data, error } = await db.rpc('admin_email_recipients', { company_ids: ids });
+    if (error) { msg('emMsg', error.message, 'err'); return; }
+    emMailable = data || [];
+  }
+  const byId = new Map(emMailable.map(r => [r.company_id, r.to_email]));
+
+  const tb = $('emRows');
+  tb.innerHTML = '';
+  all.forEach(c => {
+    const canMail = byId.has(c.id);
+    const tr = document.createElement('tr');
+    const tdPick = document.createElement('td');
+    const box = document.createElement('input');
+    box.type = 'checkbox';
+    box.className = 'emPick';
+    box.value = c.id;
+    // A company with no usable address is shown and NOT offered. Hiding it
+    // would make the roster look shorter than it is; leaving it tickable
+    // would promise a send that cannot happen.
+    box.disabled = !canMail;
+    box.addEventListener('change', emUpdateCount);
+    tdPick.appendChild(box);
+    const tdName = document.createElement('td');
+    tdName.textContent = c.name || '';
+    const tdTo = document.createElement('td');
+    tdTo.textContent = canMail ? byId.get(c.id) : tr('emNoAddress');
+    if (!canMail) tdTo.className = 'muted';
+    tr.append(tdPick, tdName, tdTo);
+    tb.appendChild(tr);
+  });
+  emUpdateCount();
+  await loadEmailLog();
+}
+
+function emPicked() {
+  return [...document.querySelectorAll('.emPick:checked')].map(b => b.value);
+}
+
+function emUpdateCount() {
+  const picked = emPicked().length;
+  const offered = document.querySelectorAll('.emPick:not([disabled])').length;
+  const total = document.querySelectorAll('.emPick').length;
+  // The three numbers, and the gap between them explained in the same breath.
+  $('emCount').textContent = tr('emCountLine', String(picked), String(offered), String(total));
+}
+
+function emClearCompose() {
+  $('emSubject').value = '';
+  $('emBody').value = '';
+  $('emResults').style.display = 'none';
+  $('emResultRows').innerHTML = '';
+  emNewSendId();
+  msg('emMsg', '', '');
+}
+
+async function sendClientEmail() {
+  const ids = emPicked();
+  const subject = $('emSubject').value.trim();
+  const text = $('emBody').value.trim();
+  if (!ids.length) return msg('emMsg', tr('emPickSomebody'), 'err');
+  if (!subject) return msg('emMsg', tr('emNeedSubject'), 'err');
+  if (!text) return msg('emMsg', tr('emNeedBody'), 'err');
+  if (!emSendId) emNewSendId();
+  if (!emSendId) return msg('emMsg', tr('emNoSendId'), 'err');
+
+  // Named in the confirmation, because this leaves the building.
+  const names = ids.map(id => (clients || []).find(c => c.id === id))
+    .map(c => (c && c.name) || '?').join(', ');
+  if (!confirm(tr('emConfirm', String(ids.length), names, subject))) return;
+
+  const btn = $('emSend');
+  btn.disabled = true;
+  msg('emMsg', tr('emSending', String(ids.length)), '');
+  try {
+    const { data, error } = await db.functions.invoke('admin-mail-send', {
+      body: { client_send_id: emSendId, company_ids: ids, subject, text },
+    });
+    // The function's own sentence where it has one: it knows things this page
+    // does not, like which address a provider refused and why.
+    const said = (error && (error.message || '')) || (data && data.message) || '';
+    if (error || (data && data.error_code)) {
+      msg('emMsg', said || tr('emFailed'), 'err');
+      return;
+    }
+    emRenderResults(data);
+    const sent = Number(data && data.sent) || 0;
+    const failed = Number(data && data.failed) || 0;
+    if (failed === 0) {
+      msg('emMsg', tr('emAllSent', String(sent)), 'ok');
+      // Through cleanly: the next letter is a new letter, so a new id.
+      $('emSubject').value = '';
+      $('emBody').value = '';
+      emNewSendId();
+    } else {
+      // The id is KEPT. Anything already claimed will answer "already sent"
+      // and send nothing; anything whose address was refused had its claim
+      // released and can go out once it is corrected.
+      msg('emMsg', tr('emSomeFailed', String(sent), String(failed)), 'err');
+    }
+    await loadEmailLog();
+  } catch (e) {
+    msg('emMsg', String(e && e.message || e), 'err');
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+function emRenderResults(data) {
+  const rows = (data && data.results) || [];
+  const tb = $('emResultRows');
+  tb.innerHTML = '';
+  rows.forEach(r => {
+    const tr = document.createElement('tr');
+    const name = document.createElement('td');
+    name.textContent = r.name || '';
+    const out = document.createElement('td');
+    out.textContent = emOutcomeWords(r.state, r.message);
+    // "Could not confirm" is NOT a failure and must not be coloured as one:
+    // the message may well have gone, and telling him it failed is how the
+    // same email gets sent twice.
+    out.className = r.state === 'sent' ? 'ok'
+      : r.state === 'failed' ? 'err' : 'muted';
+    tr.append(name, out);
+    tb.appendChild(tr);
+  });
+  // Which ticked companies were never mailable at all.
+  const skipped = Number(data && data.skipped) || 0;
+  if (skipped > 0) {
+    const tr = document.createElement('tr');
+    const td = document.createElement('td');
+    td.colSpan = 2;
+    td.className = 'muted';
+    td.textContent = tr('emSkippedNote', String(skipped));
+    tr.appendChild(td);
+    tb.appendChild(tr);
+  }
+  $('emResults').style.display = rows.length || skipped ? '' : 'none';
+}
+
+function emOutcomeWords(state, detail) {
+  if (state === 'sent') return tr('emOutSent');
+  if (state === 'duplicate') return tr('emOutDuplicate');
+  if (state === 'unconfirmed') return tr('emOutUnconfirmed');
+  if (state === 'skipped') return tr('emOutSkipped');
+  return detail ? tr('emOutFailedWhy', String(detail)) : tr('emOutFailed');
+}
+
+const EM_LOG_PAGE = 50;
+
+async function loadEmailLog() {
+  msg('emLogMsg', '', '');
+  const { data, error } = await db.rpc('admin_client_email_log',
+    { p_limit: EM_LOG_PAGE, p_offset: 0 });
+  if (error) { msg('emLogMsg', error.message, 'err'); return; }
+  const rows = data || [];
+  const tb = $('emLogRows');
+  tb.innerHTML = '';
+  rows.forEach(r => {
+    const tr = document.createElement('tr');
+    const when = document.createElement('td');
+    when.textContent = r.created_at ? new Date(r.created_at).toLocaleString() : '';
+    const who = document.createElement('td');
+    who.textContent = r.company_name || r.to_email || '';
+    const sub = document.createElement('td');
+    sub.textContent = r.subject || '';
+    const out = document.createElement('td');
+    // send_state is the database's own word. 'sending' means nobody knows --
+    // shown as "could not confirm", never as sent and never as failed.
+    out.textContent = r.send_state === 'sent' ? tr('emOutSent')
+      : r.send_state === 'failed' ? emOutcomeWords('failed', r.send_error)
+      : tr('emOutUnconfirmed');
+    out.className = r.send_state === 'sent' ? 'ok'
+      : r.send_state === 'failed' ? 'err' : 'muted';
+    const by = document.createElement('td');
+    by.textContent = r.sent_by_email || '';
+    tr.append(when, who, sub, out, by);
+    tb.appendChild(tr);
+  });
+  $('emLogEmpty').style.display = rows.length ? 'none' : '';
+}
+
 /* -------------------------------------------------------------- nav ---- */
-const VIEWS = ['overview', 'companies', 'crashes', 'releases', 'drift', 'audit', 'bin', 'account'];
+const VIEWS = ['overview', 'companies', 'email', 'crashes', 'releases', 'drift', 'audit', 'bin', 'account'];
 function switchView(name) {
   VIEWS.forEach(v => { $('view-' + v).style.display = (v === name) ? '' : 'none'; });
   document.querySelectorAll('.rail button').forEach(b => b.classList.toggle('on', b.dataset.view === name));
   // Read when it is opened, and read again every time: a company removed or
   // restored since the last look must not leave a stale bin on screen.
   if (name === 'bin') loadBin().catch(e => msg('binMsg', String(e && e.message || e), 'err'));
+  // Read every time it is opened, like the bin and for the same reason: a
+  // company added, removed or given an address since the last look must not
+  // leave a stale picker on screen. A fresh compose window gets a fresh
+  // client_send_id.
+  if (name === 'email') {
+    emNewSendId();
+    loadEmailClients().catch(e => msg('emMsg', String(e && e.message || e), 'err'));
+  }
 }
 
 /* ---------------------------------------------------------------- data ---- */
@@ -4523,6 +4893,19 @@ document.querySelectorAll('.rail button').forEach(b =>
       loadAudit(false).then(fillAuditPickers);
     }
   }));
+
+// Email clients. The send is confirmed inside sendClientEmail, which names
+// who it is going to -- this leaves the building, so the last word before it
+// does is a list of names rather than a count.
+$('emSend').addEventListener('click', () => sendClientEmail());
+$('emClear').addEventListener('click', emClearCompose);
+// Select-all ticks only what can actually be mailed. A box that ticks a
+// company with no address would promise a send that cannot happen.
+$('emAll').addEventListener('change', () => {
+  const on = $('emAll').checked;
+  document.querySelectorAll('.emPick:not([disabled])').forEach(b => { b.checked = on; });
+  emUpdateCount();
+});
 
 $('auditApply').addEventListener('click', () => loadAudit(false).then(fillAuditPickers));
 $('auditMore').addEventListener('click', () => loadAudit(true).then(fillAuditPickers));

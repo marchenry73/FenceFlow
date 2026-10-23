@@ -39,6 +39,10 @@ const read = (rel) => readFileSync(path.join(ROOT, rel), "utf8").replace(/\r\n/g
 const SCREEN = read("app/src/main/java/com/fenceestimator/app/ui/survey/SurveyDrawScreen.kt");
 const VM = read("app/src/main/java/com/fenceestimator/app/ui/survey/SurveyViewModel.kt");
 const PURE = read("app/src/main/java/com/fenceestimator/app/geometry/WholeDrawingMove.kt");
+// Both pricing engines, because what makes Move Fence safe lives in them and
+// not in the tool: see the tolerance checks below.
+const ENGINE = read("app/src/main/java/com/fenceestimator/app/estimate/EstimateEngine.kt");
+const TAKEOFF = read("supabase/functions/_shared/pricing/takeoff.ts");
 
 /** Comments out. A sentence describing a guard is not a guard. */
 const code = (s) => s
@@ -47,6 +51,8 @@ const code = (s) => s
 
 const SCREEN_CODE = code(SCREEN);
 const VM_CODE = code(VM);
+const ENGINE_CODE = code(ENGINE);
+const TAKEOFF_CODE = code(TAKEOFF);
 
 test("POSITIVE CONTROL: both modes exist and the readers find them", () => {
   // Without this every assertion below passes when a name is renamed.
@@ -63,7 +69,67 @@ test("POSITIVE CONTROL: both modes exist and the readers find them", () => {
 // 0. MOVE FENCE IS WITHHELD, ON PURPOSE, UNTIL A MONEY DECISION IS MADE
 // -------------------------------------------------------------------------
 
-test("Move Fence is behind a readiness flag, and the flag carries its reason", () => {
+test("Move Fence may only be ON while BOTH engines carry the count tolerance", () => {
+  // THE INVARIANT THAT KEEPS THIS SAFE, and the one worth a test of its own.
+  //
+  // A float32 translation is not exactly rigid: `x1 + d` and `x2 + d` each
+  // round, so their difference can land a rounding step away from `x1 - x2`.
+  // Measured over 200,000 grid-like drawings, 12.5% of moves change the
+  // measured total by up to 0.0004 ft. On its own that is five thousandths of
+  // an inch and invisible -- but a bay count is `ceil(span / size)`, so a side
+  // whose length is an exact multiple of the post spacing gains a WHOLE bay
+  // the moment it reads a hair over. Aimed at that boundary, 4.5% of moves
+  // flipped a count: a post, a panel, a cap and a bag of concrete added to a
+  // quote by a cosmetic drag.
+  //
+  // The tolerance is what makes the tool safe. Turn the tool on without it in
+  // BOTH engines and the phone and the office also disagree about the same
+  // fence, which is the failure the whole parity arrangement exists to stop.
+  const toolOn = /const val WHOLE_DRAWING_MOVE_READY = true/.test(VM_CODE);
+  const phoneTol = /const val COUNT_TOLERANCE_FT = 0\.001f/.test(ENGINE_CODE);
+  const phoneFunnel = /private fun unitsToCover\(span: Float, size: Float, tolerance: Float\)/.test(ENGINE_CODE);
+  const officeTol = /const COUNT_TOLERANCE_FT = 0\.001;/.test(TAKEOFF_CODE);
+  const officeFunnel = /function unitsToCover\(span: number, size: number, tolerance: number\)/.test(TAKEOFF_CODE);
+
+  if (toolOn) {
+    assert.ok(phoneTol, "Move Fence is ON but the phone engine has no 0.001 ft count tolerance");
+    assert.ok(phoneFunnel, "Move Fence is ON but the phone engine's unitsToCover funnel is gone");
+    assert.ok(officeTol, "Move Fence is ON but the office engine has no 0.001 ft count tolerance");
+    assert.ok(officeFunnel, "Move Fence is ON but the office engine's unitsToCover funnel is gone");
+    // Every count must go THROUGH the funnel. A bare ceil beside it is a
+    // count that can still gain a bay.
+    assert.ok(!/ceil\(netFt \/ /.test(ENGINE_CODE),
+      "a bare ceil(netFt / ...) is back in the phone engine, outside the tolerant funnel");
+    assert.ok(!/ceilRoundToInt\(f32\(netFt \/ /.test(TAKEOFF_CODE),
+      "a bare ceilRoundToInt(f32(netFt / ...)) is back in the office engine");
+  } else {
+    // Off is always allowed -- that is what it was for a day. But then the
+    // reason has to still be written down where somebody flipping it will
+    // read it.
+    assert.match(VM_CODE, /const val WHOLE_DRAWING_MOVE_READY = false/,
+      "the flag is neither true nor false -- re-read this check");
+  }
+});
+
+test("the two engines agree on the tolerance, to the digit", () => {
+  // One rule, two languages. A tolerance of 0.001 on one side and 0.01 on the
+  // other is worse than none: the phone and the office would then disagree
+  // about a fence nobody touched.
+  const phone = ENGINE.match(/const val COUNT_TOLERANCE_FT = ([0-9.]+)f/);
+  const office = TAKEOFF.match(/const COUNT_TOLERANCE_FT = ([0-9.]+);/);
+  assert.ok(phone, "the phone's tolerance constant is gone");
+  assert.ok(office, "the office's tolerance constant is gone");
+  assert.equal(phone[1], office[1],
+    `the engines carry different tolerances: phone ${phone[1]}, office ${office[1]}`);
+  // And both derive the inch figure from the foot one rather than writing a
+  // second literal that could drift.
+  assert.match(ENGINE_CODE, /COUNT_TOLERANCE_IN = COUNT_TOLERANCE_FT \* 12f/,
+    "the phone's inch tolerance is no longer derived from the foot one");
+  assert.match(TAKEOFF_CODE, /COUNT_TOLERANCE_IN = f32\(COUNT_TOLERANCE_FT \* 12\)/,
+    "the office's inch tolerance is no longer derived from the foot one");
+});
+
+test("the flag carries its reason, whichever way it is set", () => {
   // WHY IT IS OFF. A float32 translation is not exactly rigid: `x1 + d` and
   // `x2 + d` each round, so their difference can land a rounding step away
   // from `x1 - x2`. Measured over 200,000 grid-like drawings, 12.5% of moves
@@ -78,9 +144,6 @@ test("Move Fence is behind a readiness flag, and the flag carries its reason", (
   // quantity on exactly the jobs float noise is mis-charging today -- which
   // can make an approved job need re-approving. That is a decision about
   // live customer prices, so the flag waits for him.
-  assert.match(VM_CODE, /const val WHOLE_DRAWING_MOVE_READY = false/,
-    "WHOLE_DRAWING_MOVE_READY is no longer false -- Move Fence can add a bay to a signed quote. " +
-    "Flip it only with the ceil tolerance landed in BOTH engines and a parity proof.");
   assert.match(SCREEN_CODE, /if \(SurveyViewModel\.WHOLE_DRAWING_MOVE_READY\) \{/,
     "the Move Fence button is no longer behind the flag");
   // The reason has to travel with the flag. A bare `= false` invites somebody
@@ -89,9 +152,13 @@ test("Move Fence is behind a readiness flag, and the flag carries its reason", (
     Math.max(0, VM.indexOf("const val WHOLE_DRAWING_MOVE_READY") - 3000),
     VM.indexOf("const val WHOLE_DRAWING_MOVE_READY"),
   );
-  for (const must of ["ceil", "0.001 ft", "bay", "re-approv"]) {
+  // The four things somebody flipping this flag has to know: that a count is
+  // a ceil, that the failure is a gained bay, the size of the drift that
+  // causes it, and what holds it back. Each is a measurement or a name, not a
+  // turn of phrase, so this does not go red over wording.
+  for (const must of ["ceil", "bay", "0.0004", "COUNT_TOLERANCE_FT"]) {
     assert.ok(doc.includes(must),
-      `the flag's own comment no longer says "${must}" -- the reason it is off is being lost`);
+      `the flag's own comment no longer mentions "${must}" -- the reason it is safe is being lost`);
   }
 });
 

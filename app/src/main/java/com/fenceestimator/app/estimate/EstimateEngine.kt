@@ -352,7 +352,59 @@ object EstimateEngine {
      * Anchored (signed/sent) totals do not move regardless, as above.
      *
      */
-    const val PRICING_ENGINE_VERSION = "2026.10.13"
+    const val PRICING_ENGINE_VERSION = "2026.10.23"
+    /**
+     * A thousandth of a foot, which is a hundredth of an inch: the slack every
+     * count of bays, panels and pickets allows before it rounds up.
+     *
+     * WHY IT EXISTS. A count is `ceil(span / size)`, and a side whose length is
+     * an EXACT multiple of the size is exactly N -- 96 ft at 8 ft spacing, an
+     * ordinary back yard, is 12 bays. It reads 13 the moment the length comes
+     * back a hair over, and that buys a post, a panel, a cap and a bag of
+     * concrete that are not there.
+     *
+     * A hair over is what float32 arithmetic produces. Measured while building
+     * the whole-drawing move (docs/measurements/fuzz_move_rigidity.mjs): a
+     * translation adds the same offset to every coordinate, which cancels in
+     * arithmetic but not in floats, because each sum is rounded on its own. One
+     * grid-like drawing in eight came out up to 0.0004 ft different, and aimed
+     * at a bay boundary that flipped 4.5% of counts -- a cosmetic drag adding
+     * money to a signed quote.
+     *
+     * 0.001 ft is 2.5x the worst drift measured and still charges for any
+     * overhang a tape could read. Checked against the live database before it
+     * shipped (docs/measurements/affected_jobs.mjs): 0 of 31 runs change, and
+     * the closest any run comes to a boundary from above is 0.0587 ft, 59x
+     * this.
+     */
+    const val COUNT_TOLERANCE_FT = 0.001f
+
+    /** The same slack in inches, for the picket pitch, which is an inch figure. */
+    const val COUNT_TOLERANCE_IN = COUNT_TOLERANCE_FT * 12f
+
+    /**
+     * `ceil(span / size)` for a count of bays, panels or pickets, with
+     * [COUNT_TOLERANCE_FT] of slack -- and the ONE place any of those counts is
+     * worked out, so a count added later is tolerant without being told.
+     *
+     * [tolerance] is in the same unit as [span]: feet for a bay or a panel,
+     * inches for a picket pitch.
+     *
+     * THE SLACK IS ONLY TAKEN OFF A SPAN BIGGER THAN IT. A span under a
+     * thousandth of a foot is not a fence, and subtracting the slack would turn
+     * it negative and buy zero bays where this bought one -- a second
+     * behaviour change, which nobody asked for, and which would also put a
+     * negative zero into the server's JSON where Kotlin writes 0 and so fail
+     * the parity gate on a value neither engine got wrong.
+     *
+     * The server's copy is `unitsToCover` in
+     * supabase/functions/_shared/pricing/takeoff.ts, arithmetic for arithmetic.
+     */
+    private fun unitsToCover(span: Float, size: Float, tolerance: Float): Int {
+        if (size <= 0f) return 0
+        val measured = if (span > tolerance) span - tolerance else span
+        return ceil(measured / size).roundToInt()
+    }
 
     /**
      * Money, to the cent: the ONE place a total is rounded.
@@ -891,7 +943,7 @@ object EstimateEngine {
 
         // A closed loop needs no closing post -- the last bay lands back on the
         // first one -- so only an open run gets the extra post on the end.
-        val bays = if (postSpacingFt > 0f) ceil(netFt / postSpacingFt).roundToInt() else 0
+        val bays = unitsToCover(netFt, postSpacingFt, COUNT_TOLERANCE_FT)
         // Each gate splits the fence, and the two posts either side of the
         // opening ARE posts of that fence line -- they are not extra. Counting
         // the line as unbroken and then adding two posts per gate on top
@@ -942,7 +994,7 @@ object EstimateEngine {
 
     /** Vinyl, aluminum, ornamental iron: fence built from discrete panels. */
     private fun panelBasedEntries(run: FenceRun, netFt: Float, posts: PostCounts): List<QtyEntry> {
-        val panelCount = if (run.panelWidthFt > 0f) ceil(netFt / run.panelWidthFt).roundToInt() else 0
+        val panelCount = unitsToCover(netFt, run.panelWidthFt, COUNT_TOLERANCE_FT)
         return listOf(
             QtyEntry(
                 MaterialRole.PANEL, panelCount.toDouble(),
@@ -957,10 +1009,11 @@ object EstimateEngine {
 
     /** Wood and composite: picket-and-rail construction between posts. */
     private fun picketAndRailEntries(run: FenceRun, netFt: Float, posts: PostCounts): List<QtyEntry> {
-        val bays = if (run.postSpacingFt > 0f) ceil(netFt / run.postSpacingFt).roundToInt() else 0
+        val bays = unitsToCover(netFt, run.postSpacingFt, COUNT_TOLERANCE_FT)
         val railQty = bays * run.woodRailCount
         val picketPitchIn = (run.picketWidthIn + run.picketGapIn).coerceAtLeast(0.5f)
-        val picketQty = ceil((netFt * 12f) / picketPitchIn).roundToInt()
+        // Inches here, so the slack is in inches too.
+        val picketQty = unitsToCover(netFt * 12f, picketPitchIn, COUNT_TOLERANCE_IN)
         return listOf(
             QtyEntry(MaterialRole.WOOD_PICKET, picketQty.toDouble()),
             QtyEntry(MaterialRole.WOOD_RAIL, railQty.toDouble()),
@@ -973,7 +1026,7 @@ object EstimateEngine {
 
     /** Split-rail: just rails between posts, no pickets or caps. */
     private fun splitRailEntries(run: FenceRun, netFt: Float, posts: PostCounts): List<QtyEntry> {
-        val bays = if (run.postSpacingFt > 0f) ceil(netFt / run.postSpacingFt).roundToInt() else 0
+        val bays = unitsToCover(netFt, run.postSpacingFt, COUNT_TOLERANCE_FT)
         val railQty = bays * run.splitRailCount
         return listOf(
             QtyEntry(MaterialRole.WOOD_RAIL, railQty.toDouble()),
@@ -1571,7 +1624,12 @@ object EstimateEngine {
             if (entry.role == MaterialRole.PANEL && preferred != null && feetToCover != null) {
                 val actualCoverage = chosen.coversFt ?: preferred
                 if (actualCoverage > 0f && kotlin.math.abs(actualCoverage - preferred) > 0.01f) {
-                    quantity = ceil(feetToCover.toDouble() / actualCoverage.toDouble())
+                    // The same slack as every other count. Double here,
+                    // because this arithmetic is Double on both engines.
+                    val span = feetToCover.toDouble()
+                    val tol = COUNT_TOLERANCE_FT.toDouble()
+                    val measured = if (span > tol) span - tol else span
+                    quantity = ceil(measured / actualCoverage.toDouble())
                 }
             }
 

@@ -12,6 +12,40 @@
  * to both engines with regenerated fixtures.
  */
 import { ceilRoundToInt, coerceAtLeast, doubleSum, f32 } from "./f32.ts";
+/**
+ * `EstimateEngine.COUNT_TOLERANCE_FT`: a thousandth of a foot, which is a
+ * hundredth of an inch, of slack before any count of bays, panels or pickets
+ * rounds up.
+ *
+ * The phone's constant carries the reasoning and the measurements. The short
+ * version: a count is `ceil(span / size)`, a side whose length is an exact
+ * multiple of the size is exactly N, and float32 arithmetic can hand back a
+ * length a hair over -- which buys a post, a panel, a cap and a bag of
+ * concrete that are not there. 0.001 ft is 2.5x the worst drift measured and
+ * still charges for any overhang a tape could read.
+ */
+const COUNT_TOLERANCE_FT = 0.001;
+
+/** The same slack in inches, for the picket pitch. */
+const COUNT_TOLERANCE_IN = f32(COUNT_TOLERANCE_FT * 12);
+
+/**
+ * `EstimateEngine.unitsToCover`, arithmetic for arithmetic: the ONE place a
+ * bay, panel or picket count is worked out on this side.
+ *
+ * `tolerance` is in the same unit as `span` -- feet for a bay or a panel,
+ * inches for a picket pitch.
+ *
+ * The slack is only taken off a span bigger than it, which is the phone's rule
+ * and matters here for a second reason: `Math.ceil` of a small negative gives
+ * -0, `Math.round(-0)` is -0, and -0 serialises where Kotlin writes 0. That
+ * would fail the parity gate on a value neither engine got wrong.
+ */
+function unitsToCover(span: number, size: number, tolerance: number): number {
+  if (size <= 0) return 0;
+  const measured = span > tolerance ? f32(span - tolerance) : span;
+  return ceilRoundToInt(f32(measured / size));
+}
 import { analyze, decodeGates, decodePoints } from "./geometry.ts";
 import type { FenceGeometryResult, GateMarker } from "./geometry.ts";
 import { applyJoinAdjustment } from "./joins.ts";
@@ -398,7 +432,7 @@ export function computePostCounts(
 
   // A closed loop needs no closing post -- the last bay lands back on the
   // first one -- so only an open run gets the extra post on the end.
-  const bays = postSpacingFt > 0 ? ceilRoundToInt(f32(netFt / postSpacingFt)) : 0;
+  const bays = unitsToCover(netFt, postSpacingFt, COUNT_TOLERANCE_FT);
   // Each gate splits the fence, and the two posts either side of the
   // opening ARE posts of that fence line -- they are not extra. Counting
   // the line as unbroken and then adding two posts per gate on top
@@ -434,7 +468,7 @@ export function computePostCounts(
 
 /** Vinyl, aluminum, ornamental iron: fence built from discrete panels. */
 function panelBasedEntries(run: FenceRun, netFt: number, posts: PostCounts): QtyEntry[] {
-  const panelCount = run.panelWidthFt > 0 ? ceilRoundToInt(f32(netFt / run.panelWidthFt)) : 0;
+  const panelCount = unitsToCover(netFt, run.panelWidthFt, COUNT_TOLERANCE_FT);
   return [
     qty("PANEL", panelCount, run.panelWidthFt, netFt),
     qty("LINE_POST", posts.linePosts),
@@ -446,10 +480,11 @@ function panelBasedEntries(run: FenceRun, netFt: number, posts: PostCounts): Qty
 
 /** Wood and composite: picket-and-rail construction between posts. */
 function picketAndRailEntries(run: FenceRun, netFt: number, posts: PostCounts): QtyEntry[] {
-  const bays = run.postSpacingFt > 0 ? ceilRoundToInt(f32(netFt / run.postSpacingFt)) : 0;
+  const bays = unitsToCover(netFt, run.postSpacingFt, COUNT_TOLERANCE_FT);
   const railQty = bays * run.woodRailCount;
   const picketPitchIn = coerceAtLeast(f32(run.picketWidthIn + run.picketGapIn), 0.5);
-  const picketQty = ceilRoundToInt(f32(f32(netFt * 12) / picketPitchIn));
+  // Inches here, so the slack is in inches too.
+  const picketQty = unitsToCover(f32(netFt * 12), picketPitchIn, COUNT_TOLERANCE_IN);
   return [
     qty("WOOD_PICKET", picketQty),
     qty("WOOD_RAIL", railQty),
@@ -462,7 +497,7 @@ function picketAndRailEntries(run: FenceRun, netFt: number, posts: PostCounts): 
 
 /** Split-rail: just rails between posts, no pickets or caps. */
 function splitRailEntries(run: FenceRun, netFt: number, posts: PostCounts): QtyEntry[] {
-  const bays = run.postSpacingFt > 0 ? ceilRoundToInt(f32(netFt / run.postSpacingFt)) : 0;
+  const bays = unitsToCover(netFt, run.postSpacingFt, COUNT_TOLERANCE_FT);
   const railQty = bays * run.splitRailCount;
   return [
     qty("WOOD_RAIL", railQty),

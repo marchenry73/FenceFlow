@@ -5,10 +5,9 @@ still stands for anything on it you have not looked at yet.
 
 **You were asleep for this.** Three app releases went out (1.743, 1.745, 1.750,
 all mandatory), the website deployed nine times, and I went through all 225 test
-files. Sections 0 to 6 are **already live** — the app will prompt you to update
-on next open, and the website needs nothing but a reload. **Section 7 is the
-drawing work from after you woke up and is in the NEXT build**, which is
-building now; it says so again at the top of that section.
+files. Sections 0 to 6 went out overnight and **1.757 is live now** with the
+drawing fixes in section 7. What is still in the next build (1.758) is named
+where it appears: Move Fence, the rounding fix, and emailing your clients.
 
 Each check is **where to go → what to do → what you should see.** If what you
 see differs, tell me the words on screen.
@@ -117,78 +116,67 @@ The two buttons on the phone that texted or emailed the link are **gone**.
    it and no run carries it. I left it rather than dropping it: a column drop
    is irreversible and that one costs nothing.
 
-## 7. The drawing: tap-to-remove, the ghost line, and one decision for you
+## 7. The drawing, and the rounding fix
 
-In the **next** build, not the three that went out overnight. **Tap to remove**
-and **the ghost line** are done and on. **Move the whole fence** is written and
-switched off, and the one paragraph you have to read is why.
+**Tap to remove**, **the closing side of a loop** and **the ghost line** went
+out in 1.757, which is live now. **Move the whole fence** and **the 0.001
+rounding fix** are in the build after it, 1.758, along with being able to email
+your clients from the admin console (section 8).
 
-### Move the whole fence — BUILT, AND I AM NOT TURNING IT ON. ONE DECISION FOR YOU.
+### Move the whole fence — ON, and the rounding fix you approved is in
 
 > "I need to be able to move the entire fence and everything connected to
 > wherever I want on the drawing."
 
-It is written, it works, and it has 18 tests. **You will not see a Move Fence
-button, because I found something while testing it that can add money to a
-quote, and I will not ship that while you are asleep.** Here is the whole
-thing in plain terms, then the one question.
-
-**What I believed.** Sliding the whole drawing cannot change a price, because
-every length is the difference between two corners, and moving both corners by
-the same amount leaves the difference alone. That is true in arithmetic.
-
-**What the phone actually does.** It stores coordinates as 32-bit numbers,
-which hold about seven digits. Move a corner and the new number gets rounded
-to the nearest one it can hold. Do that to both ends of a side and the
-difference can come back a hair different. I measured it over 200,000
-grid-like drawings: **one move in eight changes the measured total, by up to
-four ten-thousandths of a foot** — five thousandths of an inch. Nothing you
-could see, measure or bill.
-
-**Why that is still not safe.** The number of bays in a side is the length
-divided by the post spacing, **rounded up**. A side that is an exact multiple
-of the spacing — 96 ft at 8 ft spacing, an ordinary back yard — is exactly 12
-bays. The moment it reads 96.000008 ft it becomes **13**: one more post, one
-more panel, one more cap, one more bag of concrete. I aimed the test straight
-at that boundary: **4.5% of moves flipped a bay count.** On a job already
-signed, that is a price change nobody asked for and a re-approval you would
-have to chase.
-
-**I tried to dodge it.** A finger drag's exact sub-pixel offset means nothing,
-so I searched for a nearby offset that moves the drawing with every side's
-length bit-identical — the one you asked for, the same rounded to whole pixels,
-and 81 neighbours. It works every time on grid drawings and **fails for two
-thirds of long runs traced on a photo**, where the corners carry full precision.
-There is no version of that trick that is safe in general.
-
-**The actual fix is one line in each of the two pricing engines**, and it is
-yours to make, not mine:
-
-> Take **0.001 ft** off the length before rounding the bays up — in the phone's
-> `EstimateEngine` (four places) and in the office engine's `ceilRoundToInt`,
-> which every bay, panel and picket count already goes through.
-
-It absorbs a hundredth of an inch of noise — two and a half times the worst I
-measured — and still charges for any overhang a tape could read.
-
-**Why I did not just do it.** It changes a quantity on exactly the jobs this
-noise is mis-charging **today**: they would lose a surplus post and panel, so
-the quote gets **cheaper**. A cheaper quote on an approved job can set off a
-re-approval. That is a decision about live customer prices.
-
-| Say this | And I will |
+| Do this | You should see |
 |---|---|
-| **"Do the 0.001 fix"** | Land it in both engines with a parity proof, turn Move Fence on, and list any existing job whose total changes before anything goes out |
-| **"Leave it"** | Leave Move Fence off. You still have **Fit photo**, which slides the picture under the drawing instead and changes no coordinate at all — for lining a traced fence up with a photo, that already does the job safely |
+| Open a drawing → the tool picker → **Move Fence** (next to Move View) | A line under the canvas: drag anywhere to move the whole drawing |
+| Drag anywhere | **Everything** goes with your finger — every side, every gate, every marker — and the **photo, the satellite picture and the grid stay put**. That is the difference from Move View, which moves the picture and the fence together |
+| Lift your finger | **"Drawing moved."** with **Put it back** |
+| Check the estimate | **The same number.** Nothing changed length, so nothing changed price |
+| Press **Put it back** | Everything returns where it was, and the price with it |
+| Switch tool mid-drag, on purpose | The drawing snaps back to where it really is. It never sits looking moved when it is not |
 
-> One more honest detail, for when it is on. **Put it back** is right to about a
-> ten-thousandth of an inch, not to the last decimal place, and it does not
-> drift further however many times you use it. I had written in the code that
-> it was exact; the test I wrote to prove that caught me.
+> **Move View vs Move Fence.** Move View changes where you are looking from
+> and moves no stored point — the drawing lands back on the same bit of photo.
+> Move Fence moves the drawing itself, which is what you want when the whole
+> thing was traced ten feet off the line, or when the photo was fitted
+> afterwards and everything has to slide across to meet it.
 >
-> And **Undo does not cover a whole-drawing move** — Put it back does. Undo
-> holds one drawing per side and acts on the selected side only, so it would
-> put one side back and leave the rest moved.
+> **Undo does not cover a whole-drawing move; Put it back does.** Undo holds
+> one drawing per side and acts on the selected side only, so it would put one
+> side back and leave the rest moved. Pressing Undo after a move says there is
+> nothing to undo — that is the move clearing a history that no longer applies,
+> not a fault.
+
+### The 0.001 fix — done, and it changed nothing that already exists
+
+You said do it, so it is in both engines: a thousandth of a foot comes off the
+length before bays, panels and pickets round up. One place on the phone and one
+on the server, so a count added later gets it without being told.
+
+**Why it was needed.** A bay count is the length divided by the post spacing,
+**rounded up**. A 96 ft side at 8 ft spacing is exactly 12 bays — and reads 13
+the moment the length comes back at 96.000008, which is what 32-bit arithmetic
+hands you after a few operations. That is a post, a panel, a cap and a bag of
+concrete on a quote you may already have signed. Aimed at that boundary,
+**4.5% of whole-fence moves flipped a count** before this.
+
+**What it changed for your existing jobs: nothing.** Checked two ways, both
+before it went anywhere:
+
+| Check | Result |
+|---|---|
+| All 91 pricing fixtures regenerated and compared | **0 changed.** Every one is identical apart from its timestamp and the version string |
+| Every live fence run re-measured against the new rule | **0 of 31 change a count.** The closest any run comes to a bay boundary from above is 0.059 ft — **59 times** the tolerance |
+
+So no quote moves, nothing needs re-approving, and the boundary bug is closed.
+
+**What it does not swallow.** A hundredth of a foot is an eighth of an inch,
+and that still buys the next panel. Tested on both engines: an exact multiple
+stays N, a hair over stays N, a real overhang still charges N+1, and a span
+smaller than the tolerance keeps the answer it always had. Each suite has a
+planted failure proving it can actually fail.
 
 ### Tap something to remove it
 
@@ -241,11 +229,38 @@ deleted change order the same way.
 > items syncing at all — worse than the fault it would fix, and not something
 > to do unattended.
 
-## 8. Two things that are not finished
+## 8. Email your clients from the admin console — built
 
-- **Email your clients from the admin portal.** Not started. It needs a sender
-  that posts as FenceFlow rather than as your company inbox, and I was not
-  going to build something that sends email to your customers unattended.
+This was the "not started" item. It is in 1.758's deploy.
+
+| Do this | You should see |
+|---|---|
+| Admin console → **Email clients** (new, next to Companies) | Every company listed, with the address each one would go to |
+| Look at the line under the list | **"0 ticked. 6 of 11 companies can be emailed"** — the rest are test companies or have no address on file. A company with no address is shown and cannot be ticked |
+| Tick a few, write a subject and a message, press **Send** | A confirmation naming **who** it is going to, then a row per client saying what happened |
+| Press **Send** twice quickly | The second press sends **nothing** and says "already sent" |
+| Look at **Already sent** below | Every send on the record — when, who, the subject, the outcome, and which admin sent it |
+
+> **Each client gets their own email.** Not one message with nine addresses on
+> it — that would show every client who else uses FenceFlow, which is your
+> customer list.
+>
+> **The address never comes from the browser.** The console sends company
+> *ids*; the address is read from the company's own row. That is what stops the
+> page being turned into a way to mail anybody from a FenceFlow address.
+>
+> **"Could not confirm" is not a failure.** If the mail service takes the
+> message and then does not answer, it may well have gone — so it is never
+> reported as failed and never retried on its own. Check before sending again.
+>
+> Proved against the live database before it shipped: with your second factor
+> you see the 6 mailable clients; **without** it, another signed-in person, and
+> an anonymous caller all see none. The exactly-once claim was exercised six
+> ways in a transaction that rolled back, so your database gained nothing from
+> the test.
+
+## 9. The one thing still not finished
+
 - **The receipt's actual send is the one link I could not exercise.** Every
   piece is proved — the words, the once-only claim, the function boots and
   gates — but I have no way to make it send without your credentials. Your next

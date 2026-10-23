@@ -3550,11 +3550,18 @@ class SurveyViewModel(
          * Whether MOVE FENCE -- sliding the whole drawing, every side, gate
          * and marker at once -- is offered.
          *
-         * FALSE, and the tool is built and tested behind it. He asked for it
-         * in these words: "I need to be able to move the entire fence and
-         * everything connected to wherever I want on the drawing." What stops
-         * it being offered is not the tool; it is one thing I measured rather
-         * than assumed, and it moves money.
+         * TRUE since 23 October 2026, and only because the thing that made it
+         * unsafe was fixed first. He asked for the tool in these words: "I
+         * need to be able to move the entire fence and everything connected to
+         * wherever I want on the drawing." It was built, tested, and then held
+         * behind this flag for a day over one thing I measured rather than
+         * assumed. He then said "Do the 0.001 fix", which is what released it.
+         *
+         * DO NOT TURN THIS BACK ON WITHOUT [COUNT_TOLERANCE_FT] IN BOTH
+         * ENGINES. That tolerance is the whole reason this is safe;
+         * tests/a125-move-fence-and-tap-to-remove.test.mjs refuses a
+         * combination where this is true and either engine's tolerance is
+         * gone. The rest of this comment is why.
          *
          * THE CLAIM I MADE AND THEN DISPROVED. A translation adds the same
          * offset to every coordinate, so algebraically every length is
@@ -3584,24 +3591,27 @@ class SurveyViewModel(
          * coordinates carry full mantissas. There is no offset search that
          * makes this safe in general.
          *
-         * THE REAL FIX IS ONE LINE IN EACH ENGINE, AND IT IS HIS CALL: a
-         * tolerance of 0.001 ft taken off the length before the ceil, in
-         * EstimateEngine's four `ceil(netFt / ...)` sites and in
-         * supabase/functions/_shared/pricing/f32.ts's `ceilRoundToInt`, which
-         * the port routes every one of those counts through. It absorbs noise
-         * of up to a hundredth of an inch -- 2.5x the worst measured -- and
-         * preserves any overhang a tape could read. It is not applied because
-         * it changes a quantity on exactly the jobs float noise is
-         * mis-charging today: those would lose a surplus post and panel, which
-         * means a cheaper quote, which can make an approved job need
-         * re-approving. That is a decision about live customer prices, so it
-         * is his to make and not one to take while he is asleep.
+         * WHAT RELEASED IT: [EstimateEngine.COUNT_TOLERANCE_FT], a thousandth
+         * of a foot taken off the span before every bay, panel and picket
+         * count, in both engines through one funnel each
+         * (`EstimateEngine.unitsToCover` and `unitsToCover` in
+         * supabase/functions/_shared/pricing/takeoff.ts). It absorbs a
+         * hundredth of an inch -- 2.5x the worst drift measured -- and still
+         * charges for any overhang a tape could read.
          *
-         * Absent rather than present-and-refusing, the same rule
-         * [JOIN_STORAGE_READY] followed: a tool he can press that quietly
-         * misprices is worse than no tool.
+         * AND IT CHANGED NOTHING THAT ALREADY EXISTS, which is why it was safe
+         * to apply at all. Two independent checks, both before it shipped:
+         * all 91 parity fixtures regenerate byte-identical apart from the
+         * timestamp and the version string, and over the live database 0 of 31
+         * runs change a count, the closest any run coming to a boundary from
+         * above being 0.0587 ft -- 59x the tolerance
+         * (docs/measurements/affected_jobs.mjs).
+         *
+         * Until that landed this was FALSE, and absent rather than
+         * present-and-refusing, the same rule [JOIN_STORAGE_READY] follows: a
+         * tool he can press that quietly misprices is worse than no tool.
          */
-        const val WHOLE_DRAWING_MOVE_READY = false
+        const val WHOLE_DRAWING_MOVE_READY = true
 
         /**
          * "The point just added, whichever index that turned out to be."
