@@ -371,8 +371,17 @@ test("the drop handler does not paint job.scheduled_date when rescheduleJobToDat
   assert.ok(start > 0, "the drop handler must still be there");
   const handler = cal.slice(start, cal.indexOf("});", start) + 3);
   assert.match(handler, /const\s*\{\s*moved\s*,\s*error\s*\}\s*=\s*await\s*rescheduleJobToDate\(job\.id,\s*iso\)/);
-  assert.match(handler, /if\s*\(\s*!moved\s*\)\s*\{\s*renderCal\(\);\s*return;\s*\}/,
-    "must bail out before the unconditional `job.scheduled_date=iso` when nothing moved");
+  // THE GUARD MUST REPAINT AND RETURN. It may also SAY something on the way
+  // out, and it now does -- the refusal puts tr('calMoveRefused') in #calMsg,
+  // because a chip silently springing back to where it was is the kind of
+  // thing a person retries three times. This pattern demanded exactly
+  // `renderCal(); return;` and so forbade that sentence: the product was
+  // better than the check allowed, which is how a check comes to be read as a
+  // bug report.
+  const guard = /if\s*\(\s*!moved\s*\)\s*\{([\s\S]*?)\}/.exec(handler);
+  assert.ok(guard, "must bail out before the unconditional `job.scheduled_date=iso` when nothing moved");
+  assert.match(guard[1], /renderCal\(\);/, "the !moved guard must repaint from what the server holds");
+  assert.match(guard[1], /return;/, "the !moved guard must return before the optimistic paint");
   // The unconditional assignment must come strictly after the !moved guard.
   const guardAt = handler.indexOf("if(!moved)");
   const assignAt = handler.indexOf("job.scheduled_date=iso");

@@ -519,7 +519,17 @@ test("the phone writes ONE key through the SAME RPC, and never the companies row
   assert.ok(!/from\("companies"\)/.test(vm), "the phone touches the companies row");
   // The read asks for the two keys, not the blob (which also holds the labour
   // rate, the markup and the minimum charge).
-  assert.match(vm, /"payment_methods:settings->payment_methods," \+\s*\n\s*"payment_limits:settings->payment_limits"/);
+  // THE KEYS, IN ONE REQUEST -- not their indentation. This pinned the exact
+  // two-key string with its line break, so adding the third key
+  // (payment_methods_other) read as a failure when it was the feature landing.
+  // What matters is that each key is asked for by name and that it is ONE
+  // select of the settings blob rather than three round trips.
+  for (const key of ["payment_methods", "payment_limits", "payment_methods_other"]) {
+    assert.match(vm, new RegExp(`"${key}:settings->${key}[,"]`),
+      `the phone no longer reads settings->${key}`);
+  }
+  assert.equal((vm.match(/from\("company_settings"\)/g) || []).length, 1,
+    "the phone reads company_settings more than once -- one select, one row");
   assert.ok(!/select\(\s*Columns\.raw\(\s*"\*"/.test(vm));
 });
 
@@ -531,7 +541,11 @@ test("'Saved' is only said about what is really stored", () => {
   assert.ok(push.includes("readStored(companyId)"), "push does not read back");
   assert.ok(push.includes("PaymentMethodRules.same("), "push does not compare the read-back");
   assert.ok(push.includes("PaymentMethodRules.sameLimits("), "push does not compare the limits");
-  assert.match(push, /if \(sameMethods && sameLimits\) PushResult\.VERIFIED/);
+  // EVERY PART READ BACK, and the custom rows are a part. The verify now also
+  // compares sameOthers, so pinning the two-term condition made a third thing
+  // being checked look like a regression.
+  assert.match(push, /if \(sameMethods && sameLimits && sameOthers\) PushResult\.VERIFIED/,
+    "'Saved' is said without reading back every part that was written");
 });
 
 // ====================================================== 2. CREW CANNOT SEE IT =
@@ -659,10 +673,23 @@ test("a blank method produces nothing customer-facing -- the real page says so",
 
 test("the phone's customer view agrees with quote-view's whitelist, field for field", () => {
   const qv = read(QV);
-  // The four fields quote-view sends, and no others.
-  const declared = /type PublicPaymentMethods = \{([^}]*)\}/.exec(qv)[1];
-  const fields = [...declared.matchAll(/(\w+):/g)].map((m) => m[1]).sort();
-  assert.deepEqual(fields, ["cash", "cashApp", "wire", "zelle"]);
+  // THE TYPE IS MULTI-LINE AND COMMENTED NOW, so `[^}]*` stopped at the first
+  // brace and `(\w+):` scraped words out of the prose -- this check was
+  // reporting "here", "other" and "takes" as fields. Brace-matched, comments
+  // stripped, which is the same repair a55's TypeScript lift needed.
+  const typeAt = qv.indexOf("type PublicPaymentMethods = {");
+  assert.ok(typeAt > 0, "quote-view no longer declares PublicPaymentMethods");
+  let depth = 0, end = qv.indexOf("{", typeAt);
+  for (let i = end; i < qv.length; i++) {
+    if (qv[i] === "{") depth++;
+    else if (qv[i] === "}") { depth--; if (!depth) { end = i; break; } }
+  }
+  const declared = qv.slice(qv.indexOf("{", typeAt) + 1, end)
+    .split("\n").filter((l) => !/^\s*(\/\/|\*|\/\*)/.test(l)).join("\n");
+  const fields = [...declared.matchAll(/^\s*(\w+)\??:/gm)].map((m) => m[1]).sort();
+  // The four with a shape, plus the custom rows the owner names himself.
+  assert.deepEqual(fields, ["cash", "cashApp", "other", "wire", "zelle"],
+    "quote-view's public whitelist changed shape");
   // The customer page reads exactly those four and nothing else.
   assert.deepEqual(Object.values(customerPage.PAY_FIELD).sort(), ["cash", "cashApp", "wire", "zelle"]);
   // So the phone's preview can only ever show those four.
@@ -671,7 +698,25 @@ test("the phone's customer view agrees with quote-view's whitelist, field for fi
     zelleOn: true, zelleTo: "test-only@example.invalid",
     wireOn: true, wireDetails: "Bank: Test", cashOn: true,
   }));
-  assert.deepEqual(Object.keys(phone.publicView(all.methods)).sort(), ["cash", "cashApp", "wire", "zelle"]);
+  // publicView takes the custom rows too now; with none given it still answers
+  // the four, which is what the customer page's PAY_FIELD reads.
+  assert.deepEqual(Object.keys(phone.publicView(all.methods, [])).sort(),
+    ["cash", "cashApp", "wire", "zelle"]);
+  // AND THE CUSTOM ROWS, asserted against the KOTLIN rather than the model
+  // above. `phone` here is this file's JavaScript model of PaymentMethods.kt
+  // and it does not carry `other` yet, so asking it would prove something
+  // about the model instead of about the phone. The real publicView is the
+  // copy that decides what a customer reads, so that is the one checked.
+  const rules = read(KT_RULES);
+  const pv = ktFunctionBody(rules, "publicView");
+  assert.match(pv, /other = /, "the phone's publicView drops the custom rows entirely");
+  // The signature, which is not part of the body ktFunctionBody returns.
+  assert.match(rules, /fun publicView\(methods: PaymentMethods, others: List<OtherPaymentMethod>/,
+    "publicView is not given the custom rows to show");
+  // Filtered again INSIDE it, so what a customer reads never depends on who
+  // called -- the reason its own comment gives.
+  assert.match(pv, /cleanOthers\(others\)/,
+    "the custom rows reach a customer without being cleaned by the function that decides what she reads");
 });
 
 // ============================================== 4. A BLANK LIMIT SHOWS NOTHING =
@@ -800,8 +845,13 @@ test("saving payment methods does not bump the settings edit clock", () => {
   const body = ktFunctionBody(store, "writePaymentMethods");
   assert.ok(!body.includes("UPDATED_AT"), "writePaymentMethods touches the edit clock");
   const keys = [...body.matchAll(/prefs\[Keys\.([A-Z_]+)\]/g)].map((m) => m[1]).sort();
-  assert.deepEqual(keys, ["PM_LIMITS_JSON", "PM_LOADED", "PM_METHODS_JSON", "PM_PENDING"],
+  assert.deepEqual(keys, ["PM_LIMITS_JSON", "PM_LOADED", "PM_METHODS_JSON", "PM_OTHERS_JSON", "PM_PENDING"],
     "writePaymentMethods writes keys it should not");
+  // The clock is the thing this check exists for, asserted above; the key list
+  // is here so a part that stops being STORED is caught too -- a custom row
+  // the panel shows and never saves would be the same bug in the other
+  // direction.
+  assert.ok(keys.includes("PM_OTHERS_JSON"), "the custom rows are not stored at all");
 
   // The three callers all go through it, and none of them calls save() (which
   // stamps) or SettingsSync.
@@ -840,7 +890,8 @@ test("an unsent edit survives, and is never quietly replaced by the server's old
   // loss this panel exists to avoid. An empty answer is not good news.
   assert.match(push, /readStored\(companyId\) \?: return PushResult\.READBACK_UNKNOWN/,
     "a failed read-back is reported as a disagreement");
-  assert.match(push, /if \(sameMethods && sameLimits\) PushResult\.VERIFIED else PushResult\.VERIFY_FAILED/);
+  assert.match(push, /if \(sameMethods && sameLimits && sameOthers\) PushResult\.VERIFIED else PushResult\.VERIFY_FAILED/,
+    "a write that did not read back the same is not reported as VERIFY_FAILED");
   // The queued edit survives both of the not-known answers, in both callers.
   for (const fn of ["save", "flushPending"]) {
     assert.match(
@@ -896,7 +947,10 @@ test("he is shown the CUSTOMER's view to confirm, not the boxes he typed into", 
   // boxes. That lives in the view model, which is where the panel gets it from.
   assert.match(
     ktFunctionBody(read(KT_VM), "preview"),
-    /PaymentMethodRules\.publicView\(methods\)/,
+    // HOWEVER MANY ARGUMENTS IT TAKES. publicView gained the custom rows, so
+    // pinning the one-argument call made the preview showing MORE of what she
+    // will see read as it not using her rules at all.
+    /PaymentMethodRules\.publicView\(methods[,)]/,
     "preview is not built from the customer-facing rules"
   );
   // The value is drawn in full and monospaced -- a handle he cannot read

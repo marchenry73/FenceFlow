@@ -202,12 +202,32 @@ test("CANARY: a public bucket, an SVG, and an OWNER-gated read each turn those c
 
 const LETTER = "Hi Dana,\n\nYour quote is ready.\n";
 
-test("no logo leaves the body exactly as it was", () => {
+test("no logo AND no name leaves the body exactly as it was", () => {
   const before = composeBody({ text: LETTER });
   for (const absent of [undefined, null, "", "   "]) {
-    const after = composeBody({ text: LETTER, logoUrl: absent, logoAlt: "Acme Fence" });
+    const after = composeBody({ text: LETTER, logoUrl: absent });
     assert.equal(after.html, before.html, `logoUrl ${JSON.stringify(absent)} changed the HTML`);
     assert.equal(after.text, before.text, `logoUrl ${JSON.stringify(absent)} changed the text`);
+  }
+});
+
+test("no logo but a NAME still gets a letterhead -- the name, over a rule in the company's colour", () => {
+  // A company that has not uploaded a logo still gets a letter that looks like
+  // its own. That is the whole point of "I want the email sent to the customer
+  // to look better", and it is why the case above now needs the name absent
+  // too: an empty card was what shipped before, not what ships now.
+  const bare = composeBody({ text: LETTER });
+  for (const absent of [undefined, null, "", "   "]) {
+    const named = composeBody({ text: LETTER, logoUrl: absent, logoAlt: "Acme Fence" });
+    assert.notEqual(named.html, bare.html, `logoUrl ${JSON.stringify(absent)} produced no letterhead`);
+    assert.ok(named.html.includes("Acme Fence"), "the company is not named in the letterhead");
+    assert.ok(!named.html.includes("<img"), "a letterhead with no logo must not build an <img>");
+    // Above the letter, or it is not a letterhead.
+    assert.ok(named.html.indexOf("Acme Fence") < named.html.indexOf("Your quote is ready."),
+      "the name is not above the letter");
+    // And the plain-text part is untouched: a letterhead is a picture, and
+    // plain text has nowhere to put one.
+    assert.equal(named.text, bare.text, "the letterhead reached the plain-text part");
   }
 });
 
@@ -240,7 +260,17 @@ test("only https reaches the src attribute", () => {
   ]) {
     const out = composeBody({ text: LETTER, logoUrl: bad, logoAlt: "Acme" });
     assert.ok(!out.html.includes("<img"), `${bad} produced an <img> tag`);
-    assert.equal(out.html, composeBody({ text: LETTER }).html, `${bad} changed the HTML at all`);
+    // THE URL REACHES NOTHING, anywhere. This used to compare the whole HTML
+    // against the no-logo case, which is no longer right -- a rejected URL
+    // plus a good name correctly produces the NAMED letterhead -- and was the
+    // weaker check anyway: it would have passed on an implementation that put
+    // the URL somewhere other than a src. What matters is that the string
+    // never appears at all.
+    assert.ok(!out.html.includes(bad), `${bad} appeared in the HTML`);
+    assert.ok(!out.text.includes(bad), `${bad} appeared in the plain-text part`);
+    // The named letterhead is still what a rejected logo falls back to, so the
+    // refusal costs the company its picture and not its letter.
+    assert.ok(out.html.includes("Acme"), `${bad} lost the letterhead entirely`);
   }
 });
 
@@ -801,8 +831,18 @@ test("what is drawn and what is saved are the same rectangle", () => {
     "the preview draws from somewhere other than the crop rectangle");
   assert.ok(/srcSize = IntSize\(rect\.width/.test(call),
     "the preview draws a different size from the crop rectangle");
-  // The encode uses the same rect.
-  assert.ok(/encodePng\(bmp, r\)/.test(kt), "the encode no longer uses the rectangle on screen");
+  // THE ENCODE USES THE SAME RECT, whatever else it is given. It takes the
+  // brightness and contrast too now ("I need more option on the logo, more
+  // than crop"), so pinning the exact argument list made this red for a
+  // feature rather than a fault. The rectangle is what matters: the preview
+  // draws from rect and the encoder is handed the same r, so what she sees in
+  // the frame is what gets saved.
+  assert.match(kt, /encodePng\(bmp, r[,)]/,
+    "the encode no longer uses the rectangle on screen");
+  // And the adjustments reach it, or the preview would show a brightened logo
+  // and the upload would be the untouched one.
+  assert.match(kt, /encodePng\(bmp, r, br, co\)/,
+    "the brightness and contrast on screen are not what gets encoded");
 });
 
 test("the crop arithmetic clamps LAST, which is the only order that holds", () => {

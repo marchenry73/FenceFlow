@@ -274,14 +274,27 @@ console.log("\n6. Prove teeth -- revert the fix in a scratch copy, confirm it go
 
   const loadPath = join(scratchPricingDir, "load.ts");
   const loadSrc = readFileSync(loadPath, "utf8");
+  // LINE ENDINGS NORMALISED BEFORE MATCHING. This needle is three lines, and
+  // load.ts is CRLF in this checkout (672 CRLF, 0 bare LF) -- so a needle
+  // joined with \n could not match, the replace was a no-op, and every check
+  // below this one failed while sections 1-5 passed. Five reds that said the
+  // fix was broken when what was unproven was the teeth.
+  //
+  // The pricing directory is MIXED: index.ts, joins.ts and takeoff.ts are LF,
+  // load.ts and the other eleven are CRLF, so pinning to either ending breaks
+  // the other way on somebody else's checkout. Match on LF, then write back
+  // with whatever the file actually uses.
+  const wasCrlf = loadSrc.includes("\r\n");
+  const lf = (t) => t.split("\r\n").join("\n");
   const needle =
     "const runs = isUncalibratedPhotoJob(job, src.job.survey_storage_path)\n" +
     "    ? src.runs.map(neutralizeUnscaledRun)\n" +
     "    : src.runs;";
-  const reverted = loadSrc.replace(needle, "const runs = src.runs; // REVERTED for this test only");
+  const revertedLf = lf(loadSrc).replace(needle, "const runs = src.runs; // REVERTED for this test only");
+  const reverted = wasCrlf ? revertedLf.split("\n").join("\r\n") : revertedLf;
 
   ok("found the exact rule to revert (if this fails, the scratch check below is not exercising the fix)",
-    reverted !== loadSrc);
+    revertedLf !== lf(loadSrc));
   writeFileSync(loadPath, reverted);
 
   const scratchLoad = await import(pathToFileURL(join(scratchPricingDir, "load.ts")).href);
