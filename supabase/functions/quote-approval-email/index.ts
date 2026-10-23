@@ -110,7 +110,7 @@ import {
 import { buildApprovalEmail, contractKey, maskEmail, pickLang, sha256Hex } from "./email.ts";
 import type { ContractFacts, Lang, RunFact } from "./email.ts";
 import { pushToOffice } from "./office-push.ts";
-import { publicPaymentMethods } from "./payment-methods.ts";
+import { publicOtherMethods, publicPaymentMethods } from "./payment-methods.ts";
 
 // deno-lint-ignore no-explicit-any
 type Row = Record<string, any>;
@@ -354,7 +354,12 @@ async function loadFacts(db: Db, deps: Deps, job: Row): Promise<Loaded> {
     // labour rate, the markup and the minimum charge, and none of those has
     // any business near a letter to a customer.
     db.from("company_settings")
-      .select("payment_methods:settings->payment_methods,brand_color:settings->brand_color")
+      // payment_methods_other is a SEPARATE key, not part of payment_methods:
+      // the four fixed methods are objects with an `on` switch, the custom
+      // rows are a list. quote-view reads both the same way.
+      .select("payment_methods:settings->payment_methods," +
+        "payment_methods_other:settings->payment_methods_other," +
+        "brand_color:settings->brand_color")
       .eq("company_id", job.company_id).maybeSingle(),
     db.from("payment_connections").select("processor, external_id, access_token").eq("company_id", job.company_id).maybeSingle(),
     db.from("follow_up_settings").select("timezone").eq("company_id", job.company_id).maybeSingle(),
@@ -364,6 +369,9 @@ async function loadFacts(db: Db, deps: Deps, job: Row): Promise<Loaded> {
   const runRows: Row[] = must(runs, "runs") ?? [];
   const settingsRow = must(settings, "payment methods");
   const paymentMethods = publicPaymentMethods(settingsRow?.payment_methods);
+  // Assigned onto the answer rather than read inside the reducer, so the two
+  // copies of that reducer stay identical -- the pairing a55 compares.
+  paymentMethods.other = publicOtherMethods(settingsRow?.payment_methods_other);
   // Passed on raw: composeBody is the one place that decides what counts as
   // a colour, so a value that is not #rrggbb falls back there rather than
   // being judged in two places that could disagree.

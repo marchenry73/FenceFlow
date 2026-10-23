@@ -303,10 +303,20 @@ function totalsMarkupFrom(src) {
   const b = src.indexOf(ROWS_SINK, a);
   assert.ok(a > 0 && b > a, "could not find the totals rows block in website/quote.html");
   const region = src.slice(a, b);
+  // balanceOwed() AND A MODULE-LEVEL `quote`: the region calls the first
+  // and it reads the second. render() does `const q=quote` on its first
+  // line, so setting quote to the q under test is the page's own data flow
+  // rather than a convenience -- and lifting the function in rather than
+  // restating its rule keeps "a bug in this block is a bug in this test"
+  // true, which is the whole premise of slicing the region at all.
+  //
+  // Without this the slice stopped evaluating ("balanceOwed is not
+  // defined") and took out nine checks here, two of them canaries.
   const built = new Function(
-    pageTableDecl(src) + "\nlet LANG='en';\n"
+    pageTableDecl(src) + "\nlet LANG='en';\nlet quote=null;\n"
     + grabFn(src, "tr") + "\n" + grabConstLine(src, "money") + "\n" + grabConstLine(src, "esc") + "\n"
-    + "function totalsMarkup(q, lang){ LANG=lang||'en';\n" + region + "\nreturn rows.join(''); }\n"
+    + grabFn(src, "balanceOwed") + "\n"
+    + "function totalsMarkup(q, lang){ LANG=lang||'en'; quote=q;\n" + region + "\nreturn rows.join(''); }\n"
     + "return totalsMarkup;"
   )();
   return built;

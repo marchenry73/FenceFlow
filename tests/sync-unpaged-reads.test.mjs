@@ -171,6 +171,163 @@ const FILES = [
   "app/src/main/java/com/fenceestimator/app/cloud/TrashBin.kt",
 ];
 
+/* THE OFFICE, which this file's own header has always made a claim about.
+
+   dashboard.html does not use postgrest-kt, so the Kotlin patterns above
+   cannot see it. Its reads look like
+
+       db.from('estimate_line_items').select('*').is('deleted_at', null).in(...)
+
+   and a paged one carries a .range( before the statement ends. Checked
+   statement by statement: from each `db.from('table')` to the end of that
+   statement, a read must either page, or be one of the shapes that cannot
+   truncate -- a single row (.single/.maybeSingle), a count-only head request,
+   or a write.
+
+   WHY THIS WAS WORTH ADDING RATHER THAN TRUSTING THE COMMENT: when it was
+   first run it found three live unpaged reads -- ensureItemsForJobs,
+   ensureExpensesForJobs and ensureStageEventsForJobs -- each asking for a
+   chunk of 150 job sync_ids in one request and taking whatever came back.
+   None of them errors when truncated, so ensureItemsForJobs' failedIds set
+   never fired and the Materials buy list would have understated what to order
+   with nothing anywhere saying so. */
+const OFFICE = "website/dashboard.html";
+
+/** Every `db.from('x')...;` statement in the office, with its line number. */
+function officeStatements(src) {
+  const out = [];
+  const re = /db\.from\('([a-z_]+)'\)/g;
+  let m;
+  while ((m = re.exec(src)) !== null) {
+    // To the end of the statement. The office writes one statement per
+    // `;`, and a template literal or a nested call cannot contain a bare
+    // `;` here -- checked by the control below, which asserts the slices
+    // are of a sane length rather than the whole file.
+    const rest = src.slice(m.index, m.index + 900);
+    const semi = rest.indexOf(";");
+    // Is this read handed to a pager? pagedRows(() => db.from(...)) and
+    // loadAll's q() both add the .range() themselves, so the giveaway is in
+    // the characters BEFORE the read, not after it.
+    const before = src.slice(Math.max(0, m.index - 160), m.index);
+    out.push({
+      table: m[1],
+      line: src.slice(0, m.index).split("\n").length,
+      text: semi > 0 ? rest.slice(0, semi) : rest,
+      wrapped: /pagedRows\(\s*\(\s*\)\s*=>\s*$|pagedRows\(\(\) =>\s*$/.test(before.trimEnd() + ""),
+      // `let qb = db.from(...)` -- a builder held for a later await, which is
+      // where its .range() goes. An actual read has an await or a .then here.
+      assigned: /(?:^|\n)\s*(?:let|const|var)\s+\w+\s*=\s*$/.test(before)
+        && !/await|\.then\(/.test(semi > 0 ? rest.slice(0, semi) : rest),
+    });
+  }
+  return out;
+}
+
+/* TABLES THAT GROW WITHOUT BOUND for a single company -- one row per line
+   item, per shift, per payment, per stage move, per email. These are the ones
+   where a thousand rows is a date rather than a hypothetical, so an unpaged
+   multi-row read of one of them is a failure.
+
+   Everything else is printed as a note instead: a company's settings row, one
+   job's punch list, one thread's labels, a handful of automation rules. The
+   distinction is a judgement about the schema, so it is written down here
+   where it can be argued with rather than guessed at by a regex. */
+const GROWS_FOREVER = new Set([
+  "estimate_line_items", "expenses", "job_stage_events", "time_entries",
+  "payment_records", "job_payments", "mail_messages", "material_items",
+  "jobs", "audit_log", "attention_findings", "automation_runs",
+  "follow_up_log", "quote_reapprovals", "punch_list_items", "fence_runs",
+  "change_orders", "employees",
+]);
+
+/** A statement that could silently truncate: a multi-row read with no paging. */
+function officeUnpaged(src) {
+  return officeStatements(src).filter((st) => {
+    if (!/\.select\(/.test(st.text)) return false;                 // not a read
+    // A WRITE that asks for the changed rows back. `.select('id')` after an
+    // update cannot truncate anything.
+    if (/\.(update|insert|upsert|delete)\(/.test(st.text)) return false;
+    if (/\.range\(/.test(st.text)) return false;                   // paged here
+    if (/\.single\(|\.maybeSingle\(/.test(st.text)) return false;     // one row
+    if (/head:\s*true/.test(st.text)) return false;                 // count only
+    // PAGED BY A WRAPPER. pagedRows() and loadAll's q() add the .range()
+    // themselves, so the statement carries none -- the same second-shape
+    // blind spot this file's header describes for the Kotlin reads.
+    if (st.wrapped) return false;
+    // A DELIBERATE BOUND. `.order('at', desc).limit(200)` is an audit log
+    // showing the last two hundred on purpose; the thousand-row cap only
+    // matters to a read that meant to get everything. A limit ABOVE the cap
+    // is still a truncation waiting to happen, so it is not excused.
+    const lim = /\.limit\(\s*(\d+)\s*\)/.exec(st.text);
+    if (lim && Number(lim[1]) <= 1000) return false;
+    // BOUNDED TO ONE PARENT. One job's punch list, one job's change orders,
+    // one thread's messages -- none of which reaches a thousand on this
+    // schema. Note this is the parent key, not any .eq at all: .eq on a
+    // status or a flag bounds nothing.
+    if (/\.eq\('(job_sync_id|job_id|thread_id|sync_id|rule_key)'/.test(st.text)) return false;
+    // A BUILDER BEING ASSIGNED, whose .range() lands on a later statement --
+    // loadStageEvents is written that way and is paged. Recognised by there
+    // being no await and no .then on the statement itself.
+    if (st.assigned) return false;
+    return true;
+  });
+}
+
+{
+  const src = readFileSync(OFFICE, "utf8");
+  const all = officeStatements(src);
+  // CONTROL FIRST. A regex that stops matching would report "0 unpaged" and
+  // print ok -- an empty answer reading as good news, which is the exact
+  // failure this file's own header describes for the Kotlin side.
+  ok(`${OFFICE}: the statement scanner found reads at all`,
+     all.length > 40, `found only ${all.length} db.from() statements`);
+  ok(`${OFFICE}: the scanner cut statements, not the whole file`,
+     all.every((st) => st.text.length < 900),
+     `${all.filter((st) => st.text.length >= 900).length} statements hit the 900-char slice limit`);
+
+  const unpaged = officeUnpaged(src);
+  const serious = unpaged.filter((u) => GROWS_FOREVER.has(u.table));
+  const minor = unpaged.filter((u) => !GROWS_FOREVER.has(u.table));
+
+  ok(`${OFFICE}: no unpaged read of a table that grows without bound ` +
+     `(scanned ${all.length} statements, ${unpaged.length} unpaged, ${minor.length} of them bounded)`,
+     serious.length === 0,
+     `${serious.length} unpaged read${serious.length === 1 ? "" : "s"} of a growing table -- ` +
+     serious.map((u) => `${u.table}:${u.line}`).join(", ") +
+     ` -- each truncates at 1000 rows per company with no error`);
+
+  if (minor.length) {
+    console.log(`        note: ${minor.length} unpaged reads of tables that cannot reach a ` +
+      `thousand rows for one company (${[...new Set(minor.map((m) => m.table))].sort().join(", ")})`);
+  }
+
+  // CANARIES FOR THE EXCLUSIONS. Each one excuses a shape; each has to be
+  // shown to excuse ONLY that shape, or it is a hole rather than a rule.
+  ok("CANARY: a .limit() ABOVE the cap is still reported",
+     officeUnpaged("const a = await db.from('audit_log').select('*').limit(5000);").length === 1,
+     "a limit of 5000 was excused, but the server stops at 1000");
+  ok("CANARY: .eq on a status bounds nothing and is still reported",
+     officeUnpaged("const b = await db.from('job_payments').select('*').eq('status','paid');").length === 1,
+     "an .eq on a non-parent column was treated as a bound");
+  ok("CANARY: a real await is not mistaken for a builder assignment",
+     officeUnpaged("const c = await db.from('mail_messages').select('*');").length === 1,
+     "an awaited read was excused as a held builder");
+
+  // CANARY: the office pattern must be able to fail, or the check above is
+  // decoration. This is the exact shape the three top-ups had.
+  const planted = officeUnpaged(
+    "const x = await db.from('estimate_line_items').select('*').in('job_sync_id', c);"
+  );
+  ok("CANARY: an unpaged office read is detected",
+     planted.length === 1, `detected ${planted.length}`);
+  // And a paged one must pass, or the check would fail on correct code.
+  const good = officeUnpaged(
+    "const y = await db.from('expenses').select('*').in('job_sync_id', c).range(0, 999);"
+  );
+  ok("CANARY: a paged office read is accepted",
+     good.length === 0, `flagged ${good.length} correct reads`);
+}
+
 for (const path of FILES) {
   const src = readFileSync(path, "utf8");
   const unpaged = findUnpagedSelects(src);

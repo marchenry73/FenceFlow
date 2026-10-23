@@ -32,7 +32,10 @@
 // that shows it fail.
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { readFileSync, writeFileSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+import { pathToFileURL } from "node:url";
 import {
   ALL_WORDS, buildApprovalEmail, contractKey, gateCount, installTotals, LANGS, longDate, maskEmail, money, oneLine, pickLang,
   runFeet, safeUrl, scopeRows, typedByCustomer,
@@ -490,12 +493,43 @@ test("maskEmail shows enough to recognise an address and not enough to learn it"
 
 // ================ 7. the payment-methods reduction is the page's own =====
 
-test("publicPaymentMethods is quote-view's publicPaymentMethods: the same answer for every input tried, and the same characters filtered", () => {
+test("publicPaymentMethods is quote-view's publicPaymentMethods: the same answer for every input tried, and the same characters filtered", async () => {
   const src = read("supabase/functions/quote-view/index.ts");
   const a = src.indexOf("const INVISIBLE_CHARS");
   const b = src.indexOf("/**\n * The company's stored payment methods");
   assert.ok(a > 0 && b > a, "found quote-view's reduction");
-  const original = new Function(`${src.slice(a, b).replace(/type PublicPaymentMethods[^\n]*\n/, "").replace(/: Record<string, unknown> \| null/g, "").replace(/\(raw: unknown\): PublicPaymentMethods/, "(raw)").replace(/: PublicPaymentMethods/g, "").replace(/\(key: string\)/g, "(key)").replace(/\(v: unknown\)/g, "(v)").replace(/ as Record<string, unknown>/g, "").replace(/\bconst stored = raw as Record<string, unknown>/, "const stored = raw")}; return { publicPaymentMethods, INVISIBLE_CHARS };`)();
+  // LIFTED THROUGH THE RUNTIME'S OWN TYPESCRIPT STRIPPING.
+  //
+  // Two hand-written strippers were tried here and both produced invalid
+  // JavaScript. The second shows why a regex cannot do it: in
+  //     { cashApp: "", zelle: "", wire: "", cash: false, other: [] }
+  //     return (m as Record<string, unknown>).on === true ? m : null;
+  // the `: false` is an object VALUE and the `: null` is a TERNARY, and both
+  // look exactly like `: SomeType`. The first stripper failed the other way:
+  // it matched type names it knew, missed one added later, left a declaration
+  // behind and threw "Unexpected identifier 'PublicOtherMethod'" -- so this
+  // comparison had stopped running, which a suite of 225 files reads as noise.
+  //
+  // This runtime strips TypeScript natively (a73 imports a .ts file directly),
+  // so the slice is written out as a module and imported: the real stripper
+  // rather than an impression of one, and whatever TypeScript that region
+  // gains next works without an edit here. The bytes imported are the bytes
+  // in quote-view/index.ts, so "a bug in its reducer is a bug this test
+  // shows" still holds.
+  const lifted = join(tmpdir(), `a55-quote-view-reducer-${process.pid}.ts`);
+  writeFileSync(lifted, src.slice(a, b) + "\nexport { publicPaymentMethods, INVISIBLE_CHARS };\n");
+  let original;
+  try {
+    original = await import(pathToFileURL(lifted).href);
+  } finally {
+    rmSync(lifted, { force: true });
+  }
+  // CONTROL: the import really produced the reducer, so every comparison
+  // below is against quote-view's function and not against undefined.
+  assert.equal(typeof original.publicPaymentMethods, "function",
+    "quote-view's publicPaymentMethods did not come back from the lift");
+  assert.ok(original.INVISIBLE_CHARS instanceof RegExp,
+    "quote-view's INVISIBLE_CHARS did not come back from the lift");
   // 1. The invisible-character class: every UTF-16 code unit, both ways.
   for (let c = 0; c < 0x10000; c++) {
     const ch = String.fromCharCode(c);
@@ -537,4 +571,72 @@ test("publicPaymentMethods is quote-view's publicPaymentMethods: the same answer
   // CONTROL: the comparison is not vacuous -- the full block really does reduce to something.
   assert.equal(publicPaymentMethods(full).cashApp, "$TestOnlyTag");
   assert.equal(publicPaymentMethods(full).cash, true);
+});
+
+// ===========================================================================
+// THE WAYS HE TAKES MONEY THAT HE NAMED HIMSELF.
+//
+// "I also want to be able to add the payments I am able to receive, make it
+//  flexible." They reached the quote page and the copy she downloads, and were
+// absent from the email she gets when she approves -- the one surface she
+// keeps -- because PaymentMethodsFact had no `other` and nothing read
+// settings->payment_methods_other. The reducer comparison that would have
+// caught the drift could not build its subject at the time.
+// ===========================================================================
+
+/** This file's own BASE fixture, plus custom rows. */
+const factsWithOther = (rows) => facts({ payments: { ...BASE.payments, other: rows } });
+
+test("the contract email lists the custom payment methods, in his own words, in every language", () => {
+  const facts = factsWithOther([
+    { name: "Check", detail: "" },
+    { name: "Money order", detail: "Payable to Example Fence LLC" },
+  ]);
+  for (const lang of LANGS) {
+    const body = textOf(facts, lang);
+    // HIS WORDS, NOT TRANSLATED. A company's own name for how it takes money
+    // is not translated, for the same reason its own name is not -- the line
+    // website/quote.html draws, in those words.
+    assert.ok(body.includes("Check"), `${lang}: the custom row "Check" is missing`);
+    assert.ok(body.includes("Money order"), `${lang}: the custom row "Money order" is missing`);
+    assert.ok(body.includes("Payable to Example Fence LLC"),
+      `${lang}: the custom row's detail is missing`);
+  }
+  // CONTROL: with no custom rows, none of that text appears -- so the checks
+  // above are about the rows and not about something else in the letter.
+  const without = textOf(factsWithOther([]), "en");
+  assert.ok(!without.includes("Money order"), "a custom row appeared with none configured");
+});
+
+test("a custom row with a name and no detail is printed as the name alone, with no cash sentence", () => {
+  const body = textOf(factsWithOther([{ name: "Check", detail: "" }]), "en");
+  assert.ok(body.includes("Check"), "the name-only row is missing");
+  // It must NOT be told to hand it to the crew: that is a lie about a cheque,
+  // and it is the decision the live panel on the quote page already made.
+  const line = body.split("\n").find((l) => l.trim().startsWith("Check"));
+  assert.equal(line.trim(), "Check", "the name-only row carried something else: " + line);
+});
+
+test("a custom row with no name is dropped", () => {
+  // Nothing to call it, so it would render as a blank heading over an account
+  // number. publicOtherMethods drops it; the letter must not resurrect it.
+  const body = textOf(
+    factsWithOther([{ name: "", detail: "an account number nobody can label" }]), "en");
+  assert.ok(!body.includes("an account number nobody can label"),
+    "a nameless custom row reached the letter");
+});
+
+test("the note sentence follows the custom rows too, and still not for cash alone", () => {
+  const nameNote = ALL_WORDS.en.nameNote;
+  // Cash only: no note. Handing over notes has no note to write a name in.
+  const cashOnly = facts({
+    payments: { cashApp: "", zelle: "", wire: "", cash: true, other: [] },
+    cardOnline: false,
+  });
+  assert.ok(!textOf(cashOnly, "en").includes(nameNote),
+    "the note sentence was printed for cash alone");
+  // A custom row: note. That is the rule the live panel applies.
+  const withOther = { ...cashOnly, payments: { ...cashOnly.payments, other: [{ name: "Check", detail: "" }] } };
+  assert.ok(textOf(withOther, "en").includes(nameNote),
+    "the note sentence is missing when a custom row is offered");
 });

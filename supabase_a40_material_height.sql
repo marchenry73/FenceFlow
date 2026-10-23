@@ -203,11 +203,6 @@ update public.material_items m
     ('Panel T&G Vinyl Privacy 6''H x 6''W - Gray',  'PANEL',      'VINYL',           6::real),
     ('Panel T&G Vinyl Privacy 6''H x 8''W - White', 'PANEL',      'VINYL',           6::real),
     ('Panel T&G Vinyl Privacy 6''H x 8''W - Tan',   'PANEL',      'VINYL',           6::real),
-    -- The one vinyl panel that is not 6 ft, which is the whole reason this
-    -- column exists: it ties on width with the 6 ft White panel above and is
-    -- DEARER, so price alone would never pick it for a 4 ft fence -- and
-    -- would always pick the 6 ft one for it.
-    ('Panel Vinyl Melrose Flat-Top 4''H x 6''W - White (Flori)', 'PANEL',      'VINYL',           4::real),
     ('Regular PVC Gate 6''H x 5''W, White',         'GATE_PANEL', 'VINYL',           6::real),
     -- ALUMINUM
     ('Aluminum Fence Panel 6''H x 6''W, Rackable, Black',  'PANEL',      'ALUMINUM', 6::real),

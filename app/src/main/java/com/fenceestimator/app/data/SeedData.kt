@@ -221,13 +221,23 @@ object SeedData {
         return listOf(
             item(MaterialCategory.PANEL, MaterialRole.PANEL, t, "Panel T&G Vinyl Privacy 6'H x 6'W - White", unitPrice = 52.35, taxable = true, coversFt = 6f, heightFt = 6f, colorOrFinish = "White", sourceDoc = SEEDED),
             item(MaterialCategory.PANEL, MaterialRole.PANEL, t, "Panel T&G Vinyl Privacy 6'H x 8'W - White", unitPrice = 71.40, taxable = true, coversFt = 8f, heightFt = 6f, colorOrFinish = "White", sourceDoc = SEEDED),
-            // The 4 ft he asked for, and it is Flori's Melrose flat-top at his
-            // own quoted price -- not a short privacy panel. His 4 ft products
-            // are semi-privacy styles and they cost MORE than the 6 ft solid
-            // panel, which is why "4 ft instead of 6 ft" was never the right
-            // way to think about it. heightFt is what stops it taking 6 ft
-            // jobs by being a different price at the same width.
-            item(MaterialCategory.PANEL, MaterialRole.PANEL, t, "Panel Vinyl Melrose Flat-Top 4'H x 6'W - White (Flori)", unitPrice = 61.74, taxable = true, coversFt = 6f, heightFt = 4f, colorOrFinish = "White", sourceDoc = SEEDED),
+            // NO 4 FT PANEL HERE, deliberately. "4ft VInyl is Flori fence" is
+            // right about the product -- a 4 ft vinyl job prices with Flori's
+            // Melrose flat-top, which costs MORE than the 6 ft solid panel
+            // because his 4 ft products are semi-privacy styles -- but this
+            // list is the STARTING catalog for a new company, and his own
+            // catalog has carried that exact panel at that exact price since
+            // 1 October. Adding it here put a second copy of it in his live
+            // catalog, tying with itself on price at the same width.
+            //
+            // It also collides: a 4'H and a 6'H panel both 6 ft wide is the
+            // shape a34-height-blindness exists to count, and the starting
+            // list ships in three places (here, the office console's copy in
+            // dashboard.html, and supabase_r20_seed_new_company_catalog.sql)
+            // so a row added to one of them breaks the agreement a26 holds.
+            //
+            // A company that wants it adds it to their own catalog, which is
+            // what he did.
             item(MaterialCategory.POST, MaterialRole.LINE_POST, t, "5\"x5\" Co-Ex Line Post, White", unitPrice = 16.56, colorOrFinish = "White", sourceDoc = SEEDED),
             item(MaterialCategory.POST, MaterialRole.END_POST, t, "5\"x5\" Co-Ex End Post, White", unitPrice = 16.56, colorOrFinish = "White", sourceDoc = SEEDED),
             item(MaterialCategory.POST, MaterialRole.CORNER_POST, t, "5\"x5\" Co-Ex Corner Post, White", unitPrice = 16.56, colorOrFinish = "White", sourceDoc = SEEDED),

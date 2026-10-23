@@ -2,7 +2,7 @@
   "schema": 1,
   "engine": {
     "version": "2026.10.13",
-    "generated_at": "2026-10-23T02:42:17.176755Z"
+    "generated_at": "2026-10-08T18:57:51.598350500Z"
   },
   "case": "gate-latches-to-wall",
   "note": "Fence runs up to the gate post and stops; the gate closes the gap to a wall. ONE post, billed off GATE_POST because it carries the gate, one lot of hinge concrete because only it is in the ground, and the same 4 wall-mount hole plugs a wall-hung gate uses for the latch side. No end post: the post is already billed once.",
@@ -86,21 +86,6 @@
         "supplier_unit_price": null,
         "taxable": true,
         "covers_ft": 8.0,
-        "is_active": true,
-        "manufacturer_sync_id": null
-      },
-      {
-        "sync_id": "5d730f5f-661f-3763-b048-6cf8facc49a6",
-        "name": "Panel Vinyl Melrose Flat-Top 4'H x 6'W - White (Flori)",
-        "category": "PANEL",
-        "role": "PANEL",
-        "fence_type": "VINYL",
-        "color_or_finish": "White",
-        "unit": "EA",
-        "unit_price": 61.74,
-        "supplier_unit_price": null,
-        "taxable": true,
-        "covers_ft": 6.0,
         "is_active": true,
         "manufacturer_sync_id": null
       },

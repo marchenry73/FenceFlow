@@ -34,7 +34,7 @@
  * email.ts. The character set is the one quote-view's regex spells out.)
  */
 
-import type { PaymentMethodsFact } from "./email.ts";
+import type { OtherMethodFact, PaymentMethodsFact } from "./email.ts";
 
 const ch = (n: number) => String.fromCharCode(n);
 const span = (a: number, b?: number) => (b === undefined ? ch(a) : `${ch(a)}-${ch(b)}`);
@@ -59,9 +59,43 @@ export const INVISIBLE_CHARS = new RegExp(
 const CASH_APP_TAG = /^[A-Za-z0-9_.-]{1,30}$/;
 const MAX_ZELLE_CHARS = 200;
 const MAX_WIRE_CHARS = 1500;
+const MAX_OTHER_METHODS = 8;
+const MAX_OTHER_NAME_CHARS = 40;
+const MAX_OTHER_DETAIL_CHARS = 120;
+
+/**
+ * The custom rows, reduced to what a customer may see.
+ *
+ * quote-view's publicOtherMethods, character for character in meaning. They
+ * live under their OWN settings key (payment_methods_other), so like there
+ * this is called by the caller and assigned onto the answer rather than read
+ * inside publicPaymentMethods -- which is why that reducer only carries the
+ * empty array.
+ *
+ * A row with no name is dropped: there is nothing to call it, so it would
+ * render as a blank heading over an account number. A row with a name and no
+ * detail is KEPT -- "Check" on its own is a real answer to how you can pay.
+ */
+export function publicOtherMethods(raw: unknown): OtherMethodFact[] {
+  if (!Array.isArray(raw)) return [];
+  const text = (v: unknown) => typeof v === "string" ? v.replace(INVISIBLE_CHARS, "") : "";
+  const out: OtherMethodFact[] = [];
+  for (const row of raw) {
+    if (!row || typeof row !== "object" || Array.isArray(row)) continue;
+    const r = row as Record<string, unknown>;
+    const name = text(r.name).replace(/\s+/g, " ").trim().slice(0, MAX_OTHER_NAME_CHARS);
+    if (!name) continue;
+    const detail = text(r.detail).replace(/\s+/g, " ").trim().slice(0, MAX_OTHER_DETAIL_CHARS);
+    out.push({ name, detail });
+    if (out.length >= MAX_OTHER_METHODS) break;
+  }
+  return out;
+}
 
 export function publicPaymentMethods(raw: unknown): PaymentMethodsFact {
-  const out: PaymentMethodsFact = { cashApp: "", zelle: "", wire: "", cash: false };
+  // `other` is empty here ON PURPOSE: the custom rows come from a different
+  // settings key and are assigned by the caller, as quote-view does it.
+  const out: PaymentMethodsFact = { cashApp: "", zelle: "", wire: "", cash: false, other: [] };
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return out;
   const stored = raw as Record<string, unknown>;
   // The method's own object, but only when it is switched on.

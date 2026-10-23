@@ -11954,6 +11954,43 @@ async function settleAfterCheckout(){
    request risks the URL length, not correctness), merged into the existing
    array by id so nothing already loaded is lost or duplicated. */
 
+/* EVERY ROW OF ONE REQUEST, PAGED -- for the top-up reads that run after
+   loadAll and so cannot reach its own q().
+
+   PostgREST answers at most a thousand rows and does not say that it did: the
+   request succeeds, error is null, and the header reads
+   "Content-Range: 0-999/*" with the star meaning the total is unknown. So a
+   read that takes what came back cannot tell a complete answer from a
+   truncated one, and the three callers below were all taking what came back.
+
+   Same shape as q() inside loadAll, deliberately: order by id so the pages do
+   not overlap or skip, a short page means the end, a full page means ask
+   again, and fifty pages is a runaway guard rather than a limit anybody should
+   reach. Returns the same { data, error } a single request does, so callers
+   that inspect res.error -- ensureItemsForJobs builds its failedIds set from
+   it -- keep working unchanged.
+
+   `build` is called ONCE PER PAGE and must return a fresh query builder:
+   postgrest builders accumulate, so reusing one would stack the ranges. */
+async function pagedRows(build){
+  const PAGE = 1000;
+  const all = [];
+  for (let from = 0; ; from += PAGE) {
+    const res = await build().order('id', { ascending: true }).range(from, from + PAGE - 1);
+    // Handed back with whatever was already gathered, so a caller that marks
+    // failures per chunk still sees the failure.
+    if (res.error) return res;
+    const got = res.data || [];
+    all.push(...got);
+    if (got.length < PAGE) break;
+    if (all.length >= PAGE * 50) {
+      console.warn('pagedRows: stopped at ' + all.length + ' rows');
+      break;
+    }
+  }
+  return { data: all, error: null };
+}
+
 // Returns { failedIds }: the job sync_ids whose chunk errored, so a caller
 // that has to state a total (the Materials tab's buy list) can name those
 // jobs as unknown rather than silently letting a failed chunk read as "this
@@ -11965,8 +12002,8 @@ async function ensureItemsForJobs(syncIds){
   const CHUNK = 150;
   const chunks = [];
   for (let i = 0; i < ids.length; i += CHUNK) chunks.push(ids.slice(i, i + CHUNK));
-  const results = await Promise.all(chunks.map(c =>
-    db.from('estimate_line_items').select('*').is('deleted_at', null).in('job_sync_id', c)));
+  const results = await Promise.all(chunks.map(c => pagedRows(() =>
+    db.from('estimate_line_items').select('*').is('deleted_at', null).in('job_sync_id', c))));
   const byId = new Map(items.map(x => [x.id, x]));
   const failedIds = new Set();
   results.forEach((res, i) => {
@@ -11999,8 +12036,8 @@ async function ensureExpensesForJobs(syncIds){
   const CHUNK = 150;
   const chunks = [];
   for (let i = 0; i < ids.length; i += CHUNK) chunks.push(ids.slice(i, i + CHUNK));
-  const results = await Promise.all(chunks.map(c =>
-    db.from('expenses').select('*').is('deleted_at', null).in('job_sync_id', c)));
+  const results = await Promise.all(chunks.map(c => pagedRows(() =>
+    db.from('expenses').select('*').is('deleted_at', null).in('job_sync_id', c))));
   const byId = new Map(expenses.map(e => [e.id, e]));
   results.forEach(res => { if (!res.error) (res.data || []).forEach(e => byId.set(e.id, e)); });
   expenses = [...byId.values()];
@@ -12088,8 +12125,8 @@ async function ensureStageEventsForJobs(syncIds){
   const CHUNK = 150;
   const chunks = [];
   for (let i = 0; i < ids.length; i += CHUNK) chunks.push(ids.slice(i, i + CHUNK));
-  const results = await Promise.all(chunks.map(c =>
-    db.from('job_stage_events').select('*').in('job_sync_id', c)));
+  const results = await Promise.all(chunks.map(c => pagedRows(() =>
+    db.from('job_stage_events').select('*').in('job_sync_id', c))));
   const byId = new Map(stageEvents.map(x => [x.id, x]));
   results.forEach(res => { if (!res.error) (res.data || []).forEach(x => byId.set(x.id, x)); });
   stageEvents = [...byId.values()];
@@ -12531,9 +12568,12 @@ async function loadAll(){
     // already restricts this table to SEE_MONEY
     // (supabase_job_payments_money_lockdown.sql), so a role without it just
     // gets an empty/erroring read here, same as every other money table.
-    db.from('job_payments').select('*')
+    // Paged, even though a date window makes a thousand failed payments in
+    // one window unlikely: "unlikely" is how every other read on this page
+    // came to be unpaged, and the cap gives no sign when it bites.
+    pagedRows(() => db.from('job_payments').select('*')
       .in('status', ['failed','canceled'])
-      .gte('created_at', recentCutoffISO)
+      .gte('created_at', recentCutoffISO))
       .then(r2 => r2, e2 => ({ data: [], error: e2 }))
   ]);
   // A failed optional fetch used to fall back to an empty array with nothing
@@ -13323,8 +13363,11 @@ async function startCheckout(plan){
 }
 
 async function loadJobPayments(){
-  const { data, error } = await db.from('job_payments')
-    .select('*').order('created_at',{ascending:false});
+  // PAGED. One row per payment ATTEMPT, not per payment -- a single job being
+  // tested already produced a dozen -- with no window and no limit on this
+  // read, so the Billing list would have quietly stopped at a thousand.
+  const { data, error } = await pagedRows(() => db.from('job_payments')
+    .select('*').order('created_at',{ascending:false}));
   const rows = error ? [] : (data||[]);
   $('payEmpty').style.display = rows.length ? 'none' : 'block';
   $('payRows').innerHTML = rows.map(p=>{
@@ -17540,7 +17583,13 @@ function renderCatalog(){
     setup checklist, since "Your catalog" is one of my_setup_progress()'s
     own steps. */
 async function refreshCatalog(){
-  const { data, error } = await db.from('material_items').select('*').is('deleted_at', null);
+  // PAGED. The catalog is the one table a company grows by importing: a
+  // supplier price list is thousands of items, and an unpaged read stops at a
+  // thousand without saying so. A short catalog here is not merely a short
+  // list on screen -- it is the set the placeholder-price warning is measured
+  // against, so rows it never saw would stop being warned about.
+  const { data, error } = await pagedRows(() =>
+    db.from('material_items').select('*').is('deleted_at', null));
   if(!error) catalog = data || [];
   renderCatalog();
   if(sw && swCurrentKey()==='supplier'){

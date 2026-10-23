@@ -90,12 +90,22 @@ export interface RunFact {
   manualFeet: number;
 }
 
-/** What quote-view's publicPaymentMethods() returns: all four, "" / false when off or empty. */
+/** One way of being paid that the owner named himself: "Check", "Money order". */
+export interface OtherMethodFact {
+  /** His own words. Never translated -- see where this is printed. */
+  name: string;
+  /** What to copy, or "" for a row that is just a name. */
+  detail: string;
+}
+
+/** What quote-view's publicPaymentMethods() returns: all four, "" / false when off or empty,
+ *  plus the custom rows the caller assigns from their own settings key. */
 export interface PaymentMethodsFact {
   cashApp: string;
   zelle: string;
   wire: string;
   cash: boolean;
+  other: OtherMethodFact[];
 }
 
 export interface ContractFacts {
@@ -536,6 +546,24 @@ export function buildApprovalEmail(facts: ContractFacts, lang: Lang): ApprovalEm
   const wire = lines(pay?.wire, 20, 200);
   if (wire.length) addMethod(w.wire, wire);
   if (pay?.cash === true) addMethod(w.cash, [w.cashHow(company)]);
+  // THE WAYS HE ADDED HIMSELF, after the four with a shape, in the order he
+  // listed them. His own words as the label: a company's own name for how it
+  // takes money is not translated, for the same reason its own name is not --
+  // the line website/quote.html already draws.
+  //
+  // A row with a name and no detail is printed as the name alone ("Check" is a
+  // real answer), and it does NOT get the cash sentence about handing it to
+  // the crew, which would be a lie about a cheque.
+  const other = Array.isArray(pay?.other) ? pay.other : [];
+  const otherNamed: string[] = [];
+  for (const row of other) {
+    const name = oneLine(row?.name, 40);
+    if (!name) continue;
+    const detail = oneLine(row?.detail, 120);
+    if (detail) addMethod(name, [detail]);
+    else methods.push(name);
+    otherNamed.push(name);
+  }
   const link = safeUrl(facts.quoteUrl);
   const card = facts.cardOnline === true && link !== "";
 
@@ -544,7 +572,10 @@ export function buildApprovalEmail(facts: ContractFacts, lang: Lang): ApprovalEm
     out.push(...methods);
     if (card) out.push(...(methods.length ? [""] : []), w.card(link));
     // "Put your name in the note" makes no sense for handing over cash.
-    if (cashApp || zelle || wire.length) out.push("", w.nameNote);
+    // Naming yourself in the note makes no sense for handing over cash; it
+    // does for everything else offered here, custom rows included, which is
+    // the rule the live panel on the quote page applies.
+    if (cashApp || zelle || wire.length || otherNamed.length) out.push("", w.nameNote);
   } else {
     blank();
     out.push(w.contact(company, phone));
