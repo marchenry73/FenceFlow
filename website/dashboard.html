@@ -30321,7 +30321,20 @@ async function saveComposeDraft(){
   const row = {
     company_id: profile.company_id,
     author_id: profile.id,
-    account_id: $('mc_from').value || null,
+    // NOT THE 'fenceflow' SENTINEL. The From box's value is an account's uuid
+    // for a connected inbox, and the literal string 'fenceflow' for the
+    // platform sender -- which is not an account and has no row to point at.
+    // This column is uuid, so writing the sentinel made Postgres refuse the
+    // whole upsert ("invalid input syntax for type uuid"), and EVERY autosave
+    // of a message being written from FenceFlow failed silently. The window
+    // carried on as if it had saved, and closing it lost the message.
+    //
+    // Null loses nothing: the From box is rebuilt from the live mail status
+    // whenever the composer opens, so nothing ever reads this back.
+    account_id: (() => {
+      const v = $('mc_from').value;
+      return v && v !== 'fenceflow' ? v : null;
+    })(),
     thread_id: (mailThread && mailThread.id) || null,
     kind: c.forwardOf ? 'forward' : c.replyTo ? 'reply' : 'new',
     to_text: $('mc_to').value.slice(0, 2000),
