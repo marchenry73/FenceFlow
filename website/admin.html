@@ -627,6 +627,7 @@
 <dialog id="askDialog" style="max-width:min(440px,92vw)">
   <h3 id="askTitle"></h3>
   <p style="color:var(--muted);font-size:14px;margin:0 0 6px;line-height:1.5" id="askBody"></p>
+  <div id="askFields" style="display:none;margin-top:10px"></div>
   <div id="askExtra" style="display:none;margin-top:10px">
     <label style="display:flex;gap:8px;align-items:flex-start;font-size:13.5px;cursor:pointer;
            text-transform:none;letter-spacing:0;font-weight:400;color:var(--text)">
@@ -902,6 +903,14 @@ const TL = {
     auditFailed:'The audit log could not be read: %s',
     navReleases:'Releases', navDrift:'Pricing drift', navAccount:'Account',
     navBin:'Recycle bin', removeBtn:'Remove', restoreBtn:'Restore',
+    specialBtn:'Special',
+    specialTitle:'A special for %s',
+    specialBody:'What should they pay a month, and for how long? Stripe takes the difference off their bill and puts them back on the normal price by itself when the months are up. Nothing is typed over their real price — Stripe owns that.',
+    specialPrice:'They pay, per month ($)', specialMonths:'For how many months',
+    specialApply:'Apply the special',
+    specialBadPrice:'That is not an amount.',
+    specialFailed:'The special did not go through.',
+    specialDone:'%s pays %s a month for %s, then back to %s.',
     binHead:'Recycle bin',
     binSub:'Companies you removed. Nothing of theirs was deleted — their jobs, payments, drawings and email are all still here, and Restore brings the whole company back exactly as it was.',
     binEmpty:'Nothing has been removed.', binRemovedOn:'Removed',
@@ -1169,6 +1178,14 @@ const TL = {
     auditFailed:'No se pudo leer el registro de auditor\u00eda: %s',
     navReleases:'Versiones', navDrift:'Diferencia de precios', navAccount:'Cuenta',
     navBin:'Papelera', removeBtn:'Quitar', restoreBtn:'Restaurar',
+    specialBtn:'Promoción',
+    specialTitle:'Promoción para %s',
+    specialBody:'¿Cuánto deben pagar al mes, y por cuánto tiempo? Stripe descuenta la diferencia y los regresa al precio normal por su cuenta cuando terminan los meses. No se escribe nada sobre su precio real: ese lo maneja Stripe.',
+    specialPrice:'Pagan, por mes ($)', specialMonths:'Por cuántos meses',
+    specialApply:'Aplicar la promoción',
+    specialBadPrice:'Eso no es una cantidad.',
+    specialFailed:'La promoción no se aplicó.',
+    specialDone:'%s paga %s al mes durante %s, luego vuelve a %s.',
     binHead:'Papelera',
     binSub:'Empresas que usted quitó. No se borró nada de ellas — sus trabajos, pagos, dibujos y correos siguen aquí, y Restaurar devuelve la empresa completa tal como estaba.',
     binEmpty:'No se ha quitado nada.', binRemovedOn:'Quitada',
@@ -1436,6 +1453,14 @@ const TL = {
     auditFailed:'Le journal d\u2019audit n\u2019a pas pu \u00eatre lu : %s',
     navReleases:'Versions', navDrift:'Écart de prix', navAccount:'Compte',
     navBin:'Corbeille', removeBtn:'Retirer', restoreBtn:'Rétablir',
+    specialBtn:'Offre',
+    specialTitle:'Une offre pour %s',
+    specialBody:'Combien doivent-ils payer par mois, et pendant combien de temps ? Stripe retire la différence de leur facture et les remet au prix normal tout seul à la fin. Rien n’est écrit par-dessus leur vrai prix : c’est Stripe qui le détient.',
+    specialPrice:'Ils paient, par mois ($)', specialMonths:'Pendant combien de mois',
+    specialApply:'Appliquer l’offre',
+    specialBadPrice:'Ce n’est pas un montant.',
+    specialFailed:'L’offre n’a pas été appliquée.',
+    specialDone:'%s paie %s par mois pendant %s, puis revient à %s.',
     binHead:'Corbeille',
     binSub:'Entreprises que vous avez retirées. Rien de ce qui leur appartient n’a été supprimé — leurs chantiers, paiements, dessins et courriels sont toujours là, et Rétablir ramène l’entreprise entière telle quelle.',
     binEmpty:'Rien n’a été retiré.', binRemovedOn:'Retirée',
@@ -2158,6 +2183,56 @@ async function loadBin() {
         body: tr('confirmRestoreBody'),
         confirmLabel: tr('restoreBtn')
       }, b)));
+}
+
+/* ----------------------------------------------------------- specials ---- */
+/**
+ * "$50 for the first month, then back to the normal payment."
+ *
+ * A STRIPE DISCOUNT, not a number typed into this console.
+ * companies.monthly_price is a mirror of what Stripe charges -- the webhook
+ * overwrites it on every subscription event -- so typing 50 into Manage
+ * would bill them the full amount, show the wrong figure until the next
+ * event, and then lose even that. The only thing that takes money off a bill
+ * is a discount where the bill lives.
+ *
+ * He says what they should PAY. The function works out the discount from
+ * what Stripe says they pay today, because asking for "amount off" would
+ * mean doing that subtraction in his head against a figure he cannot see.
+ * Stripe puts them back on the normal price by itself when the months are
+ * up, so nothing here has to remember to end it.
+ */
+async function openSpecial(companyId) {
+  const c = clients.find(x => x.id === companyId);
+  if (!c) return;
+  const answer = await ask({
+    title: tr('specialTitle', c.name || tr('companyFallbackWord')),
+    body: tr('specialBody'),
+    confirmLabel: tr('specialApply'),
+    fields: [
+      { id: 'sp_price', label: tr('specialPrice'), value: '50' },
+      { id: 'sp_months', label: tr('specialMonths'), value: '1' },
+    ],
+  });
+  if (!answer) return;
+  const price = Number(String(answer.sp_price ?? '').replace(/[^0-9.]/g, ''));
+  const months = Math.round(Number(answer.sp_months ?? 1)) || 1;
+  if (!Number.isFinite(price) || price < 0) return msg('msg', tr('specialBadPrice'), 'err');
+  try {
+    const { data, error } = await db.functions.invoke('admin-special', {
+      body: { company_id: companyId, special_price: price, months },
+    });
+    // The function's own sentence, every time. It knows things this page does
+    // not -- that there is no subscription to discount, that Stripe says they
+    // already pay less than this -- and each of those is actionable in a way
+    // that "that did not work" is not.
+    const said = (error && (error.message || '')) || (data && data.message) || '';
+    if (error || (data && data.error)) return msg('msg', said || tr('specialFailed'), 'err');
+    msg('msg', tr('specialDone', c.name || '', money(data.now), String(data.months), money(data.reverts_to)), 'ok');
+    loadAll();
+  } catch (e) {
+    msg('msg', plainError(String(e && e.message || e)), 'err');
+  }
 }
 
 /* -------------------------------------------------------------- nav ---- */
@@ -2945,6 +3020,7 @@ function renderCompaniesTable() {
              data-name="${esc(c.name || '')}" data-reinvite="${c.invited_at ? '1' : '0'}"
              type="button">${c.invited_at ? esc(tr('reinviteBtn')) : esc(tr('inviteBtn'))}</button>`}
         <button data-edit="${c.id}" type="button">${esc(tr('manageBtn'))}</button>
+        <button data-special="${c.id}" type="button">${esc(tr('specialBtn'))}</button>
         ${isMine(c) ? '' :
           `<button data-remove="${c.id}" type="button">${esc(tr('removeBtn'))}</button>`}
       </td>
@@ -2963,6 +3039,9 @@ function renderCompaniesTable() {
   // because a button that reads as destroying somebody's records is one
   // nobody will press when they should -- or will press once when they
   // should not.
+  document.querySelectorAll('[data-special]').forEach(b =>
+    b.addEventListener('click', () => openSpecial(b.dataset.special)));
+
   document.querySelectorAll('[data-remove]').forEach(b =>
     b.addEventListener('click', () => adminAction(
       'admin_remove_company', { target: b.dataset.remove }, {
@@ -3038,7 +3117,7 @@ function renderCompaniesTable() {
  *
  * Resolves to false when cancelled, or the (possibly empty) options object.
  */
-function ask({ title, body, confirmLabel = tr('confirmDefaultLabel'), danger = false, withHold = false }) {
+function ask({ title, body, confirmLabel = tr('confirmDefaultLabel'), danger = false, withHold = false, fields = null }) {
   return new Promise(resolve => {
     $('askTitle').textContent = title;
     $('askBody').textContent = body;
@@ -3046,6 +3125,27 @@ function ask({ title, body, confirmLabel = tr('confirmDefaultLabel'), danger = f
     $('askYes').className = danger ? 'danger' : 'primary';
     $('askExtra').style.display = withHold ? 'block' : 'none';
     $('askHold').checked = false;
+    // Typed values, for the confirmations that need a figure as well as a
+    // yes. Rebuilt every time rather than left standing: a box still holding
+    // last week's number is how somebody gives a company a discount they
+    // meant for another one.
+    const fieldBox = $('askFields');
+    fieldBox.innerHTML = '';
+    fieldBox.style.display = fields && fields.length ? 'block' : 'none';
+    (fields || []).forEach(f => {
+      const wrap = document.createElement('div');
+      wrap.style.marginBottom = '8px';
+      const lab = document.createElement('label');
+      lab.textContent = f.label;
+      lab.setAttribute('for', f.id);
+      const inp = document.createElement('input');
+      inp.id = f.id;
+      inp.value = f.value ?? '';
+      inp.autocomplete = 'off';
+      wrap.appendChild(lab);
+      wrap.appendChild(inp);
+      fieldBox.appendChild(wrap);
+    });
 
     const done = value => {
       $('askYes').removeEventListener('click', onYes);
@@ -3054,7 +3154,11 @@ function ask({ title, body, confirmLabel = tr('confirmDefaultLabel'), danger = f
       $('askDialog').close();
       resolve(value);
     };
-    const onYes = () => done({ hold: withHold && $('askHold').checked });
+    const onYes = () => {
+      const typed = {};
+      (fields || []).forEach(f => { typed[f.id] = ($(f.id) || {}).value ?? ''; });
+      done({ hold: withHold && $('askHold').checked, ...typed });
+    };
     const onNo = () => done(false);
 
     $('askYes').addEventListener('click', onYes);

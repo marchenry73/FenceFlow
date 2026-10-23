@@ -40,6 +40,13 @@ verify_jwt = false
 
 # The rest are called by a signed-in person from the website, and the function
 # reads that session to decide what they are allowed to do. Verification on.
+# The console's special. Called by a signed-in platform admin from
+# admin.html, and the function asks is_platform_admin() AS THAT CALLER before
+# it touches Stripe -- the same one gate, second factor included, that every
+# other admin action goes through.
+[functions.admin-special]
+verify_jwt = true
+
 [functions.create-checkout-session]
 verify_jwt = true
 
