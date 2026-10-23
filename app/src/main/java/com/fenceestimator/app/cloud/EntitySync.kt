@@ -2781,6 +2781,29 @@ object EntitySync {
         // A local copy may only be re-keyed once, however many cloud rows
         // happen to share its identity.
         val adoptedIdentities = mutableSetOf<String>()
+        // CATALOG ITEMS THIS PHONE HAS DELETED AND THE CLOUD HAS NOT TAKEN YET.
+        //
+        // Left unguarded when the other three pulls were fixed (a124), written
+        // down there as a known gap rather than hidden, on the reasoning that a
+        // queue check here could stop catalog items syncing altogether. Reading
+        // the three branches below settles it: that risk is real only if the
+        // check sits at the top of the loop, where it would also block the
+        // UPDATE and the identity RE-KEY. Only one branch creates a row.
+        //
+        //   existing != null        -> updates. Never a resurrection.
+        //   sameThing != null       -> re-keys a local row that is still here;
+        //                              a deleted item is not in localByIdentity,
+        //                              so this cannot bring one back.
+        //   ident in knownIdentities -> skipped already.
+        //   otherwise               -> saveMaterialItemFromCloud, which is the
+        //                              one way a deleted item comes back.
+        //
+        // So the guard goes on that last branch alone, and the re-keying that
+        // keeps every phone quoting one price is untouched.
+        val queuedCatalogDeletes = repository.pendingDeletionsForSync()
+            .filter { it.tableName == "material_items" }
+            .map { it.syncId }
+            .toSet()
         var added = 0
         cloud.forEach { row ->
             val category = runCatching { MaterialCategory.valueOf(row.category) }
@@ -2891,6 +2914,13 @@ object EntitySync {
                 return@forEach
             }
             if (ident in knownIdentities) return@forEach
+            // THE ONE BRANCH THAT CREATES. "I cannot find it locally" is
+            // indistinguishable from "I deleted it a second ago" until the
+            // cloud takes the tombstone, so a catalog item deleted here came
+            // straight back on the next sync -- the fence-run bug he reported,
+            // one table over. See queuedCatalogDeletes above for why the check
+            // belongs here and nowhere earlier in this loop.
+            if (row.syncId in queuedCatalogDeletes) return@forEach
             repository.saveMaterialItemFromCloud(
                 MaterialItem(
                     syncId = row.syncId,

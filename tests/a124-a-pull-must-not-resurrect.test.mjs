@@ -132,22 +132,49 @@ test("CANARY: a create branch with no queue check is detected", () => {
     "THE CANARY DID NOT FIRE: an unguarded create branch was judged guarded");
 });
 
-test("KNOWN GAP, stated rather than hidden: the catalog pull is not guarded", () => {
-  // pullCatalog creates material_items, whose deletes ARE queued, so the same
-  // resurrection is possible there. It is left alone deliberately: that pull
-  // re-keys a local row onto the cloud row's identity (catalogIdentity /
-  // adoptedIdentities), so a naive queue check could stop catalog items
-  // syncing altogether -- a worse failure than the one it would fix, and not
-  // one to make unattended. Written down here so it is a decision on the
-  // record rather than an oversight, and so this test says something true
-  // about the state of the code.
+test("the catalog pull is guarded too -- on the create branch ONLY", () => {
+  // THE GAP THIS CLOSES, and why it was left open for a day. pullCatalog
+  // creates material_items, whose deletes are queued, so the same
+  // resurrection was possible there. The worry was that a queue check could
+  // stop catalog items syncing altogether -- and it would have, had it gone
+  // where the other three went. Reading the branches settles it: only ONE of
+  // them creates a row.
+  //
+  //   existing != null         -> updates; never a resurrection
+  //   sameThing != null        -> re-keys a local row that is still here, so a
+  //                               deleted item is not in localByIdentity and
+  //                               cannot come back this way
+  //   ident in knownIdentities -> already skipped
+  //   otherwise                -> saveMaterialItemFromCloud, the one way back
+  //
+  // So the guard sits on that last branch alone, and the identity re-keying
+  // that keeps every phone quoting one price is untouched. This test pins
+  // BOTH halves, because the dangerous mistake is not forgetting the guard --
+  // it is putting it one branch too early.
   const byName = Object.fromEntries(pulls(SYNC).map((p) => [p.name, p.body]));
-  assert.ok(byName.pullCatalog, "pullCatalog is gone -- revisit this note");
+  const body = byName.pullCatalog;
+  assert.ok(body, "pullCatalog is gone -- revisit this check");
   assert.ok(tombstonedTables().has("material_items"),
-    "material_items is no longer tombstoned, so this gap may have closed itself");
-  // If somebody guards it, this flips and the note should be deleted.
-  const guarded = /pendingDeletionsForSync/.test(byName.pullCatalog);
-  if (guarded) {
-    console.log("    note: pullCatalog is now guarded -- delete this test and its note");
-  }
+    "material_items is no longer tombstoned, so this guard may no longer be needed");
+
+  assert.match(body, /tableName == "material_items"/,
+    "pullCatalog does not read the queue for its own table: a deleted catalog item will come back");
+  assert.match(body, /in queuedCatalogDeletes\) return@forEach/,
+    "pullCatalog reads the queue but never uses what it read");
+
+  // THE GUARD MUST COME AFTER the update and the re-key, or it blocks them.
+  const guardAt = body.indexOf("in queuedCatalogDeletes");
+  const createAt = body.indexOf("saveMaterialItemFromCloud");
+  const reKeyAt = body.indexOf("adoptedIdentities += ident");
+  const updateAt = body.indexOf("updateMaterialItemFromCloud");
+  assert.ok(guardAt > 0 && createAt > 0 && reKeyAt > 0 && updateAt > 0,
+    `could not find all four points: guard ${guardAt}, create ${createAt}, re-key ${reKeyAt}, update ${updateAt}`);
+  assert.ok(guardAt < createAt,
+    "the guard is after the create, so it guards nothing");
+  assert.ok(guardAt > reKeyAt,
+    "the guard sits BEFORE the identity re-key: a catalog item whose local copy is being " +
+    "adopted onto the cloud's id would be refused, which stops catalog items syncing -- " +
+    "a worse failure than the one this fixes");
+  assert.ok(guardAt > updateAt,
+    "the guard sits before the update branch, so a price correction would stop reaching this phone");
 });

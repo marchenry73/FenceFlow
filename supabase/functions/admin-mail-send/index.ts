@@ -246,11 +246,24 @@ Deno.serve(async (req) => {
     }, 503);
   }
 
-  const replyTo = env("SUPPORT_EMAIL") || null;
-  // Why it arrived and how to answer it. cleanSubject() runs over the footer
-  // inside composeBody, so this stays one line.
+  // WHERE A REPLY GOES, said out loud rather than left to the mail client.
+  //
+  // SUPPORT_EMAIL is not set on this project (checked, 23 Oct 2026), so the
+  // Reply-To header is absent and a reply lands on the From address --
+  // MAIL_FROM, which is a FenceFlow mailbox, so it reaches somebody. That is
+  // the right behaviour and it was already the behaviour; what was missing was
+  // telling the CLIENT. An email from a supplier with no way to answer it
+  // reads as a no-reply, and these go to paying customers.
+  //
+  // So the address is resolved here -- support when it is set, the sending
+  // address otherwise -- and named in the footer either way. Set as an
+  // explicit Reply-To as well, rather than relying on the default, so the
+  // sentence and the header cannot disagree.
+  const replyTo = env("SUPPORT_EMAIL") || from.address || null;
+  // cleanSubject() runs over the footer inside composeBody, so this stays one
+  // line.
   const footerLine = replyTo
-    ? `You are receiving this because your company uses FenceFlow. Reply to reach us at ${replyTo}.`
+    ? `You are receiving this because your company uses FenceFlow. Reply to this email to reach us at ${replyTo}.`
     : "You are receiving this because your company uses FenceFlow.";
   const results: Array<Record<string, unknown>> = [];
   let sent = 0;
