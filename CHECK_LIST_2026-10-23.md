@@ -3,11 +3,14 @@
 Replaces CHECK_LIST_2026-10-22.md for everything shipped since. The older list
 still stands for anything on it you have not looked at yet.
 
-**You were asleep for this.** Three app releases went out (1.743, 1.745, 1.750,
-all mandatory), the website deployed nine times, and I went through all 225 test
-files. Sections 0 to 6 went out overnight and **1.757 is live now** with the
-drawing fixes in section 7. What is still in the next build (1.758) is named
-where it appears: Move Fence, the rounding fix, and emailing your clients.
+**You were asleep for the first part.** Three app releases went out overnight
+(1.743, 1.745, 1.750, all mandatory), the website deployed nine times, and I
+went through all 225 test files. Sections 0 to 6 are that work.
+
+**Since you woke up:** **1.757** and **1.759** are published, both mandatory,
+and all 29 server functions are deployed. That covers everything in sections 7
+and 8 — the drawing fixes, Move Fence, the 0.001 rounding fix, and emailing
+your clients. Nothing on this list is waiting on a build any more.
 
 Each check is **where to go → what to do → what you should see.** If what you
 see differs, tell me the words on screen.
@@ -119,9 +122,9 @@ The two buttons on the phone that texted or emailed the link are **gone**.
 ## 7. The drawing, and the rounding fix
 
 **Tap to remove**, **the closing side of a loop** and **the ghost line** went
-out in 1.757, which is live now. **Move the whole fence** and **the 0.001
-rounding fix** are in the build after it, 1.758, along with being able to email
-your clients from the admin console (section 8).
+out in 1.757. **Move the whole fence** and **the 0.001 rounding fix** are in
+1.759. Both are published and mandatory, so your phone will prompt on next
+open.
 
 ### Move the whole fence — ON, and the rounding fix you approved is in
 
@@ -231,7 +234,7 @@ deleted change order the same way.
 
 ## 8. Email your clients from the admin console — built
 
-This was the "not started" item. It is in 1.758's deploy.
+This was the "not started" item. It is deployed and live.
 
 | Do this | You should see |
 |---|---|
