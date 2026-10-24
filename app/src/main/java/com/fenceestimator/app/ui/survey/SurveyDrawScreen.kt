@@ -356,8 +356,24 @@ fun SurveyDrawScreen(
     // and the whole-side erase took both. -1 means the whole side, which is
     // what the toolbar bin still does.
     var pendingEraseWall by remember { mutableStateOf(-1) }
-    var viewZoom by remember(selectedRunId) { mutableStateOf(1f) }
-    var viewPan by remember(selectedRunId) { mutableStateOf(Offset.Zero) }
+    // THE CAMERA BELONGS TO THE SCREEN, NOT TO THE SELECTED SIDE.
+    //
+    // These were keyed on selectedRunId, so zoom and pan snapped back to the
+    // default every time the selection changed -- including when it changed by
+    // itself. Erasing the selected side reselects
+    // getFenceRuns(jobId).firstOrNull(), an arbitrary side rather than the
+    // piece being worked on, and the camera reset at the same instant: what he
+    // was looking at left the screen and came back when he tapped his side
+    // again. That reads as the drawing vanishing, and it is the one symptom of
+    // the three he reported that no data ever explained -- nothing is deleted
+    // (every tombstone on fence_runs is signed by him, none blank) and no
+    // stored coordinate is unreadable (0 of 266 live pairs).
+    //
+    // Keyed on nothing, the view keeps its place across a selection change,
+    // the way a map or a drawing board does. A fresh visit still opens at
+    // zoom 1 with no pan, because this remember is per composition.
+    var viewZoom by remember { mutableStateOf(1f) }
+    var viewPan by remember { mutableStateOf(Offset.Zero) }
 
     // FITTING the survey photo to the drawing. Null means not fitting. While a
     // draft is held the photo is drawn moved and zoomed under a drawing that
