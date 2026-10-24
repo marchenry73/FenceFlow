@@ -143,7 +143,7 @@ live with a positive control: NOTHING else in the repo root has been applied. Ei
 - [x] **F1. BUILT 28-09.** Only one field on that sheet is genuinely a list — referral source — and it is a picker now in both the job sheet and the wizard, with every value already in the data carried so no job is rewritten. Everything else there is a name, an address, a note or a rate.
 - [ ] **F2. Merge "Drawing changes since approval" with "Changes from the
       field"** into one section that looks good and saves space.
-- [ ] **F3. His company in the admin portal must show marchenry73@gmail.com.**
+- [x] **F3. ALREADY DONE — verified live 24-10.** `admin_companies()` returns `owner_email` (column 29) from the company's OWNER profile; Fence solutions has exactly one OWNER, `marchenry73@gmail.com`, and `admin.html` renders it in the company row and the Manage dialog. `companies.email` (`marc@fenceflowapp.com`) is the separate customer-facing setting and is deliberately untouched. Original wording:
 - [ ] **F4. The customer reply-to address should be the COMPANY's email.**
       `marc@fenceflowapp.com` is his address within the company; the company
       needs its own, accurately.

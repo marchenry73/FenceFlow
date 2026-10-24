@@ -1,12 +1,37 @@
 -- ============================================================
 -- FenceFlow -- the admin portal cannot tell one company from another
--- Run in: Supabase -> SQL Editor -> New query -> Run  (safe to re-run)
+-- DO NOT RE-RUN. See the banner immediately below.
 --
--- NOT APPLIED. Written on 28 September for list item F3 and left for March to
--- run. The website/admin.html change that goes with it is complete and safe
--- without this file: with no owner_email in the answer the page renders exactly
--- as it did before, because it tells "the column is not there" apart from "this
--- company has no owner" and says nothing in the first case.
+-- APPLIED, and item F3 IS DONE. Verified against the live database on
+-- 2026-10-24: public.admin_companies() returns owner_email as OUT column 29 of
+-- 32, its body selects auth.users.email through the OWNER profile, and the row
+-- for "Fence solutions" carries marchenry73@gmail.com -- which is the address
+-- F3 asked for. website/admin.html renders it, at HEAD and on origin/main.
+--
+-- It said "NOT APPLIED" for four weeks after it was applied. The header of
+-- supabase_r8_device_keys.sql records the same mistake and what it cost: a
+-- survey read the stale line and reported a finished feature as unbuilt. A
+-- stale banner is worse than no banner, because it is read as current.
+--
+-- AND IT IS NO LONGER SAFE TO RE-RUN. That line has been removed from the top
+-- of this file. PART 1 below does `drop function if exists
+-- public.admin_companies()` and recreates it with the 29 columns it had on 28
+-- September. The live function now has 32: supabase_r25_company_health.sql
+-- added active_people_30d, jobs_30d and quotes_30d after this file, and
+-- supabase_r32_remove_and_restore_company.sql added the `c.deleted_at is null`
+-- clause that keeps removed companies in the recycle bin. Re-running this file
+-- would silently drop all four changes, with no error anywhere:
+--
+--   * healthCell() in website/admin.html keys off ('active_people_30d' in c)
+--     and renders NOTHING when the key is absent -- by design, so an older
+--     database does not get a false reading. The Health column would simply go
+--     blank for every company and the page would look fine.
+--   * every removed company would reappear in the list as though it had never
+--     been put in the bin.
+--
+-- If this function ever has to be rebuilt, start from
+-- supabase_r32_remove_and_restore_company.sql, which is the latest definition,
+-- not from this file.
 --
 -- KIND
 --   A FUNCTION REPLACEMENT, additive. It adds ONE column to the end of what
