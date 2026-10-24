@@ -18701,6 +18701,41 @@ function depositAskedOf(j, price){
   return p > 0 ? Math.min(dep, p) : dep;
 }
 
+/** What is still owed ON THE DEPOSIT: depositAskedOf less what has actually
+    been paid, floored at zero and taken to the cent. JobMoney.depositStillDue
+    on the phone and depositFigures().due on the server, which have to agree to
+    the cent: the customer's quote page prints one and the card processor
+    charges the other. */
+function depositStillDueOf(j, price){
+  const due = Math.max(0, depositAskedOf(j, price) - netPaid(j));
+  // To the cent, because both sides are cents-exact and the subtraction is
+  // not: 2,119.99 less 500.01 is 1619.9799999999998 in doubles. The server
+  // rounds the same way, for the same reason.
+  return Number.isFinite(due) ? Math.round(due * 100) / 100 : due;
+}
+
+/** What to ask this customer for NEXT: the rest of the deposit while any of it
+    is outstanding, then whatever is left on the job.
+
+    JobMoney.nextRequestAmount, transcribed. The phone's payment card and the
+    quote email's Pay here button both bill this figure, so the office must
+    produce the SAME number -- not a second rule that agrees today. Floored
+    through stillOwed, because a payment request for a negative amount is
+    meaningless and a payment link for one would be worse. */
+function nextRequestAmountOf(j, contractTotal){
+  const owed = stillOwed(j, contractTotal);
+  if (owed <= 0.005) return 0;
+  const depositLeft = depositStillDueOf(j, contractTotal);
+  if (depositLeft > 0.005) return Math.min(depositLeft, owed);
+  return owed;
+}
+
+/** What to call that request, so the customer sees the right word on the link.
+    JobMoney.nextRequestLabel. */
+function nextRequestLabelOf(j, contractTotal){
+  return depositStillDueOf(j, contractTotal) > 0.005 ? 'deposit' : 'balance';
+}
+
 /** The headline figures for one window. Money fields exist only when the
     viewer may see money -- absent, not zero, so nothing downstream can print
     a $0 that is really "hidden". */
@@ -31363,12 +31398,47 @@ async function jobQuoteMailCompose(){
     return;
   }
 
+  /* THE PAY HERE LINK, minted now for the amount owed at this moment rather
+     than reused from the row. A Stripe link is locked to the amount it was
+     made for, so an older one can be asking for the wrong total -- which is
+     true of several open links on this database right now. create-payment-link
+     hands back an existing open link when the amount still matches, so sending
+     a quote twice does not litter the job with duplicates. */
+  let payUrl = '';
+  const payTotal = contractTotalOf(j);
+  const payAmount = nextRequestAmountOf(j, payTotal);
+  const mayBill = hasPerm('REQUEST_PAYMENT')
+    && ['OWNER','MANAGER'].includes(profile && profile.role);
+  if (mayBill && payAmount >= 0.50) {
+    try {
+      const { data: sess } = await db.auth.getSession();
+      const res = await fetch(`${SUPA_URL}/functions/v1/create-payment-link`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json',
+                   Authorization: `Bearer ${sess?.session?.access_token}` },
+        body: JSON.stringify({
+          jobSyncId: j.sync_id,
+          amountCents: Math.round(payAmount * 100),
+          kind: nextRequestLabelOf(j, payTotal) === 'balance' ? 'balance' : 'deposit',
+          description: 'Fence work — ' + (j.address || j.customer_name || 'deposit'),
+        }),
+      });
+      const payBody = await res.json().catch(() => ({}));
+      if (res.ok && payBody && payBody.url) payUrl = String(payBody.url);
+    } catch (_e) {
+      /* No button, and no message: he is sending a quote, not asking for a
+         link. The quote is the thing that must not fail here. */
+    }
+    if (openJob !== j) return;   // another job opened while the link was made
+  }
+
   const email = buildQuoteSendEmail({
     companyName: facts.companyName,
     companyPhone: facts.companyPhone,
     customerName: j.customer_name || '',
     address: j.address || '',
     quoteUrl: link,
+    payUrl,
   }, LANG);
 
   openCompose({
