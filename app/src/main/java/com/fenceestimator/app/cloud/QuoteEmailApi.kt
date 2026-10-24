@@ -95,6 +95,13 @@ object QuoteEmailApi {
                 put("subject", subject)
                 put("text", body)
                 put("job_sync_id", jobSyncId)
+                // The quote is the one letter that hides the address under
+                // its buttons: it carries two of them (the quote and the
+                // deposit), and their urls are long enough to bury the
+                // letter. mail-send defaults this to false for everything
+                // else, deliberately -- a button with no visible url is the
+                // shape a phishing mail has.
+                put("hide_cta_url", true)
             }
             val response = client.post("${BuildConfig.SUPABASE_URL}/functions/v1/mail-send") {
                 header("Authorization", "Bearer $token")
