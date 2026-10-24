@@ -145,11 +145,22 @@ export function reapprovalBillingCap(
 }
 
 /** Stripe's API is form-encoded, not JSON. */
-async function stripe(path: string, form: Record<string, string>, account?: string) {
+async function stripe(
+  path: string,
+  form: Record<string, string>,
+  account?: string,
+  idempotencyKey?: string,
+) {
   const headers: Record<string, string> = {
     Authorization: `Bearer ${Deno.env.get("STRIPE_SECRET_KEY")}`,
     "Content-Type": "application/x-www-form-urlencoded",
   };
+  /* Stripe replays the FIRST result for a repeated key for 24 hours, which is
+     what makes a double-tap one charge rather than two. Only the off-session
+     charge sends one: a payment LINK is harmless to create twice (nobody has
+     paid yet, and the open-links plan supersedes the older one), whereas a
+     charge takes the money on the spot. */
+  if (idempotencyKey) headers["Idempotency-Key"] = idempotencyKey;
   // When the company has connected its own Stripe account, the charge is
   // created on that account so the money lands with them, not with us.
   if (account) headers["Stripe-Account"] = account;
@@ -688,6 +699,11 @@ Deno.serve(async (req) => {
 
     return await makeLink(admin, {
       companyId: profile.company_id, jobSyncId, amount, kind, description,
+      /* Only the office reaches this line at all -- door two returned far
+         above -- so this is the single place an off-session charge can be
+         asked for. */
+      chargeSavedCard: body?.chargeSavedCard === true,
+      clientChargeId: body?.clientChargeId ? String(body.clientChargeId) : undefined,
     });
   } catch (e) {
     // The real reason goes to the function log, where somebody who can act
@@ -711,16 +727,43 @@ Deno.serve(async (req) => {
  */
 async function makeLink(
   admin: ReturnType<typeof createClient>,
-  a: { companyId: string; jobSyncId: string; amount: number; kind: string; description: string; publicDoor?: boolean },
+  a: {
+    companyId: string;
+    jobSyncId: string;
+    amount: number;
+    kind: string;
+    description: string;
+    publicDoor?: boolean;
+    /* Take it off the card the deposit saved instead of producing a link for
+       her to pay. Set only by the office door; see the charge branch below. */
+    chargeSavedCard?: boolean;
+    /* The office's own id for this press of the button, so a double-tap is
+       one charge. Required with chargeSavedCard. */
+    clientChargeId?: string;
+  },
 ): Promise<Response> {
   try {
     const profile = { company_id: a.companyId };
     const { jobSyncId, amount, kind, description } = a;
     const publicDoor = a.publicDoor === true;
+    /* Belt and braces: door two returns long before it could reach makeLink
+       with this set, but a homeowner-triggered off-session charge of her own
+       card is the one thing that must be impossible by construction rather
+       than by reading the call sites. */
+    const chargeSavedCard = a.chargeSavedCard === true && !publicDoor;
 
     const { data: company } = await admin
-      .from("companies").select("name, stripe_account_id, subscription_plan")
+      .from("companies")
+      .select("name, stripe_account_id, subscription_plan, auto_charge_balance")
       .eq("id", profile.company_id).single();
+
+    /* KEEP THE CARD FOR THE BALANCE -- only when this company has asked for
+       it, and only on a deposit. See supabase_r40_auto_charge_balance.sql for
+       why this is opt in and why the agreement cannot be collected later.
+
+       A missing column reads as false rather than throwing: a company row
+       written before r40 must not break the one path that takes money. */
+    const keepCardForBalance = company?.auto_charge_balance === true && kind === "deposit";
 
     // No card fee on a customer's payment link. companies.pass_card_fee is
     // FenceFlow's own setting for the company's subscription price (see
@@ -1188,6 +1231,116 @@ async function makeLink(
     const replaced = await replaceOpenLinks(plan.replace);
     if ("refused" in replaced) return replaced.refused;
 
+    /* ---- the balance, taken off the card the deposit saved ---------------
+
+       Reached only after the whole gauntlet above: the open-links plan, the
+       over-owed cap and the re-approval cap have all passed, and any older
+       link for this kind has been switched off. So `amount` here is a figure
+       this job may be billed, which is the only reason it is safe to take it
+       without asking her again. */
+    if (chargeSavedCard) {
+      if (!a.clientChargeId) {
+        return json({ error: "No charge id was sent, so the card was not charged." }, 400);
+      }
+
+      /* Read on its own rather than widened into the jobColumns select above,
+         so the ordinary link path cannot be affected by this at all -- not by
+         a missing column, not by a failed read. */
+      const { data: cardJob, error: cardReadError } = await admin
+        .from("jobs")
+        .select("stripe_customer_id, stripe_payment_method_id, card_consent_at, card_brand, card_last4")
+        .eq("company_id", profile.company_id)
+        .eq("sync_id", jobSyncId)
+        .maybeSingle();
+      if (cardReadError) {
+        console.error("create-payment-link card read", cardReadError.message);
+        return json({ error: "Could not check the card on file, so nothing was charged. Try again in a moment." }, 500);
+      }
+
+      /* card_consent_at is the permission, and its absence refuses even when
+         a customer and a card are both stored. A stored card says Stripe CAN
+         charge it; only the timestamp says she was told it WOULD be. */
+      if (!cardJob?.card_consent_at || !cardJob?.stripe_payment_method_id || !cardJob?.stripe_customer_id) {
+        return json({
+          code: "no_saved_card",
+          error: "There is no card on file for this job that the customer agreed could be charged, " +
+                 "so nothing was charged. Email them for the balance instead.",
+        }, 409);
+      }
+
+      let intent;
+      try {
+        intent = await stripe("/payment_intents", {
+          amount: String(amount),
+          currency: "usd",
+          customer: String(cardJob.stripe_customer_id),
+          payment_method: String(cardJob.stripe_payment_method_id),
+          /* off_session says she is not here to authenticate, and confirm
+             says take it now. Together they are what the agreement she gave
+             at the deposit actually buys. */
+          off_session: "true",
+          confirm: "true",
+          description,
+          "metadata[job_sync_id]": jobSyncId,
+          "metadata[company_id]": profile.company_id,
+          "metadata[kind]": kind,
+          "metadata[off_session]": "true",
+        }, account, "ff-charge-" + a.clientChargeId);
+      } catch (e) {
+        /* A card that needs her present fails HERE, which is the expected
+           unhappy path rather than a bug: the office is told in words it can
+           act on, and the balance email is the way through. */
+        const why = String((e as Error).message ?? e);
+        console.error("create-payment-link off-session charge", jobSyncId, why);
+        return json({
+          code: "charge_declined",
+          error: "The card on file was not charged: " + why +
+                 " Email the customer for the balance instead.",
+        }, 402);
+      }
+
+      /* Recorded pending, never paid. Stripe's webhook credits it when the
+         money is actually there -- the same rule the whole money path runs
+         on, and the reason a payment that later reverses cannot leave this
+         job reading settled. */
+      const { error: chargeInsertError } = await admin.from("job_payments").insert({
+        company_id: profile.company_id,
+        job_sync_id: jobSyncId,
+        kind,
+        amount_cents: amount,
+        currency: "USD",
+        status: "pending",
+        payment_url: "",
+        processor: "stripe",
+        fee_cents: stripeFee,
+        // No link exists, so the payment intent IS the handle the webhook
+        // matches on.
+        external_id: String(intent.id ?? ""),
+        livemode: intent.livemode === true,
+      });
+      if (chargeInsertError) {
+        /* The money may well have moved. Loud, and said plainly, because the
+           books and Stripe now disagree and a person has to reconcile it. */
+        console.error("create-payment-link charge insert", jobSyncId,
+          String(intent.id ?? ""), chargeInsertError.message);
+        return json({
+          code: "charge_unrecorded",
+          error: "The card was charged but the payment could not be recorded against the job. " +
+                 "Do not charge again -- contact FenceFlow with this job so it can be put right.",
+        }, 500);
+      }
+
+      return json({
+        charged: true,
+        id: String(intent.id ?? ""),
+        status: String(intent.status ?? ""),
+        amountCents: amount,
+        cardBrand: cardJob.card_brand ?? null,
+        cardLast4: cardJob.card_last4 ?? null,
+        livemode: intent.livemode === true,
+      });
+    }
+
     // Create the product inline with the price. This used to be a separate
     // /products call first: three sequential Stripe round trips on top of a
     // cold start was slow enough to look like the button did nothing.
@@ -1206,6 +1359,23 @@ async function makeLink(
     const link = await stripe("/payment_links", {
       "line_items[0][price]": price.id,
       "line_items[0][quantity]": "1",
+      /* THE CARD IS KEPT, AND SHE IS TOLD SO ABOVE THE PAY BUTTON.
+
+         setup_future_usage=off_session is what lets the balance be taken
+         later without her present; customer_creation=always gives the card
+         somebody to belong to, because Stripe will not keep one otherwise.
+
+         The sentence is deliberately plain and names the condition -- when
+         the work is finished -- rather than saying "for future payments",
+         which tells her nothing about when or how much. */
+      ...(keepCardForBalance ? {
+        "customer_creation": "always",
+        "payment_intent_data[setup_future_usage]": "off_session",
+        "custom_text[submit][message]":
+          "By paying, you agree that " + String(company?.name ?? "we").slice(0, 60) +
+          " may charge this same card for the remaining balance once the work is finished." +
+          " You will be emailed a receipt each time.",
+      } : {}),
       ...(feePrice ? {
         "line_items[1][price]": feePrice.id,
         "line_items[1][quantity]": "1",
@@ -1213,6 +1383,11 @@ async function makeLink(
       "metadata[job_sync_id]": jobSyncId,
       "metadata[company_id]": profile.company_id,
       "metadata[kind]": kind,
+      /* So the webhook knows this particular payment carried an agreement.
+         Read from the event rather than from the company's setting at the
+         time the money lands: the setting may have been turned off in
+         between, and what matters is what SHE was told when she paid. */
+      ...(keepCardForBalance ? { "metadata[keeps_card]": "true" } : {}),
     }, account);
 
     const { error: insertError } = await admin.from("job_payments").insert({

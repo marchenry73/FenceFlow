@@ -280,6 +280,135 @@ async function applyPaymentToJob(admin: any, payment: any) {
 }
 
 /**
+ * Stripe's reads are GETs with the parameters in the query string.
+ *
+ * `account` is not optional in practice for anything to do with a customer's
+ * saved card: the company's deposit link was created ON its own connected
+ * account, so the customer, the payment intent and the payment method all
+ * exist there and nowhere else. Omitting the header asks the platform
+ * account, which has never heard of them.
+ */
+async function stripeGet(
+  path: string,
+  query: Record<string, string>,
+  account?: string,
+): Promise<any> {
+  const key = Deno.env.get("STRIPE_SECRET_KEY") ?? "";
+  // Named rather than "something went wrong": this function is only reachable
+  // once a real payment has cleared, so an unset key here is a deployment
+  // mistake somebody has to see.
+  if (!key) throw new Error("STRIPE_SECRET_KEY is not set, so the saved card cannot be read.");
+  const headers: Record<string, string> = { Authorization: "Bearer " + key };
+  if (account) headers["Stripe-Account"] = account;
+
+  const qs = new URLSearchParams(query).toString();
+  const res = await fetch("https://api.stripe.com/v1" + path + (qs ? "?" + qs : ""), { headers });
+  const body = await res.json();
+  if (!res.ok) throw new Error(body?.error?.message ?? "Stripe rejected the read");
+  return body;
+}
+
+/**
+ * Records the card this deposit saved, so the balance can be taken later.
+ *
+ * Does nothing unless the payment itself carried the agreement. The flag is
+ * read from the EVENT, never from the company's setting now: the setting may
+ * have been switched off between her paying and this arriving, and what makes
+ * an off-session charge defensible is what SHE was told at the moment she
+ * paid, which is what the flag on this payment records.
+ *
+ * Failures are logged and swallowed -- see the note at the top of this patch:
+ * the money is already banked, and a job with no card simply gets the balance
+ * email instead of the charge button.
+ */
+async function saveCardForBalance(admin: any, session: any, payment: any): Promise<void> {
+  if (String(session.metadata?.keeps_card ?? "") !== "true") return;
+
+  const intentId = String(session.payment_intent ?? "");
+  if (!intentId) {
+    console.error("keeps_card: session", String(session.id ?? ""), "has no payment_intent");
+    return;
+  }
+
+  try {
+    /* The same account the link was created on -- which today is always the
+       PLATFORM account, because create-payment-link refuses (501) to mint a
+       Stripe link on a company's own connected account. The lookup is kept so
+       this still holds on the day that is switched on.
+
+       Narrowed to Stripe deliberately: payment_connections holds ONE row per
+       company for whichever processor it uses, Square included, so an
+       unfiltered read would hand a Square merchant id to Stripe-Account. That
+       retrieve fails, the catch below swallows it, and the card is silently
+       never recorded -- a failure that looks exactly like success. */
+    const { data: conn } = await admin.from("payment_connections")
+      .select("processor, external_id").eq("company_id", payment.company_id).maybeSingle();
+    const account = String(conn?.processor ?? "").toLowerCase() === "stripe"
+      ? (conn?.external_id || undefined)
+      : undefined;
+
+    const intent = await stripeGet(
+      "/payment_intents/" + intentId, { "expand[]": "payment_method" }, account);
+
+    const pm = intent?.payment_method;
+    const pmId = typeof pm === "string" ? pm : String(pm?.id ?? "");
+    const customerId = String(session.customer ?? intent?.customer ?? "");
+    if (!pmId || !customerId) {
+      // Reached when Stripe did not actually keep the card -- a payment method
+      // that cannot be reused off-session, for one. Worth seeing, because the
+      // customer WAS told it would be kept.
+      console.error("keeps_card: nothing to save for intent", intentId,
+        "customer", customerId || "(none)", "payment_method", pmId || "(none)");
+      return;
+    }
+
+    // Last four and brand only, so the office can NAME the card before
+    // charging it. The regex is the same shape as the database's own check
+    // constraint: anything else is dropped rather than risking a write that
+    // looks like a real number.
+    const card = (pm && typeof pm === "object") ? pm.card : null;
+    const rawLast4 = String(card?.last4 ?? "");
+    const brand = card?.brand ? String(card.brand) : null;
+    const last4 = /^[0-9]{4}$/.test(rawLast4) ? rawLast4 : null;
+
+    const { data: updated, error } = await admin.from("jobs").update({
+      stripe_customer_id: customerId,
+      stripe_payment_method_id: pmId,
+      // When she agreed, which is when she paid. NULL here is what stops an
+      // off-session charge, so it is written in the same statement as the ids
+      // -- never separately, where a half-failure would leave ids with no
+      // agreement behind them.
+      card_consent_at: new Date().toISOString(),
+      card_brand: brand,
+      card_last4: last4,
+      // No updated_at, for the reason given on the paid-figure write above:
+      // that column is the edit clock, and a card arriving is not an edit.
+    })
+      .eq("company_id", payment.company_id)
+      .eq("sync_id", payment.job_sync_id)
+      .select("id");
+
+    if (error) {
+      console.error("keeps_card: could not record the card on job",
+        String(payment.job_sync_id), String((error as any)?.message ?? error));
+      return;
+    }
+    // An update that matched nothing returns [] and no error, which reads
+    // exactly like success. The job row can genuinely be absent -- a job made
+    // on a phone and paid before it synced -- so this is logged, loudly, with
+    // the ids needed to put it right by hand.
+    if (!updated || !updated.length) {
+      console.error("keeps_card: no job row for sync_id", String(payment.job_sync_id),
+        "company", String(payment.company_id),
+        "-- card not recorded; customer", customerId, "payment_method", pmId);
+    }
+  } catch (e) {
+    console.error("keeps_card: failed to record the card for intent", intentId,
+      String((e as Error).message ?? e));
+  }
+}
+
+/**
  * Marks a Payment Link's request paid and books it -- called only once the
  * caller is sure the money is actually there, never on the strength of
  * checkout.session.completed alone.
@@ -322,6 +451,12 @@ async function creditPaymentLink(admin: any, session: any): Promise<void> {
       .eq("id", pending.id);
 
     await applyPaymentToJob(admin, pending);
+
+    /* LAST, and after the money is booked. Recording the card is the lesser
+       of the two things this event does, so it never runs before the greater
+       one and never prevents it: saveCardForBalance swallows its own
+       failures, so the payment above stands whatever happens here. */
+    await saveCardForBalance(admin, session, pending);
   }
 }
 
@@ -778,6 +913,40 @@ Deno.serve(async (req) => {
       // default -- most of these cannot be placed today. Tried anyway for the
       // day that changes; broken out rather than guessed at otherwise, the
       // same rule an unmatched refund follows.
+      // ---- The balance, taken off the card the deposit saved ----
+      //
+      // The office said the customer was satisfied and create-payment-link
+      // confirmed a PaymentIntent off_session. This is the ONLY event that
+      // banks that money: see the note at the top of this patch for why it
+      // cannot also bank a payment-link payment a second time.
+      case "payment_intent.succeeded": {
+        const charged = event.data.object;
+        const intentId = String(charged?.id ?? "");
+        if (!intentId) break;
+        // Ours, and off-session. Set by the charge branch and by nothing else.
+        if (String(charged?.metadata?.off_session ?? "") !== "true") break;
+
+        const { data: owed } = await admin.from("job_payments")
+          .select("id, job_sync_id, amount_cents, company_id, status, livemode")
+          .eq("external_id", intentId)
+          .eq("processor", "stripe")
+          .eq("status", "pending")
+          .maybeSingle();
+        // No row is not an error: a retried delivery of this same event finds
+        // the row already paid and must do nothing.
+        if (!owed) break;
+
+        await mustWrite("bank the off-session charge",
+          admin.from("job_payments")
+            .update({ status: "paid", paid_at: new Date().toISOString() })
+            .eq("id", owed.id));
+
+        // The ledger row, the paid figure, the push and the receipt -- all of
+        // it, exactly as a link payment gets.
+        await applyPaymentToJob(admin, owed);
+        break;
+      }
+
       case "payment_intent.payment_failed": {
         const intent = event.data.object;
         const jobSyncId = intent?.metadata?.job_sync_id;
