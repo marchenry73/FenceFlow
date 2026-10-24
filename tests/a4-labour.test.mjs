@@ -200,25 +200,46 @@ const materialsLine = (price) => ([{
 console.log(`  (1 of 3 confirms the floor: labour-only, unbypassable by materials or a negative fee, and truly off at 0)`);
 
 // ===========================================================================
-console.log("\n2. FINDING -- three office report/alert surfaces quote labour WITHOUT the $200 floor:");
+console.log("\n2. The same $200 floor in the three office report/alert surfaces that quote labour:");
 // ===========================================================================
-// website/dashboard.html computes "what labour was quoted at" from
-//   labor_rate_per_ft * signed_linear_feet + labor_flat_fee
-// in three places (grep: all three read verbatim identical formulas):
-//   - the "labour_over" attention alert (inline in renderDash(), ~line 11332)
+// website/dashboard.html has three surfaces that say what labour was PRICED
+// at, and all three now read one shared quotedLaborOf(j):
+//   - the "labour_over" attention alert (inline in renderDash())
 //   - labourEstVsActualTotals() -- the period aggregate "estimated vs actual" total
 //   - labourVsQuoted(r) -- the per-job figure on the cost report
-// NONE of them read jobs.minimum_labor_charge. The real pricing engine
-// (section 1, and EstimateEngine.kt on the phone) floors labour at the
-// minimum BEFORE markup; these three read the UN-floored raw figure, so on
-// any job where the floor is actually doing something, every one of these
-// reports a different, wrong "quoted" labour number than what the customer
-// was actually charged.
 //
-// The two extractable functions below are pulled and run for real (same
-// technique tests/downstream-pay-overtime.test.mjs uses to run renderPay);
-// the alert is quoted by line number since it lives inline inside
-// renderDash() and shares the identical formula text byte for byte.
+// THIS SECTION USED TO ASSERT THE OPPOSITE, and the expectations below were
+// rewritten, not weakened. What it asserted was that all three spelled out
+//   labor_rate_per_ft * signed_linear_feet + labor_flat_fee
+// with no minimum_labor_charge term, so a job sitting on the floor was
+// reported at its raw labour ($32 on the worked example below) instead of the
+// $200 the customer was actually charged -- and called it "over budget" when
+// it was $50 under. That was true when this file was written. It is NOT true
+// today: dashboard.html routes all three through quotedLaborOf(), which
+// mirrors supabase/functions/_shared/pricing/totals.ts -- rate*feet plus the
+// flat fee, THEN max() against minimum_labor_charge, guarded on > 0 so a
+// company that never set the floor still gets exactly the number it always
+// got. The product is fixed; the expectation here was the stale half.
+//
+// Worth a note on WHY this had to be rewritten by hand instead of simply
+// going red on its own when the product was fixed: the fixture job rows here
+// carried no minimum_labor_charge key at all, and quotedLaborOf reads
+// Number(j.minimum_labor_charge || 0) -- so the floor arrived as 0, the
+// floored and un-floored answers were the same number, and the old
+// un-floored expectation stayed green straight through the fix. It was never
+// testing the floor. Every fixture row below now names the column
+// explicitly, every floor assertion is paired with a planted pre-fix formula
+// that must produce the old wrong answer, and one check confirms that
+// JOB_COLUMNS really selects the column a live job row would carry it in --
+// because a column missing from that select list arrives undefined and
+// silently disables the floor on every real job.
+//
+// All three surfaces are pulled and run for real (same technique
+// tests/downstream-pay-overtime.test.mjs uses to run renderPay): the two
+// standalone functions by name, and the alert by the source block it
+// occupies inside renderDash(), rather than quoted by line number as this
+// file used to do. tests/a7-dashboard-money-regressions.test.mjs covers the
+// same fix from the dashboard side.
 
 const src = readFileSync("website/dashboard.html", "utf8");
 
@@ -231,6 +252,18 @@ const grabFn = (name) => {
     else if (src[j] === "}") { depth--; if (!depth) return src.slice(start, j + 1); }
   }
   throw new Error("unbalanced: " + name);
+};
+
+// The labour_over alert is a few lines inside renderDash()'s attention-list
+// builder, not a function a standalone test can call, so it is lifted verbatim
+// by exact source markers instead of brace-counted. Same idiom
+// tests/a7-dashboard-money-regressions.test.mjs uses for the same block.
+const grabBetween = (startMarker, endMarkerInclusive) => {
+  const a = src.indexOf(startMarker);
+  if (a < 0) throw new Error("start not found: " + startMarker);
+  const b = src.indexOf(endMarkerInclusive, a);
+  if (b < 0) throw new Error("end not found: " + endMarkerInclusive);
+  return src.slice(a, b + endMarkerInclusive.length);
 };
 
 // Everything below reaches into website/dashboard.html's source text by
@@ -270,23 +303,35 @@ try {
   // by name. It has to be lifted alongside them or the extracted code throws
   // "quotedLaborOf is not defined" the moment it runs -- exactly the crash
   // this file hit until this fix.
-  function withLabourVsQuoted(jobRow, costingRow) {
-    const code = grabFn("quotedLaborOf") + "\n" + grabFn("labourVsQuoted");
+  // quotedLaborOf's source is a parameter rather than always the shipped one
+  // so the very same report code can be re-run against the PRE-FIX formula
+  // below. A check that only ever sees the fixed code cannot show it would
+  // have caught the bug.
+  function withLabourVsQuoted(jobRow, costingRow, quotedSrc = grabFn("quotedLaborOf")) {
+    const code = quotedSrc + "\n" + grabFn("labourVsQuoted");
     const fn = new Function("jobs", "esc", "money", "tr", "r", code + "\nreturn labourVsQuoted(r);");
     return fn([jobRow], esc, money, tr, costingRow);
   }
-  function withLabourEstVsActualTotals(jobsIn, costingBySync) {
-    const code = grabFn("quotedLaborOf") + "\n" + grabFn("labourEstVsActualTotals");
+  function withLabourEstVsActualTotals(jobsIn, costingBySync, quotedSrc = grabFn("quotedLaborOf")) {
+    const code = quotedSrc + "\n" + grabFn("labourEstVsActualTotals");
     const fn = new Function("jobsIn", "jobCostingBySync", code + "\nreturn labourEstVsActualTotals(jobsIn, jobCostingBySync);");
     return fn(jobsIn, costingBySync);
   }
+  // The exact expression dashboard.html inlined in all three surfaces before
+  // the fix: no minimum_labor_charge term anywhere in it. Used as the planted
+  // failure for each of the three checks below.
+  const BROKEN_QUOTED = "function quotedLaborOf(j){ return Number(j.labor_rate_per_ft || 0) * " +
+    "Number(j.signed_linear_feet || 0) + Number(j.labor_flat_fee || 0); }";
 
   {
     // The exact job from section 1's smoke-adjacent case: $200 floor,
     // $8/ft labour, 4 ft of fence. Raw labour = 8*4 = $32; the REAL engine
     // (proven in section 1, and matching smoke.ts's owner-approved Case 5)
     // floors this to $200.
-    const jobRow = { sync_id: "job-A", labor_rate_per_ft: 8, signed_linear_feet: 4, labor_flat_fee: 0 };
+    // minimum_labor_charge is named on this fixture row deliberately -- it is
+    // the key whose absence made the old expectation unfalsifiable.
+    const jobRow = { sync_id: "job-A", labor_rate_per_ft: 8, signed_linear_feet: 4, labor_flat_fee: 0,
+                     minimum_labor_charge: 200 };
     // A crew actually spent $150 in wages on this job -- real, under the true
     // $200 quote, by $50.
     const costingRow = { job_sync_id: "job-A", labour_cost: 150, hours_worked: 10 };
@@ -298,50 +343,76 @@ try {
     ok("precondition: the real engine floors this job's labour to $200 (raw would be 8*4=$32)",
       trueOut.totals.labor_cost === 200, `labor_cost=${trueOut.totals.labor_cost}`);
 
+    // The fixture floor above only means anything if a real office job row
+    // actually carries that column: the page reads j.minimum_labor_charge off
+    // the `jobs` rows it selected with JOB_COLUMNS, and a column left out of
+    // that select list arrives undefined -- which Number(undefined || 0) turns
+    // into a floor of 0, disabling the floor on every real job while every
+    // check in this section still read green. tests/job-columns.test.mjs
+    // guards the list in general; this names the one column this section's
+    // verdict depends on.
+    const jcStart = src.indexOf("const JOB_COLUMNS = [");
+    const jobColumnsSrc = jcStart < 0 ? "" : src.slice(jcStart, src.indexOf("].join", jcStart));
+    ok("fixture check: JOB_COLUMNS selects minimum_labor_charge, so a live job row really carries the " +
+       "floor these fixtures set (positive control -- if it did not, the floor would silently be 0 on " +
+       "every real job and this whole section would prove nothing)",
+      jobColumnsSrc.includes("'minimum_labor_charge'"),
+      `JOB_COLUMNS slice ${jobColumnsSrc.length} chars`);
+
     const html = withLabourVsQuoted(jobRow, costingRow);
-    // Buggy "quoted" = 8*4+0 = 32. diff = 32-150 = -118 -> reads "over".
-    ok("FINDING: labourVsQuoted() reports the job as $118.00 OVER budget on labour " +
-       "(quoted read as $32.00, the un-floored raw figure) when the job was actually " +
-       "quoted at the true, floored $200.00 and is $50.00 UNDER budget -- the report is not just " +
-       "off by a magnitude, its OVER/UNDER verdict is inverted",
-      html.includes(money(118)) && html.includes(tr("repCostOverWord")),
+    // Floored "quoted" = max(8*4+0, 200) = 200. diff = 200-150 = +50 -> "under".
+    ok("labourVsQuoted() reports the job as $50.00 UNDER budget on labour, off the FLOORED $200.00 the " +
+       "customer was actually charged -- not the $118.00 OVER it used to report off the raw $32.00, " +
+       "which had the OVER/UNDER verdict inverted as well as the magnitude wrong",
+      html.includes(money(50)) && html.includes(tr("repCostUnderWord")) &&
+      !html.includes(money(118)) && !html.includes(tr("repCostOverWord")),
       `html: ${html}`);
-    ok("the CORRECT verdict, from the real engine's own number, would be $50.00 under " +
-       "(200 - 150 = 50), the opposite sign from what the report shows",
+    ok("and the price it names in the cell's own title is the real engine's labor_cost to the cent " +
+       "($200.00 priced, $150.00 cost) -- the office and the engine quote the one number",
+      html.includes(tr("repCostVsTitle", money(trueOut.totals.labor_cost), money(costingRow.labour_cost))),
+      `html: ${html}`);
+    ok("the engine's own arithmetic agrees the job is $50.00 under, the sign the report now shows",
       trueOut.totals.labor_cost - costingRow.labour_cost === 50,
       `true labor_cost=${trueOut.totals.labor_cost}, actual=${costingRow.labour_cost}`);
 
-    // CANARY: the same function, on a job with NO floor set, must agree with
-    // the engine -- proving withLabourVsQuoted really runs the report's real
-    // formula and the mismatch above is the floor being ignored, not a harness
-    // bug that always disagrees with priceJob().
-    const jobRowNoFloor = { sync_id: "job-B", labor_rate_per_ft: 8, signed_linear_feet: 4, labor_flat_fee: 0 };
+    // CANARY (planted failure): the SAME report function and the SAME fixture,
+    // with quotedLaborOf swapped for the pre-fix un-floored expression. It must
+    // come back with the old wrong answer -- that is what proves the three
+    // checks above would go red if the floor were ever taken out again, rather
+    // than being satisfied by any input.
+    const htmlBroken = withLabourVsQuoted(jobRow, costingRow, BROKEN_QUOTED);
+    ok("CANARY: with the floor taken back out of quotedLaborOf (the pre-fix formula, same fixture) the " +
+       "report returns to the reported bug -- $118.00 OVER -- so the checks above can fail",
+      htmlBroken.includes(money(118)) && htmlBroken.includes(tr("repCostOverWord")),
+      `html: ${htmlBroken}`);
+
+    // POSITIVE CONTROL: the shipped function on the same job with the floor
+    // switched OFF (0, the documented "off" value) must still bill the raw $32
+    // and read "$118.00 over" -- the CORRECT verdict there, and the same number
+    // the real engine gives. This keeps the fix honest in the other direction:
+    // it floors when there is a floor and does not invent one when there is not.
+    const jobRowNoFloor = { sync_id: "job-B", labor_rate_per_ft: 8, signed_linear_feet: 4, labor_flat_fee: 0,
+                            minimum_labor_charge: 0 };
     const costingRowNoFloor = { job_sync_id: "job-B", labour_cost: 150, hours_worked: 10 };
     const trueOutNoFloor = priceJob(input(job({ minimum_labor_charge: 0, labor_rate_per_ft: 8 }), [run("run-B", { manual_linear_feet: 4 })]));
     const htmlNoFloor = withLabourVsQuoted(jobRowNoFloor, costingRowNoFloor);
-    // With no floor active the real engine's own labor_cost IS 32 -- the same
-    // number the report computes -- so the report's "$118.00 over" is the
-    // CORRECT verdict here. That agreement (32 === 32) is exactly what makes
-    // the $200-floor case above a genuine disagreement rather than a harness
-    // that would disagree with priceJob() regardless of input.
-    ok("CANARY: with no floor set, the real engine's own labor_cost (32) matches what the report " +
-       "computed (also 32) -- both say $118.00 over, in agreement -- proving the FINDING above is " +
-       "specifically about the floor being ignored, not a harness that always disagrees with priceJob()",
+    ok("POSITIVE CONTROL: with minimum_labor_charge=0 the shipped function reports $118.00 over off the " +
+       "raw $32 -- matching the real engine's own labor_cost (32) for that job, so the $200 answer above " +
+       "is the floor being applied and not a harness that floors everything it is handed",
       trueOutNoFloor.totals.labor_cost === 32 &&
       htmlNoFloor.includes(money(118)) && htmlNoFloor.includes(tr("repCostOverWord")),
       `true labor_cost=${trueOutNoFloor.totals.labor_cost}; html: ${htmlNoFloor}`);
   }
 
   {
-    // The same bug, aggregated: two jobs in a period, one with the $200 floor
-    // active and one without, summed by labourEstVsActualTotals(). The
-    // company-wide "estimated" labour total should be 200+32=232; the report
-    // sums the un-floored raw figure for both and gets 32+32=64 -- a $168
-    // company-wide understatement of what labour was actually quoted at,
-    // for a company with just these two jobs.
+    // The same job pair, aggregated: two jobs in a period, one with the $200
+    // floor active and one without, summed by labourEstVsActualTotals(). The
+    // company-wide "estimated" labour total must be 200+32=232, what the engine
+    // priced them at. The pre-fix sum was 32+32=64 -- a $168 understatement of
+    // what labour was quoted at, for a company with just these two jobs.
     const jobsIn = [
-      { sync_id: "job-C", labor_rate_per_ft: 8, signed_linear_feet: 4, labor_flat_fee: 0 },
-      { sync_id: "job-D", labor_rate_per_ft: 8, signed_linear_feet: 4, labor_flat_fee: 0 },
+      { sync_id: "job-C", labor_rate_per_ft: 8, signed_linear_feet: 4, labor_flat_fee: 0, minimum_labor_charge: 200 },
+      { sync_id: "job-D", labor_rate_per_ft: 8, signed_linear_feet: 4, labor_flat_fee: 0, minimum_labor_charge: 0 },
     ];
     const costingBySync = new Map([
       ["job-C", { labour_cost: 0 }],
@@ -352,19 +423,57 @@ try {
     const trueTotal = trueFloored + trueUnfloored; // 200 + 32 = 232
 
     const { estimated } = withLabourEstVsActualTotals(jobsIn, costingBySync);
-    ok("FINDING: labourEstVsActualTotals() sums the company's 'estimated' labour for these two jobs " +
-       `as $${estimated.toFixed(2)} (32+32, both un-floored) when the true quoted total is ` +
-       `$${trueTotal.toFixed(2)} (200 floored + 32) -- a $${(trueTotal - estimated).toFixed(2)} ` +
-       "company-wide understatement from these two jobs alone",
-      estimated === 64 && trueTotal === 232 && (trueTotal - estimated) === 168,
+    ok("labourEstVsActualTotals() sums the company's 'estimated' labour for these two jobs as " +
+       `$${estimated.toFixed(2)} -- the same total the real engine prices them at ` +
+       `($${trueTotal.toFixed(2)}: 200 floored + 32 un-floored), not the pre-fix $64.00`,
+      estimated === 232 && trueTotal === 232 && estimated === trueTotal,
       `estimated=${estimated} trueTotal=${trueTotal}`);
+
+    // CANARY (planted failure): the pre-fix formula on the identical two jobs.
+    const { estimated: estBroken } = withLabourEstVsActualTotals(jobsIn, costingBySync, BROKEN_QUOTED);
+    ok("CANARY: the pre-fix un-floored formula sums the same two jobs to $64.00, a $168.00 " +
+       "company-wide understatement -- proving the aggregate check above can fail",
+      estBroken === 64 && (trueTotal - estBroken) === 168,
+      `estBroken=${estBroken} trueTotal=${trueTotal}`);
   }
 
-  console.log("  Same formula, byte-identical, also drives the inline 'labour_over' attention alert " +
-    "(website/dashboard.html ~line 11332: `Number(j.labor_rate_per_ft||0)*Number(j.signed_linear_feet||0)+Number(j.labor_flat_fee||0)`, " +
-    "no minimum_labor_charge term) -- not separately extracted here because it is inline in renderDash() " +
-    "rather than a standalone function, but it is textually the same expression proved wrong above, so a job " +
-    "sitting on the floor can raise a false 'labour has already cost more than it was priced at' alert.");
+  {
+    // The third surface: the inline 'labour_over' attention alert. It lives
+    // inside renderDash()'s attention-list builder rather than in a function a
+    // test can call, so the block is lifted verbatim and run -- this file used
+    // to assert it only by quoting its line number and calling the expression
+    // "byte-identical" to the two above, which is an argument, not a check.
+    const alertSrc = grabBetween(
+      "if (alertOn('labour_over')) jobCosting.filter(r => Number(r.labour_cost || 0) > 0.005).forEach(r => {",
+      "id: j.id, key:'labour_over:'+j.id, fp:j.updated_at });\n    }\n  });");
+    // Same job as above: priced at the floored $200, cost $150. $50 UNDER, so
+    // there is nothing to alert about.
+    const alertJob = { id: "job-E-id", sync_id: "job-E", labor_rate_per_ft: 8, signed_linear_feet: 4,
+                       labor_flat_fee: 0, minimum_labor_charge: 200, updated_at: "2026-01-01T00:00:00Z" };
+    const runAlert = (quotedSrc) => {
+      const items = [];
+      new Function("alertOn", "jobCosting", "jobs", "items", "tr", "money", "name", "quotedLaborOf", alertSrc)(
+        () => true,
+        [{ job_sync_id: "job-E", labour_cost: 150 }],
+        [alertJob], items, tr, money, (j) => j.sync_id,
+        new Function(quotedSrc + "\nreturn quotedLaborOf;")());
+      return items;
+    };
+    const quiet = runAlert(grabFn("quotedLaborOf"));
+    ok("the inline 'labour_over' alert stays SILENT on a job $50 under its floored $200 quote -- it reads " +
+       "the same floored quotedLaborOf() as the two reports above, where it used to fire a false " +
+       "'labour is over what it was priced at by $118.00' on exactly this job",
+      quiet.length === 0, `items: ${JSON.stringify(quiet)}`);
+
+    // CANARY (planted failure): same block, same fixture, pre-fix formula.
+    const noisy = runAlert(BROKEN_QUOTED);
+    ok("CANARY: the same alert block with the pre-fix un-floored formula raises exactly that false alert " +
+       "($118.00 over) on the same job -- proving the silence above is the floor working, not an alert " +
+       "block that can never fire",
+      noisy.length === 1 && String(noisy[0].text).includes(money(118)) &&
+      String(noisy[0].text) === tr("alertTxtLabourOver", money(118), "job-E"),
+      `items: ${JSON.stringify(noisy)}`);
+  }
 } catch (e) {
   ok("SECTION 2 (office labour-report functions) could not be reached: " + e.message, false,
     "a source-text anchor this section looks for in website/dashboard.html -- the TL translation table, " +

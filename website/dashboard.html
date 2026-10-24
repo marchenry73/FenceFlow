@@ -421,6 +421,20 @@
   .reapp-change{font-size:13px;margin:9px 0 0}
   .reapp-when{line-height:1.4}
   .reapp-row .btn{margin-top:10px}
+  /* The merged "Changes on this job" section (owner list F2). Two feeds that
+     are NOT the same thing share one header and one border: side by side on a
+     wide screen, stacked on a narrow one. auto-fit rather than a fixed 1fr 1fr
+     so that when one half is empty -- which on most jobs one of them is -- the
+     :empty rule below takes it out of flow and the surviving half gets the
+     whole width instead of sitting in a half-width column beside a blank. */
+  .chg-cols{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:0 28px;align-items:start}
+  .chg-cols>div:empty{display:none}
+  .chg-h3{margin:14px 0 2px;font-size:13px;text-transform:uppercase;letter-spacing:.4px;color:var(--muted)}
+  /* A crew member standing at the fence line waiting on an answer is not
+     history, so it is not in either column: it sits across the top in the same
+     warning colours the re-approval banner uses. */
+  .chg-wait{margin:10px 0 0;padding:10px 12px;border-radius:8px;background:var(--warn-bg);color:var(--warn-fg)}
+  .chg-wait b{display:block;margin-bottom:2px}
   /* Settings -> "How customers can pay you": a switch with its method's name
      beside it, then the box that method needs. The bare label rule above is
      small uppercase muted text, which is wrong for a thing you switch on. */
@@ -3092,9 +3106,43 @@
          like every other figure on this sheet. The rest of the panel is not
          gated, because a foreman needing to know "do not build this yet" is
          what the history is for. -->
-    <div class="panel" id="reapprovalHistoryPanel" style="display:none">
-      <h2 data-t="reapprovalHistoryTitle">Withdrawn approvals</h2>
-      <div id="reapprovalHistoryRows"></div>
+    <!-- OWNER LIST F2: "merge 'Drawing changes since approval' with 'Changes
+         from the field' into one section that looks good and saves space."
+         The phone did its half in JobDetailScreen.JobChangesSection; this is
+         the office half, and it follows the same shape on purpose.
+
+         THEY ARE NOT THE SAME THING, merged here only to save the sheet a
+         second header and border:
+           - "Withdrawn approvals" (#reapprovalHistoryRows) is quote_reapprovals
+             -- the customer's APPROVAL being withdrawn because the drawing
+             moved under it, fetched per job by loadReapprovalHistory(). Its one
+             action, "Put this drawing back", is unchanged and still gated the
+             way it was: canEdit() plus the job actually waiting on a
+             re-approval, decided per row by reapprovalRestoreState().
+           - "Changes from the field" (#jobFieldChangeRows) is field_changes --
+             what the crew reported, or asked for, from the fence line, fetched
+             per job by loadJobFieldChanges(). It carries no office action and
+             never did: deciding a crew REQUEST needs the run geometry and the
+             re-estimate, which live in the phone app, which is exactly what
+             Home's attnFieldChangeWaiting alert already says. So the office
+             half shows the request and says where to answer it rather than
+             offering a button that cannot do the work.
+
+         Nothing is lost by the merge: every row of both feeds, every note
+         either feed printed, and the one button the drawing half carries are
+         all still here. The panel is hidden only when BOTH halves have nothing
+         AND there is no message to show -- which is most jobs, so the sheet is
+         no longer than it was before this section existed. -->
+    <div class="panel" id="jobChangesPanel" style="display:none">
+      <h2 data-t="jobSecChanges">Changes on this job</h2>
+      <p class="sub" style="margin-top:0" data-t="jobChangesBody">Two different things, kept in one place: the
+        drawing changing under a customer who had already approved the quote, and what the crew reported or
+        asked about from the fence line.</p>
+      <div id="jobChangesWaiting"></div>
+      <div class="chg-cols">
+        <div id="jobFieldChangeRows"></div>
+        <div id="reapprovalHistoryRows"></div>
+      </div>
       <div class="msg" id="reapprovalHistoryMsg"></div>
     </div>
 
@@ -4407,6 +4455,15 @@ jobViewAll:'All', jobViewToday:'Today', jobViewWeek:'This week', jobViewUnschedu
     reapprovalResendBtn:'Send the quote again', jobLinkCopiedBtn:'Copied',
     reapprovalMoneySafe:'Payments already taken are not affected.',
     reapprovalHistoryTitle:'Withdrawn approvals',
+    jobSecChanges:'Changes on this job',
+    jobChangesBody:'Two different things, kept in one place: the drawing changing under a customer who had already approved the quote, and what the crew reported or asked about from the fence line.',
+    jobChangesFieldHead:'Changes from the field',
+    jobChangesWaitingHead:'A crew member is waiting on an answer',
+    jobChangesWaitingBody:'Answer it in the phone app, on the job screen \u2014 deciding one needs the drawing and the re-estimate, which only the app has.',
+    jobChangesRaisedBy:'Raised by %s',
+    jobChangesAnsweredBy:'Answered by %s',
+    jobChangesSeenOn:'Marked seen %s',
+    jobChangesFieldLoadFailed:'What the crew reported from the field could not be loaded: %s',
     reapprovalHistoryEmpty:'No withdrawn approvals on this job.',
     reapprovalPrior:'Approved by %s on %s, withdrawn %s',
     reapprovalPriorResolved:'Approved by %s on %s, withdrawn %s, re-approved %s',
@@ -6286,6 +6343,15 @@ jobViewAll:'Todos', jobViewToday:'Hoy', jobViewWeek:'Esta semana', jobViewUnsche
     reapprovalResendBtn:'Enviar el presupuesto de nuevo', jobLinkCopiedBtn:'Copiado',
     reapprovalMoneySafe:'Los pagos ya recibidos no se ven afectados.',
     reapprovalHistoryTitle:'Aprobaciones retiradas',
+    jobSecChanges:'Cambios en este trabajo',
+    jobChangesBody:'Dos cosas distintas, en un mismo lugar: el dibujo que cambi\u00f3 despu\u00e9s de que el cliente ya hab\u00eda aprobado el presupuesto, y lo que el equipo report\u00f3 o pregunt\u00f3 desde la l\u00ednea de cerca.',
+    jobChangesFieldHead:'Cambios desde el campo',
+    jobChangesWaitingHead:'Un miembro del equipo espera una respuesta',
+    jobChangesWaitingBody:'Resp\u00f3ndalo en la aplicaci\u00f3n del tel\u00e9fono, en la pantalla del trabajo \u2014 decidirlo necesita el dibujo y el nuevo c\u00e1lculo del precio, que solo tiene la aplicaci\u00f3n.',
+    jobChangesRaisedBy:'Reportado por %s',
+    jobChangesAnsweredBy:'Respondido por %s',
+    jobChangesSeenOn:'Marcado como visto el %s',
+    jobChangesFieldLoadFailed:'No se pudieron cargar los cambios desde el campo: %s',
     reapprovalHistoryEmpty:'No hay aprobaciones retiradas en este trabajo.',
     reapprovalPrior:'Aprobado por %s el %s, retirado el %s',
     reapprovalPriorResolved:'Aprobado por %s el %s, retirado el %s, aprobado de nuevo el %s',
@@ -8135,6 +8201,15 @@ jobViewAll:'Tous', jobViewToday:'Aujourdhui', jobViewWeek:'Cette semaine', jobVi
     reapprovalResendBtn:'Renvoyer le devis', jobLinkCopiedBtn:'Copié',
     reapprovalMoneySafe:'Les paiements déjà reçus ne sont pas affectés.',
     reapprovalHistoryTitle:'Approbations retirées',
+    jobSecChanges:'Changements sur ce chantier',
+    jobChangesBody:'Deux choses diff\u00e9rentes, au m\u00eame endroit : le plan modifi\u00e9 apr\u00e8s que le client avait d\u00e9j\u00e0 approuv\u00e9 le devis, et ce que l\u2019\u00e9quipe a signal\u00e9 ou demand\u00e9 depuis la ligne de cl\u00f4ture.',
+    jobChangesFieldHead:'Changements du terrain',
+    jobChangesWaitingHead:'Un membre de l\u2019\u00e9quipe attend une r\u00e9ponse',
+    jobChangesWaitingBody:'R\u00e9pondez dans l\u2019application du t\u00e9l\u00e9phone, sur l\u2019\u00e9cran du chantier \u2014 pour d\u00e9cider, il faut le plan et le nouveau calcul du prix, que seule l\u2019application poss\u00e8de.',
+    jobChangesRaisedBy:'Signal\u00e9 par %s',
+    jobChangesAnsweredBy:'R\u00e9pondu par %s',
+    jobChangesSeenOn:'Marqu\u00e9 comme vu le %s',
+    jobChangesFieldLoadFailed:'Les changements du terrain n\u2019ont pas pu \u00eatre charg\u00e9s : %s',
     reapprovalHistoryEmpty:'Aucune approbation retirée sur ce chantier.',
     reapprovalPrior:'Approuvé par %s le %s, retiré le %s',
     reapprovalPriorResolved:'Approuvé par %s le %s, retiré le %s, approuvé de nouveau le %s',
@@ -22651,7 +22726,7 @@ function reapprovalOldestUnresolvedIds(rows){
 // fence_runs write -- see the panel's own markup for why that is not an
 // approve-anyway button.
 async function loadReapprovalHistory(job){
-  const panel = $('reapprovalHistoryPanel');
+  const panel = $('jobChangesPanel');
 /* THE TAKEOFF FINGERPRINT, IN ENGLISH.
    reapp_run_takeoff returns `b=415.3|t=0.0|c=4|e=2|g=3|gf=15.0|gm=WALL+LINE`
    -- built feet, teardown feet, corners, ends, gate count, gate feet, and the
@@ -22740,7 +22815,7 @@ function takeoffWords(before, after) {
     if (note && !note.textContent)
       msg('reapprovalHistoryMsg', tr('reapprovalHistoryLoadFailed', error.message), 'err');
     else
-      box.innerHTML = '<div class="no-data">'
+      box.innerHTML = reapprovalHalfHead() + '<div class="no-data">'
         + esc(tr('reapprovalHistoryLoadFailed', error.message)) + '</div>';
     return;
   }
@@ -22749,8 +22824,13 @@ function takeoffWords(before, after) {
   // no error belongs here too: it is an answer of nothing, not a failure.
   if (!data || !data.length) {
     reapprovalRows = [];
-    panel.style.display = 'none';
     box.innerHTML = '';
+    // NOT panel.style.display = 'none' any more. This panel is shared with the
+    // field-changes half since the F2 merge, and hiding it here took that half
+    // off the screen with it on every job that has no withdrawn approval --
+    // which is most jobs, i.e. almost always. Visibility is decided once, from
+    // BOTH halves, by syncJobChangesPanel().
+    syncJobChangesPanel();
     return;
   }
   reapprovalRows = data;
@@ -22764,7 +22844,7 @@ function takeoffWords(before, after) {
   const jobWide = !data.some(r => !r.resolved_at) ? ''
     : !job.reapproval_required_at ? 'notpending' : !canEdit() ? 'noedit' : '';
   const canReturn = reapprovalOldestUnresolvedIds(data);
-  box.innerHTML = (jobWide
+  box.innerHTML = reapprovalHalfHead() + (jobWide
       ? '<p class="reapp-note" style="margin:0 0 10px">'
         + esc(tr(REAPPROVAL_RESTORE_WHY_NOT[jobWide])) + '</p>'
       : '')
@@ -22816,6 +22896,141 @@ function takeoffWords(before, after) {
     return '<div class="reapp-row">'
       + '<div class="reapp-when">' + esc(line) + '</div>' + total + change + ordering + partial + action + '</div>';
   }).join('');
+  syncJobChangesPanel();
+}
+
+/* The withdrawn-approval half's own sub-heading, inside the merged section.
+   Its old panel title, reused verbatim rather than renamed: the office has
+   called these "withdrawn approvals" since they existed, and the merge was
+   asked for to save space, not to re-teach the vocabulary. */
+function reapprovalHalfHead(){
+  return '<h3 class="chg-h3">' + esc(tr('reapprovalHistoryTitle')) + '</h3>';
+}
+
+/* ================= Changes from the field, this job ========================
+   The other half of the merged Changes section: field_changes rows, which are
+   what the crew reported or asked for from the fence line. A REPORT says the
+   fence line already moved and the office needs to know; a REQUEST says they
+   have stopped work and are waiting on an answer (supabase_plan_request_patch.sql).
+
+   Fetched per job, like the withdrawn approvals above, and deliberately NOT
+   read out of loadAll()'s global fieldChanges list: that list is bounded to the
+   recent window plus every request still waiting, so on a job older than the
+   window this half would have rendered EMPTY and read as "the crew never
+   reported anything on this job" -- a loaded-nothing shown as a known-nothing,
+   the same mistake the error branch below exists to avoid.
+
+   READ-ONLY, and that is not an omission. The server's field_changes UPDATE
+   policy does allow owner/manager/foreman to approve, reject or mark one seen,
+   but deciding a crew request needs the run geometry and the re-estimate, which
+   live in the phone app -- which is exactly what Home's attnFieldChangeWaiting
+   alert already tells the office. So this half shows the request and says where
+   to answer it, rather than offering a button that cannot do the work. */
+let jobFieldChanges = [];
+
+function fieldChangeIsWaiting(f){
+  return !!f.is_request && !f.approved_at && !f.rejected_at;
+}
+
+async function loadJobFieldChanges(job){
+  const box = $('jobFieldChangeRows'), wait = $('jobChangesWaiting');
+  if (!box || !wait) return;
+  // Painted empty first, so the previous job's field changes are never on
+  // screen under this job's name while the fetch is in flight -- the same rule
+  // renderJobExtras() follows for the snags.
+  jobFieldChanges = [];
+  box.innerHTML = ''; wait.innerHTML = '';
+  syncJobChangesPanel();
+  if (!job) return;
+  const { data, error } = await db.from('field_changes')
+    .select('id,at,summary,detail,changed_by,changed_by_role,acknowledged_at,'
+      + 'is_request,approved_at,rejected_at,decided_by,decision_note')
+    .eq('job_sync_id', job.sync_id).is('deleted_at', null)
+    .order('at', { ascending: false });
+  // A READ THAT FAILED is not a job with nothing on it. Same door the
+  // withdrawn-approval half had to be given above: say so, rather than leave
+  // through the empty case and show a failure as good news.
+  if (error) {
+    jobFieldChanges = [];
+    box.innerHTML = fieldHalfHead() + '<div class="no-data">'
+      + esc(tr('jobChangesFieldLoadFailed', error.message)) + '</div>';
+    syncJobChangesPanel();
+    return;
+  }
+  jobFieldChanges = data || [];
+  renderJobFieldChanges();
+}
+
+function fieldHalfHead(){
+  return '<h3 class="chg-h3">' + esc(tr('jobChangesFieldHead')) + '</h3>';
+}
+
+function renderJobFieldChanges(){
+  const box = $('jobFieldChangeRows'), wait = $('jobChangesWaiting');
+  if (!box || !wait) return;
+  const rows = jobFieldChanges || [];
+  // Requests still waiting on a decision come out of the column and go across
+  // the top, ahead of both halves' settled history -- the same ordering the
+  // phone's merged card uses, and for the same reason: somebody has stopped
+  // work over this, and burying it under settled history is how they end up
+  // waiting all afternoon.
+  const waiting = rows.filter(fieldChangeIsWaiting);
+  const settled = rows.filter(f => !fieldChangeIsWaiting(f));
+
+  const when = f => f.at ? d(f.at).toLocaleDateString() : '\u2014';
+  const kindWord = f => esc(tr(f.is_request ? 'repScAsked' : 'repScReported'));
+  const state = f => !f.is_request ? ''
+    : f.approved_at ? ' <span class="pill ok">' + esc(tr('repScApproved')) + '</span>'
+    : f.rejected_at ? ' <span class="pill no">' + esc(tr('repScTurnedDown')) + '</span>'
+    : ' <span class="pill wait">' + esc(tr('repWaitingWord')) + '</span>';
+  const row = f => {
+    // detail only when it adds something: the app writes the same sentence
+    // into both columns on some kinds of change, and printing it twice makes
+    // the row look like two.
+    const detail = String(f.detail || '').trim();
+    const summary = String(f.summary || '').trim();
+    const by = String(f.changed_by || '').trim();
+    const role = String(f.changed_by_role || '').trim();
+    const decided = String(f.decided_by || '').trim();
+    const note = String(f.decision_note || '').trim();
+    return '<div class="reapp-row">'
+      + '<div class="reapp-when">' + esc(when(f)) + ' \u00b7 ' + kindWord(f) + state(f) + '</div>'
+      + (summary ? '<div class="reapp-change">' + esc(summary) + '</div>' : '')
+      + (detail && detail !== summary ? '<div class="reapp-note">' + esc(detail) + '</div>' : '')
+
+      + (by ? '<div class="reapp-note">' + esc(tr('jobChangesRaisedBy', by))
+              + (role ? ' \u00b7 ' + esc(role) : '') + '</div>' : '')
+      + (decided ? '<div class="reapp-note">' + esc(tr('jobChangesAnsweredBy', decided)) + '</div>' : '')
+      + (note ? '<div class="reapp-note">' + esc(note) + '</div>' : '')
+      + (f.acknowledged_at ? '<div class="reapp-note">'
+              + esc(tr('jobChangesSeenOn', d(f.acknowledged_at).toLocaleDateString())) + '</div>' : '')
+      + '</div>';
+  };
+
+  wait.innerHTML = waiting.length
+    ? '<div class="chg-wait"><b>' + esc(tr('jobChangesWaitingHead')) + '</b>'
+      + esc(tr('jobChangesWaitingBody')) + '</div>'
+      + waiting.map(row).join('')
+    : '';
+  box.innerHTML = settled.length ? fieldHalfHead() + settled.map(row).join('') : '';
+  syncJobChangesPanel();
+}
+
+/* ONE decision about whether the merged section is on screen, taken from
+   everything inside it. Before the merge each feed owned its own panel and
+   could hide it alone; now that they share one, either half hiding it would
+   take the other half down with it. The section is shown when any half has
+   something to say -- rows, a sub-heading, a waiting request, or the line that
+   reports how a restore turned out -- and hidden only when none of them do,
+   which on most jobs is the case and is what keeps the sheet short. */
+function syncJobChangesPanel(){
+  const panel = $('jobChangesPanel');
+  if (!panel) return;
+  const filled = id => { const el = $(id); return !!(el && el.innerHTML.trim()); };
+  const noted = () => { const el = $('reapprovalHistoryMsg'); return !!(el && el.textContent.trim()); };
+  panel.style.display =
+    (filled('jobChangesWaiting') || filled('jobFieldChangeRows')
+     || filled('reapprovalHistoryRows') || noted()) ? 'block' : 'none';
 }
 
 /* ================= Photos & documents from the job's cloud folder =========
@@ -24300,6 +24515,7 @@ async function showJob(id){
     loadJobExtras(openJob.sync_id);
   }
   loadReapprovalHistory(openJob);
+  loadJobFieldChanges(openJob);
   if(!openJob) return;
   renderJobHeader();
   // A preview left over from whichever job was open before this one is not
