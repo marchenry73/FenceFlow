@@ -1,0 +1,116 @@
+# SCHEDULED EMAIL -- the clock that sends the ones that are due.
+#
+# A row in mail_drafts with send_at set is an email waiting for its moment.
+# This asks mail-send, every five minutes, to send whatever is now due. Five
+# minutes is the shortest interval GitHub Actions offers, and there is no
+# pg_cron on this project, so five minutes is the granularity a scheduled
+# email has: "8:00" means "at or just after 8:00", never before.
+#
+# WHY THIS CAN RUN EVERY FIVE MINUTES WITHOUT EVER SENDING TWICE. Two
+# independent guards, either of which would be enough:
+#   - the sweep claims each row with an update conditional on send_state still
+#     being null, so of two overlapping runs exactly one gets the row;
+#   - every scheduled row carries the client_send_id it was given when it was
+#     SCHEDULED, and mail-send refuses to send the same client_send_id twice --
+#     so even a run that dies after handing a letter to the provider cannot
+#     send a second copy when it is retried.
+#
+# TURNING IT ON takes two secrets with the SAME value:
+#   1. Supabase function secret MAIL_SCHEDULED_TRIGGER_SECRET
+#      (supabase secrets set MAIL_SCHEDULED_TRIGGER_SECRET=...), which is what
+#      the function compares against in constant time. Until it is set, the
+#      function refuses every call with not_configured rather than opening the
+#      door.
+#   2. GitHub Actions secret MAIL_SCHEDULED_TRIGGER_SECRET
+#      (Settings -> Secrets and variables -> Actions), which is what this sends.
+# Until both exist, a scheduled email simply waits: nothing is lost, and the
+# office shows it as still queued.
+#
+# A missing secret is reported, not hidden. On the schedule it is a notice, so
+# the Actions tab is not a wall of red before the feature is switched on; run
+# by hand it FAILS, because somebody asked for the queue to be sent and none
+# of it can be.
+#
+# The anon key below is the publishable one the apps already ship: the gateway
+# wants an apikey on every function call, and the real door here is the
+# x-fenceflow-trigger secret.
+name: Scheduled email sender
+
+on:
+  schedule:
+    - cron: '*/5 * * * *' # every five minutes, UTC
+  workflow_dispatch: {} # manual "send what is due now" from the Actions tab
+
+# Two runs sweeping at once is safe (see the claim above), but it is pointless,
+# and it would double the log noise.
+concurrency:
+  group: mail-scheduled
+  cancel-in-progress: false
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Send scheduled email that is due
+        env:
+          TRIGGER_SECRET: ${{ secrets.MAIL_SCHEDULED_TRIGGER_SECRET }}
+          SUPABASE_ANON_KEY: 'sb_publishable_2WmwTcQkUNCRzDCRpNmwWA_s3gxJk3b'
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+
+          if [ -z "${TRIGGER_SECRET:-}" ]; then
+            why="MAIL_SCHEDULED_TRIGGER_SECRET is not set (GitHub -> Settings -> Secrets and variables -> Actions, and the same value as a Supabase function secret). Scheduled email is switched off, so anything queued is still waiting -- nothing has been lost."
+            echo "### Scheduled email sender: not configured" >> "$GITHUB_STEP_SUMMARY"
+            echo "$why" >> "$GITHUB_STEP_SUMMARY"
+            if [ "${EVENT_NAME}" = "workflow_dispatch" ]; then
+              echo "::error::${why}"
+              exit 1
+            fi
+            echo "::notice::${why}"
+            exit 0
+          fi
+
+          # --retry covers a blip between GitHub and Supabase. Repeating the
+          # call is safe: each row is claimed before it is sent, and the
+          # client_send_id minted at schedule time means a retry can only ever
+          # report what already happened.
+          http_status=$(curl -sS --retry 2 --retry-delay 10 --max-time 170 \
+            -o response.json -w '%{http_code}' \
+            -X POST 'https://newcrgafcptspmapacrx.supabase.co/functions/v1/mail-send' \
+            -H "apikey: ${SUPABASE_ANON_KEY}" \
+            -H "Authorization: Bearer ${SUPABASE_ANON_KEY}" \
+            -H "x-fenceflow-trigger: ${TRIGGER_SECRET}" \
+            -H "Content-Type: application/json")
+
+          echo "HTTP status: ${http_status}"
+          cat response.json
+          # The body has no trailing newline, and a ::error:: line only counts
+          # as an annotation at the start of a line.
+          echo
+
+          if [ "${http_status}" != "200" ]; then
+            echo "::error::mail-send returned HTTP ${http_status} for the scheduled sweep, treating as failure." >&2
+            exit 1
+          fi
+
+          # A 200 carrying an error_code is still a failure: the sweep answers
+          # {"ok":true,...} when it ran, whatever it found.
+          if grep -q '"error_code"' response.json; then
+            echo "::error::mail-send answered 200 with an error: $(cat response.json)" >&2
+            exit 1
+          fi
+
+          # What it did, on the run summary, so a quiet five minutes and a
+          # five minutes that sent eleven letters do not look identical.
+          echo "### Scheduled email sender" >> "$GITHUB_STEP_SUMMARY"
+          echo '```json' >> "$GITHUB_STEP_SUMMARY"
+          cat response.json >> "$GITHUB_STEP_SUMMARY"
+          echo '' >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
+          # A row that FAILED is visible in the office, but a run where
+          # everything failed should not look like a run where everything went.
+          if grep -qE '"failed":[1-9]' response.json; then
+            echo "::warning::Some scheduled email could not be sent; the office shows why on each one." >&2
+          fi

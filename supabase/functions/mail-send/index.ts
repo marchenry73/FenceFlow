@@ -106,7 +106,7 @@
  * Resend call carries the row id as its Idempotency-Key.
  */
 
-import { corsHeaders, errorResponse, isUuid, json, loadAccountAsCaller, mailCaller, readJsonBody } from "../_shared/mail/caller.ts";
+import { corsHeaders, errorResponse, isUuid, json, loadAccountAsCaller, mailCaller, readJsonBody, triggerCaller } from "../_shared/mail/caller.ts";
 import type { MailCaller } from "../_shared/mail/caller.ts";
 import { accountStatusFor, errorBody, forCustomHost, MailError, MESSAGES, redact } from "../_shared/mail/errors.ts";
 import type { MailErrorCode } from "../_shared/mail/errors.ts";
@@ -1461,6 +1461,237 @@ async function viaFenceflow(caller: MailCaller, deps: SendDeps, req: SendRequest
 }
 
 // ---------------------------------------------------------------------------
+// The scheduled door: a draft with a time on it.
+// ---------------------------------------------------------------------------
+/**
+ * SCHEDULED SEND. A row in mail_drafts with send_at set is an email waiting
+ * for its moment; this sweeps the ones that are due and sends each through the
+ * ordinary FenceFlow path, so a scheduled letter is the same letter with the
+ * same guarantees as one sent by hand.
+ *
+ * Swept every five minutes by GitHub Actions, which is the shortest interval
+ * Actions offers and therefore the granularity a scheduled email has here.
+ * There is no pg_cron on this project.
+ *
+ * THE CLAIM IS WHAT STOPS A DOUBLE SEND, twice over. The update that marks a
+ * row 'sending' carries `is("send_state", null)` as its own condition, so of
+ * two overlapping runs exactly one wins the row and the other sees no row
+ * come back. And every scheduled row already carries the client_send_id it
+ * was given when it was SCHEDULED, so even a sender that dies after handing
+ * the letter to the provider cannot send a second copy: mail-send refuses the
+ * same client_send_id twice, and a retry carries the same one.
+ *
+ * WHAT IS REFUSED RATHER THAN SENT, and why each refusal is the safe answer:
+ *
+ *  - A draft naming a mailbox account. Sending from a company's own mailbox
+ *    needs its account row, and loadAccountAsCaller exists precisely so that
+ *    lookup runs under the caller's RLS -- "never look an account up by id
+ *    with the admin client alone". A cron has no session, and mail_drafts'
+ *    insert policy checks the author and the company but NOT that account_id
+ *    belongs to that company. So a scheduled draft pointing at another
+ *    company's mailbox is refused outright instead of being sent from it.
+ *
+ *  - A reply or a forward. mail-send threads those by the MESSAGE being
+ *    answered, and mail_drafts records only the thread. Sending one anyway
+ *    would land a reply outside its conversation.
+ *
+ *  - An author who is no longer allowed to send: gone, now CREW, or moved to
+ *    another company. company_allowed() is re-asked too, so a company that
+ *    has stopped paying does not get FenceFlow spending its Resend quota on a
+ *    letter queued before it lapsed.
+ *
+ *    ONE GAP, STATED RATHER THAN HIDDEN: can_use_company_mail() reads
+ *    auth.uid() and has_permission() has no form that takes a user id, so the
+ *    full gate cannot be re-asked for somebody else without parameterising a
+ *    function that many RLS policies depend on. The checks above cover a
+ *    departure, a demotion to CREW, a company change and a lapsed company;
+ *    they do NOT cover SEE_MONEY being revoked from a non-CREW role between
+ *    scheduling and sending. That letter was composed and addressed by that
+ *    person while they held the right, so sending it is the action they
+ *    already authorised -- but it is a gap, and closing it means giving
+ *    has_permission a uid form as its own change.
+ *
+ * THE ADMIN CLIENT STANDS IN FOR THE AUTHOR'S, which is only safe because of
+ * those refusals: with no attachment, no parent message and no account to
+ * look up, every id this path touches comes from the draft row itself -- a row
+ * RLS only let its own author write, in their own company.
+ */
+const SCHEDULED_SECRET = "MAIL_SCHEDULED_TRIGGER_SECRET";
+
+/** One run's worth. A backlog is drained over the following runs, not in one. */
+const SCHEDULED_BATCH = 25;
+
+/**
+ * A stored address list as mail-send wants it: an array.
+ *
+ * mail_drafts keeps to/cc/bcc as the text he typed, and addressList() refuses
+ * anything that is not already a list -- so the splitting happens here, on the
+ * same separators the office accepts (comma, semicolon, newline). Each address
+ * is still validated downstream by normalizeAddress; this only divides them.
+ */
+function storedAddresses(text: unknown): string[] {
+  return String(text ?? "")
+    .split(/[,;\n]/)
+    .map((s) => s.trim())
+    .filter((s) => s.length > 0);
+}
+
+/** Why one scheduled draft was not sent. Stored on the row, shown by the office. */
+class ScheduledRefusal extends Error {}
+
+async function sendOneScheduled(
+  admin: MailCaller["admin"],
+  deps: SendDeps,
+  draft: Row,
+  secrets: string[],
+): Promise<void> {
+  const companyId = String(draft.company_id ?? "");
+  const authorId = String(draft.author_id ?? "");
+  const kind = String(draft.kind ?? "").toLowerCase();
+
+  if (draft.account_id) {
+    throw new ScheduledRefusal(
+      "A scheduled email can only be sent by FenceFlow, not from your own mailbox.",
+    );
+  }
+  if (kind === "reply" || kind === "forward") {
+    throw new ScheduledRefusal("A reply or forward cannot be scheduled yet.");
+  }
+  if (!isUuid(draft.client_send_id)) {
+    throw new ScheduledRefusal("This scheduled email has no send id, so it cannot be sent safely.");
+  }
+
+  // The author, as they stand NOW -- not as they stood when this was queued.
+  const { data: profile, error: profileError } = await admin
+    .from("profiles").select("company_id, role").eq("id", authorId).maybeSingle();
+  if (profileError) throw new ScheduledRefusal("The sender's account could not be read.");
+  if (!profile) throw new ScheduledRefusal("The person who scheduled this no longer has an account.");
+  const role = String(profile.role ?? "");
+  if (role === "CREW") throw new ScheduledRefusal("The person who scheduled this may no longer send mail.");
+  if (String(profile.company_id ?? "") !== companyId) {
+    throw new ScheduledRefusal("The person who scheduled this has moved to another company.");
+  }
+
+  const { data: allowed, error: allowedError } = await admin.rpc("company_allowed", { cid: companyId });
+  if (allowedError) throw new ScheduledRefusal("The company's standing could not be read.");
+  if (allowed !== true) throw new ScheduledRefusal("This company's FenceFlow account is not active.");
+
+  const { data: company, error: companyError } = await admin
+    .from("companies").select("name, email, logo_path").eq("id", companyId).maybeSingle();
+  if (companyError || !company) throw new ScheduledRefusal("The company could not be read.");
+
+  const email = String(company.email ?? "").trim();
+  const caller: MailCaller = {
+    uid: authorId,
+    companyId,
+    role,
+    isOwner: role === "OWNER",
+    companyName: String(company.name ?? "").trim(),
+    companyEmail: email || null,
+    companyLogoPath: String(company.logo_path ?? "").trim(),
+    // See the note above: the refusals are what make this safe.
+    userClient: admin,
+    admin,
+  };
+
+  const body: Row = {
+    client_send_id: String(draft.client_send_id),
+    from_account_id: "fenceflow",
+    to: storedAddresses(draft.to_text),
+    cc: storedAddresses(draft.cc_text),
+    bcc: storedAddresses(draft.bcc_text),
+    subject: draft.subject ?? "",
+    text: draft.body ?? "",
+    hide_cta_url: draft.hide_cta_url === true,
+    ...(isUuid(draft.job_sync_id) ? { job_sync_id: String(draft.job_sync_id) } : {}),
+  };
+
+  const parsed = parseRequest(body, caller);
+  const answer = await viaFenceflow(caller, deps, parsed, body, secrets);
+  const said = await answer.clone().json().catch(() => ({})) as Row;
+  if (said.state !== "sent") {
+    throw new ScheduledRefusal(String(said.message ?? "The provider did not take the message."));
+  }
+
+  await admin.from("mail_drafts")
+    .update({ send_state: "sent", send_error: null })
+    .eq("id", String(draft.id));
+
+  // THE QUOTE STAMP, which the screen does when it sends by hand and nothing
+  // would do here: a scheduled quote that went out while the job still read
+  // "not sent" would leave the follow-up rules counting from nothing and the
+  // contract total still drifting. Written only when empty, so a re-send keeps
+  // the date the customer first got it, and the status only ever advances out
+  // of DRAFT -- an ACCEPTED job is not dragged back to Quote Sent.
+  if (isUuid(draft.quote_send_for)) {
+    const { data: job } = await admin
+      .from("jobs").select("id, quote_sent_at, status")
+      .eq("sync_id", String(draft.quote_send_for)).eq("company_id", companyId).maybeSingle();
+    if (job) {
+      const patch: Row = {};
+      if (!job.quote_sent_at) patch.quote_sent_at = new Date(deps.now()).toISOString();
+      if (String(job.status ?? "") === "DRAFT") patch.status = "SENT";
+      if (Object.keys(patch).length > 0) {
+        await admin.from("jobs").update(patch).eq("id", job.id);
+      }
+    }
+  }
+}
+
+async function sweepScheduled(req: Request, deps: SendDeps, secrets: string[]): Promise<Response> {
+  const { admin } = await triggerCaller(req, SCHEDULED_SECRET);
+  const nowIso = new Date(deps.now()).toISOString();
+
+  const { data: due, error } = await admin
+    .from("mail_drafts")
+    .select("id")
+    .not("send_at", "is", null)
+    .lte("send_at", nowIso)
+    .is("send_state", null)
+    .order("send_at", { ascending: true })
+    .limit(SCHEDULED_BATCH);
+  if (error) throw new MailError("server_error", error.message);
+
+  let sent = 0;
+  let failed = 0;
+  let claimedByAnother = 0;
+
+  for (const row of due ?? []) {
+    // THE CLAIM. `is("send_state", null)` is the compare-and-swap: two
+    // overlapping runs cannot both get the row back.
+    const { data: claimed } = await admin
+      .from("mail_drafts")
+      .update({ send_state: "sending", send_attempted_at: nowIso })
+      .eq("id", String(row.id))
+      .is("send_state", null)
+      .select("*")
+      .maybeSingle();
+    if (!claimed) {
+      claimedByAnother++;
+      continue;
+    }
+    try {
+      await sendOneScheduled(admin, deps, claimed as Row, secrets);
+      sent++;
+    } catch (e) {
+      failed++;
+      const why = e instanceof ScheduledRefusal
+        ? e.message
+        : e instanceof MailError
+        ? MESSAGES[e.code]
+        : "The scheduled email could not be sent.";
+      // 'failed' and a reason, never back to null: a row that keeps failing
+      // must stop being retried for ever and start being visible instead.
+      await admin.from("mail_drafts")
+        .update({ send_state: "failed", send_error: redact(why, secrets) })
+        .eq("id", String(claimed.id));
+    }
+  }
+
+  return json({ ok: true, due: (due ?? []).length, sent, failed, claimed_by_another: claimedByAnother });
+}
+
+// ---------------------------------------------------------------------------
 // The door.
 // ---------------------------------------------------------------------------
 
@@ -1471,6 +1702,12 @@ export async function handleRequest(req: Request, deps: SendDeps = productionDep
   // Every secret this request comes to hold, for redacting whatever goes back.
   const secrets: string[] = [];
   try {
+    // THE SCHEDULED DOOR IS ASKED FIRST, and only when the header is actually
+    // present: a request without it falls through to the ordinary session
+    // door exactly as before, so nothing about sending by hand changes. The
+    // secret itself is compared in constant time by triggerCaller, and an
+    // unset secret refuses everything rather than opening the door.
+    if (req.headers.get("x-fenceflow-trigger")) return await sweepScheduled(req, deps, secrets);
     // Who is asking comes first: nobody's body is read before the gate.
     const caller = await mailCaller(req);
     const body = await readJsonBody(req);
