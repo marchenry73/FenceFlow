@@ -479,8 +479,13 @@ test("the phone marks the quote sent ONLY where mail-send confirmed it", () => {
   // once the workaround is gone. So it is replaced, not deleted: the rule that
   // actually matters is the one the office has always been held to, and it is
   // asserted here the same way -- stamp on the confirmed send, nowhere else.
+  //
+  // The block below is located by NAME, never by the lambda's type. Pinned
+  // to "(String) -> String", this slicer and the two after it went blind the
+  // day the builder took a second argument, and all three reported "the block
+  // is gone" instead of anything about the rules they exist to defend.
   const kt = read(JOBSCREEN);
-  const start = kt.indexOf("val quoteEmailBody: (String) -> String");
+  const start = kt.indexOf("val quoteEmailBody:");
   assert.ok(start > 0, "the phone's quote-email block is gone");
   const end = kt.indexOf("R.string.field_email", start);
   assert.ok(end > start, "could not find the end of the phone's quote-email block");
@@ -523,7 +528,7 @@ test("CANARY: a stamp moved into the phone's Failed branch turns that check red"
   // Teeth for the test above, on a copy of the source -- the same canary the
   // office's half of this file carries.
   const kt = read(JOBSCREEN);
-  const start = kt.indexOf("val quoteEmailBody: (String) -> String");
+  const start = kt.indexOf("val quoteEmailBody:");
   const end = kt.indexOf("R.string.field_email", start);
   const block = kt.slice(start, end);
   const failedAt = block.indexOf("Result.Failed ->");
@@ -734,7 +739,7 @@ test("CREW CANNOT REACH THE QUOTE EMAIL, and it is not this feature's own gate",
 
   // The phone's side is money-gated too: the quote link shows sell prices.
   const kt = read(JOBSCREEN);
-  const at = kt.indexOf("val quoteEmailBody: (String) -> String");
+  const at = kt.indexOf("val quoteEmailBody:");
   assert.ok(at > 0);
   const before = kt.slice(kt.lastIndexOf("if (session.canSeeMoney) item {", at), at);
   assert.ok(before.length > 0, "the phone's quote-email button is no longer inside a canSeeMoney item");

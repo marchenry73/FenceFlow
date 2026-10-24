@@ -129,6 +129,7 @@ import com.fenceestimator.app.data.PermitStatus
 import com.fenceestimator.app.data.PunchListItem
 import com.fenceestimator.app.estimate.EstimateEngine
 import com.fenceestimator.app.estimate.JobMoney
+import com.fenceestimator.app.estimate.PaymentLinkGate
 import com.fenceestimator.app.geometry.FenceCodec
 import com.fenceestimator.app.geometry.FenceGeometryEngine
 import com.fenceestimator.app.data.PhotoKind
@@ -659,17 +660,27 @@ fun JobDetailScreen(
                     // made for, so sending an old one charges the customer the
                     // wrong total -- the rule the payment card below states in
                     // those words, and the reason several of his open links
-                    // already disagree with their own deposit.
+                    // already disagree with their own deposit. So the link is
+                    // minted AT SEND TIME, below, for the amount owed at that
+                    // moment, and an empty url drops the line exactly as a
+                    // missing quote link drops its own.
                     //
-                    // THE DECISION TAKEN is to mint the link AT SEND TIME, for
-                    // the amount currently owed, so it cannot be stale. That
-                    // needs the contract total, which is computed in the
-                    // payment section far below and is not in scope here, so
-                    // until it is plumbed through this passes no link rather
-                    // than a possibly-wrong one -- and the pay line is dropped
-                    // exactly as the quote line is when there is no url.
-                    val payUrl = ""
-                    val quoteEmailBody: (String) -> String = { url ->
+                    // Whether this phone may mint one at all is the payment
+                    // card's question, asked of the same predicate so the two
+                    // cannot drift apart: billing a customer is not something
+                    // a second code path gets to decide for itself.
+                    val mayMintPayLink = PaymentLinkGate.mayMint(
+                        cardPaymentsAllowed = com.fenceestimator.app.ui.components.LocalEntitlements.current.cardPayments,
+                        canRequestPayment = session.canRequestPayment,
+                        role = session.role,
+                    )
+                    // Read here, not in the coroutine below: a string resource
+                    // needs a composable to read it from.
+                    val payLinkDescription = stringResource(
+                        R.string.jd_payment_description,
+                        j.address.ifBlank { j.customerName }
+                    )
+                    val quoteEmailBody: (String, String) -> String = { url, payUrl ->
                         // PARENTHESISED AS A WHOLE on purpose: joinToString has
                         // to apply to the entire letter. Bound to the last
                         // listOf alone it returns a String, and `List + String`
@@ -761,11 +772,41 @@ fun JobDetailScreen(
                                     // message, which is what makes the stamp
                                     // below honest -- the old intent could
                                     // only ever know that a mail app opened.
+                                    // THE PAY LINK, MADE NOW rather than
+                                    // reused. billableTotal is the one figure
+                                    // every payment request on this screen
+                                    // goes through, so the amount asked for
+                                    // here cannot disagree with the payment
+                                    // card's. Under the processor's 50-cent
+                                    // floor, or on a job with nothing left to
+                                    // collect, there is nothing to ask for.
+                                    //
+                                    // A REFUSAL IS NOT A FAILED SEND. If the
+                                    // company has no payment connection, or
+                                    // the link cannot be made, the quote still
+                                    // goes out -- just without the button.
+                                    // Refusing to send a quote because a
+                                    // deposit link could not be minted would
+                                    // trade the thing he asked for against the
+                                    // thing the email is for.
+                                    val payContractTotal = viewModel.billableTotal(j)
+                                    val payAmount = JobMoney.nextRequestAmount(j, payContractTotal)
+                                    val payUrl = if (mayMintPayLink && payAmount >= 0.50) {
+                                        val minted = PaymentsApi.createPaymentLink(
+                                            jobSyncId = j.syncId,
+                                            amountDollars = payAmount,
+                                            kind = if (JobMoney.nextRequestLabel(j, payContractTotal) == "balance")
+                                                PaymentsApi.Kind.FINAL
+                                            else PaymentsApi.Kind.DEPOSIT,
+                                            description = payLinkDescription,
+                                        )
+                                        (minted as? PaymentsApi.Result.Ok)?.url.orEmpty()
+                                    } else ""
                                     val result = com.fenceestimator.app.cloud.QuoteEmailApi.send(
                                         jobSyncId = j.syncId,
                                         to = j.email,
                                         subject = qeSubject.format(company),
-                                        body = quoteEmailBody(url),
+                                        body = quoteEmailBody(url, payUrl),
                                     )
                                     when (result) {
                                         is com.fenceestimator.app.cloud.QuoteEmailApi.Result.Sent -> {
@@ -2898,8 +2939,14 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
     // outside this check and stay visible to Sales and Accountant exactly as
     // before -- only the control that mints a NEW link is gated. Seeing a
     // balance is not the same thing as being able to bill it.
-    val canMintPaymentLink = session.canRequestPayment &&
-        (session.role == UserRole.OWNER || session.role == UserRole.MANAGER)
+    // The entitlement is already enforced by the wrapper this sits inside;
+    // naming it here too keeps the whole condition in one expression, and in
+    // the one place the quote email asks the same question.
+    val canMintPaymentLink = PaymentLinkGate.mayMint(
+        cardPaymentsAllowed = com.fenceestimator.app.ui.components.LocalEntitlements.current.cardPayments,
+        canRequestPayment = session.canRequestPayment,
+        role = session.role,
+    )
     if (canMintPaymentLink) {
         Button(
             onClick = {
