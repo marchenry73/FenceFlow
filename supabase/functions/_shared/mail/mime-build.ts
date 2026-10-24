@@ -535,17 +535,34 @@ const CTA_LINE_RE = /^\s*(.{0,40}?)\s*(https?:\/\/[^\s<>"'`]+)\s*$/;
  * The letter's lines, with the first link line turned into a button.
  *
  * Returns the HTML for the body and nothing else; the caller owns the shell.
- * A line is only ever promoted ONCE -- a second link line stays a link -- so
- * an email cannot turn into a row of buttons.
+ *
+ * AT MOST TWO lines are promoted; the rest stay ordinary links, so an email
+ * still cannot turn into a row of buttons. Two rather than one because a
+ * quote has two things to do -- look at the fence, pay the deposit -- and
+ * making the customer hunt for the second in a paragraph is how a deposit
+ * goes unpaid. A third button is where a letter stops being a letter.
+ *
+ * [hideCtaUrl] drops the address printed under each button. The default is
+ * false and should stay false: a button with no visible URL is the shape a
+ * phishing mail has. Only a letter whose recipient is expecting it, by name,
+ * from a company they have spoken to, should opt out.
  */
-function htmlLetter(text: string, accent: string, onAccent: string): string {
+function htmlLetter(
+  text: string,
+  accent: string,
+  onAccent: string,
+  hideCtaUrl = false,
+): string {
   const lines = normalizeNewlines(String(text ?? "")).split("\n");
-  let used = false;
+  const MAX_CTA_BUTTONS = 2;
+  let used = 0;
   const out: string[] = [];
   for (const line of lines) {
-    const m = used || line.trimStart().startsWith(">") ? null : CTA_LINE_RE.exec(line);
+    const m = used >= MAX_CTA_BUTTONS || line.trimStart().startsWith(">")
+      ? null
+      : CTA_LINE_RE.exec(line);
     if (m && m[2]) {
-      used = true;
+      used++;
       // The words already beside the link, in the letter's own language.
       // Trailing punctuation is the sentence's, not the label's.
       const label = m[1].replace(/[\s:：-]+$/, "").trim();
@@ -559,11 +576,14 @@ function htmlLetter(text: string, accent: string, onAccent: string): string {
       );
       // The address in full underneath, small and grey. A button with no
       // visible URL is the shape a phishing mail has; a customer who wants to
-      // see where it goes before pressing it can.
-      out.push(
-        `<div style="font-size:12px;color:${MAIL_MUTED};margin:-8px 0 4px;word-break:break-all">` +
-          `<a href="${href}" style="color:${MAIL_MUTED}">${href}</a></div>`,
-      );
+      // see where it goes before pressing it can. Dropped only where the
+      // caller has asked -- see hideCtaUrl.
+      if (!hideCtaUrl) {
+        out.push(
+          `<div style="font-size:12px;color:${MAIL_MUTED};margin:-8px 0 4px;word-break:break-all">` +
+            `<a href="${href}" style="color:${MAIL_MUTED}">${href}</a></div>`,
+        );
+      }
       continue;
     }
     out.push(linkify(line).replace(/\t/g, "    ").replace(/ {2}/g, " &nbsp;") + "<br>");
@@ -664,6 +684,16 @@ export function composeBody(input: {
    * back to the product's own steel blue rather than being repaired.
    */
   brandColor?: string | null;
+  /**
+   * Drop the grey address printed under each button.
+   *
+   * Default false, and it should stay false for anything a stranger might
+   * receive: a button with no visible URL is the shape a phishing mail has.
+   * The quote email sets it because its recipient asked for the quote, knows
+   * the company, and is being shown two buttons where the addresses are long
+   * enough to bury the letter.
+   */
+  hideCtaUrl?: boolean;
 }): {
   text: string;
   html: string;
@@ -681,7 +711,7 @@ export function composeBody(input: {
   // is assembled exactly as it always was -- same sentences, same order, same
   // separator before the signature -- because a reader on plain text must get
   // the letter they got yesterday.
-  let html = htmlLetter(body, accent, onAccent);
+  let html = htmlLetter(body, accent, onAccent, input.hideCtaUrl === true);
   if (sig) {
     text += `\n\n-- \n${sig}`;
     html += `\n<div style="margin-top:18px;padding-top:14px;border-top:1px solid ${MAIL_BORDER}">` +
