@@ -313,7 +313,64 @@ class JobDetailViewModel(
         viewModelScope.launch { repository.updateJob(transform(current)) }
     }
 
-    fun setStatus(status: JobStatus) = update { it.copy(status = status) }
+    /**
+     * True while the screen owes the user one question: the status has just
+     * moved INTO DECLINED, so offer to take the job off the list. The office
+     * half of this is `offerToHideDeclined` in website/dashboard.html, and
+     * this mirrors it -- same question, same wording, same trash.
+     *
+     * A flag on the view model rather than local composable state because the
+     * only place that knows this was a real transition is [setStatus], which
+     * is the one thing holding both the old status and the new one.
+     */
+    private val _offerToHideDeclined = kotlinx.coroutines.flow.MutableStateFlow(false)
+    val offerToHideDeclined: StateFlow<Boolean> = _offerToHideDeclined
+
+    /**
+     * The status dropdown's write, plus the one question that follows a
+     * decline.
+     *
+     * ONLY A REAL TRANSITION ASKS. The old status is read from [job] BEFORE
+     * [update] writes the new one, so picking DECLINED on a job that is
+     * already declined -- which the dropdown does offer, since it lists every
+     * status -- asks nothing. Exactly the office's own test:
+     * `patch.status === 'DECLINED' && savedJob.status !== 'DECLINED'`.
+     *
+     * Carries the guest refusal as its own first statement even though
+     * [update] already has one: the question below is reached without going
+     * through update() at all, and a guest being asked whether to delete
+     * something -- in a demo that says in three languages that it cannot
+     * change anything -- is the lie that guard exists to prevent. A guest
+     * cannot reach this dropdown anyway (StatusSelector takes `editable`
+     * false for the demo and offers no choices at all), which makes this the
+     * same belt-and-suspenders every other write on this screen carries.
+     */
+    fun setStatus(status: JobStatus) {
+        if (session.state.value.isGuestDemo) return
+        val wasDeclined = job.value?.status == JobStatus.DECLINED
+        update { it.copy(status = status) }
+        if (status == JobStatus.DECLINED && !wasDeclined) _offerToHideDeclined.value = true
+    }
+
+    /** No: the job stays on the list, declined and visible. */
+    fun dismissHideDeclined() {
+        _offerToHideDeclined.value = false
+    }
+
+    /**
+     * Yes: put it away in the same trash the Delete Job button uses, through
+     * the same [delete] -- which is [Repository.deleteJob], whose pending
+     * deletion the next sync turns into `deleted_at` on the cloud row rather
+     * than destroying it. So the job, its estimate and its drawing all
+     * survive and can be put back from Deleted Items; it just stops showing
+     * up in lists, here and on every other device. Nothing new deletes
+     * anything.
+     */
+    fun hideDeclinedJob(onHidden: () -> Unit) {
+        if (session.state.value.isGuestDemo) return
+        _offerToHideDeclined.value = false
+        delete(onHidden)
+    }
 
     fun applyTier(tier: PricingTier) = update {
         it.copy(

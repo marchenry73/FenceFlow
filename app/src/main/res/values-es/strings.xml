@@ -611,6 +611,10 @@
     <string name="jd_delete_also_deletes">Esto también elimina, sin posibilidad de recuperarlo:</string>
     <string name="jd_delete_bullets">•  El presupuesto y todas sus partidas\n•  Las órdenes de cambio firmadas\n•  El registro de pagos y el historial de facturas\n•  Las fotos de antes y después\n•  Las horas fichadas en este trabajo</string>
     <string name="jd_delete_decline_hint">Si solo quieres quitarlo de en medio, cierra esto y cambia el estado a Rechazado.</string>
+    <string name="jd_declined_hide_title">¿Quitar “%1$s” de tu lista de trabajos?</string>
+    <string name="jd_declined_hide_body">No se elimina. El trabajo, su presupuesto y su dibujo siguen en el sistema y se pueden recuperar desde Elementos eliminados — solo deja de aparecer en tu lista.</string>
+    <string name="jd_declined_hide_confirm">Quitarlo de la lista</string>
+    <string name="jd_declined_hide_no_name">este trabajo</string>
     <string name="jd_type_to_confirm">Escribe “%1$s” para confirmar</string>
     <string name="jd_delete_permanently">Eliminar para siempre</string>
     <string name="jd_keep_it">Conservarlo</string>

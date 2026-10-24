@@ -647,6 +647,10 @@
     <string name="jd_delete_also_deletes">This also deletes, with no way to get any of it back:</string>
     <string name="jd_delete_bullets">•  The estimate and every line item\n•  Signed change orders\n•  The payment record and invoice history\n•  Before and after photos\n•  Clocked hours for this job</string>
     <string name="jd_delete_decline_hint">If you only want it out of the way, close this and set the status to Declined instead.</string>
+    <string name="jd_declined_hide_title">Take “%1$s” off your job list?</string>
+    <string name="jd_declined_hide_body">It is not deleted. The job, its estimate and its drawing all stay in the system and can be put back from Deleted Items — it just stops showing up on your list.</string>
+    <string name="jd_declined_hide_confirm">Take it off the list</string>
+    <string name="jd_declined_hide_no_name">this job</string>
     <string name="jd_type_to_confirm">Type “%1$s” to confirm</string>
     <string name="jd_delete_permanently">Delete permanently</string>
     <string name="jd_keep_it">Keep it</string>

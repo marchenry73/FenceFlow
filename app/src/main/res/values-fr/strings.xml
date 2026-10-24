@@ -611,6 +611,10 @@
     <string name="jd_delete_also_deletes">Cela supprime aussi, sans aucun moyen de le récupérer :</string>
     <string name="jd_delete_bullets">•  Le devis et toutes ses lignes\n•  Les avenants signés\n•  L\'historique des paiements et des factures\n•  Les photos avant et après\n•  Les heures pointées sur ce chantier</string>
     <string name="jd_delete_decline_hint">Si vous voulez seulement l\'écarter, fermez ceci et passez plutôt le statut à Refusé.</string>
+    <string name="jd_declined_hide_title">Retirer « %1$s » de votre liste de chantiers ?</string>
+    <string name="jd_declined_hide_body">Il n\'est pas supprimé. Le chantier, son devis et son dessin restent dans le système et peuvent être restaurés depuis Éléments supprimés — il cesse simplement d\'apparaître dans votre liste.</string>
+    <string name="jd_declined_hide_confirm">Le retirer de la liste</string>
+    <string name="jd_declined_hide_no_name">ce chantier</string>
     <string name="jd_type_to_confirm">Saisissez « %1$s » pour confirmer</string>
     <string name="jd_delete_permanently">Supprimer définitivement</string>
     <string name="jd_keep_it">Le garder</string>

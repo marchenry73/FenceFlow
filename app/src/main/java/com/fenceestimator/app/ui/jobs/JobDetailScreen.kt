@@ -1350,6 +1350,44 @@ fun JobDetailScreen(
             onDismiss = { confirmDeleteJob = false }
         )
     }
+
+    // The one question a decline asks. The status itself is already saved by
+    // the time this shows (JobDetailViewModel.setStatus); this only offers to
+    // put the job away, and answering no -- or dismissing -- leaves it on the
+    // list exactly as it was. The office half is offerToHideDeclined in
+    // website/dashboard.html: the same question, the same wording, and the
+    // same trash, so a job declined on the phone and a job declined at the
+    // office end up in the same place.
+    //
+    // The flag comes from the view model rather than from a local flag set
+    // beside the dropdown, because only setStatus() can tell a real move INTO
+    // DECLINED from re-picking DECLINED on a job that was already declined --
+    // and the second one must never ask.
+    val offerHideDeclined by viewModel.offerToHideDeclined.collectAsState()
+    if (offerHideDeclined) {
+        AlertDialog(
+            onDismissRequest = { viewModel.dismissHideDeclined() },
+            title = {
+                Text(
+                    stringResource(
+                        R.string.jd_declined_hide_title,
+                        currentJob.customerName.ifBlank { stringResource(R.string.jd_declined_hide_no_name) }
+                    )
+                )
+            },
+            text = { Text(stringResource(R.string.jd_declined_hide_body)) },
+            confirmButton = {
+                Button(onClick = { viewModel.hideDeclinedJob(onDeleted) }) {
+                    Text(stringResource(R.string.jd_declined_hide_confirm))
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { viewModel.dismissHideDeclined() }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            }
+        )
+    }
 }
 
 /**
