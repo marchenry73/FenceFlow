@@ -399,7 +399,28 @@
   td.selcol input,th.selcol input{width:auto;cursor:pointer;margin:0}
   .range-label{margin-top:9px;font-size:12px;color:var(--muted)}
   .grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(400px,1fr));gap:16px}
-  .panel .sub{font-size:12px;color:var(--muted);margin:-6px 0 12px}
+  /* A SUBTITLE TUCKED UNDER THE HEADING is what the -6px was written for, and
+     there it is right. Everywhere else in a panel the same class sits under a
+     line of real content -- the bold 'Contacted ...' line, a row's date -- and
+     the negative margin pulls it UP into that line until the two touch. That
+     is the squashing he photographed. Scoped to the case it was meant for; a
+     .sub anywhere else now gets ordinary space above it. */
+  .panel .sub{font-size:12px;color:var(--muted);margin:6px 0 12px}
+  .panel > h2 + .sub, .panel > h3 + .sub{margin-top:-6px}
+  /* WITHDRAWN APPROVALS: their own spacing, not `.panel .sub`'s.
+     That rule carries margin:-6px on top, which is correct for a subtitle
+     tucked under an <h2> and wrong for stacked detail lines -- every line was
+     pulled up into the one above, which is what "too close to each other"
+     looked like. These rows are a list of events, so they are spaced like one. */
+  .reapp-row{padding:18px 0;border-bottom:1px solid var(--line)}
+  .reapp-row:last-child{border-bottom:none;padding-bottom:4px}
+  .reapp-row:first-child{padding-top:4px}
+  .reapp-when{font-weight:600}
+  /* No negative margin, and real space under each line. */
+  .reapp-note{font-size:12px;color:var(--muted);margin:8px 0 0;line-height:1.45}
+  .reapp-change{font-size:13px;margin:9px 0 0}
+  .reapp-when{line-height:1.4}
+  .reapp-row .btn{margin-top:10px}
   /* Settings -> "How customers can pay you": a switch with its method's name
      beside it, then the box that method needs. The bare label rule above is
      small uppercase muted text, which is wrong for a thing you switch on. */
@@ -4369,7 +4390,16 @@ jobViewAll:'All', jobViewToday:'Today', jobViewWeek:'This week', jobViewUnschedu
     reapprovalPrior:'Approved by %s on %s, withdrawn %s',
     reapprovalPriorResolved:'Approved by %s on %s, withdrawn %s, re-approved %s',
     reapprovalPriorTotal:'Contract total then: %s',
-    reapprovalPriorChange:'%s: %s → %s',
+    reapprovalPriorChange:'%s: %s',
+    reapprovalChangeFeet:'%s ft of fence → %s ft',
+    reapprovalChangeTeardown:'teardown %s ft → %s ft',
+    reapprovalChangeCorners:'corners %s → %s',
+    reapprovalChangeEnds:'ends %s → %s',
+    reapprovalChangeGates:'gates %s → %s',
+    reapprovalChangeGateFeet:'%s ft of gate → %s ft',
+    reapprovalChangeMounting:'the gates are hung differently',
+    reapprovalChangeShapeOnly:'the shape moved, the measurements did not',
+    reapprovalChangeUnknown:'the drawing changed',
     reapprovalRestoreBtn:'Put this drawing back',
     reapprovalRestoreRunUnnamed:'This fence line',
     reapprovalRestoreAskTitle:'Put the drawing back?',
@@ -4385,8 +4415,8 @@ jobViewAll:'All', jobViewToday:'Today', jobViewWeek:'This week', jobViewUnschedu
     reapprovalRestoreUnreadable:'The drawing saved with this change cannot be read, so none of it will be written back.',
     reapprovalRestoreNotPending:'This quote is not waiting to be approved again, so there is no approval to bring back. Putting an older drawing back on an approved job would take that approval away instead.',
     reapprovalRestoreNoEdit:'Only an owner or a manager can put a drawing back from here.',
-    reapprovalRestoreOldest:'This is the one that can bring the approval back: it is the earliest change still outstanding on this fence line, so what it puts back is the drawing the customer approved. The price has to be back where it was too, and FenceFlow decides that itself.',
-    reapprovalRestoreIntermediate:'This one puts the drawing back to how it stood partway through the changes — something the customer never approved, so the approval will not come back. Still worth doing if that is the drawing you want.',
+    reapprovalRestoreOldest:'This one brings the approval back — it is the earliest change still outstanding on this fence line.',
+    reapprovalRestoreIntermediate:'Puts the drawing back to a partway state the customer never approved, so the approval will not return.',
     reapprovalRestoreGeometryOnly:'This change was recorded before FenceFlow kept the typed footage and the teardown setting with the drawing, so only the fence line itself goes back. The drawing will be right; the approval may still not come back.',
     reapprovalRestoreNotLogged:'It could not be added to the job’s change history, so tell the crew yourself.',
     reapprovalHistoryLoadFailed:'The withdrawn approvals could not be loaded: %s',
@@ -6239,7 +6269,16 @@ jobViewAll:'Todos', jobViewToday:'Hoy', jobViewWeek:'Esta semana', jobViewUnsche
     reapprovalPrior:'Aprobado por %s el %s, retirado el %s',
     reapprovalPriorResolved:'Aprobado por %s el %s, retirado el %s, aprobado de nuevo el %s',
     reapprovalPriorTotal:'Total del contrato entonces: %s',
-    reapprovalPriorChange:'%s: %s → %s',
+    reapprovalPriorChange:'%s: %s',
+    reapprovalChangeFeet:'%s pies de cerca → %s pies',
+    reapprovalChangeTeardown:'demolici\u00f3n %s pies → %s pies',
+    reapprovalChangeCorners:'esquinas %s → %s',
+    reapprovalChangeEnds:'extremos %s → %s',
+    reapprovalChangeGates:'puertas %s → %s',
+    reapprovalChangeGateFeet:'%s pies de puerta → %s pies',
+    reapprovalChangeMounting:'las puertas van montadas de otra forma',
+    reapprovalChangeShapeOnly:'la forma se movi\u00f3, las medidas no',
+    reapprovalChangeUnknown:'el plano cambi\u00f3',
     reapprovalRestoreBtn:'Restaurar este plano',
     reapprovalRestoreRunUnnamed:'Esta línea de valla',
     reapprovalRestoreAskTitle:'¿Restaurar el plano?',
@@ -6255,8 +6294,8 @@ jobViewAll:'Todos', jobViewToday:'Hoy', jobViewWeek:'Esta semana', jobViewUnsche
     reapprovalRestoreUnreadable:'El plano guardado con este cambio no se puede leer, así que no se escribirá nada de él.',
     reapprovalRestoreNotPending:'Este presupuesto no está esperando una nueva aprobación, así que no hay ninguna aprobación que recuperar. Restaurar un plano anterior en un trabajo ya aprobado retiraría esa aprobación.',
     reapprovalRestoreNoEdit:'Solo un propietario o un gerente puede restaurar un plano desde aquí.',
-    reapprovalRestoreOldest:'Este es el que puede recuperar la aprobación: es el cambio más antiguo que sigue pendiente en esta línea de valla, así que lo que restaura es el plano que el cliente aprobó. El precio también tiene que volver a ser el de antes, y eso lo decide FenceFlow.',
-    reapprovalRestoreIntermediate:'Este restaura el plano tal como estaba a mitad de los cambios — algo que el cliente nunca aprobó, así que la aprobación no volverá. Aun así vale la pena si ese es el plano que quiere.',
+    reapprovalRestoreOldest:'Este recupera la aprobación — es el cambio más antiguo que sigue pendiente en esta línea.',
+    reapprovalRestoreIntermediate:'Restaura un plano intermedio que el cliente nunca aprobó, así que la aprobación no volverá.',
     reapprovalRestoreGeometryOnly:'Este cambio se registró antes de que FenceFlow guardara la medición escrita y la opción de demolición junto con el plano, así que solo vuelve la línea de valla. El plano quedará bien; la aprobación puede seguir sin volver.',
     reapprovalRestoreNotLogged:'No se pudo añadir al historial de cambios del trabajo, así que avise al equipo usted mismo.',
     reapprovalHistoryLoadFailed:'No se pudieron cargar las aprobaciones retiradas: %s',
@@ -8079,7 +8118,16 @@ jobViewAll:'Tous', jobViewToday:'Aujourdhui', jobViewWeek:'Cette semaine', jobVi
     reapprovalPrior:'Approuvé par %s le %s, retiré le %s',
     reapprovalPriorResolved:'Approuvé par %s le %s, retiré le %s, approuvé de nouveau le %s',
     reapprovalPriorTotal:'Total du contrat à l\'époque : %s',
-    reapprovalPriorChange:'%s : %s → %s',
+    reapprovalPriorChange:'%s : %s',
+    reapprovalChangeFeet:'%s pi de cl\u00f4ture → %s pi',
+    reapprovalChangeTeardown:'d\u00e9pose %s pi → %s pi',
+    reapprovalChangeCorners:'angles %s → %s',
+    reapprovalChangeEnds:'extr\u00e9mit\u00e9s %s → %s',
+    reapprovalChangeGates:'portails %s → %s',
+    reapprovalChangeGateFeet:'%s pi de portail → %s pi',
+    reapprovalChangeMounting:'les portails sont pos\u00e9s autrement',
+    reapprovalChangeShapeOnly:'la forme a boug\u00e9, pas les mesures',
+    reapprovalChangeUnknown:'le plan a chang\u00e9',
     reapprovalRestoreBtn:'Rétablir ce plan',
     reapprovalRestoreRunUnnamed:'Cette ligne de clôture',
     reapprovalRestoreAskTitle:'Rétablir le plan ?',
@@ -8095,8 +8143,8 @@ jobViewAll:'Tous', jobViewToday:'Aujourdhui', jobViewWeek:'Cette semaine', jobVi
     reapprovalRestoreUnreadable:'Le plan enregistré avec ce changement est illisible : rien n’en sera réécrit.',
     reapprovalRestoreNotPending:'Ce devis n’attend pas une nouvelle approbation : il n’y a donc aucune approbation à faire revenir. Rétablir un plan plus ancien sur un chantier approuvé retirerait cette approbation.',
     reapprovalRestoreNoEdit:'Seul un propriétaire ou un gestionnaire peut rétablir un plan d’ici.',
-    reapprovalRestoreOldest:'C’est celui qui peut faire revenir l’approbation : c’est le changement le plus ancien encore en attente sur cette ligne de clôture, donc ce qu’il rétablit est le plan que le client a approuvé. Le prix doit lui aussi être revenu à ce qu’il était, et c’est FenceFlow qui en décide.',
-    reapprovalRestoreIntermediate:'Celui-ci rétablit le plan tel qu’il était au milieu des changements — ce que le client n’a jamais approuvé, donc l’approbation ne reviendra pas. Cela reste utile si c’est ce plan que vous voulez.',
+    reapprovalRestoreOldest:'C’est celui qui fait revenir l’approbation — c’est le changement le plus ancien encore en attente sur cette ligne.',
+    reapprovalRestoreIntermediate:'Rétablit un plan intermédiaire que le client n’a jamais approuvé, donc l’approbation ne reviendra pas.',
     reapprovalRestoreGeometryOnly:'Ce changement a été enregistré avant que FenceFlow ne conserve le métrage saisi et l’option de démolition avec le plan : seule la ligne de clôture est rétablie. Le plan sera juste ; l’approbation peut malgré tout ne pas revenir.',
     reapprovalRestoreNotLogged:'Impossible de l’ajouter à l’historique des changements du chantier : prévenez l’équipe vous-même.',
     reapprovalHistoryLoadFailed:'Impossible de charger les approbations retirées : %s',
@@ -22533,6 +22581,65 @@ function reapprovalOldestUnresolvedIds(rows){
 // approve-anyway button.
 async function loadReapprovalHistory(job){
   const panel = $('reapprovalHistoryPanel');
+/* THE TAKEOFF FINGERPRINT, IN ENGLISH.
+   reapp_run_takeoff returns `b=415.3|t=0.0|c=4|e=2|g=3|gf=15.0|gm=WALL+LINE`
+   -- built feet, teardown feet, corners, ends, gate count, gate feet, and the
+   gate mountings sorted and joined. It exists to be COMPARED, not read: the
+   office was shown both sides of it in full, ninety characters of which maybe
+   eight had changed.
+
+   So this diffs the two and names only what moved. Everything identical on
+   both sides is left out, because it is not what the row is about.
+
+   UNPARSEABLE IS NOT BLANK. A row written before this format, or by a version
+   that adds a key, falls back to a plain sentence rather than to the raw
+   string: the string was never useful to a person, and an empty line would
+   claim nothing changed. */
+function takeoffParts(s) {
+  const out = {};
+  String(s || '').split('|').forEach(bit => {
+    const i = bit.indexOf('=');
+    if (i > 0) out[bit.slice(0, i)] = bit.slice(i + 1);
+  });
+  return out;
+}
+
+/* 415.3 -> "415", 415.5 -> "415.5". Whole feet unless the half matters. */
+function feetWord(v) {
+  const n = Number(v);
+  if (!Number.isFinite(n)) return null;
+  return Number.isInteger(n) ? String(n) : String(Math.round(n * 10) / 10);
+}
+
+function takeoffWords(before, after) {
+  const a = takeoffParts(before);
+  const b = takeoffParts(after);
+  // Nothing recognisable on either side: say so plainly rather than print the
+  // code at him.
+  if (!('b' in a) && !('b' in b)) return tr('reapprovalChangeUnknown');
+
+  const bits = [];
+  const moved = (k) => (a[k] ?? '') !== (b[k] ?? '');
+  const num = (k) => [feetWord(a[k]), feetWord(b[k])];
+
+  if (moved('b')) { const [x, y] = num('b'); if (x !== null && y !== null) bits.push(tr('reapprovalChangeFeet', x, y)); }
+  if (moved('t')) { const [x, y] = num('t'); if (x !== null && y !== null) bits.push(tr('reapprovalChangeTeardown', x, y)); }
+  if (moved('c')) bits.push(tr('reapprovalChangeCorners', a.c ?? '—', b.c ?? '—'));
+  if (moved('e')) bits.push(tr('reapprovalChangeEnds', a.e ?? '—', b.e ?? '—'));
+  if (moved('g')) bits.push(tr('reapprovalChangeGates', a.g ?? '—', b.g ?? '—'));
+  if (moved('gf')) { const [x, y] = num('gf'); if (x !== null && y !== null) bits.push(tr('reapprovalChangeGateFeet', x, y)); }
+  // The mountings are a sorted list; which ones changed is more detail than
+  // this line can carry, so it says THAT they did and leaves the rest to the
+  // drawing.
+  if (moved('gm')) bits.push(tr('reapprovalChangeMounting'));
+
+  // The fingerprint can be identical while the drawing is not: the corners
+  // moved but the measurements came out the same. Saying "nothing changed"
+  // would be wrong, and saying nothing would look like a bug.
+  if (!bits.length) return tr('reapprovalChangeShapeOnly');
+  return bits.join(', ');
+}
+
   const box = $('reapprovalHistoryRows');
   if (!panel || !box || !job) return;
   // Whatever the last restore reported belongs to the job it was reported for.
@@ -22587,7 +22694,7 @@ async function loadReapprovalHistory(job){
     : !job.reapproval_required_at ? 'notpending' : !canEdit() ? 'noedit' : '';
   const canReturn = reapprovalOldestUnresolvedIds(data);
   box.innerHTML = (jobWide
-      ? '<p class="sub" style="margin-top:0">'
+      ? '<p class="reapp-note" style="margin:0 0 10px">'
         + esc(tr(REAPPROVAL_RESTORE_WHY_NOT[jobWide])) + '</p>'
       : '')
     + data.map(row => {
@@ -22600,9 +22707,10 @@ async function loadReapprovalHistory(job){
           row.prior_approved_at ? d(row.prior_approved_at).toLocaleDateString() : '—',
           d(row.at).toLocaleDateString());
     const total = row.prior_contract_total != null && canSeeMoney()
-      ? '<div class="sub">' + esc(tr('reapprovalPriorTotal', money(row.prior_contract_total))) + '</div>' : '';
+      ? '<div class="reapp-note">' + esc(tr('reapprovalPriorTotal', money(row.prior_contract_total))) + '</div>' : '';
     const change = (row.takeoff_before || row.takeoff_after)
-      ? '<div class="sub">' + esc(tr('reapprovalPriorChange', row.run_label || '', row.takeoff_before || '—', row.takeoff_after || '—')) + '</div>' : '';
+      ? '<div class="reapp-change">' + esc(tr('reapprovalPriorChange',
+          row.run_label || '', takeoffWords(row.takeoff_before, row.takeoff_after))) + '</div>' : '';
     // A button only on a row where pressing it would really put the drawing
     // back; the reasons it would not are printed as a sentence instead. A row
     // from before the snapshot columns existed looks identical to one that can
@@ -22616,7 +22724,7 @@ async function loadReapprovalHistory(job){
     // the drawing the customer approved, so the rest say plainly that the
     // approval will not follow them.
     const ordering = st.kind !== 'ok' ? ''
-      : '<div class="sub">' + esc(tr(canReturn.has(String(row.id))
+      : '<div class="reapp-note">' + esc(tr(canReturn.has(String(row.id))
           ? 'reapprovalRestoreOldest' : 'reapprovalRestoreIntermediate')) + '</div>';
     // A row recorded before the snapshot was widened holds the geometry and
     // nothing else, so the typed footage and the teardown setting stay as they
@@ -22624,16 +22732,18 @@ async function loadReapprovalHistory(job){
     // being told that beforehand is the difference between an explained outcome
     // and a page that appears to blame the price.
     const partial = st.kind === 'ok' && !st.full
-      ? '<div class="sub">' + esc(tr('reapprovalRestoreGeometryOnly')) + '</div>' : '';
+      ? '<div class="reapp-note">' + esc(tr('reapprovalRestoreGeometryOnly')) + '</div>' : '';
     const action = st.kind === 'ok'
       ? '<div style="margin-top:6px"><button type="button" class="btn btn-sm btn-grey" '
         + 'data-reapprestore="' + esc(row.id) + '">' + esc(tr('reapprovalRestoreBtn'))
         + '</button></div>'
       : REAPPROVAL_ROW_WHY_NOT[st.kind]
-        ? '<div class="sub">' + esc(tr(REAPPROVAL_ROW_WHY_NOT[st.kind])) + '</div>'
+        ? '<div class="reapp-note">' + esc(tr(REAPPROVAL_ROW_WHY_NOT[st.kind])) + '</div>'
         : '';
-    return '<div style="padding:7px 0;border-bottom:1px solid var(--line-soft,transparent)">'
-      + '<div>' + esc(line) + '</div>' + total + change + ordering + partial + action + '</div>';
+    // --line-soft was never defined in this file, so the separator fell back
+    // to transparent and two withdrawn approvals ran together as one block.
+    return '<div class="reapp-row">'
+      + '<div class="reapp-when">' + esc(line) + '</div>' + total + change + ordering + partial + action + '</div>';
   }).join('');
 }
 
