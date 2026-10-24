@@ -3872,7 +3872,7 @@ jobViewAll:'All', jobViewToday:'Today', jobViewWeek:'This week', jobViewUnschedu
     mailAttachBtn:'Attach files', mailAttachLimit:'Up to 5 files, 10 MB in total.',
     mailAttachTooBig:'%s would take the attachments over 10 MB.', mailForwardedFiles:'From the original message:',
     mailRemoveBtn:'Remove', mailJobChip:'Linked to job: %s',
-    mailLaterBtn:'Send later', mailWhenMissing:'Choose when to send it first.', mailWhenPast:'Pick a time at least a minute from now.', mailScheduledOk:'Scheduled. It sends at %s.', mailDraftSendsAt:'Sends %s', mailDraftSendingNow:'Sending now…', mailDraftSendFailed:'Not sent: %s', mailSendBtn:'Send', mailSending:'Sending…', mailUploading:'Attaching %s…', mailUploadFailed:'Could not attach %s: %s',
+    mailLaterBtn:'Send later', mailScheduledNoPay:'Scheduled. It sends at %s. The pay button was removed, because a payment link can only charge the amount it was made for and the price may change before then — she can still pay on the quote page.', mailWhenMissing:'Choose when to send it first.', mailWhenPast:'Pick a time at least a minute from now.', mailScheduledOk:'Scheduled. It sends at %s.', mailDraftSendsAt:'Sends %s', mailDraftSendingNow:'Sending now…', mailDraftSendFailed:'Not sent: %s', mailSendBtn:'Send', mailSending:'Sending…', mailUploading:'Attaching %s…', mailUploadFailed:'Could not attach %s: %s',
     mailSentOk:'Sent.', mailSendFailed:'Not sent.',
     mailMaybeSent:'FenceFlow could not confirm this was sent. Check your Sent folder before sending it again.',
     mailDiscardQ:'Discard this email?', mailDiscardBody:'What you wrote will be deleted. Close instead and it is kept in Drafts.',
@@ -5751,7 +5751,7 @@ jobViewAll:'Todos', jobViewToday:'Hoy', jobViewWeek:'Esta semana', jobViewUnsche
     mailAttachBtn:'Adjuntar archivos', mailAttachLimit:'Hasta 5 archivos, 10 MB en total.',
     mailAttachTooBig:'Con %s los adjuntos pasarían de 10 MB.', mailForwardedFiles:'Del mensaje original:',
     mailRemoveBtn:'Quitar', mailJobChip:'Vinculado al trabajo: %s',
-    mailLaterBtn:'Enviar más tarde', mailWhenMissing:'Primero elija cuándo enviarlo.', mailWhenPast:'Elija una hora al menos un minuto después de ahora.', mailScheduledOk:'Programado. Se enviará a las %s.', mailDraftSendsAt:'Se envía %s', mailDraftSendingNow:'Enviando ahora…', mailDraftSendFailed:'No enviado: %s', mailSendBtn:'Enviar', mailSending:'Enviando…', mailUploading:'Adjuntando %s…', mailUploadFailed:'No se pudo adjuntar %s: %s',
+    mailLaterBtn:'Enviar más tarde', mailScheduledNoPay:'Programado. Se enviará a las %s. Se quitó el botón de pago, porque un enlace de pago solo puede cobrar el importe para el que se creó y el precio puede cambiar antes — ella todavía puede pagar en la página del presupuesto.', mailWhenMissing:'Primero elija cuándo enviarlo.', mailWhenPast:'Elija una hora al menos un minuto después de ahora.', mailScheduledOk:'Programado. Se enviará a las %s.', mailDraftSendsAt:'Se envía %s', mailDraftSendingNow:'Enviando ahora…', mailDraftSendFailed:'No enviado: %s', mailSendBtn:'Enviar', mailSending:'Enviando…', mailUploading:'Adjuntando %s…', mailUploadFailed:'No se pudo adjuntar %s: %s',
     mailSentOk:'Enviado.', mailSendFailed:'No enviado.',
     mailMaybeSent:'FenceFlow no pudo confirmar que se envió. Revise su carpeta de enviados antes de enviarlo otra vez.',
     mailDiscardQ:'¿Descartar este correo?', mailDiscardBody:'Se borrará lo que escribió. Cierre en su lugar y se guarda en Borradores.',
@@ -7600,7 +7600,7 @@ jobViewAll:'Tous', jobViewToday:'Aujourdhui', jobViewWeek:'Cette semaine', jobVi
     mailAttachBtn:'Joindre des fichiers', mailAttachLimit:'Jusqu’à 5 fichiers, 10 Mo au total.',
     mailAttachTooBig:'Avec %s, les pièces jointes dépasseraient 10 Mo.', mailForwardedFiles:'Du message d’origine :',
     mailRemoveBtn:'Retirer', mailJobChip:'Lié au chantier : %s',
-    mailLaterBtn:'Envoyer plus tard', mailWhenMissing:'Choisissez d’abord quand l’envoyer.', mailWhenPast:'Choisissez une heure au moins une minute après maintenant.', mailScheduledOk:'Programmé. Envoi à %s.', mailDraftSendsAt:'Envoi %s', mailDraftSendingNow:'Envoi en cours…', mailDraftSendFailed:'Non envoyé : %s', mailSendBtn:'Envoyer', mailSending:'Envoi…', mailUploading:'Ajout de %s…', mailUploadFailed:'Impossible de joindre %s : %s',
+    mailLaterBtn:'Envoyer plus tard', mailScheduledNoPay:'Programmé. Envoi à %s. Le bouton de paiement a été retiré, car un lien de paiement ne peut encaisser que le montant pour lequel il a été créé et le prix peut changer d’ici là — elle peut toujours payer sur la page du devis.', mailWhenMissing:'Choisissez d’abord quand l’envoyer.', mailWhenPast:'Choisissez une heure au moins une minute après maintenant.', mailScheduledOk:'Programmé. Envoi à %s.', mailDraftSendsAt:'Envoi %s', mailDraftSendingNow:'Envoi en cours…', mailDraftSendFailed:'Non envoyé : %s', mailSendBtn:'Envoyer', mailSending:'Envoi…', mailUploading:'Ajout de %s…', mailUploadFailed:'Impossible de joindre %s : %s',
     mailSentOk:'Envoyé.', mailSendFailed:'Non envoyé.',
     mailMaybeSent:'FenceFlow n’a pas pu confirmer l’envoi. Vérifiez votre dossier Envoyés avant de le renvoyer.',
     mailDiscardQ:'Abandonner cet e-mail ?', mailDiscardBody:'Ce que vous avez écrit sera supprimé. Fermez plutôt et il est conservé dans Brouillons.',
@@ -30553,6 +30553,23 @@ async function scheduleCompose(){
   if (to.bad.length) { msg('mc_msg', tr('mailBadAddress', to.bad.slice(0, 3).map(cleanLine).join(', ')), 'err'); return; }
   if (!to.ok.length) { msg('mc_msg', tr('mailNeedRecipient'), 'err'); return; }
 
+  /* NO PAYMENT LINK GOES INTO A SCHEDULED ROW. The Pay here link is minted
+     when the quote is composed and is locked to the amount it was made for, so
+     a link queued tonight can be asking for the wrong money by the morning --
+     a re-price is all it takes. The line is removed before the row is saved,
+     the quote button is untouched, and she can still pay on the quote page
+     where the figure is read live. Matched on the checkout HOST, because that
+     is what makes a line a payment link in any of the three languages. */
+  const CHECKOUT_LINK = /(?:buy|checkout|pay)\.stripe\.com|squareup\.com|square\.link/i;
+  const bodyLines = $('mc_body').value.split('\n');
+  const keptLines = bodyLines.filter(l => !CHECKOUT_LINK.test(l));
+  const payLinkRemoved = keptLines.length !== bodyLines.length;
+  if (payLinkRemoved) {
+    // Written back into the box, not just into the row: he should see what is
+    // going to be sent before it goes.
+    $('mc_body').value = keptLines.join('\n').replace(/\n{3,}/g, '\n\n').trim();
+  }
+
   await saveComposeDraft();
   // saveComposeDraft() has already said why if it could not save; a row with
   // no id is a row there is nothing to schedule.
@@ -30568,7 +30585,8 @@ async function scheduleCompose(){
   }).eq('id', c.draftId);
   if (error) { msg('mc_msg', plainError(error.message), 'err'); return; }
 
-  msg('mc_msg', tr('mailScheduledOk', when.toLocaleString(LANG, { dateStyle: 'medium', timeStyle: 'short' })), 'ok');
+  const whenWords = when.toLocaleString(LANG, { dateStyle: 'medium', timeStyle: 'short' });
+  msg('mc_msg', payLinkRemoved ? tr('mailScheduledNoPay', whenWords) : tr('mailScheduledOk', whenWords), 'ok');
   c.done = true;
   closeCompose();
   loadMailThreads(true);

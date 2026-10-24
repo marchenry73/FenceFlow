@@ -57,6 +57,17 @@ console.log("\n1. The office schedules with the send id the compose already mint
   ok("reuses saveComposeDraft rather than building the row again",
     /await saveComposeDraft\(\)/.test(fn));
   ok("a quote keeps its hidden button addresses", /hide_cta_url:\s*!!c\.quoteSendFor/.test(fn));
+  // A PAYMENT LINK MUST NOT BE QUEUED. It is minted at compose time and locked
+  // to the amount it was made for, so one sitting in a row overnight can ask
+  // for the wrong money after a re-price -- the failure mint-at-send-time
+  // exists to prevent, reachable by the back door through scheduling.
+  ok("strips any checkout link from the body before saving",
+    /CHECKOUT_LINK/.test(fn) && /stripe/.test(fn),   // plain 'stripe': the page's own text escapes the dot
+    "a scheduled payment link can charge a stale amount");
+  ok("writes the stripped body back so he can see what will go out",
+    /\$\('mc_body'\)\.value\s*=/.test(fn));
+  ok("says the pay button was removed rather than removing it silently",
+    /mailScheduledNoPay/.test(fn));
 }
 
 console.log("\n2. The sweep cannot send the same letter twice:");
