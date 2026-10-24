@@ -40,7 +40,9 @@
  * file reads rows, decides the recipient, claims, and posts.
  *
  * Secrets: NOTIFY_TRIGGER_SECRET, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY,
- * MAIL_API_KEY, MAIL_FROM.
+ * MAIL_API_KEY, MAIL_FROM. MAIL_INBOUND_DOMAIN, RESEND_WEBHOOK_SECRET and
+ * RESEND_RECEIVING_KEY are read too, by customerReplyTo() -- only to decide
+ * where her reply goes. Absent, replies fall to the company's own email.
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 import {
@@ -50,6 +52,7 @@ import {
   type Lang,
 } from "../_shared/payment-receipt.ts";
 import { composeBody } from "../_shared/mail/mime-build.ts";
+import { customerReplyTo } from "../_shared/mail/customer-reply.ts";
 
 const FN = "payment-receipt";
 const SEND_TIMEOUT_MS = 20_000;
@@ -189,6 +192,34 @@ Deno.serve(async (req) => {
   }
   if (won !== true) return json({ state: "already_sent" });
 
+  // ----- where her reply goes ---------------------------------------------
+  //
+  // The From is FenceFlow's verified address with the company's name on it, so
+  // this header is the whole of whether an answer to this receipt reaches the
+  // company. customerReplyTo() settles it the same way the quote email and
+  // FenceFlow mail do: the company's own FenceFlow routing address when
+  // receiving is proven, else companies.email, else nothing. It never throws.
+  //
+  // THIS USED TO BE `reply_to: companyEmail` -- raw, unvalidated, and silently
+  // absent when the column was blank, which sends her answer to MAIL_FROM:
+  // FenceFlow's own mailbox, with another company's customer in it.
+  //
+  // AND IT STILL SENDS when there is nowhere to reply to, unlike the quote
+  // email and FenceFlow mail, which refuse. The money has already moved; a
+  // receipt is the record of it and withholding it is worse than one she has
+  // to answer by phone (the company's number is in the letter). Logged, loudly,
+  // because it means that company has no address of its own on file.
+  const reply = await customerReplyTo(db, {
+    companyId: String(payment.company_id),
+    companyEmail,
+  });
+  if (reply.mode === "unavailable") {
+    console.error(
+      `${FN}: this company has no reply address of its own (companies.email is blank or not an address),` +
+      " so the receipt goes out with no Reply-To and an answer to it reaches nobody",
+    );
+  }
+
   // ----- the letter --------------------------------------------------------
   //
   // WHAT IS STILL OWED IS NOT IN IT, and that is deliberate. The contract total
@@ -257,8 +288,9 @@ Deno.serve(async (req) => {
     subject: built.subject,
     html: composed.html,
     text: composed.text,
-    // Replies about a payment go to the company, not into a void.
-    ...(companyEmail ? { reply_to: companyEmail } : {}),
+    // Replies about a payment go to the company, not into a void. See "where
+    // her reply goes" above for which address that is and why.
+    ...(reply.replyTo ? { reply_to: reply.replyTo } : {}),
   });
 
   let res: Response;

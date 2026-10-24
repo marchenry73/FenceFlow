@@ -5,7 +5,12 @@
 // timestamps (quote_sent_at, quote_viewed_at, quote_approved_at,
 // first_contact_at) mean a follow-up is due, and emails the customer --
 // via Resend, from the COMPANY's own name, same sender pattern as
-// invite-crew (`senderWithName`), reply-to the company's own email.
+// invite-crew (`senderWithName`), reply-to the COMPANY's own address --
+// resolved by _shared/mail/customer-reply.ts, not read straight out of
+// companies.email: its FenceFlow routing address when receiving is proven,
+// else companies.email, else this company is skipped for the run (see
+// "no reply address" below). A nudge whose answer reaches FenceFlow's own
+// mailbox instead of the company is not a nudge worth sending.
 //
 // RUNBOOK -- how this gets invoked. There is no pg_cron in this project
 // (checked: `select extname from pg_extension` on 2026-09-17 lists pg_net
@@ -46,6 +51,7 @@ import {
   dueFollowUp,
   isQuietHour,
 } from "../_shared/follow-up-logic.ts";
+import { customerReplyTo } from "../_shared/mail/customer-reply.ts";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -282,6 +288,30 @@ Deno.serve(async (req) => {
       const { data: company } = await db
         .from("companies").select("name, email, logo_path").eq("id", companyId).maybeSingle();
 
+      // WHERE A CUSTOMER'S REPLY TO THIS NUDGE GOES, settled once per company
+      // per run and before anything is claimed or sent.
+      //
+      // These letters go out from FenceFlow's own verified address with the
+      // company's name on them, so this header is the whole of whether her
+      // answer reaches the company. customerReplyTo() settles it the same way
+      // the quote email and FenceFlow mail do -- the company's own FenceFlow
+      // routing address when receiving is proven, else companies.email -- and
+      // never throws: a failed read degrades to the company's own email.
+      //
+      // NEITHER means there is nowhere honest for a reply to land. Sending
+      // anyway is what this function used to do, and it put her answer in
+      // FenceFlow's own MAIL_FROM mailbox with no header at all. mail-send and
+      // quote-approval-email refuse in exactly this case ("Add your business
+      // email in Settings first"); so does this, with the reason in the run's
+      // own results rather than in a log nobody reads. Skipped BEFORE the
+      // follow_up_log claim, so the nudge is still due next run once an
+      // address is on file -- nothing is consumed.
+      const reply = await customerReplyTo(db, { companyId, companyEmail: company?.email });
+      if (reply.mode === "unavailable") {
+        results.push({ company_id: companyId, skipped: "no reply address for the company" });
+        continue;
+      }
+
       // One signature per company per run, not one per job: every follow-up
       // this company sends in this run carries the same letterhead, and
       // signing it four times would be four round trips for one URL. A year,
@@ -348,7 +378,6 @@ Deno.serve(async (req) => {
 
         const quoteUrl = j.quote_token ? `${siteUrl}/quote.html?t=${j.quote_token}` : null;
         const { subject, html, text } = buildEmail(due.kind, j, company?.name ?? "", quoteUrl, companyLogoUrl);
-        const replyTo = (company?.email ?? "").trim();
 
         const payload = JSON.stringify({
           from: senderWithName(company?.name ?? "", mailFrom),
@@ -356,7 +385,8 @@ Deno.serve(async (req) => {
           subject,
           html,
           text,
-          ...(replyTo ? { reply_to: replyTo } : {}),
+          // Non-null here: an unavailable reply address skipped this company above.
+          ...(reply.replyTo ? { reply_to: reply.replyTo } : {}),
         });
         const send = async () => {
           const wait = MIN_SEND_GAP_MS - (Date.now() - lastSendAt);
