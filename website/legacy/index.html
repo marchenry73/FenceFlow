@@ -1,0 +1,417 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Legacy Solutions | Software for the Trades</title>
+<meta name="description" content="Legacy Solutions builds practical software for working trade businesses. Our first product, FenceFlow, runs a fencing contractor from the first measurement to the paid job.">
+<meta name="theme-color" content="#16213A">
+
+<!-- PRE-LAUNCH: this page is noindex on purpose. No domain exists yet.
+     At launch: delete the robots line below, and add <link rel="canonical"> and
+     the og:url / og:title / og:description tags using the real domain. -->
+<meta name="robots" content="noindex">
+
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+
+<!-- Same font families the main FenceFlow site already loads (website/index.html). -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<!-- Icon sprite: drawn once, referenced with <use>. Inline, so nothing is fetched. -->
+<svg width="0" height="0" style="position:absolute" aria-hidden="true" focusable="false">
+  <defs>
+    <symbol id="i-check" viewBox="0 0 20 20"><circle cx="10" cy="10" r="10" fill="currentColor"/><path d="M5.5 10.5l3 3 6-7" fill="none" stroke="var(--surface)" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-phone" viewBox="0 0 24 24"><rect x="7" y="2.5" width="10" height="19" rx="2.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M10.5 18.5h3" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="i-office" viewBox="0 0 24 24"><rect x="3" y="4.5" width="18" height="12" rx="1.8" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M8 20h8M12 16.5V20" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="i-trace" viewBox="0 0 24 24"><path d="M3.5 18.5l5-9 5 5 7-9" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="3.5" cy="18.5" r="1.7" fill="currentColor"/><circle cx="8.5" cy="9.5" r="1.7" fill="currentColor"/><circle cx="13.5" cy="14.5" r="1.7" fill="currentColor"/><circle cx="20.5" cy="5.5" r="1.7" fill="currentColor"/></symbol>
+    <symbol id="i-list" viewBox="0 0 24 24"><path d="M9 6.5h11M9 12h11M9 17.5h11" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="4.6" cy="6.5" r="1.3" fill="currentColor"/><circle cx="4.6" cy="12" r="1.3" fill="currentColor"/><circle cx="4.6" cy="17.5" r="1.3" fill="currentColor"/></symbol>
+    <symbol id="i-offline" viewBox="0 0 24 24"><path d="M5 9.2a10 10 0 0 1 14 0M8 12.4a5.7 5.7 0 0 1 8 0" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="16" r="1.4" fill="currentColor"/><path d="M4 4l16 16" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="i-quote" viewBox="0 0 24 24"><path d="M12 3l8 4v10l-8 4-8-4V7z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><path d="M4 7l8 4 8-4M12 11v10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
+    <symbol id="i-clock" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M12 7.5V12l3 2" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></symbol>
+    <symbol id="i-card" viewBox="0 0 24 24"><rect x="3" y="5.5" width="18" height="13" rx="2.2" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M3 10h18M7 15h4" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></symbol>
+    <symbol id="i-field" viewBox="0 0 24 24"><path d="M12 21s-6.5-6-6.5-11a6.5 6.5 0 0 1 13 0c0 5-6.5 11-6.5 11z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="12" cy="10" r="2.3" fill="currentColor"/></symbol>
+    <symbol id="i-web" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8.5" fill="none" stroke="currentColor" stroke-width="1.8"/><path d="M3.5 12h17M12 3.5c2.6 2.4 3.6 5.3 3.6 8.5s-1 6.1-3.6 8.5c-2.6-2.4-3.6-5.3-3.6-8.5s1-6.1 3.6-8.5z" fill="none" stroke="currentColor" stroke-width="1.8"/></symbol>
+    <symbol id="i-chat" viewBox="0 0 24 24"><path d="M4 5.5h16v10.5H10l-4.5 3.5V16H4z" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/></symbol>
+  </defs>
+</svg>
+
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="top">
+  <div class="wrap">
+    <a class="brand" href="#top" aria-label="Legacy Solutions, home">
+      <!-- PLACEHOLDER LOGO. No Legacy Solutions logo exists in the repo (audit,
+           docs/overnight-2026-10-24/LEGACY_SOLUTIONS.md). This mark is a plain
+           geometric stand-in so the layout can be judged; replace it, and
+           favicon.svg, with the real logo. It uses theme tokens so a flat
+           one-colour logo will follow light/dark automatically. -->
+      <svg width="36" height="36" viewBox="0 0 36 36" aria-hidden="true">
+        <rect width="36" height="36" rx="7" fill="var(--brand)"/>
+        <path d="M11 8v20h14" fill="none" stroke="var(--brand-ink)" stroke-width="4.2" stroke-linecap="square"/>
+        <rect x="19" y="8" width="6" height="6" fill="var(--flow)"/>
+      </svg>
+      <div><b>Legacy Solutions</b><small>Software for the trades</small></div>
+    </a>
+    <nav class="nav" aria-label="Main">
+      <a href="#solutions">Solutions</a>
+      <a href="#fenceflow">FenceFlow</a>
+      <a href="#plans">Plans</a>
+      <a href="#about">About</a>
+      <a href="#contact">Contact</a>
+      <a class="btn sm" href="#contact">Get in touch</a>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+
+  <!-- ============================================================ HOME -->
+  <section class="hero" id="top">
+    <div class="wrap">
+      <div>
+        <p class="eyebrow">Legacy Solutions &middot; Florida</p>
+        <h1>Software that works the way the job does. <em>Starting with fences.</em></h1>
+        <p class="lede">Legacy Solutions builds practical software for working trade businesses: tools that run on the job site, not just in the office. Our first product, FenceFlow, takes a fencing contractor from the first measurement to the approved quote and the paid job.</p>
+        <div class="cta">
+          <a class="btn flow" href="#fenceflow">See FenceFlow</a>
+          <a class="btn ghost" href="#contact">Get in touch</a>
+        </div>
+        <p class="hero-note">FenceFlow was built by a working Florida fence contractor, from the problems that come up on real jobs.</p>
+      </div>
+
+      <div class="figure">
+        <!-- Illustration only: a traced fence line over a survey grid. The labels
+             name the kinds of material FenceFlow counts. There are deliberately
+             no numbers anywhere in it. -->
+        <svg viewBox="0 0 480 300" role="img" aria-label="A fence line traced over a survey grid, with posts at each corner and a gate gap on the front run">
+          <defs>
+            <pattern id="g" width="30" height="30" patternUnits="userSpaceOnUse">
+              <path d="M30 0H0V30" fill="none" stroke="var(--line)" stroke-width="1"/>
+            </pattern>
+          </defs>
+          <rect width="480" height="300" rx="8" fill="var(--ground)"/>
+          <rect width="480" height="300" rx="8" fill="url(#g)"/>
+          <!-- the parcel -->
+          <path d="M60 60H420V250H60Z" fill="none" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="5 6"/>
+          <!-- the fence run, traced -->
+          <path d="M90 90H390V215H90Z" fill="var(--flow-soft)" stroke="none"/>
+          <path d="M90 90H390V215H255M195 215H90V90" fill="none" stroke="var(--flow)" stroke-width="4" stroke-linejoin="round" stroke-linecap="round"/>
+          <!-- gate gap on the front run -->
+          <path d="M195 215H255" stroke="var(--ink)" stroke-width="3" stroke-dasharray="2 5" stroke-linecap="round"/>
+          <!-- posts -->
+          <g fill="var(--surface)" stroke="var(--flow)" stroke-width="3">
+            <circle cx="90" cy="90" r="7"/><circle cx="240" cy="90" r="5"/><circle cx="390" cy="90" r="7"/>
+            <circle cx="390" cy="215" r="7"/><circle cx="255" cy="215" r="6"/><circle cx="195" cy="215" r="6"/>
+            <circle cx="90" cy="215" r="7"/><circle cx="90" cy="152" r="5"/><circle cx="390" cy="152" r="5"/>
+          </g>
+          <text x="225" y="238" font-family="IBM Plex Mono, monospace" font-size="12" fill="var(--ink)" text-anchor="middle">gate</text>
+          <text x="240" y="158" font-family="Barlow Condensed, Arial Narrow, sans-serif" font-weight="700" font-size="22" fill="var(--flow)" text-anchor="middle" letter-spacing="1">TRACED</text>
+        </svg>
+        <ul class="tags" aria-label="Materials FenceFlow counts from the drawing">
+          <li>posts</li><li>panels</li><li>pickets</li><li>rails</li><li>concrete</li><li>gates</li>
+        </ul>
+        <p class="figcap">Illustration. A fence traced on the map becomes a material list.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ====================================================== SOLUTIONS -->
+  <section class="block band" id="solutions" aria-labelledby="solH">
+    <div class="wrap">
+      <p class="eyebrow">Software solutions</p>
+      <h2 id="solH">Built for the people doing the work</h2>
+      <p class="intro">Trade businesses run on the job site, the truck, and the phone. We build software around that: tools that keep working when the signal drops, and that give the customer something clear to say yes to.</p>
+
+      <div class="grid g3">
+        <article class="card">
+          <div class="ico"><svg width="24" height="24" aria-hidden="true"><use href="#i-field"/></svg></div>
+          <h3>Field-first apps</h3>
+          <p>Apps that are used on site, on a phone, in the sun. FenceFlow works offline at the job and syncs when the phone is back in range.</p>
+        </article>
+        <article class="card">
+          <div class="ico"><svg width="24" height="24" aria-hidden="true"><use href="#i-web"/></svg></div>
+          <h3>Office portals</h3>
+          <p>A web portal for the part of the business that happens at a desk: reviewing estimates, sending quotes, following up. It uses the same data as the field app, so nothing is retyped.</p>
+        </article>
+        <article class="card">
+          <div class="ico"><svg width="24" height="24" aria-hidden="true"><use href="#i-quote"/></svg></div>
+          <h3>Customer-facing pages</h3>
+          <p>A page your customer can open on their own phone to see what they are buying and approve it. FenceFlow quotes include a 3D view of the fence.</p>
+        </article>
+      </div>
+
+      <!-- OWNER DECISION: the card below is an invitation, not an offer of a
+           service. If Legacy Solutions will take on custom software work, say so
+           here in plain words (and add scope/process). If it will not, delete
+           this card. Nothing on this page currently promises custom work. -->
+      <div class="card soft" style="margin-top:20px">
+        <h3>Another trade, a similar problem?</h3>
+        <p>FenceFlow is where we started, and it came from a real fencing business. If you run a trade business and recognise the same problems, paper, text messages and guesswork, we would like to hear about it.</p>
+        <p style="margin-top:14px"><a href="#contact">Tell us what you are dealing with</a></p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ========================================================= FENCEFLOW -->
+  <section class="block ff" id="fenceflow" aria-labelledby="ffH">
+    <div class="wrap">
+      <span class="badge">A Legacy Solutions product</span>
+      <h2 id="ffH">FenceFlow</h2>
+      <p class="intro">FenceFlow is our specialised product for fencing contractors. It is built around how a fence job actually runs: measure it, price it, get it approved, build it, get paid.</p>
+
+      <div class="grid g3">
+        <article class="card">
+          <div class="ico"><svg width="24" height="24" aria-hidden="true"><use href="#i-trace"/></svg></div>
+          <h3>Trace it, don't tape it</h3>
+          <p>Build an estimate by tracing the fence on a satellite image or on a grid. Runs, corners and gates go on the drawing.</p>
+        </article>
+        <article class="card">
+          <div class="ico"><svg width="24" height="24" aria-hidden="true"><use href="#i-list"/></svg></div>
+          <h3>Material takeoff</h3>
+          <p>The drawing produces the list: posts, panels, pickets, rails, concrete and gates. No separate spreadsheet to keep in step.</p>
+        </article>
+        <article class="card">
+          <div class="ico"><svg width="24" height="24" aria-hidden="true"><use href="#i-offline"/></svg></div>
+          <h3>Works offline on site</h3>
+          <p>No signal at the back of the property? Keep working. The job syncs later, when the phone is connected again.</p>
+        </article>
+        <article class="card">
+          <div class="ico"><svg width="24" height="24" aria-hidden="true"><use href="#i-quote"/></svg></div>
+          <h3>Quotes customers can approve</h3>
+          <p>Each quote is a web page the customer can open, review and approve, including a 3D view of the fence being proposed.</p>
+        </article>
+        <article class="card">
+          <div class="ico"><svg width="24" height="24" aria-hidden="true"><use href="#i-clock"/></svg></div>
+          <h3>Crew time tracking</h3>
+          <p>Crew members clock in and out, and their time is tracked against the work.</p>
+        </article>
+        <article class="card">
+          <div class="ico"><svg width="24" height="24" aria-hidden="true"><use href="#i-card"/></svg></div>
+          <h3>Card payments</h3>
+          <p>Customers can pay by card, processed by Stripe.</p>
+        </article>
+      </div>
+
+      <div class="platforms" aria-label="Where FenceFlow runs">
+        <div class="platform">
+          <b>Android app</b>
+          <p>For the field: measure, trace and build the estimate on site, with or without a connection.</p>
+        </div>
+        <div class="platform">
+          <b>Web office portal</b>
+          <p>For the office: manage jobs, quotes and crews from a browser.</p>
+        </div>
+      </div>
+
+      <ol class="steps" aria-label="How a job runs in FenceFlow">
+        <li><b>Trace</b><span>Draw the fence on a satellite image or a grid.</span></li>
+        <li><b>Take off</b><span>Get the material list from the drawing.</span></li>
+        <li><b>Quote</b><span>Send a page the customer can approve, with a 3D view.</span></li>
+        <li><b>Build and get paid</b><span>Track crew time, and take a card payment.</span></li>
+      </ol>
+
+      <div class="ff-cta">
+        <a class="btn flow" href="https://fenceflowapp.com/">Visit the FenceFlow site</a>
+        <a class="btn ghost" href="#plans">See the plans</a>
+        <p>FenceFlow has its own site, sign-in and support. This page is the company overview.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============================================================ PLANS -->
+  <section class="block band" id="plans" aria-labelledby="plansH">
+    <div class="wrap">
+      <p class="eyebrow">Pricing</p>
+      <h2 id="plansH">FenceFlow plans</h2>
+      <p class="intro">Three plans, sized to the business: one person, a crew, or a company that wants to read its numbers. Every plan starts with a 14-day trial.</p>
+
+      <!-- KEEP IN SYNC with the pricing section of website/index.html (that page
+           is the source of truth for plan contents). Dollar prices are
+           DELIBERATELY not repeated here, so a price change is made in one place.
+           As of 2026-10-24 index.html shows Solo $99, Crew $199, Pro $349 per
+           month. If you want prices on this page, add them below that heading
+           and update both pages together. -->
+      <div class="plans">
+        <article class="plan">
+          <h3>Solo</h3>
+          <p class="who">One person running the whole business.</p>
+          <ul>
+            <li><svg width="20" height="20" aria-hidden="true"><use href="#i-check"/></svg>One login</li>
+            <li><svg width="20" height="20" aria-hidden="true"><use href="#i-check"/></svg>Unlimited jobs and estimates</li>
+            <li><svg width="20" height="20" aria-hidden="true"><use href="#i-check"/></svg>Drawing takeoff and materials</li>
+            <li><svg width="20" height="20" aria-hidden="true"><use href="#i-check"/></svg>Scheduling and calendar</li>
+            <li><svg width="20" height="20" aria-hidden="true"><use href="#i-check"/></svg>Invoices and branded PDF quotes</li>
+            <li><svg width="20" height="20" aria-hidden="true"><use href="#i-check"/></svg>Cash and check payments</li>
+            <li><svg width="20" height="20" aria-hidden="true"><use href="#i-check"/></svg>Works offline</li>
+          </ul>
+        </article>
+        <article class="plan on">
+          <h3>Crew</h3>
+          <p class="who">You and a crew, all on the same page.</p>
+          <ul>
+            <li><svg width="20" height="20" aria-hidden="true"><use href="#i-check"/></svg>You plus 5 crew</li>
+            <li><svg width="20" height="20" aria-hidden="true"><use href="#i-check"/></svg>Everything in Solo</li>
+            <li><svg width="20" height="20" aria-hidden="true"><use href="#i-check"/></svg>Time clock and crew pay</li>
+            <li><svg width="20" height="20" aria-hidden="true"><use href="#i-check"/></svg>Crew roles and permissions</li>
+            <li><svg width="20" height="20" aria-hidden="true"><use href="#i-check"/></svg>Pipeline board</li>
+            <li><svg width="20" height="20" aria-hidden="true"><use href="#i-check"/></svg>Money basics: collected and owed</li>
+            <li><svg width="20" height="20" aria-hidden="true"><use href="#i-check"/></svg>Card payments by link</li>
+          </ul>
+        </article>
+        <article class="plan">
+          <h3>Pro</h3>
+          <p class="who">Run the crew and read the business.</p>
+          <ul>
+            <li><svg width="20" height="20" aria-hidden="true"><use href="#i-check"/></svg>Unlimited logins</li>
+            <li><svg width="20" height="20" aria-hidden="true"><use href="#i-check"/></svg>Everything in Crew</li>
+            <li><svg width="20" height="20" aria-hidden="true"><use href="#i-check"/></svg>Profit and margin analytics</li>
+            <li><svg width="20" height="20" aria-hidden="true"><use href="#i-check"/></svg>Cost breakdowns</li>
+            <li><svg width="20" height="20" aria-hidden="true"><use href="#i-check"/></svg>Who owes you, and for how long</li>
+            <li><svg width="20" height="20" aria-hidden="true"><use href="#i-check"/></svg>Monday morning business digest</li>
+            <li><svg width="20" height="20" aria-hidden="true"><use href="#i-check"/></svg>Cloud photo and document backup</li>
+            <li><svg width="20" height="20" aria-hidden="true"><use href="#i-check"/></svg>Priority support</li>
+          </ul>
+        </article>
+      </div>
+
+      <p class="plan-note">14-day trial. A card is taken when you pick a plan, and the first charge comes when the trial ends. Card payments are processed by Stripe. For current prices and to start a trial, use the FenceFlow site.</p>
+      <div class="plan-actions">
+        <a class="btn flow" href="https://fenceflowapp.com/#pricing">See current prices</a>
+        <a class="btn ghost" href="#contact">Ask a question first</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- =========================================================== ABOUT -->
+  <section class="block" id="about" aria-labelledby="aboutH">
+    <div class="wrap about">
+      <div>
+        <p class="eyebrow">About</p>
+        <h2 id="aboutH">A technology company, with a fence company's habits</h2>
+        <p style="margin-top:18px">Legacy Solutions is the technology brand behind FenceFlow. <strong>FenceFlow is its specialised product</strong> for fencing contractors, built by a working Florida fence contractor out of the problems that come up on real jobs: measuring, pricing, getting a customer to say yes, and getting paid.</p>
+        <p>Legacy Solutions exists to build more of this kind of software, tools made by people who know the trade, for people who do it.</p>
+
+        <!-- PLACEHOLDER (owner to supply, only if true): founder name and
+             photo, company story, location detail, years of experience, team.
+             Nothing here may be invented. Do NOT add testimonials, customer
+             names, client logos, statistics, awards, certifications,
+             partnerships or "years in business" unless the owner supplies
+             them and they can be backed up. -->
+        <span class="todo" data-remove-at-launch>Placeholder: founder story, photo and any real credentials go here once supplied. None are claimed on this page.</span>
+      </div>
+      <ul class="values">
+        <li><b>Built from the job</b><span>Features come from real fencing work, not from a feature checklist.</span></li>
+        <li><b>Works where the work is</b><span>A back yard with no signal is normal, so the field app has to cope with it.</span></li>
+        <li><b>Clear to the customer</b><span>A quote should be something a homeowner can open on their phone, understand and approve.</span></li>
+      </ul>
+    </div>
+  </section>
+
+  <!-- ========================================================= CONTACT -->
+  <section class="block band" id="contact" aria-labelledby="contactH">
+    <div class="wrap contact">
+      <div>
+        <p class="eyebrow">Contact</p>
+        <h2 id="contactH">Get in touch</h2>
+        <p class="intro" style="margin-bottom:0">A question about FenceFlow, a trade-software problem, or something else. Send a note and we will reply.</p>
+
+        <ul class="details">
+          <li><b>General enquiries</b>
+            <!-- PLACEHOLDER: real Legacy Solutions email address. -->
+            <span class="placeholder" data-remove-at-launch>Email address to be supplied</span></li>
+          <li><b>Phone</b>
+            <!-- PLACEHOLDER: real phone number, if one is to be shown publicly. -->
+            <span class="placeholder" data-remove-at-launch>Phone number to be supplied (optional)</span></li>
+          <li><b>Location</b>Florida</li>
+          <li><b>FenceFlow product support</b>
+            <a href="mailto:support@fenceflowapp.com">support@fenceflowapp.com</a></li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <!-- ============================================================
+             CONTACT FORM -- NOT CONNECTED. READ BEFORE WIRING.
+
+             This form is a layout stand-in. It has no action and no method,
+             its button is type="button", and legacy.js cancels any submit
+             event. NOTHING typed here leaves the browser.
+
+             To wire it later:
+               1. Stand up a backend endpoint (for example a Supabase Edge
+                  Function modelled on supabase/functions/lead-intake, or any
+                  form-handling service). It should: validate and length-limit
+                  every field, rate-limit by IP, drop submissions where the
+                  honeypot field "website" is filled, and send the message to a
+                  Legacy Solutions mailbox.
+               2. In legacy.js, replace the stub in the "NOT CONNECTED" block
+                  with a POST of JSON to that endpoint (a commented example is
+                  there), and show its result in #formMsg.
+               3. Change the button to type="submit".
+               4. Delete the .notice below and every [data-remove-at-launch].
+               5. Update the privacy line under the button to say where the
+                  message goes and how long it is kept.
+             Do not collect anything beyond what the form already asks for.
+             ============================================================ -->
+        <form class="f" id="contactForm" novalidate>
+          <div class="notice" data-remove-at-launch role="note">
+            <b>Preview only.</b> This form is not connected to anything yet. Nothing you type here is sent, saved or stored.
+          </div>
+
+          <div class="row2">
+            <label>Your name
+              <input id="c_name" name="name" autocomplete="name" maxlength="120">
+            </label>
+            <label>Email
+              <input id="c_email" name="email" type="email" autocomplete="email" inputmode="email" maxlength="160">
+            </label>
+          </div>
+          <label><span>Business <small>(optional)</small></span>
+            <input id="c_biz" name="business" autocomplete="organization" maxlength="160">
+          </label>
+          <label>What is this about?
+            <select id="c_topic" name="topic">
+              <option value="">Choose one</option>
+              <option>A question about FenceFlow</option>
+              <option>Starting a FenceFlow trial</option>
+              <option>Software for my trade business</option>
+              <option>Something else</option>
+            </select>
+          </label>
+          <label>Message
+            <textarea id="c_msg" name="message" maxlength="2000"></textarea>
+          </label>
+
+          <!-- Honeypot for the future backend; people never see it. -->
+          <div class="hp" aria-hidden="true"><label>Leave this empty <input id="c_web" name="website" tabindex="-1" autocomplete="off"></label></div>
+
+          <div class="msg" id="formMsg" role="status" aria-live="polite"></div>
+          <button class="btn" id="sendBtn" type="button">Send message</button>
+          <p class="privacy">Privacy: the sentence describing where messages go and how long they are kept will be written when the form is connected.</p>
+        </form>
+      </div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>Legacy Solutions &middot; Florida &middot; <span id="yr">2026</span></span>
+    <nav aria-label="Footer">
+      <a href="#solutions">Solutions</a>
+      <a href="https://fenceflowapp.com/">FenceFlow</a>
+      <a href="https://fenceflowapp.com/privacy.html">FenceFlow privacy</a>
+      <a href="https://fenceflowapp.com/terms.html">FenceFlow terms</a>
+    </nav>
+  </div>
+  <!-- PLACEHOLDER: Legacy Solutions' own privacy notice and terms, once the
+       contact form is live. The two links above cover the FenceFlow product only. -->
+</footer>
+
+<script src="legacy.js"></script>
+</body>
+</html>

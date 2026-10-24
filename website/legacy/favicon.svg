@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 36 36">
+  <!-- PLACEHOLDER icon, matching the placeholder mark in index.html. Replace with the real logo. -->
+  <rect width="36" height="36" rx="7" fill="#16213A"/>
+  <path d="M11 8v20h14" fill="none" stroke="#FFFFFF" stroke-width="4.2" stroke-linecap="square"/>
+  <rect x="19" y="8" width="6" height="6" fill="#FF8A5C"/>
+</svg>
