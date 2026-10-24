@@ -3231,6 +3231,10 @@
   </div>
   <div class="sheet-foot">
     <button class="btn btn-sm btn-ghost" id="mc_discard" type="button" data-t="mailDiscardBtn">Discard</button>
+    <!-- SEND LATER. The time is local to whoever is typing, which is the only
+         clock he thinks in; it is converted to UTC on the way to the row. -->
+    <input id="mc_when" type="datetime-local" style="max-width:215px" aria-label="When to send">
+    <button class="btn btn-sm btn-ghost" id="mc_later" type="button" data-t="mailLaterBtn">Send later</button>
     <button class="btn" id="mc_send" type="button" data-t="mailSendBtn">Send</button>
   </div>
 </div></div>
@@ -3868,7 +3872,7 @@ jobViewAll:'All', jobViewToday:'Today', jobViewWeek:'This week', jobViewUnschedu
     mailAttachBtn:'Attach files', mailAttachLimit:'Up to 5 files, 10 MB in total.',
     mailAttachTooBig:'%s would take the attachments over 10 MB.', mailForwardedFiles:'From the original message:',
     mailRemoveBtn:'Remove', mailJobChip:'Linked to job: %s',
-    mailSendBtn:'Send', mailSending:'Sending…', mailUploading:'Attaching %s…', mailUploadFailed:'Could not attach %s: %s',
+    mailLaterBtn:'Send later', mailWhenMissing:'Choose when to send it first.', mailWhenPast:'Pick a time at least a minute from now.', mailScheduledOk:'Scheduled. It sends at %s.', mailDraftSendsAt:'Sends %s', mailDraftSendingNow:'Sending now…', mailDraftSendFailed:'Not sent: %s', mailSendBtn:'Send', mailSending:'Sending…', mailUploading:'Attaching %s…', mailUploadFailed:'Could not attach %s: %s',
     mailSentOk:'Sent.', mailSendFailed:'Not sent.',
     mailMaybeSent:'FenceFlow could not confirm this was sent. Check your Sent folder before sending it again.',
     mailDiscardQ:'Discard this email?', mailDiscardBody:'What you wrote will be deleted. Close instead and it is kept in Drafts.',
@@ -5747,7 +5751,7 @@ jobViewAll:'Todos', jobViewToday:'Hoy', jobViewWeek:'Esta semana', jobViewUnsche
     mailAttachBtn:'Adjuntar archivos', mailAttachLimit:'Hasta 5 archivos, 10 MB en total.',
     mailAttachTooBig:'Con %s los adjuntos pasarían de 10 MB.', mailForwardedFiles:'Del mensaje original:',
     mailRemoveBtn:'Quitar', mailJobChip:'Vinculado al trabajo: %s',
-    mailSendBtn:'Enviar', mailSending:'Enviando…', mailUploading:'Adjuntando %s…', mailUploadFailed:'No se pudo adjuntar %s: %s',
+    mailLaterBtn:'Enviar más tarde', mailWhenMissing:'Primero elija cuándo enviarlo.', mailWhenPast:'Elija una hora al menos un minuto después de ahora.', mailScheduledOk:'Programado. Se enviará a las %s.', mailDraftSendsAt:'Se envía %s', mailDraftSendingNow:'Enviando ahora…', mailDraftSendFailed:'No enviado: %s', mailSendBtn:'Enviar', mailSending:'Enviando…', mailUploading:'Adjuntando %s…', mailUploadFailed:'No se pudo adjuntar %s: %s',
     mailSentOk:'Enviado.', mailSendFailed:'No enviado.',
     mailMaybeSent:'FenceFlow no pudo confirmar que se envió. Revise su carpeta de enviados antes de enviarlo otra vez.',
     mailDiscardQ:'¿Descartar este correo?', mailDiscardBody:'Se borrará lo que escribió. Cierre en su lugar y se guarda en Borradores.',
@@ -7596,7 +7600,7 @@ jobViewAll:'Tous', jobViewToday:'Aujourdhui', jobViewWeek:'Cette semaine', jobVi
     mailAttachBtn:'Joindre des fichiers', mailAttachLimit:'Jusqu’à 5 fichiers, 10 Mo au total.',
     mailAttachTooBig:'Avec %s, les pièces jointes dépasseraient 10 Mo.', mailForwardedFiles:'Du message d’origine :',
     mailRemoveBtn:'Retirer', mailJobChip:'Lié au chantier : %s',
-    mailSendBtn:'Envoyer', mailSending:'Envoi…', mailUploading:'Ajout de %s…', mailUploadFailed:'Impossible de joindre %s : %s',
+    mailLaterBtn:'Envoyer plus tard', mailWhenMissing:'Choisissez d’abord quand l’envoyer.', mailWhenPast:'Choisissez une heure au moins une minute après maintenant.', mailScheduledOk:'Programmé. Envoi à %s.', mailDraftSendsAt:'Envoi %s', mailDraftSendingNow:'Envoi en cours…', mailDraftSendFailed:'Non envoyé : %s', mailSendBtn:'Envoyer', mailSending:'Envoi…', mailUploading:'Ajout de %s…', mailUploadFailed:'Impossible de joindre %s : %s',
     mailSentOk:'Envoyé.', mailSendFailed:'Non envoyé.',
     mailMaybeSent:'FenceFlow n’a pas pu confirmer l’envoi. Vérifiez votre dossier Envoyés avant de le renvoyer.',
     mailDiscardQ:'Abandonner cet e-mail ?', mailDiscardBody:'Ce que vous avez écrit sera supprimé. Fermez plutôt et il est conservé dans Brouillons.',
@@ -29987,7 +29991,7 @@ async function loadMailThreads(reset, keep){
    can drift from the first. */
 async function loadMailDrafts(){
   const { data, error } = await db.from('mail_drafts')
-    .select('id, subject, to_text, body, updated_at, kind')
+    .select('id, subject, to_text, body, updated_at, kind, send_at, send_state, send_error')
     .order('updated_at', { ascending: false }).limit(MAIL_PAGE);
   const box = $('mailThreads');
   $('mailMore').style.display = 'none';
@@ -30009,7 +30013,17 @@ async function loadMailDrafts(){
         `<span class="mr-top"><span class="mr-who">${esc(who)}</span>` +
         `<span class="mr-time">${esc(mailTimeLabel(d.updated_at, now, LANG))}</span></span>` +
         `<span class="mr-subj">${esc(subj)}</span>` +
-        `<span class="mr-snip">${esc(snip)}</span>` +
+        /* A queued email is still a draft row, so it belongs in this list --
+           and the discard button above it IS how it is cancelled. Shown
+           instead of the snippet, because "when does this go out" is the only
+           question worth answering about a scheduled letter. */
+        (d.send_at
+          ? `<span class="mr-snip">${esc(
+              d.send_state === 'failed' ? tr('mailDraftSendFailed', cleanLine(d.send_error) || '—')
+              : d.send_state === 'sending' ? tr('mailDraftSendingNow')
+              : tr('mailDraftSendsAt', new Date(d.send_at).toLocaleString(LANG, { dateStyle: 'medium', timeStyle: 'short' }))
+            )}</span>`
+          : `<span class="mr-snip">${esc(snip)}</span>`) +
       `</button></div>`;
   }).join('');
 }
@@ -30509,6 +30523,55 @@ function composeDraftTouched(){
   // Two seconds after he stops typing, not on every keystroke: a write per
   // character is a write per character.
   mailDraftTimer = setTimeout(saveComposeDraft, 2000);
+}
+
+/* SEND LATER: save what is typed, then put a time on it.
+
+   The row is saved by saveComposeDraft() rather than built again here -- see
+   the note at the top of this patch. Everything after that is the schedule:
+   the time, and the three things the sweep needs that an ordinary draft has no
+   use for (the send id, whether the letter hides its button addresses, and the
+   job whose quote this is so the sweep can stamp it when it actually goes).
+
+   The sweep runs every five minutes, so "8:00" means at or just after 8:00 and
+   never before it. Said plainly in the confirmation rather than implied. */
+async function scheduleCompose(){
+  const c = mailCompose;
+  if (!c || c.done) return;
+  const raw = $('mc_when').value;
+  if (!raw) { msg('mc_msg', tr('mailWhenMissing'), 'err'); return; }
+  const when = new Date(raw);
+  // A minute of slack: a time typed as "now" would otherwise be in the past by
+  // the time it is saved, and a row already due reads as late rather than
+  // scheduled.
+  if (!isFinite(when.getTime()) || when.getTime() < Date.now() + 60000) {
+    msg('mc_msg', tr('mailWhenPast'), 'err'); return;
+  }
+  // The same recipient gate Send uses, so a scheduled email cannot be queued
+  // with nobody to send it to -- the sweep would only refuse it hours later.
+  const to = parseAddressList($('mc_to').value);
+  if (to.bad.length) { msg('mc_msg', tr('mailBadAddress', to.bad.slice(0, 3).map(cleanLine).join(', ')), 'err'); return; }
+  if (!to.ok.length) { msg('mc_msg', tr('mailNeedRecipient'), 'err'); return; }
+
+  await saveComposeDraft();
+  // saveComposeDraft() has already said why if it could not save; a row with
+  // no id is a row there is nothing to schedule.
+  if (!c.draftId) return;
+
+  const { error } = await db.from('mail_drafts').update({
+    send_at: when.toISOString(),
+    send_state: null,
+    send_error: null,
+    client_send_id: c.clientSendId,
+    hide_cta_url: !!c.quoteSendFor,
+    quote_send_for: c.quoteSendFor || null,
+  }).eq('id', c.draftId);
+  if (error) { msg('mc_msg', plainError(error.message), 'err'); return; }
+
+  msg('mc_msg', tr('mailScheduledOk', when.toLocaleString(LANG, { dateStyle: 'medium', timeStyle: 'short' })), 'ok');
+  c.done = true;
+  closeCompose();
+  loadMailThreads(true);
 }
 
 async function saveComposeDraft(){
@@ -31848,6 +31911,7 @@ $('mailReaderBody').addEventListener('click', async e => {
 $('mc_close').addEventListener('click', closeCompose);
 $('mc_discard').addEventListener('click', discardCompose);
 $('mc_send').addEventListener('click', sendCompose);
+$('mc_later').addEventListener('click', scheduleCompose);
 $('mc_tpl').addEventListener('change', applyMailTemplate);
 
 /* ---------- templates ----------
