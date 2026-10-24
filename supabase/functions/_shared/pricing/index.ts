@@ -922,10 +922,37 @@ export function priceJob(input: PricingInput): PricingOutput {
       change_order_feet: totals.changeOrderFeet,
       markup_amount: totals.markupAmount,
       discount_amount: totals.discountAmount,
-      // Not on Totals; rebuilt from the six components it IS built from, in
-      // the engine's own order (computeTotals, preMarkup).
-      pre_markup_total: totals.materialsSubtotal + totals.tax + totals.laborCost +
-        totals.teardownCost + totals.changeOrderCost + totals.gateCharge,
+      // THE BASE THE MARKUP WAS ACTUALLY TAKEN ON -- `Totals.preMarkup`
+      // itself, not a second addition of the same six components.
+      //
+      // This line used to read
+      //   totals.materialsSubtotal + totals.tax + totals.laborCost +
+      //     totals.teardownCost + totals.changeOrderCost + totals.gateCharge
+      // under the comment "Not on Totals; rebuilt from the six components it
+      // IS built from". It IS on Totals -- computeTotals returns `preMarkup`,
+      // documented there as "The base the markup is taken on. A local on the
+      // phone; the contract reports it" -- so the rebuild was reporting a
+      // figure that merely HAPPENED to equal the one the money was taken on.
+      // The office shows this field to the contractor as the quote's subtotal
+      // (website/dashboard.html, `const subtotal = totals.pre_markup_total`,
+      // whose own comment already claims it is "the server's own
+      // pre_markup_total (totals.ts, preMarkup)"), so a change to the real
+      // markup base would have left the displayed subtotal telling the old
+      // story while the markup moved. Measured, not reasoned about:
+      // tests/a4-money-formula.test.mjs's C3 canary pulls tax out of the real
+      // base and the rebuilt field went on reporting $3,198.00 while the
+      // engine marked up $3,128.00.
+      //
+      // Numerically a no-op the day it changed: the same six terms in the
+      // same order are the same IEEE double, so every one of the 90 parity
+      // fixtures still agrees to the bit (`node
+      // supabase/functions/_shared/pricing/parity.ts`, 90 of 90, engine
+      // 2026.10.23, before and after). No engine version bump, because no
+      // priced figure moves. The Kotlin side's parity adapter
+      // (app/src/test/java/.../parity/PricingAdapters.kt, preMarkupTotal)
+      // still re-adds the six components and is left alone by this change --
+      // see the A4 report.
+      pre_markup_total: totals.preMarkup,
       grand_total: totals.grandTotal,
       billable_linear_feet: totals.billableLinearFeet,
     },
