@@ -112,7 +112,15 @@ interface Candidate {
 
 Deno.serve(async (req) => {
   try {
-    const expected = Deno.env.get("NOTIFY_TRIGGER_SECRET");
+    /* Its own secret first, the shared one as a fallback -- the same shape
+       send-follow-ups uses, and for the same reason. The schedule in
+       .github/workflows/attention-sweep.yml sends ATTENTION_SWEEP_TRIGGER_SECRET,
+       while this door only ever compared NOTIFY_TRIGGER_SECRET: the names
+       disagreed, so every hourly run was refused 401 and nobody was ever
+       notified. Reading both keeps the server-to-server callers that hold
+       NOTIFY_TRIGGER_SECRET working untouched, which rotating it would not. */
+    const expected = Deno.env.get("ATTENTION_SWEEP_TRIGGER_SECRET")
+      ?? Deno.env.get("NOTIFY_TRIGGER_SECRET");
     if (!expected) {
       console.error("attention-sweep: NOTIFY_TRIGGER_SECRET is not set; refusing to run.");
       return json({ error: "not configured" }, 503);
