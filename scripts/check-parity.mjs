@@ -34,7 +34,7 @@
  * worktree has neither; copy them from the main checkout first.
  */
 import { spawnSync } from "node:child_process";
-import { existsSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 const REPO_ROOT = resolve(import.meta.dirname, "..");
@@ -120,9 +120,63 @@ function suite(label, commandLine, extraEnv = {}) {
 // and reports it as "not recognized" -- which reads as a missing install.
 const gradlew = `"${resolve(REPO_ROOT, isWindows ? "gradlew.bat" : "gradlew")}"`;
 
+/**
+ * Where Gradle writes one XML per test class, and the floor below which this
+ * suite has not earned the word "parity".
+ *
+ * ParityFixtureCheck carries the three checks that replay every fixture; the
+ * floor is those. RealRowsParityCheck is deliberately NOT counted on -- it
+ * calls assumeTrue and skips unless FENCEFLOW_REAL_FIXTURE names a dump.
+ */
+const TEST_RESULTS = join(REPO_ROOT, "app", "build", "test-results", "testDebugUnitTest");
+const PARITY_FLOOR = 3;
+
+/**
+ * How many parity tests actually EXECUTED since [since].
+ *
+ * Counted from the XML rather than inferred from the exit status, because a
+ * suite can exit 0 having run nothing at all: a filter that matches no class,
+ * or one that matches only a class which skips itself. An assumption failure
+ * is recorded as skipped, so it is subtracted -- a skipped test compared no
+ * prices.
+ *
+ * Only files written after the run started are counted, so a stale result
+ * from an earlier run cannot vouch for this one.
+ */
+function parityTestsThatRan(since) {
+  if (!existsSync(TEST_RESULTS)) return 0;
+  let ran = 0;
+  for (const name of readdirSync(TEST_RESULTS)) {
+    if (!/^TEST-.*\.xml$/i.test(name)) continue;
+    if (!/parity/i.test(name)) continue;
+    const full = join(TEST_RESULTS, name);
+    if (statSync(full).mtimeMs + 1000 < since) continue;
+    const xml = readFileSync(full, "utf8");
+    const total = /\btests="(\d+)"/.exec(xml);
+    const skipped = /\bskipped="(\d+)"/.exec(xml);
+    if (total) ran += Number(total[1]) - (skipped ? Number(skipped[1]) : 0);
+  }
+  return ran;
+}
+
+const kotlinStartedAt = Date.now();
+
+// THE PATTERN IS PACKAGE-QUALIFIED ON PURPOSE -- DO NOT "SIMPLIFY" IT BACK TO
+// "*Parity*". That form is expanded before Gradle sees it: the MSYS runtime
+// globs arguments case-insensitively when the wrapper launches java.exe, even
+// through quotes, so a file named ADMIN_PHONE_PARITY_2026-10-22.md in the repo
+// root silently became the test filter and the whole gate failed with "no
+// tests found". A dotted package name matches no filename.
+// --rerun IS LOAD-BEARING -- DO NOT DROP IT TO SAVE 90 SECONDS. Gradle will
+// otherwise report this task UP-TO-DATE and skip it, which breaks the gate in
+// two ways: no result XML is written, so parityTestsThatRan() sees nothing;
+// and, far worse, fixtures/pricing/*.json is not an input of any task (the
+// tests open those files at runtime), so a CHANGED FIXTURE does not make the
+// task out of date. Without --rerun the gate can call the engines identical
+// from cache without having read a single fixture.
 const kotlin = suite(
   "kotlin parity",
-  `${gradlew} testDebugUnitTest --tests "*Parity*" --console=plain -q`,
+  `${gradlew} testDebugUnitTest --tests "com.fenceestimator.app.estimate.parity.*" --rerun --console=plain -q`,
   {
     JAVA_HOME: JDK_HOME,
     PATH: `${JDK_HOME}${isWindows ? "\\bin;" : "/bin:"}${process.env.PATH ?? ""}`,
@@ -141,12 +195,36 @@ const typescript = suite(
 const commitPlan = suite("commit plan", `${npx} -y tsx supabase/functions/_shared/pricing/load_test.ts`);
 const takeoffMerge = suite("takeoff merge", `${npx} -y tsx tests/price-job-takeoff-merge.test.mjs`);
 
+// How many Kotlin parity tests really ran. Read once, used both for the
+// failure message and for the did-it-prove-anything check below.
+const kotlinRan = parityTestsThatRan(kotlinStartedAt);
+
+if (!kotlin && kotlinRan === 0) {
+  console.log(
+    "\nThe Kotlin parity suite never ran: the build failed before executing a test, " +
+      "so the engines have NOT disagreed -- nothing was compared.",
+  );
+  console.log(
+    "      Look for a build error above, not a pricing difference. One known cause: a file " +
+      "whose name matches the --tests pattern.",
+  );
+  process.exit(1);
+}
 if (!(kotlin && typescript)) {
   console.log("\nParity is red. Nothing ships until both engines agree on the same fixtures.");
+  process.exit(1);
+}
+// A suite that exits 0 having compared nothing is not green. This is the
+// check that would have caught the filter breaking quietly instead of loudly.
+if (kotlinRan < PARITY_FLOOR) {
+  console.log(
+    `\nThe Kotlin parity suite passed but only ${kotlinRan} test(s) ran, fewer than the ${PARITY_FLOOR} that replay the fixtures.`,
+  );
+  console.log("      A suite that compared nothing cannot say the engines agree. Check the --tests filter.");
   process.exit(1);
 }
 if (!(commitPlan && takeoffMerge)) {
   console.log("\nThe commit plan is red. Nothing ships until a re-price leaves the lines somebody edited alone.");
   process.exit(1);
 }
-console.log("\nParity is green: both engines reproduce the fixtures exactly, and a commit leaves edited lines alone.");
+console.log(`\nParity is green: both engines reproduce the fixtures exactly (${kotlinRan} Kotlin parity tests ran), and a commit leaves edited lines alone.`);
