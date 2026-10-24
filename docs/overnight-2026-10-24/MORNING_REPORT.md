@@ -112,9 +112,49 @@ credentials** (`company-crew-golden-path`, `live-rules-guard`,
 
 ## 6. Security report
 
-My own findings, each verified. (A dedicated read-only audit agent was still
-running when this was written; its output, if it completed, is
-`SECURITY_AUDIT.md` in this folder — read it before trusting any "clean" here.)
+The read-only audit completed: `SECURITY_AUDIT.md`. It found **no Critical
+issues**, confirmed RLS is on for all 63 tables, and measured **0 cross-company
+rows across all 57 relations carrying a `company_id`** — so no company can read
+another's data. Its clean results each carry a control, including a planted
+secret file that its scanner caught on all five patterns.
+
+**I re-checked its two "High" findings myself rather than relay them**, and the
+checks changed both:
+
+**H1 — CONFIRMED, and unambiguous.** `companies` has 33 columns, **all 33**
+granted SELECT to `authenticated`, and there is a **table-level** SELECT grant —
+which by definition covers every column including future ones. The per-column
+lock-down was undone by `supabase_r32_remove_and_restore_company.sql:25`. All
+five sensitive columns are present (`admin_notes`, `leads_token`, and three
+Stripe ids), and the agent read them as a crew login. RLS still limits *which
+rows*, so the exposure is inside a user's own company — a crew member can read
+the platform's notes about the business, its leads token and its Stripe ids.
+The repo's own `supabase_check_column_grants.sql` canary returns FAIL live,
+which means this project already had a detector for exactly this and it has
+been failing unheeded.
+
+**H3 — CONFIRMED, and half of it is a broken workflow, not a security hole.**
+`crew_join_code_for_invite()` **does not exist on the live database**, and
+`supabase_r18_join_door.sql` (in the repo since "the platform audit that found a
+stranger can take over a company") was never applied. `invite-crew` calls that
+function and returns a 500, *"Could not prepare the invitation"*, when it is
+missing — it deliberately refuses to fall back to emailing the company id. **So
+if the deployed invite-crew is the repo's version, crew email invitations are
+failing every time.** I could not determine which version is deployed without
+invoking a production function that sends mail, so this is stated as a strong
+inference, not a measurement.
+
+The other half is milder than reported: the live `join_company` is not an open
+door. It requires a signed-in user, refuses anyone who already belongs to a
+business, and refuses anyone previously removed from that company. What remains
+true is that **the company UUID is the invite code** — the function's own
+comment says "The company id is an invite code, not proof of anything" — which
+is precisely what r18 was written to replace.
+
+Applying r18 would close both. It is 76KB of migration and I did not run it
+unattended.
+
+My own findings, each verified:
 
 - **Privilege escalation prevented before it shipped.** A scheduled draft names
   an `account_id`, but `mail_drafts`' insert policy checks only author and
