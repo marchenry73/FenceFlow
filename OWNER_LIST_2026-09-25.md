@@ -118,12 +118,12 @@ live with a positive control: NOTHING else in the repo root has been applied. Ei
 
 ## D. The drawing
 
-- [ ] **D1. Unlimited grid** — draw bigger, zoom out and keep finding grid. Make
+- [x] **D1. ALREADY DONE - verified 24-10.** zoomGridExtent doubles the CURRENT extent rather than stepping a list, so it has no top ("every tap finds a bigger grid than the last, forever"); GRID_SIZES_FT reaches 10000, not the 2000 this item claims; square size scales with the extent; a Float overflow returns the current extent rather than calibrating against infinity; GridExtentTest pins it. Original wording: D1. Unlimited grid** — draw bigger, zoom out and keep finding grid. Make
       it look good. (Today `GRID_SIZES_FT` tops out at 2000 and satellite pins
       to 400.)
 - [x] **D2(a) DONE 28-09 and it was a rule breach, not a feature gap:** a CREW phone could delete a fence run — `RunEditScreen` never read the session at all. Now gated on `canDelete`, hidden not greyed, checked again on the dialog.
-- [ ] **D2(b). Erase a run from the DRAWING screen** — in progress.
-- [ ] **D3. Draw the old fence on the grid** so nothing goes in the marker area,
+- [x] **D2(b). DONE - verified 24-10.** SurveyDrawScreen has an ERASE mode and a Delete action on the selected run, both behind session.canDelete, with a confirm dialog; SurveyViewModel.eraseRun confirms the run still belongs to this job, forgets its timeline steps, and moves the selection so the canvas never goes blank.
+- [x] **D3. ALREADY DONE - verified 24-10.** The drawing screen's + menu offers "new" and "teardown", so the old fence is started where it is drawn; it draws in PlanColors.teardownLine; linearFeet excludes it and teardownLinearFeet sums it, in BOTH engines; TeardownChargeRow puts the job-level charge switch on that same screen; and EstimateEngine warns when a teardown is drawn while the charge is off. Still open: what "so nothing goes in the marker area" asks for, and that an EXISTING run cannot be switched to or from teardown (it is only set when the run is added). Original wording: D3. Draw the old fence on the grid** so nothing goes in the marker area,
       and make sure it is charged for.
 - [x] **D4. STARTED 28-09.** The estimate now says what the tax was charged ON, whenever that differs from the materials — the line whose absence hid A1 for three passes. More charges to surface still.
 - [ ] **D5. DO NOT BUILD AS ASKED — verified.** Those five controls are the ONLY place the teardown charge can be switched on or priced, and the engine forces the cost to zero when the switch is off. Remove them and the charge becomes permanently uncollectable — recreating D3's complaint one screen over. Instead: keep every field and show what it is pricing (in progress). Original wording:

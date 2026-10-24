@@ -648,6 +648,17 @@
     <string name="jd_teardown_basis_no_length_at_all">Todavía no hay ningún largo en este trabajo, así que del retiro solo se cobran la tarifa fija y el acarreo.</string>
     <string name="jd_teardown_length_override">Reemplazar el largo de la cerca vieja (pies) -- 0 = usar el dibujo</string>
     <string name="jd_teardown_override_note">En 0, el retiro se calcula sobre la cerca vieja que dibujaste, o a lo largo de la cerca nueva si no dibujaste ninguna. Un número aquí reemplaza a las dos -- para una cerca vieja cuyo largo ya conoces sin trazarla. Nunca cambia el cálculo de la cerca nueva.</string>
+    <!-- D5: what each teardown control is pricing, shown beside the controls -->
+    <string name="jd_teardown_off_note">Apagado: el cobro por retiro en este trabajo es %1$s. La tarifa fija, el $/pie y el acarreo solo llegan al precio con esto encendido.</string>
+    <string name="jd_teardown_line_flat">Tarifa fija</string>
+    <string name="jd_teardown_line_per_ft">$%1$s/pie × %2$s pies</string>
+    <string name="jd_teardown_line_haul">Acarreo / tiradero</string>
+    <string name="jd_teardown_line_total">Cobro por retiro en este trabajo</string>
+    <string name="jd_teardown_feet_from">Esos %1$s pies vienen de aquí: %2$s.</string>
+    <string name="jd_teardown_feet_from_typed">el largo escrito arriba</string>
+    <string name="jd_teardown_feet_from_drawn">la cerca vieja del dibujo</string>
+    <string name="jd_teardown_feet_from_new_fence">el largo de la cerca nueva -- no hay ningún largo de cerca vieja en este trabajo</string>
+    <string name="jd_teardown_no_feet_note">Todavía no hay ningún largo en este trabajo, así que el $/pie no suma nada -- el cobro de arriba es solo la tarifa fija y el acarreo.</string>
     <plurals name="jd_teardown_runs">
         <item quantity="one">%1$d tramo de retiro</item>
         <item quantity="other">%1$d tramos de retiro</item>

@@ -685,6 +685,17 @@
     <string name="jd_teardown_basis_no_length_at_all">There is no length anywhere on this job yet, so the teardown is only charging the flat fee and the haul fee.</string>
     <string name="jd_teardown_length_override">Override the old fence\'s length (ft) -- 0 = use the drawing</string>
     <string name="jd_teardown_override_note">At 0 the teardown is priced on the old fence you drew, or along the new fence if you drew none. A number here overrides both -- for an old fence whose length you already know without tracing it. It never changes the new fence\'s takeoff.</string>
+    <!-- D5: what each teardown control is pricing, shown beside the controls -->
+    <string name="jd_teardown_off_note">Off: the teardown charge on this job is %1$s. The flat fee, the $/ft rate and the haul fee only reach the price while this is on.</string>
+    <string name="jd_teardown_line_flat">Flat fee</string>
+    <string name="jd_teardown_line_per_ft">$%1$s/ft × %2$s ft</string>
+    <string name="jd_teardown_line_haul">Haul away / dump fee</string>
+    <string name="jd_teardown_line_total">Teardown charge on this job</string>
+    <string name="jd_teardown_feet_from">That %1$s ft is %2$s.</string>
+    <string name="jd_teardown_feet_from_typed">the length typed above</string>
+    <string name="jd_teardown_feet_from_drawn">the old fence on the drawing</string>
+    <string name="jd_teardown_feet_from_new_fence">the new fence\'s own length -- no old fence length is set on this job</string>
+    <string name="jd_teardown_no_feet_note">There is no length on this job yet, so the $/ft rate adds nothing -- the charge above is the flat fee and the haul fee alone.</string>
     <plurals name="jd_teardown_runs">
         <item quantity="one">%1$d teardown run</item>
         <item quantity="other">%1$d teardown runs</item>

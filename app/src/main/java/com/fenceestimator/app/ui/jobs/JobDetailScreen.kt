@@ -2060,6 +2060,24 @@ private fun TeardownFields(job: Job, runs: List<FenceRun>, editable: Boolean, vi
             onCheckedChange = { viewModel.update { j -> j.copy(teardownEnabled = it) } }
         )
     }
+    // What this switch does to the money, which is the whole of its effect:
+    // with it off the engine forces the teardown charge to zero, and every
+    // figure below stops reaching the price. The four fee fields are hidden
+    // while it is off, so an owner who filled them in on a previous visit had
+    // nothing on the screen telling him whether they were still being
+    // charged -- and a charge you cannot see is a charge you forget to
+    // collect. Named in money rather than in words about the switch, because
+    // the question being asked here is what the job is billing.
+    if (!job.teardownEnabled) {
+        Text(
+            // Money.format decides the figure, not a literal in the string --
+            // same reason as jd_tier_summary: the three translations must not
+            // each get their own opinion about how a dollar amount is written.
+            stringResource(R.string.jd_teardown_off_note, Money.format(0.0)),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
     if (job.teardownEnabled) {
         // Which footage the charge below is being applied to, named in the
         // same order of preference the charge itself uses. Nothing here ever
@@ -2148,6 +2166,76 @@ private fun TeardownFields(job: Job, runs: List<FenceRun>, editable: Boolean, vi
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
+        // What the four fee fields above come to, line by line, in the order
+        // they are read: the flat fee, the rate standing against the footage
+        // it is actually multiplied by, the haul fee, and the charge they add
+        // up to. Until this box every one of those was arithmetic the owner
+        // had to do in his head from a rate and a length that was never shown
+        // -- which is how a section that is the ONLY way to charge for taking
+        // an old fence out came to read as five boxes with no visible effect
+        // on the price, and nearly got deleted for it.
+        //
+        // Display only. The three component lines mirror the engine's own
+        // three terms off the same job row and the same resolved footage, and
+        // the bottom line is the engine's own teardownCost rather than their
+        // sum -- so the figure named here as the charge cannot drift away
+        // from the figure the estimate is summed from. No price is decided in
+        // this file.
+        val resolvedTeardownFt = when {
+            job.teardownFeet > 0.0 -> job.teardownFeet
+            drawnTeardownFt > 0f -> drawnTeardownFt.toDouble()
+            else -> totals.billableLinearFeet.toDouble()
+        }
+        // Which of the three fallbacks is in play, said again in four words
+        // beside the money. The long version sits in the basis card at the
+        // top of the section, but the money box has to answer it on its own:
+        // this is the line the owner reads when he is checking a price, and
+        // "180 ft" with no source is exactly the figure he retyped by hand
+        // because he could not tell where it came from.
+        val feetSource = when {
+            job.teardownFeet > 0.0 -> stringResource(R.string.jd_teardown_feet_from_typed)
+            drawnTeardownFt > 0f -> stringResource(R.string.jd_teardown_feet_from_drawn)
+            else -> stringResource(R.string.jd_teardown_feet_from_new_fence)
+        }
+        Spacer(Modifier.height(8.dp))
+        Card(
+            Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+        ) {
+            Column(Modifier.padding(12.dp)) {
+                MoneyLine(stringResource(R.string.jd_teardown_line_flat), job.teardownFlatFee)
+                MoneyLine(
+                    stringResource(
+                        R.string.jd_teardown_line_per_ft,
+                        // The string carries its own "$" -- Money.format still
+                        // decides the number after it, so a four-figure rate
+                        // reads "1,250.00" here and not "1250.00".
+                        Money.format(job.teardownRatePerFt).removePrefix("$"),
+                        "%.0f".format(resolvedTeardownFt)
+                    ),
+                    job.teardownRatePerFt * resolvedTeardownFt
+                )
+                MoneyLine(stringResource(R.string.jd_teardown_line_haul), job.trashHaulFee)
+                MoneyLine(
+                    stringResource(R.string.jd_teardown_line_total),
+                    totals.teardownCost,
+                    bold = true
+                )
+                Text(
+                    // A rate per foot standing against nothing reads as a bug,
+                    // so say that is what is happening instead of printing
+                    // "x 0 ft" and leaving it to be interpreted.
+                    if (resolvedTeardownFt <= 0.0) stringResource(R.string.jd_teardown_no_feet_note)
+                    else stringResource(
+                        R.string.jd_teardown_feet_from,
+                        "%.0f".format(resolvedTeardownFt),
+                        feetSource
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                )
+            }
+        }
     }
 
     Spacer(Modifier.height(12.dp))

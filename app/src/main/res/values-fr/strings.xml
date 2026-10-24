@@ -648,6 +648,17 @@
     <string name="jd_teardown_basis_no_length_at_all">Aucune longueur n\'existe encore sur ce chantier, donc la démolition ne facture que le forfait et le transport.</string>
     <string name="jd_teardown_length_override">Remplacer la longueur de l\'ancienne clôture (pi) -- 0 = utiliser le plan</string>
     <string name="jd_teardown_override_note">À 0, la démolition est calculée sur l\'ancienne clôture que vous avez dessinée, ou sur la nouvelle clôture si vous n\'en avez dessiné aucune. Un nombre ici remplace les deux -- pour une ancienne clôture dont vous connaissez déjà la longueur sans la tracer. Cela ne change jamais le métré de la nouvelle clôture.</string>
+    <!-- D5: what each teardown control is pricing, shown beside the controls -->
+    <string name="jd_teardown_off_note">Désactivé : la démolition facture %1$s sur ce chantier. Le forfait, le $/pi et l\'évacuation n\'atteignent le prix que si ceci est activé.</string>
+    <string name="jd_teardown_line_flat">Forfait</string>
+    <string name="jd_teardown_line_per_ft">%1$s $/pi × %2$s pi</string>
+    <string name="jd_teardown_line_haul">Évacuation / décharge</string>
+    <string name="jd_teardown_line_total">Démolition facturée sur ce chantier</string>
+    <string name="jd_teardown_feet_from">Ces %1$s pi viennent de %2$s.</string>
+    <string name="jd_teardown_feet_from_typed">la longueur saisie ci-dessus</string>
+    <string name="jd_teardown_feet_from_drawn">l\'ancienne clôture du plan</string>
+    <string name="jd_teardown_feet_from_new_fence">la longueur de la nouvelle clôture -- aucune longueur d\'ancienne clôture n\'est définie sur ce chantier</string>
+    <string name="jd_teardown_no_feet_note">Aucune longueur n\'existe encore sur ce chantier, donc le $/pi n\'ajoute rien -- le montant ci-dessus est le forfait et l\'évacuation seuls.</string>
     <plurals name="jd_teardown_runs">
         <item quantity="one">%1$d section de démolition</item>
         <item quantity="other">%1$d sections de démolition</item>
