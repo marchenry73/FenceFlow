@@ -70,6 +70,22 @@ console.log("\n1. The office schedules with the send id the compose already mint
     /mailScheduledNoPay/.test(fn));
 }
 
+console.log("\n1b. Sending a queued email NOW takes it out of the queue:");
+{
+  // If the row survived a manual send, the sweep would find it still due and
+  // send a second copy to the customer hours later, unwatched. This was
+  // already true for ordinary drafts; scheduling is what makes it matter.
+  const sent = body(DASH, "function composeSent(");
+  ok("a confirmed send drops the draft row", /dropComposeDraft\(\)/.test(sent));
+  const drop = body(DASH, "async function dropComposeDraft(");
+  ok("and dropping it really deletes the row by id",
+    /from\('mail_drafts'\)\.delete\(\)\.eq\('id', id\)/.test(drop));
+  // It must be reached ONLY on a confirmed send: a 'sending' answer may still
+  // arrive, and deleting the row then would lose a letter that never went.
+  ok("only a confirmed send gets there, never a maybe",
+    /state === 'sent'/.test(DASH));
+}
+
 console.log("\n2. The sweep cannot send the same letter twice:");
 {
   const fn = body(SEND, "async function sweepScheduled(");
