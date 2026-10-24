@@ -383,12 +383,30 @@ test("NOTHING else from the settings blob reaches the response, and the read ask
   // leads token -- so it is spelled that way: an allow-list, checked per
   // column, with the forbidden ones named so adding one is a failure rather
   // than a quiet new entry in a string.
+  //
+  // TWO reads, and the split is the point. One answers for what the page SHOWS
+  // -- name, phone, email, logo -- and is held to those four exactly as before.
+  // The other answers one question the page does NOT show and the customer never
+  // receives: which plan was bought, which is what decides whether the card
+  // button can do anything, because create-payment-link answers 403 to a Solo
+  // company and a button that does that is a fake control (quote-view's
+  // paymentsReadyFrom; tests/c2-quote-pay-here.test.mjs). It is a SEPARATE read
+  // precisely so it cannot endanger the first: that one uses .single(), so one
+  // column it could not see would blank the header of every quote.
+  //
+  // Each read is held to its own allow-list, which is stricter than the single
+  // count this replaced, not looser: a third read, or either of these two
+  // growing a column, is still a failure here.
   const companyReads = w.db.log.filter((l) => l.table === "companies");
-  assert.equal(companyReads.length, 1, "companies is read once");
-  const cols = companyReads[0].cols.split(",").map((c) => c.trim()).sort();
-  const ALLOWED = ["email", "logo_path", "name", "phone"];
-  assert.deepEqual(cols, ALLOWED,
-    `the companies select is "${companyReads[0].cols}"; the quote page may read only ${ALLOWED.join(", ")}`);
+  const SHOWN = ["email", "logo_path", "name", "phone"];
+  const PLAN = ["subscription_plan"];
+  const colsOf = (r) => r.cols.split(",").map((c) => c.trim()).sort();
+  const selects = companyReads.map((r) => colsOf(r).join(",")).sort();
+  assert.deepEqual(selects, [SHOWN.join(","), PLAN.join(",")].sort(),
+    `the companies selects are ${JSON.stringify(companyReads.map((r) => r.cols))}; ` +
+    `the quote page may read only "${SHOWN.join(", ")}" for the page and "${PLAN.join(", ")}" for the card button`);
+  // Every column either read touched, so the forbidden list below judges both.
+  const cols = companyReads.map(colsOf).flat().sort();
   // Said again from the other side, so a future widening cannot pass by being
   // added to ALLOWED without anyone noticing what it is.
   for (const forbidden of ["suspended", "monthly_price", "stripe_customer_id", "stripe_account_id",

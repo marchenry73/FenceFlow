@@ -339,6 +339,138 @@ async function readJobPayLink(
 }
 
 /**
+ * WHICH PLAN THIS COMPANY BOUGHT -- one column, read on its own, never added to
+ * the companies select further down.
+ *
+ * Card payments are sold with the Crew plan, so create-payment-link answers 403
+ * to a company whose subscription_plan is "solo" -- before the processor branch,
+ * so it catches Square as well as Stripe. paymentsReadyFrom has to know, or a
+ * Solo company's customer is shown a button that answers with a sentence
+ * written for the contractor. Three of eleven companies are on Solo today, so
+ * this is not a hypothetical.
+ *
+ * ITS OWN READ, DELIBERATELY. The companies select below answers for the
+ * company's NAME, with .single(), so one column it cannot see blanks the header
+ * of every quote. readPaymentMethods and readJobPayLink are separate reads for
+ * exactly that reason and this is the third; a38-payment-methods-quote-view.test.mjs
+ * holds that select to the four columns the page actually shows, and it still
+ * does.
+ *
+ * null when the read failed, and paymentsReadyFrom then offers no card: a button
+ * that answers 403 is a worse page than one showing only the company's other
+ * ways to pay. Nothing else changes -- a quote must never fail to open because
+ * this could not be read.
+ *
+ * NOT companies.stripe_account_id, although create-payment-link's `account`
+ * still falls back to it. That is the superseded single-processor column
+ * (supabase_payment_connections_patch.sql: "companies.stripe_account_id was a
+ * single column for a single processor"), its own migration backfills any value
+ * into payment_connections.external_id, stripe-connect writes
+ * payment_connections.external_id and nothing writes the old column, no company
+ * row holds one, and that same test forbids this page from reading it by name
+ * along with every other billing column. conn.external_id is the live signal and
+ * it is already in hand.
+ */
+async function readPlan(
+  admin: ReturnType<typeof createClient>,
+  companyId: string,
+): Promise<string | null> {
+  try {
+    const { data, error } = await admin
+      .from("companies")
+      .select("subscription_plan")
+      .eq("id", companyId)
+      .maybeSingle();
+    if (error) {
+      console.error("quote-view plan", error.message);
+      return null;
+    }
+    const row = data as { subscription_plan?: unknown } | null;
+    // "" is a real answer: a hand-granted company from before plans existed,
+    // which create-payment-link does not cap. A missing ROW is not, but it
+    // cannot happen -- the job was found by its company id.
+    return String(row?.subscription_plan ?? "").trim().toLowerCase();
+  } catch (e) {
+    console.error("quote-view plan", String((e as Error)?.message ?? e));
+    return null;
+  }
+}
+
+/**
+ * WHETHER PRESSING "PAY HERE" WOULD PRODUCE A REAL CHECKOUT.
+ *
+ * This boolean is the only thing between a homeowner and a button that fails.
+ * quote.html's dueNow() returns 0 whenever it is false, which hides the
+ * "Approve & pay $X" button before an approval and the "Pay deposit $X" button
+ * after one -- so it decides whether a customer is offered a card at all. It is
+ * therefore create-payment-link's own branches transcribed, not guessed at.
+ *
+ * That function, entered through this quote's token (its `body.quoteToken`
+ * door), decides a card like this:
+ *
+ *   processor "square"  -> needs BOTH the OAuth token and the merchant id,
+ *                          else 409 "not connected yet".
+ *   anything else       -> the Stripe path, where
+ *                            account = conn.external_id || companies.stripe_account_id
+ *                          and a NON-EMPTY account is REFUSED with 501: a link
+ *                          created on a connected account raises its webhook on
+ *                          THAT account, which stripe-webhook never hears, so
+ *                          the homeowner pays, the money arrives, and nothing is
+ *                          ever recorded against the job. An EMPTY account is
+ *                          FenceFlow's own platform account, which mints.
+ *
+ * SO THE STRIPE ARM IS THE OPPOSITE OF "CONNECTED". A company holding its own
+ * Stripe account id is the one that CANNOT take a card payment here; a company
+ * with no connection at all -- which is every company today, and the reason
+ * that 501 says "no company has connected an account yet" -- is the one that
+ * can.
+ *
+ * This used to read `conn.processor === "stripe" && conn.external_id`: true in
+ * precisely the case create-payment-link answers 501, and false in the only
+ * case that works. Both halves wrong in the same direction, so the card button
+ * has never appeared on a real quote while the checkout behind it worked the
+ * whole time -- item C2's "pay here" was this page's own JavaScript hiding a
+ * working Stripe checkout from every customer, and nothing failed loudly enough
+ * for anyone to look. Measured against the real handler, one case per branch
+ * above: tests/c2-quote-pay-here.test.mjs.
+ *
+ * companies.stripe_account_id is deliberately NOT read to answer this, although
+ * create-payment-link still falls back to it. It is the superseded
+ * single-processor column (supabase_payment_connections_patch.sql: "companies
+ * .stripe_account_id was a single column for a single processor"), its own
+ * migration backfills any value into payment_connections.external_id, nothing
+ * writes it any more -- stripe-connect writes payment_connections.external_id
+ * -- and a38-payment-methods-quote-view.test.mjs forbids this page from reading
+ * it by name, along with every other billing column. conn.external_id is the
+ * live signal and it is already in hand.
+ *
+ * THE PLAN IS CHECKED FIRST, because create-payment-link checks it first:
+ * "solo" is answered 403 above the processor branch, so it catches Square as
+ * well as Stripe. A null plan is a read that FAILED, and a read that failed is
+ * not permission to offer a button -- see readPlan.
+ *
+ * company_allowed is deliberately not repeated here: a suspended
+ * company's quote 404s at the top of this handler, so there is no page to put a
+ * button on, and a second copy of that rule could only come to disagree with
+ * the first.
+ */
+function paymentsReadyFrom(
+  conn: { processor?: unknown; external_id?: unknown; access_token?: unknown } | null,
+  plan: string | null,
+): boolean {
+  // A read that failed is not permission to offer a button.
+  if (plan === null) return false;
+  // Card payments are part of the Crew plan. A blank plan predates plans.
+  if (plan === "solo") return false;
+  const processor = String(conn?.processor ?? "none").toLowerCase();
+  // Square needs a real connection: the token is what charges the card.
+  if (processor === "square") return !!(conn?.access_token && conn?.external_id);
+  // The Stripe path. A connected account id is what gets refused, so the only
+  // configuration that mints is the one without one.
+  return !String(conn?.external_id ?? "").trim();
+}
+
+/**
  * job-files is private, so the path itself is useless to a browser -- and the
  * path is never handed out anyway (comment on quote_approved_signature_path
  * says why). A short-lived signed URL is what the page, and the downloadable
@@ -1290,7 +1422,7 @@ Deno.serve(async (req) => {
   }
 
   const [{ data: company }, figures, { data: runs }, { data: houseMarkers }, { data: conn },
-         signatureUrl, paymentMethods, jobPayLink] =
+         signatureUrl, paymentMethods, jobPayLink, plan] =
     await Promise.all([
       admin.from("companies").select("name, phone, email, logo_path").eq("id", job.company_id).single(),
       pageFigures(admin, job),
@@ -1333,6 +1465,10 @@ Deno.serve(async (req) => {
       // His own payment link for THIS job. Read raw; whether it is fit to
       // show is decided below, where the figures exist.
       readJobPayLink(admin, job.id),
+      // Which plan was bought, for the card button only. Its own read, for the
+      // reason readPlan gives. The value is never put in the response: the
+      // object below is built field by field, and this one is not a field.
+      readPlan(admin, job.company_id),
     ]);
 
   // The first open is worth knowing about; later opens are just reading.
@@ -1389,12 +1525,11 @@ Deno.serve(async (req) => {
     return jobPayLink.url;
   })();
 
-  // Whether the deposit button can do anything. A connected processor means
-  // create-payment-link's token path will produce a real checkout.
-  const paymentsReady = !!(conn && (
-    (conn.processor === "square" && conn.access_token && conn.external_id) ||
-    (conn.processor === "stripe" && conn.external_id)
-  ));
+  // Whether the deposit button can do anything, which is NOT the same question
+  // as "has this company connected a processor" -- see paymentsReadyFrom, where
+  // create-payment-link's own branches are written out and the reason the
+  // Stripe arm reads backwards from the obvious is given at length.
+  const paymentsReady = paymentsReadyFrom(conn, plan);
 
   // Signed here rather than in the Promise.all above because it needs the
   // company row that read answers with. One extra round trip on a page that
