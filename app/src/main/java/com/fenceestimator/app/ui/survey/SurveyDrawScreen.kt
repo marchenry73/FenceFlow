@@ -1517,6 +1517,14 @@ fun SurveyDrawScreen(
                                         var draggingIndex: Int? = null
                                         var draggingGate: Int? = null
                                         var draggingMarker: SiteMarker? = null
+                                        // WHERE THE THING SAT RELATIVE TO THE FINGER when it
+                                        // was grabbed, in drawing units. Without it a drag is
+                                        // a teleport: everything here can be grabbed from up
+                                        // to 40 px away (a marker from anywhere inside its
+                                        // whole footprint), and the first drag event used to
+                                        // put the thing exactly where the finger was.
+                                        var grabDx = 0f
+                                        var grabDy = 0f
                                         var lastImagePoint: FencePoint? = null
                                         // Where the finger went down. A tap that
                                         // grabs nothing is not nothing: near a
@@ -1607,6 +1615,21 @@ fun SurveyDrawScreen(
                                                     markerHit != null -> draggingMarker = markerHit
                                                     else -> draggingIndex = null
                                                 }
+
+                                                // Measured once, from the same transform the
+                                                // hit test used, so the thing keeps its place
+                                                // under the thumb for the whole drag.
+                                                val grabbedAt = transform.toImage(startOffset)
+                                                val held = when {
+                                                    gateHit != null ->
+                                                        FencePoint(gateHit.value.x, gateHit.value.y)
+                                                    nearestVertex != null -> nearestVertex.value
+                                                    markerHit != null ->
+                                                        FencePoint(markerHit.x, markerHit.y)
+                                                    else -> null
+                                                }
+                                                grabDx = held?.let { it.x - grabbedAt.x } ?: 0f
+                                                grabDy = held?.let { it.y - grabbedAt.y } ?: 0f
                                             },
                                             onDragEnd = {
                                                 val idx = draggingIndex
@@ -1700,7 +1723,12 @@ fun SurveyDrawScreen(
                                                 return@detectDragGestures
                                             }
                                             val transform = viewTransform(canvasContentSize.first, canvasContentSize.second, canvasSize, viewZoom, viewPan)
-                                            val imgPoint = transform.toImage(change.position)
+                                            // The finger, plus the gap the thing was grabbed
+                                            // at. lastImagePoint carries the CORRECTED point
+                                            // because onDragEnd commits it, so what is saved
+                                            // is what was drawn.
+                                            val finger = transform.toImage(change.position)
+                                            val imgPoint = FencePoint(finger.x + grabDx, finger.y + grabDy)
                                             lastImagePoint = imgPoint
                                             // Precision aid: a magnified, crosshair-marked
                                             // preview above the finger (MagnifierLoupe,
