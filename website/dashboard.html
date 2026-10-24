@@ -3726,7 +3726,13 @@ import {
 // grepped). Nothing about the email is written in this file.
 import {
   buildQuoteSendEmail, quoteSendRefusal, REFUSAL_REASON as QUOTE_REFUSAL_REASON,
+  QUOTE_SEND_WORDS,
 } from './js/lib/quote-email.mjs';
+// The four lifecycle letters. Only work_finished is sent from here so far; the
+// other three are written and still unwired.
+import {
+  buildJobEmail, jobEmailRefusal, JOB_EMAIL_REFUSAL_REASON,
+} from './js/lib/job-emails.mjs';
 
 // Publishable key — safe client-side. Row Level Security enforces access.
 // Publishable key on purpose -- it is designed to be public. Row Level
@@ -3872,7 +3878,7 @@ jobViewAll:'All', jobViewToday:'Today', jobViewWeek:'This week', jobViewUnschedu
     mailAttachBtn:'Attach files', mailAttachLimit:'Up to 5 files, 10 MB in total.',
     mailAttachTooBig:'%s would take the attachments over 10 MB.', mailForwardedFiles:'From the original message:',
     mailRemoveBtn:'Remove', mailJobChip:'Linked to job: %s',
-    mailLaterBtn:'Send later', mailScheduledNoPay:'Scheduled. It sends at %s. The pay button was removed, because a payment link can only charge the amount it was made for and the price may change before then — she can still pay on the quote page.', mailWhenMissing:'Choose when to send it first.', mailWhenPast:'Pick a time at least a minute from now.', mailScheduledOk:'Scheduled. It sends at %s.', mailDraftSendsAt:'Sends %s', mailDraftSendingNow:'Sending now…', mailDraftSendFailed:'Not sent: %s', mailSendBtn:'Send', mailSending:'Sending…', mailUploading:'Attaching %s…', mailUploadFailed:'Could not attach %s: %s',
+    mailLaterBtn:'Send later', mailScheduledNoPay:'Scheduled. It sends at %s. The pay button was removed, because a payment link can only charge the amount it was made for and the price may change before then — she can still pay on the quote page.', mailWhenMissing:'Choose when to send it first.', mailWhenPast:'Pick a time at least a minute from now.', mailScheduledOk:'Scheduled. It sends at %s.', mailDraftSendsAt:'Sends %s', mailDraftSendingNow:'Sending now…', mailDraftSendFailed:'Not sent: %s', jobDeclinedHideTitle:'Take \'%s\' off your job list?', jobDeclinedHideBody:'It is not deleted. The job, its estimate and its drawing all stay in the system and can be restored from the trash in the app — it just stops showing up on your list.', jobDeclinedHideConfirm:'Take it off the list', jobDeclinedHideNoName:'this job', jobDoneAskTitle:'Email %s for what is left?', jobDoneAskBody:'The job is marked finished. This opens a letter saying the fence is done and that %s is left to pay, with a button to pay it. You can read it, change it, send it, or schedule it for the morning.', jobDoneAskConfirm:'Write the letter', mailSendBtn:'Send', mailSending:'Sending…', mailUploading:'Attaching %s…', mailUploadFailed:'Could not attach %s: %s',
     mailSentOk:'Sent.', mailSendFailed:'Not sent.',
     mailMaybeSent:'FenceFlow could not confirm this was sent. Check your Sent folder before sending it again.',
     mailDiscardQ:'Discard this email?', mailDiscardBody:'What you wrote will be deleted. Close instead and it is kept in Drafts.',
@@ -5751,7 +5757,7 @@ jobViewAll:'Todos', jobViewToday:'Hoy', jobViewWeek:'Esta semana', jobViewUnsche
     mailAttachBtn:'Adjuntar archivos', mailAttachLimit:'Hasta 5 archivos, 10 MB en total.',
     mailAttachTooBig:'Con %s los adjuntos pasarían de 10 MB.', mailForwardedFiles:'Del mensaje original:',
     mailRemoveBtn:'Quitar', mailJobChip:'Vinculado al trabajo: %s',
-    mailLaterBtn:'Enviar más tarde', mailScheduledNoPay:'Programado. Se enviará a las %s. Se quitó el botón de pago, porque un enlace de pago solo puede cobrar el importe para el que se creó y el precio puede cambiar antes — ella todavía puede pagar en la página del presupuesto.', mailWhenMissing:'Primero elija cuándo enviarlo.', mailWhenPast:'Elija una hora al menos un minuto después de ahora.', mailScheduledOk:'Programado. Se enviará a las %s.', mailDraftSendsAt:'Se envía %s', mailDraftSendingNow:'Enviando ahora…', mailDraftSendFailed:'No enviado: %s', mailSendBtn:'Enviar', mailSending:'Enviando…', mailUploading:'Adjuntando %s…', mailUploadFailed:'No se pudo adjuntar %s: %s',
+    mailLaterBtn:'Enviar más tarde', mailScheduledNoPay:'Programado. Se enviará a las %s. Se quitó el botón de pago, porque un enlace de pago solo puede cobrar el importe para el que se creó y el precio puede cambiar antes — ella todavía puede pagar en la página del presupuesto.', mailWhenMissing:'Primero elija cuándo enviarlo.', mailWhenPast:'Elija una hora al menos un minuto después de ahora.', mailScheduledOk:'Programado. Se enviará a las %s.', mailDraftSendsAt:'Se envía %s', mailDraftSendingNow:'Enviando ahora…', mailDraftSendFailed:'No enviado: %s', jobDeclinedHideTitle:'¿Quitar \'%s\' de su lista de trabajos?', jobDeclinedHideBody:'No se elimina. El trabajo, su presupuesto y su dibujo siguen en el sistema y se pueden restaurar desde la papelera en la aplicación — solo deja de aparecer en su lista.', jobDeclinedHideConfirm:'Quitarlo de la lista', jobDeclinedHideNoName:'este trabajo', jobDoneAskTitle:'¿Enviar a %s un correo por lo que falta?', jobDoneAskBody:'El trabajo está marcado como terminado. Esto abre una carta que dice que la cerca está lista y que faltan %s por pagar, con un botón para pagarlo. Puede leerla, cambiarla, enviarla o programarla para la mañana.', jobDoneAskConfirm:'Escribir la carta', mailSendBtn:'Enviar', mailSending:'Enviando…', mailUploading:'Adjuntando %s…', mailUploadFailed:'No se pudo adjuntar %s: %s',
     mailSentOk:'Enviado.', mailSendFailed:'No enviado.',
     mailMaybeSent:'FenceFlow no pudo confirmar que se envió. Revise su carpeta de enviados antes de enviarlo otra vez.',
     mailDiscardQ:'¿Descartar este correo?', mailDiscardBody:'Se borrará lo que escribió. Cierre en su lugar y se guarda en Borradores.',
@@ -7600,7 +7606,7 @@ jobViewAll:'Tous', jobViewToday:'Aujourdhui', jobViewWeek:'Cette semaine', jobVi
     mailAttachBtn:'Joindre des fichiers', mailAttachLimit:'Jusqu’à 5 fichiers, 10 Mo au total.',
     mailAttachTooBig:'Avec %s, les pièces jointes dépasseraient 10 Mo.', mailForwardedFiles:'Du message d’origine :',
     mailRemoveBtn:'Retirer', mailJobChip:'Lié au chantier : %s',
-    mailLaterBtn:'Envoyer plus tard', mailScheduledNoPay:'Programmé. Envoi à %s. Le bouton de paiement a été retiré, car un lien de paiement ne peut encaisser que le montant pour lequel il a été créé et le prix peut changer d’ici là — elle peut toujours payer sur la page du devis.', mailWhenMissing:'Choisissez d’abord quand l’envoyer.', mailWhenPast:'Choisissez une heure au moins une minute après maintenant.', mailScheduledOk:'Programmé. Envoi à %s.', mailDraftSendsAt:'Envoi %s', mailDraftSendingNow:'Envoi en cours…', mailDraftSendFailed:'Non envoyé : %s', mailSendBtn:'Envoyer', mailSending:'Envoi…', mailUploading:'Ajout de %s…', mailUploadFailed:'Impossible de joindre %s : %s',
+    mailLaterBtn:'Envoyer plus tard', mailScheduledNoPay:'Programmé. Envoi à %s. Le bouton de paiement a été retiré, car un lien de paiement ne peut encaisser que le montant pour lequel il a été créé et le prix peut changer d’ici là — elle peut toujours payer sur la page du devis.', mailWhenMissing:'Choisissez d’abord quand l’envoyer.', mailWhenPast:'Choisissez une heure au moins une minute après maintenant.', mailScheduledOk:'Programmé. Envoi à %s.', mailDraftSendsAt:'Envoi %s', mailDraftSendingNow:'Envoi en cours…', mailDraftSendFailed:'Non envoyé : %s', jobDeclinedHideTitle:'Retirer « %s » de votre liste de chantiers ?', jobDeclinedHideBody:'Il n’est pas supprimé. Le chantier, son devis et son dessin restent dans le système et peuvent être restaurés depuis la corbeille dans l’application — il cesse simplement d’apparaître dans votre liste.', jobDeclinedHideConfirm:'Le retirer de la liste', jobDeclinedHideNoName:'ce chantier', jobDoneAskTitle:'Envoyer à %s un courriel pour le solde ?', jobDoneAskBody:'Le chantier est marqué terminé. Ceci ouvre une lettre disant que la clôture est finie et qu’il reste %s à payer, avec un bouton pour le régler. Vous pouvez la lire, la modifier, l’envoyer ou la programmer pour le matin.', jobDoneAskConfirm:'Écrire la lettre', mailSendBtn:'Envoyer', mailSending:'Envoi…', mailUploading:'Ajout de %s…', mailUploadFailed:'Impossible de joindre %s : %s',
     mailSentOk:'Envoyé.', mailSendFailed:'Non envoyé.',
     mailMaybeSent:'FenceFlow n’a pas pu confirmer l’envoi. Vérifiez votre dossier Envoyés avant de le renvoyer.',
     mailDiscardQ:'Abandonner cet e-mail ?', mailDiscardBody:'Ce que vous avez écrit sera supprimé. Fermez plutôt et il est conservé dans Brouillons.',
@@ -24569,6 +24575,10 @@ async function saveJob(){
   // the sheet goes now; what its message line would have said goes to
   // savedNote(), which sits above whatever is underneath.
   const savedId = openJob.id, savedJob = openJob;
+  // Read from the pre-save snapshot, which still holds the status this job had
+  // a moment ago -- loadAll() below replaces openJob entirely.
+  const becameDeclined = patch.status === 'DECLINED' && savedJob.status !== 'DECLINED';
+  const becameCompleted = patch.status === 'COMPLETED' && savedJob.status !== 'COMPLETED';
   $('jobOverlay').classList.remove('on');
 
   if(!repriced){
@@ -24596,6 +24606,131 @@ async function saveJob(){
   // the save having failed.
   await loadAll();
   if ($('jobOverlay').classList.contains('on') && openJob && String(openJob.id) === String(savedId)) showJob(savedId);
+  // Asked after the list has repainted, so the job he is being asked about is
+  // the one he can see.
+  if (becameDeclined) await offerToHideDeclined(savedId, savedJob);
+  if (becameCompleted) await offerBalanceEmail();
+}
+
+/* The job is finished: offer to ask for what is left.
+
+   Offered rather than sent, and the letter opens in the compose window so he
+   reads it before it goes -- or schedules it for the morning, which is the
+   whole reason Send later exists. */
+async function offerBalanceEmail(){
+  const j = openJob;
+  if (!canUseMail || !j) return;
+  const total = contractTotalOf(j);
+  const owed = nextRequestAmountOf(j, total);
+  // Nothing left to ask for is the happy case, and it must not produce a
+  // letter asking for nothing.
+  if (!(owed > 0.005)) return;
+  const ok = await ask({
+    title: tr('jobDoneAskTitle', j.customer_name || tr('jobDeclinedHideNoName')),
+    body: tr('jobDoneAskBody', money(owed)),
+    confirmLabel: tr('jobDoneAskConfirm')
+  });
+  if (!ok) return;
+  await jobBalanceMailCompose(j, total, owed);
+}
+
+/* The "your fence is finished, here is what is left" letter.
+
+   Shaped like jobQuoteMailCompose: the same refusal-before-offering rule, the
+   same compose window, the same sender underneath -- so this letter gets the
+   one-send-per-client_send_id guarantee, the Sent copy and the thread on the
+   job without any of that being written twice. */
+async function jobBalanceMailCompose(j, total, owed){
+  const to = jobMailTo();
+  const facts = await quoteSendCompanyFacts();
+  if (openJob !== j) return;   // another job opened while the rows loaded
+
+  const why = jobEmailRefusal('work_finished', {
+    recipient: to[0] || '', companyName: facts.companyName
+  });
+  if (why) {
+    msg('jobMsg', (JOB_EMAIL_REFUSAL_REASON[LANG] || JOB_EMAIL_REFUSAL_REASON.en)[why], 'err');
+    return;
+  }
+
+  /* The link, minted now for what is owed now. A Stripe link is locked to the
+     amount it was made for, so an older one on this job can be asking for the
+     deposit long after the deposit was paid. Same gate as everywhere else that
+     mints: the permission AND the role the edge function itself tests. */
+  let payUrl = '';
+  const mayBill = hasPerm('REQUEST_PAYMENT')
+    && ['OWNER','MANAGER'].includes(profile && profile.role);
+  if (mayBill && owed >= 0.50) {
+    try {
+      const { data: sess } = await db.auth.getSession();
+      const res = await fetch(`${SUPA_URL}/functions/v1/create-payment-link`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json',
+                   Authorization: `Bearer ${sess?.session?.access_token}` },
+        body: JSON.stringify({
+          jobSyncId: j.sync_id,
+          amountCents: Math.round(owed * 100),
+          kind: nextRequestLabelOf(j, total) === 'balance' ? 'balance' : 'deposit',
+          description: 'Fence work — ' + (j.address || j.customer_name || 'balance'),
+        }),
+      });
+      const payBody = await res.json().catch(() => ({}));
+      if (res.ok && payBody && payBody.url) payUrl = String(payBody.url);
+    } catch (_e) {
+      /* No button. The letter still goes: it says what is owed and points at
+         the page, which is more than she has today. */
+    }
+    if (openJob !== j) return;
+  }
+
+  const email = buildJobEmail('work_finished', {
+    companyName: facts.companyName,
+    companyPhone: facts.companyPhone,
+    customerName: j.customer_name || '',
+    address: j.address || '',
+    quoteUrl: j.quote_token ? quoteLinkFor(j) : '',
+    // depositFigures().balance, and nothing else -- the template's own rule.
+    balance: balanceOf(j, total),
+    asOf: new Date().toLocaleDateString(LANG, { dateStyle: 'medium' })
+  }, LANG);
+
+  // The phrase the quote email already uses, so both letters say it the same
+  // way in all three languages. Appended rather than built into the template,
+  // which is held byte-for-byte against the server's copy.
+  const words = QUOTE_SEND_WORDS[LANG] || QUOTE_SEND_WORDS.en;
+  const body = payUrl ? (email.text + '\n\n' + words.payHere(payUrl)) : email.text;
+
+  openCompose({
+    to: to[0],
+    subject: email.subject,
+    body,
+    jobSyncId: j.sync_id || null
+  });
+}
+
+/* A job he has just marked declined: offer to put it away.
+
+   It is not destroyed and not a new kind of hidden -- it goes to the same
+   trash deleteJob() uses, so it leaves every list here and on the phones and
+   can be restored from the trash in the app. The row, its estimate, its
+   drawing and its history all stay exactly where they are.
+
+   Declining to answer leaves the job on the list, which is why this asks
+   rather than acts. */
+async function offerToHideDeclined(jobId, job){
+  if (!canEdit()) return;
+  const who = (job && job.customer_name) ? job.customer_name : tr('jobDeclinedHideNoName');
+  const ok = await ask({
+    title: tr('jobDeclinedHideTitle', who),
+    body: tr('jobDeclinedHideBody'),
+    confirmLabel: tr('jobDeclinedHideConfirm')
+  });
+  if (!ok) return;
+  const { error } = await db.from('jobs')
+    .update({ deleted_at: new Date().toISOString(), deleted_by: 'office dashboard' })
+    .eq('id', jobId);
+  if (error) return msg('jobsMsg', plainError(error.message), 'err');
+  await loadAll();
 }
 
 /* ===================== New client wizard ==================================
