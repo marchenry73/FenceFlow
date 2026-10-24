@@ -154,8 +154,32 @@ console.log("\n1. the mint-link button is gated on role AND permission, matching
   ok("positive control: the button this section is about is still wired to createPaymentLink",
     pf.includes("PaymentsApi.createPaymentLink("));
 
-  ok("canMintPaymentLink checks canRequestPayment AND the literal OWNER/MANAGER role",
-    pf.includes("val canMintPaymentLink = session.canRequestPayment &&\n        (session.role == UserRole.OWNER || session.role == UserRole.MANAGER)"));
+  // THE RULE MOVED, AND GOT STRONGER. The condition used to be spelled out
+  // here; it now lives in PaymentLinkGate.mayMint, because the quote email's
+  // Pay here button mints links too and a second copy of a three-part money
+  // gate is how one copy quietly loses a check. So this follows it: the
+  // screen must ASK the predicate, and the predicate must still require both
+  // the permission and the literal role.
+  ok("the screen asks PaymentLinkGate.mayMint rather than deciding for itself",
+    pf.includes("PaymentLinkGate.mayMint(") &&
+    pf.includes("canRequestPayment = session.canRequestPayment") &&
+    pf.includes("role = session.role"));
+  const gate = readFileSync(
+    new URL("../app/src/main/java/com/fenceestimator/app/estimate/PaymentLinkGate.kt", import.meta.url),
+    "utf8",
+  );
+  ok("the predicate requires the REQUEST_PAYMENT permission",
+    /canRequestPayment\s*&&/.test(gate));
+  ok("the predicate requires literally OWNER or MANAGER",
+    /UserRole\.OWNER/.test(gate) && /UserRole\.MANAGER/.test(gate) && /role in MAY_BILL/.test(gate));
+  ok("the predicate requires the plan entitlement too",
+    /cardPaymentsAllowed\s*&&/.test(gate));
+  // NEGATIVE CONTROL: the mistake this gate exists to prevent. has_permission()
+  // grants REQUEST_PAYMENT to ACCOUNTANT by default and the edge function
+  // refuses that account anyway, so a permission-only gate is the same
+  // mismatch one step over.
+  ok("NEGATIVE CONTROL: the predicate is not permission-only",
+    !/fun mayMint\([^)]*\): Boolean =\s*canRequestPayment\s*$/m.test(gate));
 
   // The actual gate: the Button that calls createPaymentLink is reached only
   // through an `if (canMintPaymentLink)` branch. Pinned as an exact

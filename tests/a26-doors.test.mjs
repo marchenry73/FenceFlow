@@ -460,6 +460,12 @@ test("PREMISE: company_allowed is asked by the caller's JWT for their own busine
     "supabase/functions/create-payment-link/index.ts",
     "supabase/functions/invite-crew/index.ts",
     "supabase/functions/lead-intake/index.ts",
+    // Added for scheduled email: mail-send's sweep re-asks whether the company
+    // is still allowed BEFORE sending a letter queued earlier, so a company
+    // that has stopped paying does not get its Resend quota spent on mail
+    // scheduled before it lapsed. It asks as the SERVER, through the same
+    // triggerCaller door mail-sync uses (pinned below).
+    "supabase/functions/mail-send/index.ts",
     "supabase/functions/mail-sync/index.ts",
     "supabase/functions/price-job/index.ts",
     "supabase/functions/quote-view/index.ts",
@@ -476,6 +482,13 @@ test("PREMISE: company_allowed is asked by the caller's JWT for their own busine
   }
   assert.match(read(join(rootPath, "supabase/functions/_shared/mail/caller.ts")), /SUPABASE_SERVICE_ROLE_KEY/, "mail-sync's admin client is the server's");
   assert.match(read(join(rootPath, "supabase/functions/mail-sync/index.ts")), /triggerCaller\(req, "MAIL_SYNC_TRIGGER_SECRET"\)/);
+  // mail-send's scheduled sweep is the server too, and its admin client comes
+  // from the same triggerCaller -- which refuses outright when the secret is
+  // unset rather than opening the door, and compares in constant time.
+  assert.match(read(join(rootPath, "supabase/functions/mail-send/index.ts")),
+    /triggerCaller\(req, SCHEDULED_SECRET\)/, "mail-send's sweep asks as the server behind a trigger secret");
+  assert.match(read(join(rootPath, "supabase/functions/mail-send/index.ts")),
+    /const SCHEDULED_SECRET = "MAIL_SCHEDULED_TRIGGER_SECRET"/, "and the secret is its own, not shared with another job");
   // The callers that treat only an explicit false as "shut" (and mail-sync, which needs an explicit true) get real answers.
   assert.match(read(join(rootPath, "supabase/functions/mail-sync/index.ts")), /data === true/, "mail-sync needs a real true, which the server path still returns");
 });

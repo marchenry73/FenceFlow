@@ -442,13 +442,36 @@ test("composeBody: the one link line becomes a button, and the address is still 
     "the address itself is no longer shown anywhere");
 });
 
-test("composeBody: only the FIRST link line is promoted, and never a quoted one", () => {
+test("composeBody: at most TWO link lines are promoted, and never a quoted one", () => {
+  // The cap was one until the quote email needed two: look at the fence, pay
+  // the deposit. Two is still not a row of buttons, and the third link below
+  // proves the cap is real rather than merely larger.
   const { html } = composeBody({
     text: "One: https://example.test/a\nTwo: https://example.test/b\n> Quoted: https://example.test/c",
   });
   const buttons = html.match(/padding:12px 26px/g) || [];
-  assert.equal(buttons.length, 1, "an email turned into a row of buttons");
+  assert.equal(buttons.length, 2, "both of a quote's two actions should be buttons");
   assert.ok(!html.includes(">Quoted<"), "a quoted line in a reply was turned into a button");
+
+  const three = composeBody({
+    text: "One: https://example.test/a\nTwo: https://example.test/b\nThree: https://example.test/c",
+  });
+  const capped = three.html.match(/padding:12px 26px/g) || [];
+  assert.equal(capped.length, 2, "a third link line became a button; the cap is not holding");
+  assert.ok(three.html.includes("https://example.test/c"), "the third link vanished instead of staying a link");
+});
+
+test("composeBody: hideCtaUrl drops the grey address under the buttons, and only when asked", () => {
+  // Default false on purpose: a button with no visible URL is the shape a
+  // phishing mail has. Only the quote email opts out.
+  const text = "Open it here: https://example.test/q\nPay here: https://example.test/p";
+  const shown = composeBody({ text });
+  const hidden = composeBody({ text, hideCtaUrl: true });
+  const greyLines = (h) => (h.match(/word-break:break-all/g) || []).length;
+  assert.equal(greyLines(shown.html), 2, "the addresses should be shown by default");
+  assert.equal(greyLines(hidden.html), 0, "hideCtaUrl should drop both addresses");
+  assert.ok(hidden.html.includes("https://example.test/p"), "the button must still link to the payment page");
+  assert.ok(hidden.text.includes("https://example.test/p"), "the plain-text part always keeps the address");
 });
 
 test("composeBody: a link inside a sentence is left as a link", () => {
