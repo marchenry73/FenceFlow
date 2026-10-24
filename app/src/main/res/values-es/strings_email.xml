@@ -26,6 +26,8 @@
   <string name="quote_email_intro_no_address">Aquí tiene su presupuesto de cerca con %1$s.</string>
   <!-- %1$s = url -->
   <string name="quote_email_open">Ábralo aquí: %1$s</string>
+  <!-- %1$s = url -->
+  <string name="quote_email_pay_here">Pague aquí: %1$s</string>
   <string name="quote_email_whats_on_it">En la página verá el precio, lo que incluye y su cerca dibujada en 3D, para verla antes de construir nada.</string>
   <!-- %1$s = company -->
   <string name="quote_email_approving">Si le parece bien, puede aprobarlo y firmarlo en la misma página, y %1$s se pondrá en contacto para coordinar el trabajo.</string>

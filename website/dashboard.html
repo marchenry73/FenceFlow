@@ -30698,6 +30698,12 @@ async function sendCompose(){
     const paths = c.files.map(f => f.path).filter(Boolean);
     if (paths.length) payload.attachment_paths = paths;
     if (c.jobSyncId) payload.job_sync_id = c.jobSyncId;
+    /* The quote email is the one letter that hides the address under its
+       buttons: its recipient asked for the quote and knows the company, and
+       it is the only one carrying two buttons whose urls are long enough to
+       bury the letter. Keyed on quoteSendFor, which is already set only by
+       jobQuoteMailCompose, so no other compose can turn it on by accident. */
+    if (c.quoteSendFor) payload.hide_cta_url = true;
     const { status, body } = await mailFn('mail-send', payload);
     if (mailCompose !== c) return;
     if (body.state === 'sent') return composeSent(c, body);

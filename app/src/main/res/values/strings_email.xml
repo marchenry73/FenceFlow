@@ -26,6 +26,8 @@
   <string name="quote_email_intro_no_address">Here is your fence quote from %1$s.</string>
   <!-- %1$s = url -->
   <string name="quote_email_open">Open it here: %1$s</string>
+  <!-- %1$s = url -->
+  <string name="quote_email_pay_here">Pay here: %1$s</string>
   <string name="quote_email_whats_on_it">The page shows the price, what is included, and your fence drawn in 3D so you can see it before anything is built.</string>
   <!-- %1$s = company -->
   <string name="quote_email_approving">If it looks right, you can approve and sign it on the page, and %1$s will be in touch to arrange the work.</string>

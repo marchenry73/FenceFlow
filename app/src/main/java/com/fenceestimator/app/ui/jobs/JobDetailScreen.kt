@@ -643,6 +643,7 @@ fun JobDetailScreen(
                     val qeIntro = stringResource(R.string.quote_email_intro)
                     val qeIntroNoAddress = stringResource(R.string.quote_email_intro_no_address)
                     val qeOpen = stringResource(R.string.quote_email_open)
+                    val qePayHere = stringResource(R.string.quote_email_pay_here)
                     val qeWhatsOnIt = stringResource(R.string.quote_email_whats_on_it)
                     val qeApproving = stringResource(R.string.quote_email_approving)
                     val qePageIsLive = stringResource(R.string.quote_email_page_is_live)
@@ -653,24 +654,51 @@ fun JobDetailScreen(
                     // buildQuoteSendEmail(), sentence for sentence. A blank
                     // name, a blank address and a blank phone each drop their
                     // own clause rather than printing a gap or a placeholder.
+                    // THE PAY LINE IS OPTIONAL, AND A STALE LINK MUST NEVER
+                    // REACH IT. A Stripe link is locked to the amount it was
+                    // made for, so sending an old one charges the customer the
+                    // wrong total -- the rule the payment card below states in
+                    // those words, and the reason several of his open links
+                    // already disagree with their own deposit.
+                    //
+                    // THE DECISION TAKEN is to mint the link AT SEND TIME, for
+                    // the amount currently owed, so it cannot be stale. That
+                    // needs the contract total, which is computed in the
+                    // payment section far below and is not in scope here, so
+                    // until it is plumbed through this passes no link rather
+                    // than a possibly-wrong one -- and the pay line is dropped
+                    // exactly as the quote line is when there is no url.
+                    val payUrl = ""
                     val quoteEmailBody: (String) -> String = { url ->
-                        listOf(
-                            if (j.customerName.isBlank()) qeHelloBlank
-                            else qeHello.format(j.customerName),
-                            "",
-                            if (j.address.isBlank()) qeIntroNoAddress.format(company)
-                            else qeIntro.format(company, j.address),
-                            "",
-                            qeOpen.format(url),
-                            "",
-                            qeWhatsOnIt,
-                            "",
-                            qeApproving.format(company),
-                            "",
-                            qePageIsLive,
-                            "",
-                            if (companyPhone.isBlank()) qeQuestionsNoPhone
-                            else qeQuestions.format(company, companyPhone)
+                        // PARENTHESISED AS A WHOLE on purpose: joinToString has
+                        // to apply to the entire letter. Bound to the last
+                        // listOf alone it returns a String, and `List + String`
+                        // appends an element rather than joining -- which hands
+                        // back a List where this lambda promises a String, and
+                        // does not compile.
+                        (
+                            listOf(
+                                if (j.customerName.isBlank()) qeHelloBlank
+                                else qeHello.format(j.customerName),
+                                "",
+                                if (j.address.isBlank()) qeIntroNoAddress.format(company)
+                                else qeIntro.format(company, j.address),
+                                "",
+                                qeOpen.format(url),
+                                "",
+                            ) + (
+                                if (payUrl.isBlank()) emptyList<String>()
+                                else listOf(qePayHere.format(payUrl), "")
+                            ) + listOf(
+                                qeWhatsOnIt,
+                                "",
+                                qeApproving.format(company),
+                                "",
+                                qePageIsLive,
+                                "",
+                                if (companyPhone.isBlank()) qeQuestionsNoPhone
+                                else qeQuestions.format(company, companyPhone)
+                            )
                         ).joinToString("\n")
                     }
                     // WHEN IT WENT. quote_sent_at was being written and never

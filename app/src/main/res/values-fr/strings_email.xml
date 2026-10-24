@@ -26,6 +26,8 @@
   <string name="quote_email_intro_no_address">Voici votre devis de clôture avec %1$s.</string>
   <!-- %1$s = url -->
   <string name="quote_email_open">Ouvrez-le ici : %1$s</string>
+  <!-- %1$s = url -->
+  <string name="quote_email_pay_here">Payez ici : %1$s</string>
   <string name="quote_email_whats_on_it">La page indique le prix, ce qui est inclus, et votre clôture dessinée en 3D, pour la voir avant que quoi que ce soit ne soit construit.</string>
   <!-- %1$s = company -->
   <string name="quote_email_approving">Si tout vous convient, vous pouvez l’approuver et le signer sur la page, et %1$s vous contactera pour organiser les travaux.</string>

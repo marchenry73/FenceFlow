@@ -247,6 +247,15 @@ export interface SendRequest {
   forwardIdx: number[];
   attachmentPaths: string[];
   jobSyncId: string | null;
+  /**
+   * Drop the grey address printed under each button in the letter.
+   *
+   * Only the quote email asks for this: its recipient asked for the quote,
+   * knows the company, and is being shown two buttons whose addresses are
+   * long enough to bury the letter. Everything else keeps the address on
+   * show, so default false and nothing but a strict `true` turns it off.
+   */
+  hideCtaUrl: boolean;
 }
 
 function optionalUuid(v: unknown, what: string): string | null {
@@ -337,6 +346,7 @@ export function parseRequest(body: Row, caller: { companyId: string; uid: string
     forwardIdx,
     attachmentPaths,
     jobSyncId: optionalUuid(body.job_sync_id, "job"),
+    hideCtaUrl: body.hide_cta_url === true,
   };
 }
 
@@ -887,6 +897,7 @@ async function viaMailbox(caller: MailCaller, deps: SendDeps, req: SendRequest, 
     logoUrl: await logoUrlFor(caller),
     logoAlt: caller.companyName,
     brandColor: await brandColorFor(caller),
+    hideCtaUrl: req.hideCtaUrl,
   });
   const built = buildMime({
     from,
@@ -1336,6 +1347,7 @@ async function viaFenceflow(caller: MailCaller, deps: SendDeps, req: SendRequest
     footer: fenceflowFooter(caller.companyName),
     logoUrl: await logoUrlFor(caller),
     logoAlt: caller.companyName,
+    hideCtaUrl: req.hideCtaUrl,
   });
   const mail = {
     from,

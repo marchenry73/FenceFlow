@@ -70,6 +70,7 @@ export function resourcesFor(words) {
     { name: "quote_email_intro", args: ["company", "address"], text: sub(w.intro(C, A), two) },
     { name: "quote_email_intro_no_address", args: ["company"], text: sub(w.intro(C, ""), one) },
     { name: "quote_email_open", args: ["url"], text: sub(w.open(U), url) },
+    { name: "quote_email_pay_here", args: ["url"], text: sub(w.payHere(U), url) },
     { name: "quote_email_whats_on_it", args: [], text: w.whatIsOnIt },
     { name: "quote_email_approving", args: ["company"], text: sub(w.approving(C), one) },
     { name: "quote_email_page_is_live", args: [], text: w.pageIsLive },

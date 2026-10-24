@@ -112,6 +112,7 @@ const QUOTE_SEND = {
         ? `Here is your quote from ${c} for the fence at ${a}.`
         : `Here is your fence quote from ${c}.`,
     open: (u) => `Open it here: ${u}`,
+    payHere: (u) => `Pay here: ${u}`,
     whatIsOnIt: "The page shows the price, what is included, and your fence drawn in 3D so you can see it before anything is built.",
     approving: (c) => `If it looks right, you can approve and sign it on the page, and ${c} will be in touch to arrange the work.`,
     pageIsLive: "The page is live, so it always shows the current price. Open it again any time.",
@@ -125,6 +126,7 @@ const QUOTE_SEND = {
         ? `Aquí tiene su presupuesto de ${c} para la cerca en ${a}.`
         : `Aquí tiene su presupuesto de cerca con ${c}.`,
     open: (u) => `Ábralo aquí: ${u}`,
+    payHere: (u) => `Pague aquí: ${u}`,
     whatIsOnIt: "En la página verá el precio, lo que incluye y su cerca dibujada en 3D, para verla antes de construir nada.",
     approving: (c) => `Si le parece bien, puede aprobarlo y firmarlo en la misma página, y ${c} se pondrá en contacto para coordinar el trabajo.`,
     pageIsLive: "La página está en línea, así que siempre muestra el precio actual. Ábrala cuando quiera.",
@@ -138,6 +140,7 @@ const QUOTE_SEND = {
         ? `Voici votre devis de ${c} pour la clôture au ${a}.`
         : `Voici votre devis de clôture avec ${c}.`,
     open: (u) => `Ouvrez-le ici : ${u}`,
+    payHere: (u) => `Payez ici : ${u}`,
     whatIsOnIt: "La page indique le prix, ce qui est inclus, et votre clôture dessinée en 3D, pour la voir avant que quoi que ce soit ne soit construit.",
     approving: (c) => `Si tout vous convient, vous pouvez l’approuver et le signer sur la page, et ${c} vous contactera pour organiser les travaux.`,
     pageIsLive: "La page est en ligne : elle affiche toujours le prix actuel. Ouvrez-la quand vous voulez.",
@@ -166,6 +169,10 @@ export function buildQuoteSendEmail(facts, lang) {
   ];
   if (url) {
     lines.push("", w.open(url));
+  }
+  const pay = safeUrl(f.payUrl);
+  if (pay) {
+    lines.push("", w.payHere(pay));
   }
   lines.push(
     "",
