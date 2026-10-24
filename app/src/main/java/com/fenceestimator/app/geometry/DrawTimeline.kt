@@ -240,6 +240,30 @@ data class DrawTimeline(
     fun dropTop(): DrawTimeline =
         if (past.isEmpty()) this else copy(past = past.dropLast(1))
 
+    /**
+     * Forgets every step belonging to one side, because that side is gone.
+     *
+     * Deleting a side leaves steps that can never apply again. planUndo would
+     * refuse each in turn and dropTop would peel them off one press at a time,
+     * so Undo would appear to do nothing several times before reaching work it
+     * can actually take back. UndoHistory.forget made the same call.
+     *
+     * A step that DELETED this side is kept: that one is undone by putting the
+     * side back, and is the only reason the deletion is recoverable at all.
+     */
+    fun forgetRun(runId: Long): DrawTimeline {
+        fun keep(e: DrawEdit): Boolean = when (e) {
+            is DrawEdit.SideChanged -> e.runId != runId
+            is DrawEdit.SideAdded -> e.runId != runId
+            is DrawEdit.SideDeleted -> true
+            else -> true
+        }
+        val keptPast = past.filter(::keep)
+        val keptFuture = future.filter(::keep)
+        return if (keptPast.size == past.size && keptFuture.size == future.size) this
+        else copy(past = keptPast, future = keptFuture)
+    }
+
     /** Same, for a redo that can never apply. */
     fun dropNext(): DrawTimeline =
         if (future.isEmpty()) this else copy(future = future.dropLast(1))

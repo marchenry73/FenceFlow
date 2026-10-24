@@ -5,7 +5,7 @@ import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.fenceestimator.app.data.BusinessProfile
-import com.fenceestimator.app.data.DrawingHistoryStore
+import com.fenceestimator.app.data.DrawTimelineStore
 import com.fenceestimator.app.ui.jobs.durationFollowStep
 import com.fenceestimator.app.ui.jobs.durationRatesOf
 import com.fenceestimator.app.data.FenceRun
@@ -30,13 +30,15 @@ import com.fenceestimator.app.geometry.JoinEnd
 import com.fenceestimator.app.geometry.JoinRefusal
 import com.fenceestimator.app.geometry.JointMarker
 import com.fenceestimator.app.geometry.RunJoinGesture
+import com.fenceestimator.app.geometry.DrawEdit
+import com.fenceestimator.app.geometry.DrawTimeline
 import com.fenceestimator.app.geometry.DrawingSnapshot
-import com.fenceestimator.app.geometry.RedoHistory
+import com.fenceestimator.app.geometry.TimelinePlan
+import com.fenceestimator.app.geometry.TimelineRefusal
 import com.fenceestimator.app.geometry.RedoNoneReason
-import com.fenceestimator.app.geometry.RedoPlan
-import com.fenceestimator.app.geometry.UndoHistory
+
 import com.fenceestimator.app.geometry.UndoNoneReason
-import com.fenceestimator.app.geometry.UndoPlan
+
 import com.fenceestimator.app.geometry.WholeDrawingMove
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.Dispatchers
@@ -387,7 +389,7 @@ class SurveyViewModel(
      * [_undo] and [_redo] are StateFlows on this view model, so they died
      * every time the drawing screen closed: walk out to the estimate and back
      * and the mistake you wanted back was unreachable, though the drawing it
-     * belongs to had not moved. [DrawingHistoryStore] keeps them in a file per
+     * belongs to had not moved. [DrawTimelineStore] keeps it in a file per
      * job, and this reads it once on open.
      *
      * Pruned against the runs that EXIST now, read directly rather than from
@@ -410,15 +412,14 @@ class SurveyViewModel(
                     runCatching { repository.getFenceRuns(jobId).map { it.id }.toSet() }.getOrNull()
                 } ?: return@launch
                 if (live.isEmpty()) return@launch
-                if (_undo.value.stacks.isNotEmpty() || _redo.value.stacks.isNotEmpty()) return@launch
-                val (u, r) = withContext(Dispatchers.IO) {
-                    DrawingHistoryStore.load(appContext, jobId, live)
+                if (_timeline.value.canUndo || _timeline.value.canRedo) return@launch
+                val loaded = withContext(Dispatchers.IO) {
+                    DrawTimelineStore.load(appContext, jobId, live)
                 }
                 // Checked again: the read above suspended, and an edit may have
                 // landed in between.
-                if (_undo.value.stacks.isEmpty() && _redo.value.stacks.isEmpty()) {
-                    _undo.value = u
-                    _redo.value = r
+                if (!_timeline.value.canUndo && !_timeline.value.canRedo) {
+                    _timeline.value = loaded
                 }
             } finally {
                 historyRestored.complete(Unit)
@@ -448,11 +449,11 @@ class SurveyViewModel(
             // The gate is completed on every exit path of
             // [restoreDrawingHistory], including its early returns.
             historyRestored.await()
-            combine(_undo, _redo) { u, r -> u to r }
+            _timeline
                 .debounce(400)
-                .collect { (u, r) ->
+                .collect { t ->
                     withContext(NonCancellable + Dispatchers.IO) {
-                        DrawingHistoryStore.save(appContext, jobId, u, r)
+                        DrawTimelineStore.save(appContext, jobId, t)
                     }
                 }
         }
@@ -530,16 +531,20 @@ class SurveyViewModel(
      * Every change to a run's drawing goes through [commitEdit], which records
      * the run as it was a moment before; Undo restores exactly that.
      *
-     * It is no longer lost when the screen closes: [DrawingHistoryStore] keeps
+     * It is no longer lost when the screen closes: [DrawTimelineStore] keeps
      * it in a file per job and [restoreDrawingHistory] reads it back on open,
      * pruned against the runs that still exist. A history from an earlier
      * visit can therefore reach this flow, but only for runs that are still
      * there, and never from another job.
      */
-    private val _undo = MutableStateFlow(UndoHistory())
+    private val _timeline = MutableStateFlow(DrawTimeline())
 
-    /** What Redo can put back, per run. See [RedoHistory]. */
-    private val _redo = MutableStateFlow(RedoHistory())
+    /** How the drawing looks NOW, which is what the staleness check compares against. */
+    private fun snapshotOfRun(runId: Long): DrawingSnapshot? =
+        runs.value.firstOrNull { it.id == runId }?.drawingSnapshot()
+
+    private fun markerPosition(markerId: Long): Pair<Float, Float>? =
+        siteMarkers.value.firstOrNull { it.id == markerId }?.let { it.x to it.y }
 
     /**
      * Completed once [restoreDrawingHistory] has finished, however it finished.
@@ -582,9 +587,10 @@ class SurveyViewModel(
      * available or not. It stays pressable either way and explains itself when
      * there is nothing to redo, the same as Undo.
      */
-    val canRedo: StateFlow<Boolean> = combine(_redo, runs, _selectedRunId) { history, current, id ->
-        val run = current.firstOrNull { it.id == id }
-        run != null && history.plan(run.id, run.drawingSnapshot()) is RedoPlan.Restore
+    val canRedo: StateFlow<Boolean> = combine(_timeline, runs) { t, _ ->
+        // No longer asked of the SELECTED run: the timeline knows what was
+        // last undone, whichever side it was on.
+        t.planRedo(::snapshotOfRun, ::markerPosition) is TimelinePlan.Apply
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), false)
 
     private val _redoNothingToDo = MutableSharedFlow<RedoNoneReason>(extraBufferCapacity = 1)
@@ -721,11 +727,12 @@ class SurveyViewModel(
         val before = run.drawingSnapshot()
         val after = updated.drawingSnapshot()
         if (before == after) return
-        _redo.update { it.afterEdit(run.id) }
         repository.updateFenceRun(updated)
         // Recorded as exactly what was written, so the next Undo can tell
-        // whether anything else has touched the run since.
-        _undo.update { it.record(run.id, before, after) }
+        // whether anything else has touched the run since. record() empties
+        // the redo side itself: once the drawing has gone somewhere else, the
+        // thing that was undone is no longer ahead of it.
+        _timeline.update { it.record(DrawEdit.SideChanged(run.id, before, after)) }
     }
 
     /**
@@ -734,8 +741,7 @@ class SurveyViewModel(
      * different length from the one it was drawn at.
      */
     private fun clearDrawingHistory() {
-        _undo.update { it.afterDrawingWideEdit() }
-        _redo.update { it.afterDrawingWideEdit() }
+        _timeline.update { it.forgetAll() }
     }
 
     private val _mode = MutableStateFlow(SurveyMode.DRAW)
@@ -1233,41 +1239,90 @@ class SurveyViewModel(
      * history is stale and is dropped rather than pasted over newer work --
      * the same rule Redo follows.
      */
+    /**
+     * Takes back the last thing done to this drawing, whichever side it was
+     * on -- and no longer asks which side is selected, because that question
+     * was the bug.
+     */
     fun undoLast() {
-        editRun(
-            _selectedRunId.value,
-            onMissing = { _undoNothingToDo.tryEmit(UndoNoneReason.NO_RUN_SELECTED) }
-        ) { run ->
-            val current = run.drawingSnapshot()
-            when (val plan = _undo.value.plan(run.id, current)) {
-                is UndoPlan.Restore -> {
-                    val restored = run.copy(
-                        pointsEncoded = plan.snapshot.pointsEncoded,
-                        gatesEncoded = plan.snapshot.gatesEncoded,
-                        closedLoop = plan.snapshot.closedLoop
-                    )
-                    repository.updateFenceRun(restored)
-                    // A corner that has just stopped existing cannot go on
-                    // billing a shared post. See [freeJointsAtVanishedEnds].
-                    freeJointsAtVanishedEnds(run, restored)
-                    // A footage change is reported whichever way it goes, as
-                    // it always was when Undo took a point away. A gate-only
-                    // step moves no footage and so reports nothing, as before.
-                    noteFootageChange(run, measure(run), measure(restored))
-                    _undo.update { it.afterUndo(run.id) }
-                    // [plan.snapshot] is byte-for-byte what was just written,
-                    // which is what lets Redo tell whether anything has
-                    // touched the run since.
-                    _redo.update { it.afterUndo(run.id, current, plan.snapshot) }
-                }
-                is UndoPlan.None -> {
-                    if (plan.reason == UndoNoneReason.DRAWING_CHANGED) {
-                        _undo.update { it.forget(run.id) }
+        if (viewerIsGuestDemo()) return
+        viewModelScope.launch {
+            when (val plan = _timeline.value.planUndo(::snapshotOfRun, ::markerPosition)) {
+                is TimelinePlan.Apply ->
+                    if (applyUndo(plan.edit)) _timeline.update { it.afterUndo() }
+                is TimelinePlan.Nothing -> {
+                    // A step that can never apply is forgotten rather than
+                    // refused for ever: keeping it would make Undo say
+                    // "changed since" at every press while perfectly good steps
+                    // sat out of reach behind it.
+                    if (plan.why == TimelineRefusal.CHANGED_SINCE) {
+                        _timeline.update { it.dropTop() }
                     }
-                    _undoNothingToDo.tryEmit(plan.reason)
+                    _undoNothingToDo.tryEmit(
+                        when (plan.why) {
+                            TimelineRefusal.CHANGED_SINCE -> UndoNoneReason.DRAWING_CHANGED
+                            TimelineRefusal.NOTHING -> UndoNoneReason.NOTHING_TO_UNDO
+                        }
+                    )
                 }
             }
         }
+    }
+
+    /** Writes a side back to [to]. False when the run has gone since. */
+    private suspend fun restoreSide(runId: Long, to: DrawingSnapshot): Boolean {
+        // GUARDED AT THE WRITE, not only at the two entrances. undoLast and
+        // redo both refuse a guest before they get here, but this is the one
+        // place a drawing is actually rewritten on this path -- so a future
+        // caller cannot reach it around the guard.
+        if (viewerIsGuestDemo()) return false
+        val run = repository.getFenceRun(runId) ?: return false
+        val restored = run.copy(
+            pointsEncoded = to.pointsEncoded,
+            gatesEncoded = to.gatesEncoded,
+            closedLoop = to.closedLoop,
+        )
+        repository.updateFenceRun(restored)
+        // A corner that has just stopped existing cannot go on billing a
+        // shared post. See [freeJointsAtVanishedEnds].
+        freeJointsAtVanishedEnds(run, restored)
+        // A footage change is reported whichever way it goes. A gate-only step
+        // moves no footage and so reports nothing, as before.
+        noteFootageChange(run, measure(run), measure(restored))
+        return true
+    }
+
+    /**
+     * Puts one edit back. Exhaustive over [DrawEdit] by construction, so a new
+     * kind cannot be recorded without the compiler asking what undoing it means.
+     */
+    private suspend fun applyUndo(edit: DrawEdit): Boolean = when (edit) {
+        is DrawEdit.SideChanged -> restoreSide(edit.runId, edit.before)
+        is DrawEdit.WholeMoved -> {
+            val (bx, by) = WholeDrawingMove.putBack(edit.dx, edit.dy)
+            moveWholeDrawing(bx, by, offerPutBack = false)
+            true
+        }
+        // NOT RECORDED YET, so unreachable today -- exactly as these were not
+        // undoable before this wave, which is why nothing regresses. They
+        // refuse rather than guess, and this is where recording them lands.
+        is DrawEdit.SideDeleted -> false
+        is DrawEdit.SideAdded -> false
+        is DrawEdit.MarkerMoved -> false
+        is DrawEdit.MarkerDeleted -> false
+    }
+
+    /** The same, forward. */
+    private suspend fun applyRedo(edit: DrawEdit): Boolean = when (edit) {
+        is DrawEdit.SideChanged -> restoreSide(edit.runId, edit.after)
+        is DrawEdit.WholeMoved -> {
+            moveWholeDrawing(edit.dx, edit.dy, offerPutBack = false)
+            true
+        }
+        is DrawEdit.SideDeleted -> false
+        is DrawEdit.SideAdded -> false
+        is DrawEdit.MarkerMoved -> false
+        is DrawEdit.MarkerDeleted -> false
     }
 
     /**
@@ -1280,34 +1335,21 @@ class SurveyViewModel(
      * with nothing to redo says why ([redoNothingToDo]), the same as Undo.
      */
     fun redo() {
-        editRun(
-            _selectedRunId.value,
-            onMissing = { _redoNothingToDo.tryEmit(RedoNoneReason.NO_RUN_SELECTED) }
-        ) { run ->
-            when (val plan = _redo.value.plan(run.id, run.drawingSnapshot())) {
-                is RedoPlan.Restore -> {
-                    val restored = run.copy(
-                        pointsEncoded = plan.snapshot.pointsEncoded,
-                        gatesEncoded = plan.snapshot.gatesEncoded,
-                        closedLoop = plan.snapshot.closedLoop
-                    )
-                    repository.updateFenceRun(restored)
-                    // Redo moves the same corners Undo did, so it frees the
-                    // same joints. See [freeJointsAtVanishedEnds].
-                    freeJointsAtVanishedEnds(run, restored)
-                    // Same footage report Undo made when it took the point away.
-                    noteFootageChange(run, measure(run), measure(restored))
-                    _redo.update { it.afterRedo(run.id) }
-                    // A redone edit is an edit again, so Undo can take it back
-                    // -- recorded directly rather than through commitEdit,
-                    // which would also empty what is left to redo.
-                    _undo.update { it.record(run.id, run.drawingSnapshot(), restored.drawingSnapshot()) }
-                }
-                is RedoPlan.None -> {
-                    if (plan.reason == RedoNoneReason.DRAWING_CHANGED) {
-                        _redo.update { it.afterEdit(run.id) }
+        if (viewerIsGuestDemo()) return
+        viewModelScope.launch {
+            when (val plan = _timeline.value.planRedo(::snapshotOfRun, ::markerPosition)) {
+                is TimelinePlan.Apply ->
+                    if (applyRedo(plan.edit)) _timeline.update { it.afterRedo() }
+                is TimelinePlan.Nothing -> {
+                    if (plan.why == TimelineRefusal.CHANGED_SINCE) {
+                        _timeline.update { it.dropNext() }
                     }
-                    _redoNothingToDo.tryEmit(plan.reason)
+                    _redoNothingToDo.tryEmit(
+                        when (plan.why) {
+                            TimelineRefusal.CHANGED_SINCE -> RedoNoneReason.DRAWING_CHANGED
+                            TimelineRefusal.NOTHING -> RedoNoneReason.NOTHING_TO_REDO
+                        }
+                    )
                 }
             }
         }
@@ -2611,8 +2653,8 @@ class SurveyViewModel(
                 val run = repository.getFenceRun(runId)?.takeIf { it.jobId == jobId }
                     ?: return@withLock
                 repository.deleteFenceRun(run)
-                _undo.update { it.forget(run.id) }
-                _redo.update { it.afterEdit(run.id) }
+                _timeline.update { it.forgetRun(run.id) }
+                
                 // Moves the selection now rather than waiting for the runs flow
                 // to emit. In between, the screen holds a selected id with no row
                 // behind it and draws nothing at all -- a blank canvas that reads
@@ -2668,8 +2710,8 @@ class SurveyViewModel(
                     // lock, and a Kotlin Mutex is NOT reentrant, so calling it
                     // from in here would deadlock the drawing for good.
                     repository.deleteFenceRun(run)
-                    _undo.update { it.forget(run.id) }
-                    _redo.update { it.afterEdit(run.id) }
+                    _timeline.update { it.forgetRun(run.id) }
+                    
                     if (_selectedRunId.value == run.id) {
                         _selectedRunId.value = repository.getFenceRuns(jobId).firstOrNull()?.id
                     }
@@ -2930,7 +2972,18 @@ class SurveyViewModel(
                     // history would throw away work for nothing.
                     if (!wrote) return@withLock
 
-                    clearDrawingHistory()
+                    // RECORDED, NOT FORGOTTEN. A whole-drawing move was in no
+                    // history before and could not be: putting one run's
+                    // snapshot back would move that side home and leave the
+                    // rest, which is a drawing in two places. The timeline
+                    // undoes it by its own negation instead.
+                    //
+                    // Nothing is recorded when this call IS a put-back, or the
+                    // put-back would record its own delta and the two would
+                    // undo each other for ever.
+                    if (offerPutBack) {
+                        _timeline.update { it.record(DrawEdit.WholeMoved(dx, dy)) }
+                    }
                     // Set INSIDE the lock, after the writes, so the put-back
                     // is only ever offered for a move that actually landed.
                     // [offerPutBack] is false when this call IS a put-back:
@@ -2959,6 +3012,11 @@ class SurveyViewModel(
         _lastWholeMove.value = null
         val (bx, by) = WholeDrawingMove.putBack(dx, dy)
         moveWholeDrawing(bx, by, offerPutBack = false)
+        // The move this just reversed by hand leaves the timeline too, or Undo
+        // would offer to reverse it a second time.
+        _timeline.update {
+            if (it.past.lastOrNull() is DrawEdit.WholeMoved) it.dropTop() else it
+        }
     }
 
     /** Perpendicular distance from [p] to the segment [a]..[b], in drawing units. */

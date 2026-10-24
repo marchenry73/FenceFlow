@@ -209,8 +209,8 @@ test("the check can fail: the shipped bug is detected when put back", () => {
   const found = violations(broken);
   assert.ok(found.length > 0, "sabotaged source must report a violation, got none");
   assert.ok(
-    found.some((v) => /_undo|_redo/.test(v)),
-    "the violation must name _undo or _redo, got: " + JSON.stringify(found)
+    found.some((v) => /_timeline/.test(v)),
+    "the violation must name _timeline, got: " + JSON.stringify(found)
   );
 });
 
@@ -219,16 +219,16 @@ test("the parser actually finds the things it claims to", () => {
 
   // A parser that finds nothing would pass the first test for the wrong reason.
   const fields = backingFields(text);
-  assert.ok(fields.has("_undo"), "_undo not found by the field parser");
-  assert.ok(fields.has("_redo"), "_redo not found by the field parser");
+  assert.ok(fields.has("_timeline"), "_timeline not found by the field parser");
+  // ONE field now, not two: the per-run undo and redo stacks became one timeline.
 
   const inits = initBlocks(text);
   assert.ok(inits.length >= 2, "expected at least two init blocks, found " + inits.length);
 
   // And the second init must genuinely sit below the two declarations it reads.
   const second = inits[inits.length - 1];
-  assert.ok(second.line > fields.get("_undo"), "the history init block is no longer below _undo");
-  assert.ok(second.line > fields.get("_redo"), "the history init block is no longer below _redo");
+  assert.ok(second.line > fields.get("_timeline"), "the history init block is no longer below _timeline");
+  // (the redo stack is gone; _timeline above covers both halves)
   assert.ok(
     /restoreDrawingHistory\(\)/.test(second.body) && /persistDrawingHistory\(\)/.test(second.body),
     "the history init block no longer starts the history"

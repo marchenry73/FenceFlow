@@ -559,7 +559,14 @@ class GuestReadOnlyTest {
     private val surveyDirectGuardFunnel = listOf(
         "importImage", "applyCalibration", "addSiteMarker", "deleteSiteMarker", "addGate", "addRun",
         "setTeardownCharge", "moveSiteMarker", "ensureGridCalibration", "setGridExtent",
-        "resetGridCalibration", "setGridLineSpacingFt", "clearSurveyImage"
+        "resetGridCalibration", "setGridLineSpacingFt", "clearSurveyImage",
+        // Undo and Redo stopped using the editRun funnel when the per-run
+        // history became one timeline: a step may be a WHOLE-DRAWING move,
+        // which has no run id to funnel on. They open with the refusal
+        // instead, and restoreSide -- the one place this path rewrites a
+        // drawing -- refuses a guest too, so the guard does not depend on
+        // which door was used.
+        "undoLast", "redo"
     )
 
     @Test
@@ -608,7 +615,7 @@ class GuestReadOnlyTest {
      * editRun does not quietly drop its only guard.
      */
     private val editRunFunnelCallers = listOf(
-        "addDrawPoint", "setSegmentLengthFeet", "movePoint", "undoLast", "redo",
+        "addDrawPoint", "setSegmentLengthFeet", "movePoint",
         "clearPoints", "toggleClosedLoop", "moveGate", "removeGate"
     )
 

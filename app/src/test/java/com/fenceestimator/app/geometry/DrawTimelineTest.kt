@@ -3,6 +3,7 @@ package com.fenceestimator.app.geometry
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertSame
 import org.junit.Assert.assertTrue
 import org.junit.Test
 
@@ -182,6 +183,34 @@ class DrawTimelineTest {
         assertEquals(DrawTimeline.MAX_STEPS, t.past.size)
         val newest = t.past.last() as DrawEdit.SideChanged
         assertEquals("the newest edit must survive", snap("0:0,$n:0"), newest.after)
+    }
+
+    @Test
+    fun `a deleted side takes its steps with it, but not the step that deleted it`() {
+        // Without this, Undo would refuse once per orphaned step before
+        // reaching work it can actually take back -- several presses that
+        // appear to do nothing.
+        val gone = DeletedSide(
+            syncId = "s9", label = "Side 9", pointsEncoded = "0:0,10:0", gatesEncoded = "",
+            closedLoop = false, isTeardown = false, sortOrder = 0, startJoint = "", endJoint = "",
+        )
+        val t = DrawTimeline()
+            .record(DrawEdit.SideChanged(1L, snap("0:0,10:0"), snap("0:0,20:0")))
+            .record(DrawEdit.SideChanged(2L, snap("0:5,10:5"), snap("0:5,30:5")))
+            .record(DrawEdit.SideDeleted(1L, gone))
+            .record(DrawEdit.WholeMoved(5f, 5f))
+
+        val after = t.forgetRun(1L)
+        assertEquals("side 1's edit should be gone, the rest kept", 3, after.past.size)
+        assertTrue("the step that DELETED side 1 is how it comes back",
+            after.past.any { it is DrawEdit.SideDeleted })
+        assertTrue("another side's work is untouched",
+            after.past.any { it is DrawEdit.SideChanged && it.runId == 2L })
+        assertFalse("side 1's own edit must be gone",
+            after.past.any { it is DrawEdit.SideChanged && it.runId == 1L })
+        assertTrue("a whole-drawing move belongs to no side",
+            after.past.any { it is DrawEdit.WholeMoved })
+        assertSame("forgetting a side with no steps changes nothing", after, after.forgetRun(1L))
     }
 
     @Test

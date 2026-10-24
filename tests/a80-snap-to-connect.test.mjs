@@ -498,9 +498,17 @@ console.log("\n3. UNDO CANNOT LEAVE A JOINT ON A CORNER THAT IS NOT THERE");
 
   const undo = bodyOf(vm, "fun undoLast(");
   const redo = bodyOf(vm, "fun redo(");
-  ok("3c", "TEETH: both Undo and Redo go through it -- Redo puts the same point back and must be able to take the joint with it",
-    undo !== null && redo !== null &&
-      /freeJointsAtVanishedEnds\(/.test(undo) && /freeJointsAtVanishedEnds\(/.test(redo));
+  // Both now reach it through ONE restoreSide(), so the two paths cannot drift
+  // apart. The chain is walked rather than the two bodies grepped, which pins
+  // more than the old check did, not less.
+  const applyU = bodyOf(vm, "private suspend fun applyUndo(");
+  const applyR = bodyOf(vm, "private suspend fun applyRedo(");
+  const restore = bodyOf(vm, "private suspend fun restoreSide(");
+  ok("3c", "TEETH: both Undo and Redo reach it -- Redo puts the same point back and must be able to take the joint with it",
+    undo !== null && redo !== null && applyU !== null && applyR !== null && restore !== null &&
+      /applyUndo\(/.test(undo) && /applyRedo\(/.test(redo) &&
+      /restoreSide\(/.test(applyU) && /restoreSide\(/.test(applyR) &&
+      /freeJointsAtVanishedEnds\(/.test(restore));
   // CANARY FOR THIS SECTION: DrawingSnapshot really does carry no joint, which
   // is WHY this function has to exist. If it ever carries one, this check fails
   // and the right answer is to delete freeJointsAtMovedEnds, not to adjust it.
