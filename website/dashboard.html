@@ -3047,6 +3047,12 @@
         <div class="sub" id="q_reapproval_why" style="margin-top:4px"></div>
         <div class="sub" id="q_reapproval_money" style="margin-top:2px"></div>
         <button class="btn btn-sm" id="q_reapproval_resend" style="margin-top:8px" data-t="reapprovalResendBtn">Send the quote again</button>
+        <!-- The letter that says WHY the approval went away. Resending the
+             quote above shares the same link again and says nothing; this
+             explains the change, names the day it landed, and tells her the
+             money already paid is safe. Until she re-approves, the billing
+             cap refuses to charge the new price at all. -->
+        <button class="btn btn-sm" id="q_reapproval_tell" style="margin-top:8px;margin-left:6px" data-t="reapprovalTellBtn">Tell the customer why</button>
       </div>
       <div class="readout" id="q_link" style="user-select:all;overflow-wrap:anywhere"></div>
       <div style="display:flex;gap:8px;margin-top:9px;flex-wrap:wrap">
@@ -3878,7 +3884,7 @@ jobViewAll:'All', jobViewToday:'Today', jobViewWeek:'This week', jobViewUnschedu
     mailAttachBtn:'Attach files', mailAttachLimit:'Up to 5 files, 10 MB in total.',
     mailAttachTooBig:'%s would take the attachments over 10 MB.', mailForwardedFiles:'From the original message:',
     mailRemoveBtn:'Remove', mailJobChip:'Linked to job: %s',
-    mailLaterBtn:'Send later', mailScheduledNoPay:'Scheduled. It sends at %s. The pay button was removed, because a payment link can only charge the amount it was made for and the price may change before then — she can still pay on the quote page.', mailWhenMissing:'Choose when to send it first.', mailWhenPast:'Pick a time at least a minute from now.', mailScheduledOk:'Scheduled. It sends at %s.', mailDraftSendsAt:'Sends %s', mailDraftSendingNow:'Sending now…', mailDraftSendFailed:'Not sent: %s', jobDeclinedHideTitle:'Take \'%s\' off your job list?', jobDeclinedHideBody:'It is not deleted. The job, its estimate and its drawing all stay in the system and can be restored from the trash in the app — it just stops showing up on your list.', jobDeclinedHideConfirm:'Take it off the list', jobDeclinedHideNoName:'this job', jobChargeCardTitle:'Take the payment from the card on file?', jobChargeCardBody:'%s agreed, when they paid the deposit, that the rest could be charged to this card once the work was finished. This takes %s from the %s now. If you would rather email them for it, choose No.', jobChargeCardConfirm:'Take the payment', jobChargeCardEnding:'ending', jobChargeCardFallback:'card', jobChargeOkMsg:'%s taken from the %s. It will show as paid here once Stripe confirms it, usually within a few seconds.', jobChargeFailMsg:'The card was not charged: %s', jobChargeFailUnknown:'The card on file was not charged. Email the customer for the balance instead.', jobDoneAskTitle:'Email %s for what is left?', jobDoneAskBody:'The job is marked finished. This opens a letter saying the fence is done and that %s is left to pay, with a button to pay it. You can read it, change it, send it, or schedule it for the morning.', jobDoneAskConfirm:'Write the letter', mailSendBtn:'Send', mailSending:'Sending…', mailUploading:'Attaching %s…', mailUploadFailed:'Could not attach %s: %s',
+    mailLaterBtn:'Send later', mailScheduledNoPay:'Scheduled. It sends at %s. The pay button was removed, because a payment link can only charge the amount it was made for and the price may change before then — she can still pay on the quote page.', mailWhenMissing:'Choose when to send it first.', mailWhenPast:'Pick a time at least a minute from now.', mailScheduledOk:'Scheduled. It sends at %s.', mailDraftSendsAt:'Sends %s', mailDraftSendingNow:'Sending now…', mailDraftSendFailed:'Not sent: %s', jobDeclinedHideTitle:'Take \'%s\' off your job list?', jobDeclinedHideBody:'It is not deleted. The job, its estimate and its drawing all stay in the system and can be restored from the trash in the app — it just stops showing up on your list.', jobDeclinedHideConfirm:'Take it off the list', jobDeclinedHideNoName:'this job', jobSchedAskTitle:'Tell %s the date?', jobSchedAskBody:'This opens a letter saying the crew is booked for %s, and the two things they need to do before that day. You can read it, change it, send it, or schedule it.', jobSchedAskConfirm:'Write the letter', reapprovalTellBtn:'Tell the customer why', jobChargeCardTitle:'Take the payment from the card on file?', jobChargeCardBody:'%s agreed, when they paid the deposit, that the rest could be charged to this card once the work was finished. This takes %s from the %s now. If you would rather email them for it, choose No.', jobChargeCardConfirm:'Take the payment', jobChargeCardEnding:'ending', jobChargeCardFallback:'card', jobChargeOkMsg:'%s taken from the %s. It will show as paid here once Stripe confirms it, usually within a few seconds.', jobChargeFailMsg:'The card was not charged: %s', jobChargeFailUnknown:'The card on file was not charged. Email the customer for the balance instead.', jobDoneAskTitle:'Email %s for what is left?', jobDoneAskBody:'The job is marked finished. This opens a letter saying the fence is done and that %s is left to pay, with a button to pay it. You can read it, change it, send it, or schedule it for the morning.', jobDoneAskConfirm:'Write the letter', mailSendBtn:'Send', mailSending:'Sending…', mailUploading:'Attaching %s…', mailUploadFailed:'Could not attach %s: %s',
     mailSentOk:'Sent.', mailSendFailed:'Not sent.',
     mailMaybeSent:'FenceFlow could not confirm this was sent. Check your Sent folder before sending it again.',
     mailDiscardQ:'Discard this email?', mailDiscardBody:'What you wrote will be deleted. Close instead and it is kept in Drafts.',
@@ -5757,7 +5763,7 @@ jobViewAll:'Todos', jobViewToday:'Hoy', jobViewWeek:'Esta semana', jobViewUnsche
     mailAttachBtn:'Adjuntar archivos', mailAttachLimit:'Hasta 5 archivos, 10 MB en total.',
     mailAttachTooBig:'Con %s los adjuntos pasarían de 10 MB.', mailForwardedFiles:'Del mensaje original:',
     mailRemoveBtn:'Quitar', mailJobChip:'Vinculado al trabajo: %s',
-    mailLaterBtn:'Enviar más tarde', mailScheduledNoPay:'Programado. Se enviará a las %s. Se quitó el botón de pago, porque un enlace de pago solo puede cobrar el importe para el que se creó y el precio puede cambiar antes — ella todavía puede pagar en la página del presupuesto.', mailWhenMissing:'Primero elija cuándo enviarlo.', mailWhenPast:'Elija una hora al menos un minuto después de ahora.', mailScheduledOk:'Programado. Se enviará a las %s.', mailDraftSendsAt:'Se envía %s', mailDraftSendingNow:'Enviando ahora…', mailDraftSendFailed:'No enviado: %s', jobDeclinedHideTitle:'¿Quitar \'%s\' de su lista de trabajos?', jobDeclinedHideBody:'No se elimina. El trabajo, su presupuesto y su dibujo siguen en el sistema y se pueden restaurar desde la papelera en la aplicación — solo deja de aparecer en su lista.', jobDeclinedHideConfirm:'Quitarlo de la lista', jobDeclinedHideNoName:'este trabajo', jobChargeCardTitle:'¿Cobrar el pago a la tarjeta registrada?', jobChargeCardBody:'%s aceptó, al pagar el depósito, que el resto se cobrara a esta tarjeta cuando el trabajo estuviera terminado. Esto cobra %s a la %s ahora. Si prefiere pedirlo por correo, elija No.', jobChargeCardConfirm:'Cobrar el pago', jobChargeCardEnding:'terminada en', jobChargeCardFallback:'tarjeta', jobChargeOkMsg:'Se cobraron %s a la %s. Aparecerá como pagado aquí cuando Stripe lo confirme, normalmente en unos segundos.', jobChargeFailMsg:'No se cobró la tarjeta: %s', jobChargeFailUnknown:'No se cobró la tarjeta registrada. Envíe un correo al cliente para pedir el saldo.', jobDoneAskTitle:'¿Enviar a %s un correo por lo que falta?', jobDoneAskBody:'El trabajo está marcado como terminado. Esto abre una carta que dice que la cerca está lista y que faltan %s por pagar, con un botón para pagarlo. Puede leerla, cambiarla, enviarla o programarla para la mañana.', jobDoneAskConfirm:'Escribir la carta', mailSendBtn:'Enviar', mailSending:'Enviando…', mailUploading:'Adjuntando %s…', mailUploadFailed:'No se pudo adjuntar %s: %s',
+    mailLaterBtn:'Enviar más tarde', mailScheduledNoPay:'Programado. Se enviará a las %s. Se quitó el botón de pago, porque un enlace de pago solo puede cobrar el importe para el que se creó y el precio puede cambiar antes — ella todavía puede pagar en la página del presupuesto.', mailWhenMissing:'Primero elija cuándo enviarlo.', mailWhenPast:'Elija una hora al menos un minuto después de ahora.', mailScheduledOk:'Programado. Se enviará a las %s.', mailDraftSendsAt:'Se envía %s', mailDraftSendingNow:'Enviando ahora…', mailDraftSendFailed:'No enviado: %s', jobDeclinedHideTitle:'¿Quitar \'%s\' de su lista de trabajos?', jobDeclinedHideBody:'No se elimina. El trabajo, su presupuesto y su dibujo siguen en el sistema y se pueden restaurar desde la papelera en la aplicación — solo deja de aparecer en su lista.', jobDeclinedHideConfirm:'Quitarlo de la lista', jobDeclinedHideNoName:'este trabajo', jobSchedAskTitle:'¿Avisar a %s de la fecha?', jobSchedAskBody:'Esto abre una carta que dice que el equipo está programado para el %s, y las dos cosas que deben hacer antes de ese día. Puede leerla, cambiarla, enviarla o programarla.', jobSchedAskConfirm:'Escribir la carta', reapprovalTellBtn:'Explicar al cliente', jobChargeCardTitle:'¿Cobrar el pago a la tarjeta registrada?', jobChargeCardBody:'%s aceptó, al pagar el depósito, que el resto se cobrara a esta tarjeta cuando el trabajo estuviera terminado. Esto cobra %s a la %s ahora. Si prefiere pedirlo por correo, elija No.', jobChargeCardConfirm:'Cobrar el pago', jobChargeCardEnding:'terminada en', jobChargeCardFallback:'tarjeta', jobChargeOkMsg:'Se cobraron %s a la %s. Aparecerá como pagado aquí cuando Stripe lo confirme, normalmente en unos segundos.', jobChargeFailMsg:'No se cobró la tarjeta: %s', jobChargeFailUnknown:'No se cobró la tarjeta registrada. Envíe un correo al cliente para pedir el saldo.', jobDoneAskTitle:'¿Enviar a %s un correo por lo que falta?', jobDoneAskBody:'El trabajo está marcado como terminado. Esto abre una carta que dice que la cerca está lista y que faltan %s por pagar, con un botón para pagarlo. Puede leerla, cambiarla, enviarla o programarla para la mañana.', jobDoneAskConfirm:'Escribir la carta', mailSendBtn:'Enviar', mailSending:'Enviando…', mailUploading:'Adjuntando %s…', mailUploadFailed:'No se pudo adjuntar %s: %s',
     mailSentOk:'Enviado.', mailSendFailed:'No enviado.',
     mailMaybeSent:'FenceFlow no pudo confirmar que se envió. Revise su carpeta de enviados antes de enviarlo otra vez.',
     mailDiscardQ:'¿Descartar este correo?', mailDiscardBody:'Se borrará lo que escribió. Cierre en su lugar y se guarda en Borradores.',
@@ -7606,7 +7612,7 @@ jobViewAll:'Tous', jobViewToday:'Aujourdhui', jobViewWeek:'Cette semaine', jobVi
     mailAttachBtn:'Joindre des fichiers', mailAttachLimit:'Jusqu’à 5 fichiers, 10 Mo au total.',
     mailAttachTooBig:'Avec %s, les pièces jointes dépasseraient 10 Mo.', mailForwardedFiles:'Du message d’origine :',
     mailRemoveBtn:'Retirer', mailJobChip:'Lié au chantier : %s',
-    mailLaterBtn:'Envoyer plus tard', mailScheduledNoPay:'Programmé. Envoi à %s. Le bouton de paiement a été retiré, car un lien de paiement ne peut encaisser que le montant pour lequel il a été créé et le prix peut changer d’ici là — elle peut toujours payer sur la page du devis.', mailWhenMissing:'Choisissez d’abord quand l’envoyer.', mailWhenPast:'Choisissez une heure au moins une minute après maintenant.', mailScheduledOk:'Programmé. Envoi à %s.', mailDraftSendsAt:'Envoi %s', mailDraftSendingNow:'Envoi en cours…', mailDraftSendFailed:'Non envoyé : %s', jobDeclinedHideTitle:'Retirer « %s » de votre liste de chantiers ?', jobDeclinedHideBody:'Il n’est pas supprimé. Le chantier, son devis et son dessin restent dans le système et peuvent être restaurés depuis la corbeille dans l’application — il cesse simplement d’apparaître dans votre liste.', jobDeclinedHideConfirm:'Le retirer de la liste', jobDeclinedHideNoName:'ce chantier', jobChargeCardTitle:'Prélever le paiement sur la carte enregistrée ?', jobChargeCardBody:'%s a accepté, en payant l’acompte, que le reste soit prélevé sur cette carte une fois les travaux terminés. Ceci prélève %s sur la %s maintenant. Si vous préférez le demander par courriel, choisissez Non.', jobChargeCardConfirm:'Prélever le paiement', jobChargeCardEnding:'se terminant par', jobChargeCardFallback:'carte', jobChargeOkMsg:'%s prélevés sur la %s. Le paiement s’affichera ici dès que Stripe l’aura confirmé, généralement en quelques secondes.', jobChargeFailMsg:'La carte n’a pas été débitée : %s', jobChargeFailUnknown:'La carte enregistrée n’a pas été débitée. Envoyez un courriel au client pour le solde.', jobDoneAskTitle:'Envoyer à %s un courriel pour le solde ?', jobDoneAskBody:'Le chantier est marqué terminé. Ceci ouvre une lettre disant que la clôture est finie et qu’il reste %s à payer, avec un bouton pour le régler. Vous pouvez la lire, la modifier, l’envoyer ou la programmer pour le matin.', jobDoneAskConfirm:'Écrire la lettre', mailSendBtn:'Envoyer', mailSending:'Envoi…', mailUploading:'Ajout de %s…', mailUploadFailed:'Impossible de joindre %s : %s',
+    mailLaterBtn:'Envoyer plus tard', mailScheduledNoPay:'Programmé. Envoi à %s. Le bouton de paiement a été retiré, car un lien de paiement ne peut encaisser que le montant pour lequel il a été créé et le prix peut changer d’ici là — elle peut toujours payer sur la page du devis.', mailWhenMissing:'Choisissez d’abord quand l’envoyer.', mailWhenPast:'Choisissez une heure au moins une minute après maintenant.', mailScheduledOk:'Programmé. Envoi à %s.', mailDraftSendsAt:'Envoi %s', mailDraftSendingNow:'Envoi en cours…', mailDraftSendFailed:'Non envoyé : %s', jobDeclinedHideTitle:'Retirer « %s » de votre liste de chantiers ?', jobDeclinedHideBody:'Il n’est pas supprimé. Le chantier, son devis et son dessin restent dans le système et peuvent être restaurés depuis la corbeille dans l’application — il cesse simplement d’apparaître dans votre liste.', jobDeclinedHideConfirm:'Le retirer de la liste', jobDeclinedHideNoName:'ce chantier', jobSchedAskTitle:'Prévenir %s de la date ?', jobSchedAskBody:'Ceci ouvre une lettre indiquant que l’équipe est prévue pour le %s, et les deux choses à faire avant ce jour-là. Vous pouvez la lire, la modifier, l’envoyer ou la programmer.', jobSchedAskConfirm:'Écrire la lettre', reapprovalTellBtn:'Expliquer au client', jobChargeCardTitle:'Prélever le paiement sur la carte enregistrée ?', jobChargeCardBody:'%s a accepté, en payant l’acompte, que le reste soit prélevé sur cette carte une fois les travaux terminés. Ceci prélève %s sur la %s maintenant. Si vous préférez le demander par courriel, choisissez Non.', jobChargeCardConfirm:'Prélever le paiement', jobChargeCardEnding:'se terminant par', jobChargeCardFallback:'carte', jobChargeOkMsg:'%s prélevés sur la %s. Le paiement s’affichera ici dès que Stripe l’aura confirmé, généralement en quelques secondes.', jobChargeFailMsg:'La carte n’a pas été débitée : %s', jobChargeFailUnknown:'La carte enregistrée n’a pas été débitée. Envoyez un courriel au client pour le solde.', jobDoneAskTitle:'Envoyer à %s un courriel pour le solde ?', jobDoneAskBody:'Le chantier est marqué terminé. Ceci ouvre une lettre disant que la clôture est finie et qu’il reste %s à payer, avec un bouton pour le régler. Vous pouvez la lire, la modifier, l’envoyer ou la programmer pour le matin.', jobDoneAskConfirm:'Écrire la lettre', mailSendBtn:'Envoyer', mailSending:'Envoi…', mailUploading:'Ajout de %s…', mailUploadFailed:'Impossible de joindre %s : %s',
     mailSentOk:'Envoyé.', mailSendFailed:'Non envoyé.',
     mailMaybeSent:'FenceFlow n’a pas pu confirmer l’envoi. Vérifiez votre dossier Envoyés avant de le renvoyer.',
     mailDiscardQ:'Abandonner cet e-mail ?', mailDiscardBody:'Ce que vous avez écrit sera supprimé. Fermez plutôt et il est conservé dans Brouillons.',
@@ -22474,6 +22480,11 @@ function renderQuoteBlock(){
   // banner is what explains why an approved job suddenly looks unapproved.
   const needsReapproval = !!j.reapproval_required_at;
   $('q_reapproval').style.display = needsReapproval ? 'block' : 'none';
+  /* Hidden when mail is not set up, rather than offered and then refused:
+     a button that always answers "you have no email account" is worse than
+     no button. */
+  const tellBtn = $('q_reapproval_tell');
+  if (tellBtn) tellBtn.style.display = (needsReapproval && canUseMail) ? '' : 'none';
   if (needsReapproval) {
     $('q_reapproval_badge').textContent = tr('badgeNeedsReapproval');
     $('q_reapproval_badge').title = j.reapproval_reason || '';
@@ -24585,6 +24596,12 @@ async function saveJob(){
   // a moment ago -- loadAll() below replaces openJob entirely.
   const becameDeclined = patch.status === 'DECLINED' && savedJob.status !== 'DECLINED';
   const becameCompleted = patch.status === 'COMPLETED' && savedJob.status !== 'COMPLETED';
+  /* A date that is now set and was not, or was a different day. Moving a job
+     in the calendar does not come through here, which is deliberate: a drag
+     is a reshuffle, and offering to write to the customer on every drag would
+     be noise. A date typed on the job itself is a decision. */
+  const becameScheduled = !!patch.scheduled_date
+    && patch.scheduled_date !== savedJob.scheduled_date;
   $('jobOverlay').classList.remove('on');
 
   if(!repriced){
@@ -24616,6 +24633,77 @@ async function saveJob(){
   // the one he can see.
   if (becameDeclined) await offerToHideDeclined(savedId, savedJob);
   if (becameCompleted) await offerBalanceEmail();
+  if (becameScheduled) await offerScheduledEmail(patch.scheduled_date);
+}
+
+/* The date is set: offer to tell the customer, and what to do before the day.
+
+   Offered rather than sent, like every other letter here -- it opens in the
+   compose window so he reads it, changes it, sends it, or schedules it. */
+async function offerScheduledEmail(iso){
+  const j = openJob;
+  if (!canUseMail || !j) return;
+  const when = d(iso).toLocaleDateString(LANG, { dateStyle: 'full' });
+  const ok = await ask({
+    title: tr('jobSchedAskTitle', j.customer_name || tr('jobDeclinedHideNoName')),
+    body: tr('jobSchedAskBody', when),
+    confirmLabel: tr('jobSchedAskConfirm')
+  });
+  if (!ok) return;
+  await jobLifecycleMailCompose(j, 'scheduled', { scheduledOn: when });
+}
+
+/* "The drawing changed, so the price did, and your approval was withdrawn."
+
+   From the amber banner rather than a save, because reapproval_required_at is
+   written by the database trigger when a material change lands from a phone --
+   there is no office save to hang an offer on. */
+async function offerReapprovalEmail(){
+  const j = openJob;
+  if (!canUseMail || !j || !j.reapproval_required_at) return;
+  await jobLifecycleMailCompose(j, 'reapproval_needed', {
+    changedOn: d(j.reapproval_required_at).toLocaleDateString(LANG, { dateStyle: 'medium' }),
+    runLabel: j.reapproval_reason || '',
+    // What she has already paid is not at risk, and saying so is the whole
+    // point of the paragraph the template adds for it.
+    paymentTaken: netPaid(j) > 0.005,
+  });
+}
+
+/* The one composer the lifecycle letters share.
+
+   jobBalanceMailCompose had already grown the shape all of these need: ask the
+   refusal BEFORE offering anything, read the company facts once, re-check the
+   open job after every await, and open the compose window rather than sending.
+   A second copy per letter would be three places to keep that in step. */
+async function jobLifecycleMailCompose(j, template, extra){
+  const to = jobMailTo();
+  const facts = await quoteSendCompanyFacts();
+  if (openJob !== j) return;   // another job opened while the rows loaded
+
+  const quoteUrl = j.quote_token ? quoteLinkFor(j) : '';
+  const base = {
+    companyName: facts.companyName,
+    companyPhone: facts.companyPhone,
+    customerName: j.customer_name || '',
+    address: j.address || '',
+    quoteUrl,
+    ...extra,
+  };
+
+  const why = jobEmailRefusal(template, { recipient: to[0] || '', ...base });
+  if (why) {
+    msg('jobMsg', (JOB_EMAIL_REFUSAL_REASON[LANG] || JOB_EMAIL_REFUSAL_REASON.en)[why], 'err');
+    return;
+  }
+
+  const email = buildJobEmail(template, base, LANG);
+  openCompose({
+    to: to[0],
+    subject: email.subject,
+    body: email.text,
+    jobSyncId: j.sync_id || null
+  });
 }
 
 /* The job is finished: offer to ask for what is left.
@@ -32630,6 +32718,11 @@ $('reapprovalHistoryRows').addEventListener('click', async (e) => {
     logged.error ? outcome + ' ' + tr('reapprovalRestoreNotLogged') : outcome,
     approvalBack && !logged.error ? 'ok' : 'info');
 });
+/* A button with no listener parses perfectly and does nothing at all until
+   somebody clicks it, which is the kind of break no syntax check finds. Wired
+   beside the one the banner already has, so both live in one place. */
+$('q_reapproval_tell').addEventListener('click', offerReapprovalEmail);
+
 $('q_reapproval_resend').addEventListener('click', async ()=>{
   if(!openJob) return;
   try{ await navigator.clipboard.writeText(quoteLinkFor(openJob)); }
