@@ -305,6 +305,25 @@ class MainActivity : FragmentActivity() {
                                 // active company's displaced crew phone read
                                 // "FenceFlow is paused" and was sent to billing.
                                 var displaced by remember { mutableStateOf(false) }
+                                // The same fact, as the background learned it.
+                                //
+                                // notify-device-displaced nudges this handset
+                                // the instant another one claims the login,
+                                // and DeviceClaimPush asks the server itself
+                                // and writes ServiceGate's displaced flag when
+                                // the answer is a definite no. None of that
+                                // reached this screen: `displaced` above is
+                                // recomputed only inside the LaunchedEffect
+                                // below, keyed on a counter bumped by
+                                // ON_RESUME, so a crew member with the app
+                                // open carried on working on a phone that had
+                                // already stopped syncing and found out when
+                                // they next came back to it. Watching the flag
+                                // is what makes "use this phone" stop the
+                                // other phone now rather than eventually.
+                                val displacedInBackground by
+                                    com.fenceestimator.app.cloud.ServiceGate
+                                        .displacedNow.collectAsState()
                                 var reclaiming by remember { mutableStateOf(false) }
                                 var reclaimFailed by remember { mutableStateOf(false) }
                                 // Work the phone is holding because a wipe was
@@ -381,7 +400,14 @@ class MainActivity : FragmentActivity() {
                                     checkedService = true
                                 }
 
-                                val blocked = service?.allowed == false || displaced
+                                // Either the check this screen ran, or the one
+                                // the push caused behind it. Only while signed
+                                // in: the flow is never set for a guest or a
+                                // signed-out phone, and this keeps it that way
+                                // by construction rather than by trust.
+                                val displacedEither =
+                                    displaced || (appSession.signedIn && displacedInBackground)
+                                val blocked = service?.allowed == false || displacedEither
                                 if (heldWork != null) {
                                     com.fenceestimator.app.ui.onboarding.HeldWorkScreen(
                                         held = heldWork!!,
@@ -425,7 +451,7 @@ class MainActivity : FragmentActivity() {
                                         // gets the paused screen even if the login
                                         // also moved: taking the login back would
                                         // not open anything.
-                                        displaced = displaced && service?.allowed != false,
+                                        displaced = displacedEither && service?.allowed != false,
                                         reclaiming = reclaiming,
                                         reclaimFailed = reclaimFailed,
                                         onUseThisPhone = {

@@ -323,6 +323,29 @@ class AutoSync(
             }
         }
 
+        // The moment the login comes BACK to this phone, not a minute later.
+        //
+        // Taking the login back -- a fresh sign-in here, or "Use this phone"
+        // on the signed-in-elsewhere screen -- clears ServiceGate's displaced
+        // flag, and that is all it did. Nothing asked for a sync, because
+        // MainActivity's recheck counter drives its own gate check and not
+        // this class, so the first pass that could actually move anything was
+        // whichever trigger happened next: the heartbeat, a minute away with
+        // the app on screen and fifteen with it in a pocket. Somebody who has
+        // just signed in is looking at the job list during that gap, which is
+        // the other half of "it does not sync immediately".
+        //
+        // On the falling edge only. The rising edge is a phone that has just
+        // been stopped, and asking it to sync would be asking it to do the one
+        // thing the flag exists to prevent.
+        scope.launch {
+            var displacedBefore = ServiceGate.displacedNow.value
+            ServiceGate.displacedNow.collect { nowDisplaced ->
+                if (displacedBefore && !nowDisplaced) requestSync()
+                displacedBefore = nowDisplaced
+            }
+        }
+
         // The moment the sign-in is LOST, not at the next heartbeat. Until this,
         // a phone that lost its sign-in learned it from the next sync pass --
         // up to a minute later with the app open, fifteen in a pocket -- and
@@ -570,11 +593,43 @@ class AutoSync(
         // persists the answer (stillMine), and reclaim ("Use this phone")
         // clears it, so sync picks up again the moment the login comes back.
         if (ServiceGate.wasDisplaced(context)) {
-            _state.value = _state.value.copy(
-                phase = SyncPhase.IDLE,
-                lastError = context.getString(R.string.svc_elsewhere_body)
-            )
-            return
+            // Asked again, rather than trusted for ever.
+            //
+            // The stored flag is only ever cleared by claim_device or by
+            // device_still_mine answering yes, and every one of those calls
+            // used to be reached from a single place: the LaunchedEffect in
+            // MainActivity, which runs holdsLogin ONLY when
+            // refreshWhenPossible came back with an answer. A phone whose
+            // service check could not complete -- four attempts, roughly nine
+            // seconds -- therefore opened completely normally with the flag
+            // still set, and then returned here on every pass for the rest of
+            // the session: no pull, no push, and the sync card frozen on
+            // whatever it last said, which is "Some of this phone's work has
+            // not reached the cloud yet. It will go up on the next sync."
+            // There was no next sync.
+            //
+            // One cheap read-only RPC fixes that without weakening anything.
+            // stillMine only ever returns false on a definite answer from the
+            // server and writes the flag it reads back, so this clears the
+            // latch exactly when the login really is this phone's again and
+            // leaves it alone otherwise. No live session means the question
+            // cannot be asked, so it is not asked and the latch stands -- the
+            // same fail-closed-on-this-one-flag behaviour as before, since a
+            // phone that cannot ask must not resume pushing over the handset
+            // that holds the login now.
+            //
+            // getOrDefault(false), not true: a thrown read leaves the latch
+            // in place. A failure here must never be the thing that lets a
+            // stale handset start writing again.
+            val mineAgain = SupabaseModule.hasLiveSession() &&
+                runCatching { ServiceGate.stillMine(context) }.getOrDefault(false)
+            if (!mineAgain) {
+                _state.value = _state.value.copy(
+                    phase = SyncPhase.IDLE,
+                    lastError = context.getString(R.string.svc_elsewhere_body)
+                )
+                return
+            }
         }
 
         // No token, no sync. The session state says who this phone belongs to

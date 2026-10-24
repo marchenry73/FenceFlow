@@ -289,6 +289,23 @@ class DataOwnership(
         wipeEverything()
         setOwner(null)
         _heldWork.value = null
+        // The one place every sign-out in the app converges on, which is why
+        // the device gate is forgotten here rather than in each caller.
+        //
+        // AccountViewModel.signOut -- the Sign out button on the Account
+        // screen, the only one most people ever use -- called this and then
+        // SupabaseModule.signOut(), and nothing cleared ServiceGate. So
+        // CLAIMED_FOR survived into the next sign-in, holdsLogin saw an
+        // install that had "already claimed" this account, never claimed
+        // again, and the phone somebody had just signed in on was told
+        // another handset holds the login. Only the two MainActivity
+        // sign-outs ever called ServiceGate.clear, and neither of those is
+        // the ordinary path.
+        //
+        // forgetAccount, not clear: clear() also throws away DEVICE_ID, this
+        // install's own identity, which would make a company that requires a
+        // device key challenge this handset again after every sign-out.
+        ServiceGate.forgetAccount(context)
         return true
     }
 

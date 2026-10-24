@@ -169,6 +169,55 @@ object ServiceGate {
     private val _lastClaimOutcome = MutableStateFlow<ClaimOutcome?>(null)
     val lastClaimOutcome: StateFlow<ClaimOutcome?> = _lastClaimOutcome.asStateFlow()
 
+    /**
+     * The displaced latch as something the rest of the app can WATCH, rather
+     * than a preference it has to remember to go and read.
+     *
+     * This is what makes "use this phone" stop the other phone immediately.
+     * The nudge already arrives (notify-device-displaced -> FCM ->
+     * [com.fenceestimator.app.notify.DeviceClaimPush.onNudge]) and the phone
+     * already asks the server itself and writes [DISPLACED] when the answer is
+     * a definite no. What it could not do was reach the screen: MainActivity
+     * kept `displaced` in a plain `remember` recomputed only inside a
+     * LaunchedEffect keyed on a counter bumped by ON_RESUME, so nothing
+     * observed the preference. A crew member with the app OPEN in front of
+     * them carried on typing, drawing and finishing jobs on a handset that had
+     * already stopped syncing, and saw the notice only when they next
+     * backgrounded the app and came back to it.
+     *
+     * In memory, and that is enough: the Firebase service has no
+     * `android:process` in the manifest, so the nudge is handled in the same
+     * process as the Activity, and the Activity comes up in that same process.
+     * A process that really did die between the nudge and somebody opening the
+     * app asks the server again on the way up -- MainActivity's own gate check
+     * and AutoSync's re-ask both do -- so the flow is set by a fresh answer
+     * rather than by a remembered one. [wasDisplaced] deliberately leaves this
+     * alone; its own doc says why.
+     *
+     * Only ever set true by a definite server answer, because the only thing
+     * that writes it is [setDisplaced] and the only caller that passes true is
+     * [stillMine] on `answer == false`. Offline, a timeout and a refused call
+     * all leave it exactly as it was -- the rule this whole gate is built
+     * around (see the file header and [stillMine]).
+     */
+    private val _displacedNow = MutableStateFlow(false)
+    val displacedNow: StateFlow<Boolean> = _displacedNow.asStateFlow()
+
+    /**
+     * Writes the latch to disk and to [displacedNow] in the same breath.
+     *
+     * One function rather than two statements at each site, so a future
+     * writer cannot update the stored flag and leave the flow -- and therefore
+     * the screen -- saying the opposite. The disk write is still allowed to
+     * fail silently the way it always has; the flow is updated regardless,
+     * because a screen that is wrong about this is worse than a preference
+     * that has to be re-derived on the next pass.
+     */
+    private suspend fun setDisplaced(context: Context, value: Boolean) {
+        runCatching { context.serviceStore.edit { it[DISPLACED] = value } }
+        _displacedNow.value = value
+    }
+
     suspend fun deviceId(context: Context): String {
         val existing = runCatching {
             context.serviceStore.data.first()[DEVICE_ID]
@@ -229,7 +278,7 @@ object ServiceGate {
         // nothing on it saying why. A refusal is different: there the block
         // screen is shown, so the flag matches what the person is being told.
         if (outcome is ClaimOutcome.Claimed || outcome is ClaimOutcome.Failed) {
-            runCatching { context.serviceStore.edit { it[DISPLACED] = false } }
+            setDisplaced(context, false)
         }
         return outcome
     }
@@ -252,10 +301,33 @@ object ServiceGate {
                 }
             ).decodeAs<Boolean>()
         }.getOrNull() ?: return true
-        runCatching { context.serviceStore.edit { it[DISPLACED] = !answer } }
+        setDisplaced(context, !answer)
         return answer
     }
 
+    /**
+     * The stored latch, as stored. Deliberately does NOT touch [displacedNow].
+     *
+     * It is tempting to copy the disk value into the flow here, since AutoSync
+     * asks this question on every pass and that would prime the flow after a
+     * cold start. It is wrong, for two reasons.
+     *
+     * The flow drives the block screen, and the stored flag is a REMEMBERED
+     * answer, not a current one. AutoSync's guard reads this and then re-asks
+     * the server; priming the flow first would put "Signed in on another
+     * phone" on screen for the length of that one RPC, every pass, on a phone
+     * whose latch was merely stale -- a flash of a frightening sentence that
+     * is then taken away, which is worse than the silence it replaced.
+     *
+     * And it is not needed. Nothing is lost after a cold start: the process
+     * that handled the nudge is the process the Activity comes up in (the
+     * Firebase service has no `android:process`), so the flow is already set
+     * in the case the push covers; and a process that really did die is
+     * opening, which runs both MainActivity's own check and AutoSync's
+     * re-ask, each of which moves the flow on a DEFINITE answer through
+     * [setDisplaced]. The invariant stated on [displacedNow] -- only ever set
+     * true by a definite server answer -- is kept by leaving this alone.
+     */
     suspend fun wasDisplaced(context: Context): Boolean =
         runCatching { context.serviceStore.data.first()[DISPLACED] }.getOrNull() ?: false
 
@@ -302,6 +374,11 @@ object ServiceGate {
                 it[CLAIMED_FOR] = userId
             }
         }
+        // Kept as one edit so the two facts land together, which is why this
+        // does not go through setDisplaced -- but the flow still has to be
+        // told, or the screen this button is on would stay up after the claim
+        // it just made succeeded.
+        _displacedNow.value = false
         true
     }
 
@@ -336,7 +413,38 @@ object ServiceGate {
             // one case the whole feature exists for was the case that got a
             // free foreground cycle.
             val outcome = claimThisDevice(context)
-            runCatching { context.serviceStore.edit { it[CLAIMED_FOR] = userId } }
+            // Recorded only when the SERVER actually answered.
+            //
+            // This line used to run unconditionally, and that is the whole of
+            // "signing in on another phone does not sync and keeps saying it
+            // has not reached the cloud". [ClaimOutcome.Failed] is defined two
+            // hundred lines up as "No session, offline, a timeout, or a
+            // refusal that was neither hint" -- a question that was never
+            // answered. Writing CLAIMED_FOR on it told this install it had
+            // claimed this account when it had not, and because the branch
+            // above only ever claims while `claimedFor != userId`, that was
+            // PERMANENT: the phone never attempted a claim again for as long
+            // as the app stayed installed. Every later check fell through to
+            // stillMine, which correctly reported whichever handset really
+            // did hold the login, DISPLACED latched true, and
+            // AutoSync.runSync returned at its displaced guard on every pass
+            // for ever. The phone somebody had just signed in on never
+            // synced, and the sync card kept whatever sentence it last had,
+            // because that guard copies only the phase and the error and
+            // leaves hasUnsyncedWork and unsyncedReason alone.
+            //
+            // The window is not exotic. attemptClaim returns Failed the
+            // instant there is no live token, and the first check after a
+            // sign-in runs in exactly that window often enough that the owner
+            // reported this twice.
+            //
+            // Claimed, KeyRequired and KeyInvalid are all definite answers
+            // from the server and all still record, so a phone the server
+            // refused does not retry the claim behind the block screen that
+            // is already asking for its device key.
+            if (outcome !is ClaimOutcome.Failed) {
+                runCatching { context.serviceStore.edit { it[CLAIMED_FOR] = userId } }
+            }
             // A refusal blocks. Anything ELSE -- including a failure -- still
             // returns true, deliberately: a crew member in a dead spot must
             // not be thrown out of the app because a call did not land. Only
@@ -500,5 +608,53 @@ object ServiceGate {
     suspend fun clear(context: Context) {
         runCatching { context.serviceStore.edit { it.clear() } }
         _lastClaimOutcome.value = null
+        _displacedNow.value = false
+    }
+
+    /**
+     * Everything this store holds ABOUT AN ACCOUNT, forgotten -- and nothing
+     * about this handset.
+     *
+     * Called from [DataOwnership.onSignedOut], which is the one place every
+     * sign-out in the app converges on. Before this existed, [clear] was
+     * reached from exactly two screens -- the held-work sign-out and the
+     * signed-in-elsewhere sign-out, both in MainActivity -- and the Sign out
+     * button everybody actually uses (AccountViewModel.signOut) called
+     * SupabaseModule.signOut() and nothing else. So [CLAIMED_FOR], [DISPLACED]
+     * and the whole remembered service verdict survived an ordinary sign-out
+     * into the next person's session on that phone: signing back in found
+     * `claimedFor == userId` already true, never claimed, and was told by
+     * device_still_mine that another handset holds the login -- which by then
+     * was perfectly true, because the login had been used elsewhere in the
+     * meantime.
+     *
+     * [DEVICE_ID] is deliberately kept, which is the whole reason this is not
+     * just a call to [clear]. It is this install's identity, not the account's:
+     * claim_device matches on it, notify-device-displaced addresses the
+     * displaced handset by it, and a company that requires a device key for a
+     * second phone (supabase_r8_device_keys.sql) would otherwise challenge
+     * this handset again every single time somebody signed out and back in on
+     * it, because a brand-new random id looks like a brand-new phone.
+     *
+     * Named keys rather than `clear()` minus one, so adding a key to this file
+     * is a decision about whether it belongs to the account or to the
+     * handset, instead of a silent default either way.
+     */
+    suspend fun forgetAccount(context: Context) {
+        runCatching {
+            context.serviceStore.edit { prefs ->
+                prefs.remove(ALLOWED)
+                prefs.remove(REASON)
+                prefs.remove(STATUS)
+                prefs.remove(PLAN)
+                prefs.remove(CHECKED_AT)
+                prefs.remove(TRIAL_DAYS)
+                prefs.remove(SUBSCRIBED)
+                prefs.remove(DISPLACED)
+                prefs.remove(CLAIMED_FOR)
+            }
+        }
+        _lastClaimOutcome.value = null
+        _displacedNow.value = false
     }
 }
