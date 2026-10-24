@@ -67,6 +67,7 @@ import com.fenceestimator.app.estimate.JobMoney
 import com.fenceestimator.app.estimate.PdfExporter
 import com.fenceestimator.app.estimate.TakeoffLine
 import com.fenceestimator.app.ui.components.GenericViewModelFactory
+import com.fenceestimator.app.ui.components.label
 import com.fenceestimator.app.ui.components.Money
 import com.fenceestimator.app.ui.components.currentApp
 import com.fenceestimator.app.ui.theme.Radius
@@ -319,7 +320,11 @@ private fun RunSection(
                 Column(Modifier.weight(1f)) {
                     Text(run.label.ifBlank { stringResource(R.string.est2_untitled_run) }, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
                     Text(
-                        stringResource(R.string.est2_run_summary, run.fenceType.name.replace("_", " "), String.format("%.1f", linearFeet)) +
+                        // FenceType.label(), not the enum name. This printed "ORNAMENTAL IRON"
+                        // -- shouting, and in English whatever the phone is set to --
+                        // while EnumLabels has carried a translated label for every
+                        // fence type all along.
+                        stringResource(R.string.est2_run_summary, run.fenceType.label(), String.format("%.1f", linearFeet)) +
                             if (run.usesManualFeet) "  " + stringResource(R.string.est2_typed_in) else "",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant

@@ -462,7 +462,7 @@
   .attn .a:hover{border-color:var(--orange)}
   .attn .a b{font:700 21px/1.2 "Barlow Condensed","Arial Narrow",sans-serif;
              font-variant-numeric:tabular-nums;display:block}
-  .attn .a span{font-size:12.5px;color:var(--ink-2,#454F49);color:var(--text)}
+  .attn .a span{font-size:12.5px;color:var(--text)}
   .attn .a .why{display:block;font-size:11.5px;color:var(--muted);margin-top:2px}
   .attn .clear{border-left-color:#1baf7a;cursor:default}
   .attn .clear b{color:var(--ok-fg)}
@@ -10180,7 +10180,7 @@ function renderAlertPrefs(){
        <span class="sub" id="alertCount">${esc(tr('alertsOnCount', on, ALERT_DEFS.length))}</span>
        <button type="button" class="btn btn-sm btn-ghost" id="alertsAllOn">${esc(tr('alertsAllOn'))}</button>
        <button type="button" class="btn btn-sm btn-ghost" id="alertsAllOff">${esc(tr('alertsAllOff'))}</button>
-       <span id="alertPrefSaveNote" style="color:var(--err,#a33);font-size:12px"></span>
+       <span id="alertPrefSaveNote" style="color:var(--bad);font-size:12px"></span>
      </div>
      <div class="alertgrid">` +
     ALERT_DEFS.map(a => `
@@ -11382,7 +11382,9 @@ async function boot(){
     $('showTestPanel').style.display = '';
     $('showTestToggle').checked = showTestPref();
   }
-  $('who').textContent=`${user.email} · ${profile.role}`;
+  // seatRoleLabel, not the raw enum: this line showed "... · OWNER" while
+  // every other place that prints a role goes through the label.
+  $('who').textContent=`${user.email} · ${seatRoleLabel(profile.role)}`;
   // Not awaited: the header's logo is the last thing that should hold up the
   // office opening, and it catches its own failures.
   renderHeaderLogo();
@@ -15804,7 +15806,7 @@ function workingNow(e){
   if (!shift) return '';
   const job = jobBySync(shift.job_sync_id);
   const hrs = Math.max(0, (Date.now() - d(shift.started_at).getTime()) / 36e5);
-  return '<div class="sub" style="color:var(--good,#2e6b4e)">' + esc(tr('crewOnClock', hrs.toFixed(1)))
+  return '<div class="sub" style="color:var(--ok)">' + esc(tr('crewOnClock', hrs.toFixed(1)))
     + (job ? ' &middot; ' + esc(job.customer_name || tr('crewJobFallback')) : '') + '</div>';
 }
 
@@ -19160,7 +19162,7 @@ async function renderCycles(){
       ? '<b>' + esc(bizDur(m, unit)) + '</b> <span class="sub">' + esc(bizFromN(m.n)) + '</span>'
       : '<span class="sub">' + esc(tr('repCycleNoData')) + '</span>';
     return '<div style="display:flex;justify-content:space-between;gap:12px;padding:6px 0;' +
-           'border-bottom:1px solid var(--line-soft,transparent)"><span>' + esc(label) +
+           'border-bottom:1px solid var(--line)"><span>' + esc(label) +
            '</span><span>' + right + '</span></div>';
   }).join('');
 
