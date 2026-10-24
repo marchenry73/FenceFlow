@@ -861,6 +861,107 @@ fun JobDetailScreen(
                         Icon(Icons.Filled.Email, contentDescription = null)
                         Text("  " + stringResource(R.string.jd_send_quote_short) + " · " + stringResource(R.string.field_email))
                     }
+
+                    // SEND IT LATER. Three choices rather than a picker: see
+                    // the note in ScheduledMailApi for why one tap beats six
+                    // when the answer is almost always "not at this hour".
+                    var scheduleOpen by remember(j.id) { mutableStateOf(false) }
+                    val scheduledOkMsg = stringResource(R.string.jd_quote_scheduled_ok)
+                    val scheduleFailedMsg = stringResource(R.string.jd_quote_schedule_failed)
+                    OutlinedButton(
+                        onClick = { scheduleOpen = true },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Icon(Icons.Filled.Event, contentDescription = null)
+                        Text("  " + stringResource(R.string.jd_quote_send_later))
+                    }
+                    if (scheduleOpen) {
+                        val zone = java.time.ZoneId.systemDefault()
+                        val nowZ = java.time.ZonedDateTime.now(zone)
+                        // Always strictly in the future: withHour on a day
+                        // already past that hour would land behind us, so the
+                        // day is advanced first and Monday is 1..7 days out,
+                        // never 0.
+                        val atHour = { daysAhead: Long, hour: Int ->
+                            nowZ.plusDays(daysAhead).withHour(hour)
+                                .withMinute(0).withSecond(0).withNano(0)
+                                .toInstant().toEpochMilli()
+                        }
+                        val daysToMonday =
+                            ((java.time.DayOfWeek.MONDAY.value - nowZ.dayOfWeek.value + 6) % 7) + 1L
+                        val choices = listOf(
+                            atHour(1L, 8),
+                            atHour(1L, 13),
+                            atHour(daysToMonday, 8),
+                        )
+                        val whenFmt = remember {
+                            java.text.SimpleDateFormat("EEE, MMM d 'at' h:mm a", java.util.Locale.getDefault())
+                        }
+                        AlertDialog(
+                            onDismissRequest = { scheduleOpen = false },
+                            title = { Text(stringResource(R.string.jd_quote_schedule_title)) },
+                            text = {
+                                Column {
+                                    choices.forEach { millis ->
+                                        TextButton(onClick = {
+                                            scheduleOpen = false
+                                            scope.launch {
+                                                // The same three-way link
+                                                // answer the send button gets,
+                                                // so a job that has not reached
+                                                // the cloud says so instead of
+                                                // queueing a letter with no
+                                                // quote in it.
+                                                val link = quoteLinkFor(context, app, session.signedIn, j.syncId)
+                                                val url = (link as? QuoteLink.Ready)?.url
+                                                if (url == null) {
+                                                    android.widget.Toast.makeText(
+                                                        context,
+                                                        when (link) {
+                                                            is QuoteLink.SignedOut -> signedOutMsg
+                                                            is QuoteLink.NotSyncedYet -> notSyncedYet
+                                                            else -> shareFailed
+                                                        },
+                                                        android.widget.Toast.LENGTH_LONG
+                                                    ).show()
+                                                    return@launch
+                                                }
+                                                val queued = com.fenceestimator.app.cloud.ScheduledMailApi.scheduleQuote(
+                                                    companyId = session.companyId,
+                                                    toAddress = j.email,
+                                                    subject = qeSubject.format(company),
+                                                    // EMPTY ON PURPOSE -- no payment link is queued.
+                                                    body = quoteEmailBody(url, ""),
+                                                    jobSyncId = j.syncId,
+                                                    sendAtMillis = millis,
+                                                    nowMillis = System.currentTimeMillis(),
+                                                )
+                                                android.widget.Toast.makeText(
+                                                    context,
+                                                    when (queued) {
+                                                        is com.fenceestimator.app.cloud.ScheduledMailApi.Result.Ok ->
+                                                            scheduledOkMsg.format(
+                                                                whenFmt.format(java.util.Date(queued.sendAtMillis))
+                                                            )
+                                                        is com.fenceestimator.app.cloud.ScheduledMailApi.Result.Failed ->
+                                                            scheduleFailedMsg + " " + queued.reason.take(140)
+                                                    },
+                                                    android.widget.Toast.LENGTH_LONG
+                                                ).show()
+                                            }
+                                        }) {
+                                            Text(whenFmt.format(java.util.Date(millis)))
+                                        }
+                                    }
+                                }
+                            },
+                            confirmButton = {
+                                TextButton(onClick = { scheduleOpen = false }) {
+                                    Text(stringResource(R.string.action_cancel))
+                                }
+                            }
+                        )
+                    }
                 }
             }
             item {

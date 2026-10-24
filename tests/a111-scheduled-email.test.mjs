@@ -110,6 +110,32 @@ console.log("\n3. The sweep refuses what it must not send:");
   ok("only advances a job out of DRAFT", /"DRAFT"/.test(fn));
 }
 
+console.log("\n3b. The phone queues the quote without ever queuing a payment link:");
+{
+  const api = read("app/src/main/java/com/fenceestimator/app/cloud/ScheduledMailApi.kt");
+  const screen = read("app/src/main/java/com/fenceestimator/app/ui/jobs/JobDetailScreen.kt");
+  const sched = body(screen, "if (scheduleOpen) {");
+
+  // THE ONE THAT MATTERS MOST. A Stripe link is locked to the amount it was
+  // made for, so one queued tonight can be asking for the wrong money by the
+  // morning -- a single re-price is all it takes. The phone builds the queued
+  // body with an EMPTY payUrl on purpose; the office strips the line for the
+  // same reason.
+  ok("the queued body is built with an empty payUrl",
+    /body = quoteEmailBody\(url, ""\)/.test(sched),
+    "a queued payment link can charge a stale amount");
+  ok("the send id is minted when scheduling, not when sending",
+    /UUID\.randomUUID\(\)/.test(api));
+  ok("a quote hides its button addresses", /hideCtaUrl = true/.test(api));
+  ok("the job is named so the sweep can stamp it", /quoteSendFor = jobSyncId/.test(api));
+  ok("queued as a new letter, never a reply", /val kind: String = "new"/.test(api));
+  ok("refuses a time already past", /sendAtMillis < nowMillis \+ 60_000L/.test(api));
+  ok("refuses when the phone is not signed in", /currentSessionOrNull\(\)/.test(api));
+  ok("an RLS refusal reads as a permission, not a breakage", /row-level security/.test(api));
+  ok("a job that has not reached the cloud is refused, not queued",
+    /QuoteLink\.NotSyncedYet/.test(sched));
+}
+
 console.log("\n4. The schema says what the code relies on:");
 {
   for (const col of ["send_at", "send_state", "send_attempted_at", "send_error",
