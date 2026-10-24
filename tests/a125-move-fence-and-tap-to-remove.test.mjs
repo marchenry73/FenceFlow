@@ -286,25 +286,39 @@ test("a row with nothing to move is not written", () => {
     "every run is written on a move, even one with nothing on it");
   assert.match(fn, /if \(to\.x == marker\.x && to\.y == marker\.y\)/,
     "every marker is written on a move, even one that did not move");
-  // And a move that wrote nothing offers no put-back and keeps the history.
+  // And a move that wrote nothing offers no put-back and records nothing.
   assert.match(fn, /if \(!wrote\) return@withLock/,
-    "a move that moved nothing still records a put-back and clears the undo history");
+    "a move that moved nothing still records a put-back and a timeline step");
   const wroteAt = fn.indexOf("if (!wrote) return@withLock");
-  assert.ok(wroteAt > 0 && wroteAt < fn.indexOf("clearDrawingHistory()"),
-    "the history is cleared before it is known whether anything moved");
+  const recordAt = fn.indexOf("DrawEdit.WholeMoved(");
+  assert.ok(recordAt > 0, "the move is no longer recorded on the timeline at all");
+  assert.ok(wroteAt > 0 && wroteAt < recordAt,
+    "the move is recorded before it is known whether anything actually moved");
 });
 
-test("a move takes the per-run undo history with it", () => {
-  // The per-run stack holds ONE drawing per run and Undo acts on the SELECTED
-  // run. Left standing after a drawing-wide move, one press puts a single
-  // side back where it used to be and leaves the rest moved -- a drawing in
-  // two places, with nothing on screen saying which half.
+test("a whole-drawing move is undone as one move, not one side at a time", () => {
+  // The ORIGINAL fear, which has not changed: a per-run step holds ONE
+  // drawing for ONE run, so a drawing-wide move left as per-run steps means
+  // one press of Undo puts a single side back where it used to be and leaves
+  // the rest moved -- a drawing in two places, with nothing on screen saying
+  // which half.
+  //
+  // What changed is the answer. This used to call clearDrawingHistory(): the
+  // move could not be undone, so everything before it was thrown away too.
+  // The timeline records the move itself, as its own kind of edit, and undoes
+  // it by negating the offset -- so the history survives AND the drawing
+  // moves back in one piece. The old assertion (that the history is cleared)
+  // would now forbid the better behaviour, which is why it is gone.
   const fn = VM_CODE.slice(
     VM_CODE.indexOf("fun moveWholeDrawing("),
     VM_CODE.indexOf("fun putWholeDrawingBack("),
   );
-  assert.match(fn, /clearDrawingHistory\(\)/,
-    "the per-run undo history survives a whole-drawing move");
+  assert.match(fn, /_timeline\.update \{ it\.record\(DrawEdit\.WholeMoved\(dx, dy\)\) \}/,
+    "a whole-drawing move is no longer recorded as one move on the timeline");
+  // Only when this is not itself a put-back, or the put-back records its own
+  // delta and the two undo each other for ever.
+  assert.match(fn, /if \(offerPutBack\) \{\s*\n\s*_timeline\.update/,
+    "a put-back records its own move, so the two would undo each other for ever");
   assert.ok(!/commitEdit\(/.test(fn),
     "a whole-drawing move records per-run undo steps, which Undo would apply one side at a time");
 });
