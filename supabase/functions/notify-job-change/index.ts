@@ -10,6 +10,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 import { jobPushEvent, jobPushMessage } from "../_shared/job-push.ts";
 import { jobAudience } from "../_shared/push-recipients.ts";
+import { classifyFcmSend } from "../_shared/fcm-result.ts";
 
 const b64 = (o: unknown) =>
   btoa(JSON.stringify(o)).replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
@@ -145,6 +146,8 @@ Deno.serve(async (req) => {
     const tok = await accessToken(sa);
     const stale: string[] = [];
     let sent = 0;
+    // Counted separately from `sent`, which used to absorb every failure.
+    let failed = 0;
     for (const r of rows) {
       const note = notes.get(r.user_id);
       if (!note) continue; // the .in() above already guarantees this; never guess
@@ -162,12 +165,24 @@ Deno.serve(async (req) => {
           }),
         },
       );
-      if (send.status === 404 || send.status === 400) stale.push(r.token);
-      else sent++;
+      /* Read the body before deciding. A 400 is about the MESSAGE unless FCM
+         names the token in it, and deleting on a bare 400 is what let one
+         malformed payload unsubscribe every phone it was sent to. */
+      const outcome = classifyFcmSend(send.status, await send.text().catch(() => ""));
+      if (outcome.delivered) sent++;
+      else {
+        failed++;
+        // Logged, because the only other symptom of a push that did not go is
+        // silence -- which is indistinguishable from having nothing to send.
+        console.error("notify-job-change: push not delivered --", outcome.reason);
+      }
+      if (outcome.removeToken) stale.push(r.token);
     }
     if (stale.length) await db.from("device_tokens").delete().in("token", stale);
 
-    return new Response(JSON.stringify({ sent }));
+    // failed and removed are reported, not just sent: a run that delivered
+    // nothing used to answer {sent: 0} exactly like a quiet one.
+    return new Response(JSON.stringify({ sent, failed, removed: stale.length }));
   } catch (e) {
     console.error(e);
     return new Response(JSON.stringify({ error: String(e) }), { status: 500 });

@@ -56,6 +56,8 @@ export async function accessToken(sa: {
 }
 
 /** What FCM answered, so the caller can drop a token the device no longer has. */
+import { classifyFcmSend } from "../_shared/fcm-result.ts";
+
 export interface SendOutcome {
   ok: boolean;
   /** 404 or 400: this token is gone. Any other failure may be transient. */
@@ -94,5 +96,11 @@ export async function sendData(
       }),
     },
   );
-  return { ok: res.ok, stale: res.status === 404 || res.status === 400, status: res.status };
+  /* stale must mean "this token is dead", not "this request failed". A 400
+     is FCM refusing the MESSAGE unless the body names the token, and this
+     caller deletes on stale -- so a payload bug used to delete the handset's
+     row and silence it until it next re-registered. See
+     ../_shared/fcm-result.ts. */
+  const outcome = classifyFcmSend(res.status, await res.text().catch(() => ""));
+  return { ok: outcome.delivered, stale: outcome.removeToken, status: res.status };
 }

@@ -47,6 +47,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 import { approximateUtcOffsetHours, isQuietHour } from "../_shared/follow-up-logic.ts";
 import { moneyAudience, type PushProfile } from "../_shared/job-push.ts";
+import { classifyFcmSend } from "../_shared/fcm-result.ts";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -297,7 +298,14 @@ Deno.serve(async (req) => {
               }),
             },
           );
-          if (send.status === 404 || send.status === 400) stale.push(t.token);
+          /* Same rule as notify-job-change, from the same place: a 400 is
+             about the message unless FCM names the token, so a malformed
+             push must not unsubscribe the phone it was aimed at. */
+          const outcome = classifyFcmSend(send.status, await send.text().catch(() => ""));
+          if (outcome.removeToken) stale.push(t.token);
+          else if (!outcome.delivered) {
+            console.error("attention-sweep: push not delivered --", outcome.reason);
+          }
         }
         if (stale.length) await db.from("device_tokens").delete().in("token", stale);
 
