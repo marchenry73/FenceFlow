@@ -104,22 +104,35 @@ $$;
 do $$
 declare
   cid uuid;
-  jid bigint;
+  jid uuid;   -- jobs.id is a uuid on this schema, not a bigint
   was timestamptz;
   now_after timestamptz;
   ok_quiet boolean;
   ok_loud  boolean;
 begin
-  select id into cid from public.companies order by created_at limit 1;
+  -- A ZZ TEST company by preference, so the row this creates and deletes
+  -- never touches a real contractor's job list even for the second it exists.
+  select id into cid from public.companies
+   where name like 'ZZ TEST%' order by created_at limit 1;
+  if cid is null then
+    select id into cid from public.companies order by created_at limit 1;
+  end if;
   if cid is null then raise exception 'no company to test against'; end if;
 
-  insert into public.jobs (company_id, sync_id, customer_name, status)
-  values (cid, gen_random_uuid(), 'ZZ R43 PROBE', 'DRAFT')
+  -- is_test_fixture as well, which is the flag the office and the app already
+  -- filter on, so nothing lists it even if a trigger fires mid-block.
+  -- Backdated AT INSERT, which is the only moment it can be.
+  --
+  -- The first attempt backdated with an UPDATE and the positive control caught
+  -- it: changing updated_at alone is a QUIET-only change, so the trigger wrote
+  -- old.updated_at straight back over it. And now() is transaction-scoped, so
+  -- every call in this block returns the same instant -- a row inserted here
+  -- already carries now(), and a "bump" to now() would be indistinguishable
+  -- from no bump at all. Both checks below would have passed against a trigger
+  -- that had stopped working entirely.
+  insert into public.jobs (company_id, sync_id, customer_name, status, is_test_fixture, updated_at)
+  values (cid, gen_random_uuid(), 'ZZ R43 PROBE', 'DRAFT', true, now() - interval '7 days')
   returning id, updated_at into jid, was;
-
-  -- Far enough back that any bump is unmistakable rather than sub-millisecond.
-  update public.jobs set updated_at = now() - interval '7 days' where id = jid;
-  select updated_at into was from public.jobs where id = jid;
 
   -- THE CHECK: writing labor_cost alone must NOT move the clock.
   update public.jobs set labor_cost = 1234.56 where id = jid;

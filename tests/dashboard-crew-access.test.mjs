@@ -354,12 +354,21 @@ const runSave = async ({ locked }) => {
   const sent = [];
   const db = { from: () => ({ update: (p) => { sent.push(p); return { eq: () => ({ select: () =>
     Promise.resolve({ data: [{ id: 9, sync_id: "s-9", updated_at: "2026-09-22T10:00:00Z" }], error: null }) }) }; } }) };
+  // saveJob now ASKS things after a save lands: whether to hide a declined
+  // job, whether to write for the balance on a finished one, and whether to
+  // tell the customer a newly set date. Each is its own function on the page,
+  // so lifting saveJob out alone leaves them undefined -- and the date one
+  // fires here, because the UNLOCKED case is the one that sends
+  // scheduled_date. Injected as no-ops: this file is about WHICH COLUMNS a
+  // save sends, and the offers must neither change that nor crash it.
   const saveJob = new Function(
     "$", "db", "tr", "msg", "savedNote", "loadAll", "showJob", "callPriceJob", "money", "officePricingErrorMessage",
     "num", "canEdit", "J_TEXT", "J_NUM", "J_SEL", "openJob",
+    "offerToHideDeclined", "offerBalanceEmail", "offerScheduledEmail",
     grab("saveJob") + "\nreturn saveJob;"
   )((id) => els[id] || (els[id] = fakeEl()), db, (k) => k, () => {}, () => {}, async () => {}, () => {},
-    async () => ({ status: 200, body: {} }), String, () => "", Number, () => true, ["notes"], [], [], { id: 9, sync_id: "s-9" });
+    async () => ({ status: 200, body: {} }), String, () => "", Number, () => true, ["notes"], [], [], { id: 9, sync_id: "s-9" },
+    async () => {}, async () => {}, async () => {});
   await saveJob();
   assert.equal(sent.length, 1, "exactly one update was sent");
   return sent[0];
@@ -387,10 +396,16 @@ test("PLANTED FAILURE: the old saveJob (reads the controls whatever their state)
   const els = { j_scheduled_date: fakeEl({ value: "2030-06-01", disabled: true }), j_assigned_employee_id: fakeEl({ value: "E2", disabled: true }) };
   const sent = [];
   const db = { from: () => ({ update: (p) => { sent.push(p); return { eq: () => ({ select: () => Promise.resolve({ data: [{ id: 9 }], error: null }) }) }; } }) };
+  // The same three no-ops the real harness above injects. Without them this
+  // dies on a ReferenceError -- which is still RED, and therefore
+  // indistinguishable from the planted failure being caught. A planted
+  // failure that fails for the wrong reason has stopped guarding anything.
   await new Function("$", "db", "tr", "msg", "savedNote", "loadAll", "showJob", "callPriceJob", "money",
-    "officePricingErrorMessage", "num", "canEdit", "J_TEXT", "J_NUM", "J_SEL", "openJob", old + "\nreturn saveJob;")(
+    "officePricingErrorMessage", "num", "canEdit", "J_TEXT", "J_NUM", "J_SEL", "openJob",
+    "offerToHideDeclined", "offerBalanceEmail", "offerScheduledEmail", old + "\nreturn saveJob;")(
     (id) => els[id] || (els[id] = fakeEl()), db, (k) => k, () => {}, () => {}, async () => {}, () => {},
-    async () => ({ status: 200, body: {} }), String, () => "", Number, () => true, [], [], [], { id: 9, sync_id: "s-9" })();
+    async () => ({ status: 200, body: {} }), String, () => "", Number, () => true, [], [], [], { id: 9, sync_id: "s-9" },
+    async () => {}, async () => {}, async () => {})();
   assert.equal("assigned_employee_sync_id" in sent[0], true, "the old one sends the lead even when locked");
 });
 

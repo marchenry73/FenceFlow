@@ -4095,11 +4095,9 @@ jobViewAll:'All', jobViewToday:'Today', jobViewWeek:'This week', jobViewUnschedu
     reportsProductionBacklog:'Backlog',
     reportsLabourHead:'Labour',
     reportsLabourHours:'Hours',
-    reportsLabourEstVsActual:'Estimated vs. actual',
     reportsLabourCost:'Labour cost',
     reportsLabourCrewProductivity:'Crew productivity ($/hr)',
     reportsMaterialsHead:'Materials',
-    reportsMaterialsEstVsActual:'Estimated vs. actual material cost',
     reportsMaterialsSupplierPricing:'Supplier pricing',
     reportsFinancialHead:'Financial',
     reportsFinancialRevenue:'Revenue',
@@ -4270,6 +4268,9 @@ jobViewAll:'All', jobViewToday:'Today', jobViewWeek:'This week', jobViewUnschedu
     bizProfitHow:'Contract value less materials, approved labour and expenses, added up over these jobs: what they make once paid in full.',
     bizProfitCash:'Cash position',
     bizProfitCashHow:'What has actually come in on these jobs, less the same costs. Negative until the customer pays, which is a gap, not a loss.',
+    bizLabourCharged:'Labour quoted / your cost',
+    bizLabourChargedHow:'Labour at the figure the pricing engine charged on the quote, against what the clocked hours have cost. Only jobs the server has priced count: a job with no priced figure is left out of both sides rather than counted as nothing, so the figure can cover fewer jobs than the table below it.',
+    bizLabourNoEngine:'No priced labour figure on %s of %s jobs, so neither side counts them',
     bizMatCharged:'Materials charged / your cost',
     bizMatChargedHow:'Materials at the price on the quote, against the same materials at your supplier cost. Where a line has no supplier cost, both sides are the selling price.',
     bizSupplierMissing:'Supplier cost missing on %s of %s lines',
@@ -5983,11 +5984,9 @@ jobViewAll:'Todos', jobViewToday:'Hoy', jobViewWeek:'Esta semana', jobViewUnsche
     reportsProductionBacklog:'Pendientes',
     reportsLabourHead:'Mano de obra',
     reportsLabourHours:'Horas',
-    reportsLabourEstVsActual:'Estimado vs. real',
     reportsLabourCost:'Costo de mano de obra',
     reportsLabourCrewProductivity:'Productividad de cuadrilla ($/hr)',
     reportsMaterialsHead:'Materiales',
-    reportsMaterialsEstVsActual:'Costo de materiales estimado vs. real',
     reportsMaterialsSupplierPricing:'Precios de proveedores',
     reportsFinancialHead:'Financiero',
     reportsFinancialRevenue:'Ingresos',
@@ -6158,6 +6157,9 @@ jobViewAll:'Todos', jobViewToday:'Hoy', jobViewWeek:'Esta semana', jobViewUnsche
     bizProfitHow:'Valor del contrato menos materiales, mano de obra aprobada y gastos, sumado sobre estos trabajos: lo que dejan una vez pagados por completo.',
     bizProfitCash:'Posición de efectivo',
     bizProfitCashHow:'Lo que realmente ha entrado en estos trabajos, menos los mismos costos. Es negativa hasta que el cliente paga, lo cual es una brecha, no una pérdida.',
+    bizLabourCharged:'Mano de obra cotizada / su costo',
+    bizLabourChargedHow:'La mano de obra al importe que el motor de precios cobró en el presupuesto, frente a lo que han costado las horas registradas. Solo cuentan los trabajos que el servidor ha tarifado: un trabajo sin importe calculado queda fuera de ambos lados en lugar de contarse como cero, por lo que la cifra puede cubrir menos trabajos que la tabla de abajo.',
+    bizLabourNoEngine:'Sin importe de mano de obra calculado en %s de %s trabajos, por lo que ningún lado los cuenta',
     bizMatCharged:'Materiales cobrados / su costo',
     bizMatChargedHow:'Los materiales al precio del presupuesto, frente a los mismos materiales a su costo de proveedor. Donde una línea no tiene costo de proveedor, ambos lados son el precio de venta.',
     bizSupplierMissing:'Falta el costo de proveedor en %s de %s líneas',
@@ -7841,11 +7843,9 @@ jobViewAll:'Tous', jobViewToday:'Aujourdhui', jobViewWeek:'Cette semaine', jobVi
     reportsProductionBacklog:'En attente',
     reportsLabourHead:'Main-d’œuvre',
     reportsLabourHours:'Heures',
-    reportsLabourEstVsActual:'Estimé vs. réel',
     reportsLabourCost:'Coût de main-d’œuvre',
     reportsLabourCrewProductivity:'Productivité de l\'équipe ($/h)',
     reportsMaterialsHead:'Matériaux',
-    reportsMaterialsEstVsActual:'Coût des matériaux estimé vs. réel',
     reportsMaterialsSupplierPricing:'Prix des fournisseurs',
     reportsFinancialHead:'Financier',
     reportsFinancialRevenue:'Revenu',
@@ -8016,6 +8016,9 @@ jobViewAll:'Tous', jobViewToday:'Aujourdhui', jobViewWeek:'Cette semaine', jobVi
     bizProfitHow:'Valeur du contrat moins les matériaux, la main-d’œuvre approuvée et les dépenses, additionnée sur ces chantiers : ce qu’ils rapportent une fois payés en totalité.',
     bizProfitCash:'Position de trésorerie',
     bizProfitCashHow:'Ce qui est réellement entré sur ces chantiers, moins les mêmes coûts. Négative tant que le client n’a pas payé : c’est un écart, pas une perte.',
+    bizLabourCharged:'Main-d’œuvre devisée / votre coût',
+    bizLabourChargedHow:'La main-d’œuvre au montant facturé par le moteur de prix sur le devis, face à ce que les heures pointées ont coûté. Seuls les chantiers tarifés par le serveur comptent : un chantier sans montant calculé est exclu des deux côtés plutôt que compté comme nul, donc le chiffre peut couvrir moins de chantiers que le tableau ci-dessous.',
+    bizLabourNoEngine:'Aucun montant de main-d’œuvre calculé sur %s chantiers sur %s, donc aucun des deux côtés ne les compte',
     bizMatCharged:'Matériaux facturés / votre coût',
     bizMatChargedHow:'Les matériaux au prix du devis, face aux mêmes matériaux à votre coût fournisseur. Là où une ligne n’a pas de coût fournisseur, les deux côtés sont le prix de vente.',
     bizSupplierMissing:'Coût fournisseur manquant sur %s lignes sur %s',
@@ -18642,6 +18645,19 @@ function materialEstVsActualTotals(jobsIn, jobCostingBySync){
   return { estimated, actual };
 }
 
+/* A two-sided "quoted / actual" figure, or nothing at all.
+
+   Pulled out of the render and tested on its own because the empty case is
+   the one that lies. labourEstVsActualTotals() SKIPS every job the server has
+   never priced (see quotedLaborOf), so with no priced job in scope it returns
+   0 and 0 -- and "$0.00 / $0.00" on a labour tile does not read as "no figure
+   yet", it reads as labour that cost nothing. pricedCount is how many jobs
+   actually reached the figure; at zero there is nothing to show, and this says
+   so instead of printing a total. */
+function estVsActualDisplay(totals, pricedCount, fmt){
+  return pricedCount > 0 ? fmt(totals.estimated) + ' / ' + fmt(totals.actual) : '—';
+}
+
 /* Sales value: the contract value of jobs that were actually won, using the
    same fallback contractTotalOf() uses (a job with no contract_total totals
    its own line items and change orders) so this never disagrees with what
@@ -21173,11 +21189,32 @@ async function bizRender(seq){
     const fees = sum('processing_fees'), online = sum('online_deposits');
     const aging = prof.data.aging || {};
     const ag = k => aging[k] ? n2(aging[k].owed) : 0;
+    /* Labour and materials, quoted against actual, over exactly the jobs the
+       tiles beside them already count -- business_report()'s rows, which are
+       job_costing()-shaped, keyed by job the way the two shared aggregates
+       want them. Read through labourEstVsActualTotals/materialEstVsActualTotals
+       rather than summed here: the labour one carries a rule (a job the server
+       has never priced is dropped from BOTH sides, never counted as zero) that
+       a sum() in a render function cannot carry, and a second copy of a money
+       formula in the browser is exactly how three of them drifted apart
+       before. */
+    const costingByJob = new Map(prow.map(r => [r.job_sync_id, r]));
+    const scopeJobs = prow.map(r => r.job);
+    const labT = labourEstVsActualTotals(scopeJobs, costingByJob);
+    const matT = materialEstVsActualTotals(scopeJobs, costingByJob);
+    /* How many jobs the labour figure is actually made of. Said on the tile,
+       because a total over four of nine jobs is read as the answer for all
+       nine; and when it is none of them, estVsActualDisplay() shows nothing
+       rather than a pair of zeroes. */
+    const noLabPrice = prow.filter(r => quotedLaborOf(r.job) === null).length;
+    const labPriced = prow.length - noLabPrice;
     const pt = [
       { label: tr('bizProfitTotal'), value: money(profit), how: tr('bizProfitHow') },
       { label: tr('repColMargin'), value: bizPct(quoted > 0 ? profit / quoted * 100 : null), how: tr('bizXpMarginHow') },
       { label: tr('bizProfitCash'), value: money(sum('cash_position')), how: tr('bizProfitCashHow') },
-      { label: tr('bizMatCharged'), value: money(sum('quoted_material')) + ' / ' + money(sum('material_cost')),
+      { label: tr('bizLabourCharged'), value: estVsActualDisplay(labT, labPriced, money),
+        sub: noLabPrice ? tr('bizLabourNoEngine', noLabPrice, prow.length) : null, how: tr('bizLabourChargedHow') },
+      { label: tr('bizMatCharged'), value: money(matT.estimated) + ' / ' + money(matT.actual),
         sub: lines.length ? tr('bizSupplierMissing', noSup, lines.length) : null, how: tr('bizMatChargedHow') },
       { label: tr('bizFees'), value: fees || online ? money(fees) : '—', sub: fees || online ? tr('bizOnlineDeposits', money(online)) : tr('bizNoLiveCard'), how: tr('bizFeesHow') },
       { label: tr('bizAgingTotal'), value: money(ag('current') + ag('30') + ag('60') + ag('90')),

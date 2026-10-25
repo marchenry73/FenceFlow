@@ -312,8 +312,21 @@ check("isStale: an unparsable actual value cannot be proven fresh either", isSta
     supplier_unit_price: null, taxable: true, role: "PANEL", auto_generated: true,
     deleted_at: null, deleted_by: "",
   });
+  // labor_cost joined this patch so the OFFICE can report the labour the
+  // engine charged instead of multiplying rate x signed_linear_feet for
+  // itself -- which was wrong on every job with a gate, because the engine
+  // charges over billable feet MINUS gate feet. It is a record, never an
+  // input: nothing prices from it. See supabase_r43_job_labor_cost.sql, which
+  // also puts it on touch_updated_at()'s quiet list, because it rides in the
+  // same statement as contract_total and that statement must not move the
+  // sync clock.
+  //
+  // This check stays an EXACT shape rather than a subset. That is the point
+  // of it: a re-price must write these columns and no others, and a field
+  // appearing here unannounced is exactly what it is meant to catch -- as it
+  // just did.
   check("buildCommitPlan: job patch", plan.jobPatch, {
-    contract_total: 0, priced_by: "OFFICE", priced_at: "2026-09-05T00:00:00Z", pricing_engine_version: "2026.09.1",
+    contract_total: 0, labor_cost: 0, priced_by: "OFFICE", priced_at: "2026-09-05T00:00:00Z", pricing_engine_version: "2026.09.1",
   });
 }
 {

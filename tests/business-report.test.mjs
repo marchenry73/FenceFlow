@@ -628,7 +628,16 @@ test('the SQL files: guarded, signed-in only, and no payload field the page neve
   assert.ok(keys.length > 10, 'found the reply keys');
   // Read by the Business report itself -- job_costing() rows elsewhere on the
   // page share several of these names, so the whole page would prove nothing.
-  const reader = grab('bizRender').replace(/\/\/.*$/gm, '');
+  // bizRender PLUS the shared aggregates it hands these same rows to. The
+  // labour and material estimate-vs-actual figures are computed in
+  // labourEstVsActualTotals/materialEstVsActualTotals -- one copy of each
+  // money formula, not a second one inlined in the render -- so the columns
+  // they read are read by the report even though bizRender's own text does
+  // not name them. Reading bizRender alone called quoted_material unread on
+  // the day it moved into the shared function. Block comments are stripped
+  // too: a key named only in prose must not satisfy this.
+  const reader = [grab('bizRender'), grab('labourEstVsActualTotals'), grab('materialEstVsActualTotals')]
+    .join('\n').replace(/\/\*[\s\S]*?\*\//g, '').replace(/\/\/.*$/gm, '');
   for (const k of keys) assert.ok(reader.includes(k), 'business_report returns ' + k + ' but bizRender never reads it');
   // PLANTED FAILURE: the four keys this reply used to carry that nothing read.
   for (const k of ['unapproved_hours', 'total_cost', 'change_order_feet', 'change_orders_signed'])
