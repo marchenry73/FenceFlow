@@ -123,6 +123,60 @@ function refusalKind(status: number): "release" | "keep" | "unknown" {
   return "keep";
 }
 
+/**
+ * The UTC instant at which the COMPANY's own day started.
+ *
+ * `offsetHours` is the same fixed offset isQuietHour is given, so the daily
+ * cap's day and the quiet window are cut by one clock. They used not to be:
+ * the cap counted from UTC midnight while quiet hours ran on
+ * settings.timezone, which hands every company away from Greenwich a stretch
+ * of its own evening in which the cap quietly starts again.
+ */
+function localDayStartUtc(now: Date, offsetHours: number): string {
+  const local = new Date(now.getTime() + offsetHours * 3600_000);
+  local.setUTCHours(0, 0, 0, 0);
+  return new Date(local.getTime() - offsetHours * 3600_000).toISOString();
+}
+
+/**
+ * Reads every row, not the first thousand.
+ *
+ * PostgREST answers at most 1000 rows per request and does not say that it
+ * did: error is null and the Content-Range header reads `0-999/*`, the star
+ * meaning the total is unknown. So a read that takes what came back cannot
+ * tell a complete answer from a truncated one -- and the candidate-jobs read
+ * below was taking what came back, which means a company past a thousand
+ * eligible jobs lost an arbitrary remainder of its customers from every run,
+ * for ever, with nothing anywhere saying so.
+ *
+ * Same recipe as website/dashboard.html's pagedRows(), deliberately: order by
+ * `id` so pages neither overlap nor skip, a short page means the end, a full
+ * page means ask again, and fifty pages is a runaway guard rather than a
+ * limit anybody should reach.
+ *
+ * `build` is called ONCE PER PAGE and must return a fresh query builder:
+ * postgrest builders accumulate, so reusing one would stack the ranges.
+ */
+// deno-lint-ignore no-explicit-any
+async function pagedRows<T>(build: () => any): Promise<{ data: T[]; error: any }> {
+  const PAGE = 1000;
+  const all: T[] = [];
+  for (let from = 0; ; from += PAGE) {
+    const res = await build().order("id", { ascending: true }).range(from, from + PAGE - 1);
+    // Handed back with whatever was already gathered, and with the error, so
+    // a caller cannot mistake a failed read for an empty table.
+    if (res.error) return { data: all, error: res.error };
+    const got = (res.data ?? []) as T[];
+    all.push(...got);
+    if (got.length < PAGE) break;
+    if (all.length >= PAGE * 50) {
+      console.error("send-follow-ups: pagedRows stopped at " + all.length + " rows");
+      break;
+    }
+  }
+  return { data: all, error: null };
+}
+
 const SUBJECT: Record<string, string> = {
   new_lead_not_contacted: "Following up on your fence quote request",
   quote_sent_no_view: "Your fence quote is ready",
@@ -261,8 +315,23 @@ Deno.serve(async (req) => {
       const settings: FollowUpSettings = { ...DEFAULT_SETTINGS, ...row };
       const companyId = String((row as any).company_id);
 
-      const { data: allowed } = await db.rpc("company_allowed", { cid: companyId });
-      if (allowed === false) {
+      // NOT `allowed === false`. The header above promises "never a
+      // suspended/expired company", and two answers that are not `false` are
+      // not a yes either: a FAILED rpc hands back data: null with the reason
+      // in `error` (revoked EXECUTE, schema-cache miss, timeout), and
+      // company_allowed is `select ... from companies where id = cid`, a
+      // scalar subquery that answers NULL for a company id matching no row --
+      // which is exactly what a follow_up_settings row outliving its company
+      // looks like. Either one used to let the whole run email that company's
+      // customers. invite-crew, price-job and mail-send all read the error;
+      // mail-send also demands a literal true.
+      const { data: allowed, error: allowedError } = await db.rpc("company_allowed", { cid: companyId });
+      if (allowedError) {
+        console.error("send-follow-ups: company_allowed", companyId, allowedError.message);
+        results.push({ company_id: companyId, skipped: "could not check whether the company is allowed" });
+        continue;
+      }
+      if (allowed !== true) {
         results.push({ company_id: companyId, skipped: "company not allowed" });
         continue;
       }
@@ -273,12 +342,29 @@ Deno.serve(async (req) => {
         continue;
       }
 
-      const todayStart = new Date(now); todayStart.setUTCHours(0, 0, 0, 0);
-      const { count: sentToday } = await db
+      // The cap's day is the COMPANY's day. This was UTC midnight while quiet
+      // hours, three lines above, ran on settings.timezone -- and the two
+      // disagree by exactly `offset`. For the one company with follow-ups
+      // switched on in the live database today (America/New_York, cap 25,
+      // quiet 21-7, read 2026-10-25) the UTC day rolls at 20:00 local, which
+      // is INSIDE its sending window: everything sent between 20:00 and 21:00
+      // local counted against a fresh cap, so one of the customer's days
+      // could carry 25 letters before eight o'clock and 25 more after it.
+      const todayStart = localDayStartUtc(now, offset);
+      const { count: sentToday, error: sentErr } = await db
         .from("follow_up_log")
         .select("id", { count: "exact", head: true })
         .eq("company_id", companyId)
-        .gte("sent_at", todayStart.toISOString());
+        .gte("sent_at", todayStart);
+      // A failed count is not a count of zero. Dropped, `sentToday` came back
+      // null, `?? 0` made it nothing sent, and the cap -- the one thing
+      // standing between a bad day and a company's whole customer list --
+      // opened all the way up.
+      if (sentErr) {
+        console.error("send-follow-ups: count today's sends", companyId, sentErr.message);
+        results.push({ company_id: companyId, skipped: "could not count today's sends" });
+        continue;
+      }
       let remaining = settings.daily_cap - (sentToday ?? 0);
       if (remaining <= 0) {
         results.push({ company_id: companyId, skipped: "daily cap reached" });
@@ -337,7 +423,13 @@ Deno.serve(async (req) => {
       // Candidate jobs: not deleted, not a test fixture, not opted out, has
       // an email, and touches at least one of the timestamps any kind cares
       // about. The narrower per-kind filtering happens in dueFollowUp().
-      const { data: jobs } = await db
+      //
+      // PAGED (see pagedRows above). Unpaged, this stopped at PostgREST's
+      // thousandth row with no error and no header anybody read, so a company
+      // past a thousand eligible jobs silently lost the remainder -- and the
+      // same jobs every run, since the truncation follows the server's own
+      // ordering, not a cursor.
+      const { data: jobs, error: jobsErr } = await pagedRows<FollowUpJob>(() => db
         .from("jobs")
         .select(
           "sync_id, status, customer_name, email, created_at, first_contact_at, " +
@@ -348,9 +440,16 @@ Deno.serve(async (req) => {
         .eq("is_test_fixture", false)
         .is("deleted_at", null)
         .is("opted_out_at", null)
-        .not("email", "eq", "");
+        .not("email", "eq", ""));
+      // A failed read is not "this company has nothing due". It was dropped,
+      // which made an outage indistinguishable from an empty pipeline.
+      if (jobsErr) {
+        console.error("send-follow-ups: read candidate jobs", companyId, jobsErr.message ?? String(jobsErr));
+        results.push({ company_id: companyId, skipped: "could not read this company's jobs" });
+        continue;
+      }
 
-      for (const j of (jobs ?? []) as FollowUpJob[]) {
+      for (const j of jobs) {
         if (remaining <= 0 || mailErrors.length) break;
         const due = dueFollowUp(j, settings, now);
         if (!due) continue;

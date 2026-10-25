@@ -491,12 +491,55 @@ Deno.serve(async (req) => {
       return new Response("not a FenceFlow payment request");
     }
     const jobSyncId = request.job_sync_id;
+    // The company this money belongs to, settled once and used for every
+    // write below -- the row's own company when it has one, else the
+    // connection's, exactly as recordClearedPayment is called.
+    const companyId = String(request.company_id ?? conn.company_id);
 
     // Mark the request itself paid, so the office's Payments list matches the
     // job.
-    await admin.from("job_payments")
+    //
+    // SCOPED, like every other write in this file. An id that arrived from
+    // Square is not a FenceFlow tenant boundary: today a partial unique index
+    // (job_payments_processor_external_uidx, on (processor, external_id) where
+    // external_id is non-empty) means at most one row can carry this order id,
+    // so this is defence in depth rather than a live leak -- but the boundary
+    // should not depend on an index somewhere else staying exactly as it is.
+    //
+    // CHECKED, twice, because neither failure raises on its own:
+    //   - supabase-js returns { error } instead of throwing, so an outage or
+    //     a policy refusal here left the request reading "pending" while the
+    //     webhook answered 200 and Square never retried.
+    //   - an update that matched NOTHING returns [] with error null, which
+    //     reads exactly like success (the same trap stripe-webhook's
+    //     keeps_card names). The row was just read two statements ago, so no
+    //     match means it moved or went away underneath us.
+    const { data: markedPaid, error: markPaidError } = await admin.from("job_payments")
       .update({ status: "paid", paid_at: new Date().toISOString() })
-      .eq("processor", "square").eq("external_id", orderId);
+      .eq("processor", "square")
+      .eq("external_id", orderId)
+      .eq("company_id", companyId)
+      .select("id");
+    // A write that FAILED is thrown: the catch answers 500, Square retries,
+    // and the retry is safe because this update is scoped to one company's
+    // one order and the booking below is an upsert on Square's own id.
+    // mustWrite is handed an already-settled result rather than the builder,
+    // because the rows had to be read off the same call -- the message and
+    // the log line are then the one shape every money write in this file uses.
+    await mustWrite("mark the Square payment request paid",
+      Promise.resolve({ error: markPaidError }));
+    // A write that matched nothing cannot be retried into existence, so it is
+    // logged with the ids needed to put it right by hand AND said out loud in
+    // the answer, rather than being swallowed by a bare "ok". The money is
+    // still booked below: the job's own figures matter more than this row.
+    const markNote = (markedPaid && markedPaid.length)
+      ? ""
+      : " (warning: no square payment request matched order " + orderId +
+        " for company " + companyId + ", so nothing was marked paid)";
+    if (markNote) {
+      console.error("square-webhook: nothing marked paid", "order", orderId,
+        "company", companyId, "job", jobSyncId);
+    }
 
     const amountMinor = Number(payment?.amount_money?.amount ?? 0);
     const currency = String(payment?.amount_money?.currency ?? "USD");
@@ -509,18 +552,29 @@ Deno.serve(async (req) => {
     const amount = zeroDecimal.includes(currency) ? amountMinor : amountMinor / 100;
 
     const outcome = await recordClearedPayment(admin, {
-      companyId: request.company_id ?? conn.company_id,
+      companyId,
       jobSyncId,
       amount,
       externalId: String(payment.id ?? ""),
       processor: "square",
-      // Square marks sandbox activity on the payment itself. Anything not
-      // explicitly production is treated as a test and never reaches the books.
-      liveMode: event?.data?.object?.payment?.location_id !== undefined
-        && String(Deno.env.get("SQUARE_ENVIRONMENT") ?? "sandbox") === "production",
+      // Anything not explicitly production is treated as a test and never
+      // reaches the books -- decided by SQUARE_ENVIRONMENT alone, which is how
+      // the refund path and the dispute path in this same file decide it.
+      //
+      // There used to be a second term here, `location_id !== undefined`,
+      // defended by a comment saying "Square marks sandbox activity on the
+      // payment itself". It does not: location_id is the seller location and
+      // EVERY Square payment carries one, sandbox and production alike, so
+      // the term was always true and proved nothing. The danger was not that
+      // it let test money in -- it could only ever subtract -- it is that a
+      // production payment arriving without that field (a shape change, a
+      // Terminal or an API version that omits it) would be discarded as
+      // "sandbox payment, deliberately not booked" with a 200 to Square, so
+      // never retried and never recorded. Real money, gone quietly.
+      liveMode: String(Deno.env.get("SQUARE_ENVIRONMENT") ?? "sandbox") === "production",
     });
 
-    return new Response(outcome.reason);
+    return new Response(outcome.reason + markNote);
   } catch (e) {
     // 500 so Square retries rather than dropping the event.
     return new Response(String(e), { status: 500 });

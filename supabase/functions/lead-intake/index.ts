@@ -46,8 +46,33 @@ Deno.serve(async (req) => {
   // a trial simply runs out -- the app and the office lock on the date, via
   // this function -- so a lapsed company's public form went on collecting
   // homeowners' requests into an account nobody could open.
-  const { data: allowed } = await admin.rpc("company_allowed", { cid: co.id });
-  if (allowed === false) return json({ error: "That company is not taking requests right now." }, 404);
+  //
+  // NOT `allowed === false`. Two answers are not `false` and are not a yes
+  // either, and both used to walk straight past this gate:
+  //
+  //   - a FAILED rpc. supabase-js hands back data: null with the reason in
+  //     `error` -- a revoked EXECUTE on the function (which has happened
+  //     here), a schema-cache miss after a redeploy, a statement timeout.
+  //     null !== false, so the form reopened the moment the check broke.
+  //   - a NULL answer with no error at all. company_allowed is
+  //     `select ... from companies c where c.id = cid` -- a scalar subquery,
+  //     so a company id matching no row returns NULL, not false (checked
+  //     against the live function on 2026-10-25: an unknown uuid answers
+  //     NULL and a real company answers true).
+  //
+  // invite-crew, price-job and mail-send all read the error; mail-send also
+  // demands a literal true. That is the shape used here, because the request
+  // on the other side of this door was typed by a stranger with no session
+  // and the only safe default for one is no.
+  const { data: allowed, error: allowedError } = await admin.rpc("company_allowed", { cid: co.id });
+  if (allowedError) {
+    console.error("lead-intake: company_allowed", co.id, allowedError.message);
+    // 503, not 404: the company may well be fine and this is worth retrying.
+    // The homeowner reads the same sentence either way; the difference is for
+    // the log and for lead.html's retry, which shows `error` whatever the code.
+    return json({ error: "That company is not taking requests right now." }, 503);
+  }
+  if (allowed !== true) return json({ error: "That company is not taking requests right now." }, 404);
 
   const body = await req.json().catch(() => ({}));
   const f = (v: unknown, max: number) => String(v ?? "").trim().slice(0, max);
