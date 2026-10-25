@@ -3,6 +3,9 @@
 // because either of those can be faked by whoever is holding the phone.
 //
 // Secrets: STRIPE_WEBHOOK_SECRET, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
+// Optional: STRIPE_WEBHOOK_SECRET_TEST -- the TEST-mode endpoint's signing
+// secret. Set it to make test-mode payments verify as well as live ones; leave
+// it unset and only the live secret is ever consulted.
 //
 // Deploy with JWT verification OFF -- Stripe calls this, not a signed-in user.
 // The signature check below is what authenticates the caller instead.
@@ -722,14 +725,58 @@ Deno.serve(async (req) => {
     return new Response("Webhook not configured", { status: 500 });
   }
 
-  const raw = await req.text();
+  // The TEST endpoint's signing secret, and only if somebody deliberately set
+  // it.
+  //
+  // Stripe signs a test-mode event with the TEST endpoint's secret, which is a
+  // different string from the live one. So the moment the live secret was put
+  // in the variable above, every test-mode delivery began failing the check
+  // below and answering 400 -- the deposit link, the card the deposit saves
+  // and the office's off-session charge all became untestable without moving
+  // real money.
+  //
+  // Optional on purpose, and absent by default. Unset, the fallback below
+  // cannot run at all: the only comparison made is against the live secret,
+  // byte for byte the behaviour this file had before.
+  //
+  // It is NOT a second way to satisfy the refusal above, and must never
+  // become one. That refusal is about the PRIMARY secret being missing, for
+  // the reason it states -- an undefined secret once reached verify() as the
+  // literal text "undefined" and became the HMAC key, so anyone who worked
+  // out it was unset could sign their own events. A deployment with only
+  // STRIPE_WEBHOOK_SECRET_TEST set is still a deployment with no live secret,
+  // and still refuses everything with 500.
+  const testSecret = Deno.env.get("STRIPE_WEBHOOK_SECRET_TEST") ?? "";
 
-  const ok = await verify(
-    raw,
-    req.headers.get("stripe-signature"),
-    signingSecret,
-  );
-  if (!ok) return new Response("Bad signature", { status: 400 });
+  const raw = await req.text();
+  const signature = req.headers.get("stripe-signature");
+
+  // Live first, always, and the test secret only on a live FAILURE. A test
+  // secret can therefore never decide a request the live secret already
+  // accepted, which is what makes setting it unable to change the handling of
+  // any live event.
+  //
+  // Both arms call the SAME verify() above -- deliberately, rather than a
+  // second comparison written out here that could drift away from it. Its
+  // per-byte XOR over the whole digest, with no early exit, is the thing that
+  // stops a signature being guessed a character at a time, and that property
+  // has to hold for the test secret exactly as it does for the live one.
+  let verifiedMode: "live" | "test" | null = null;
+  if (await verify(raw, signature, signingSecret)) verifiedMode = "live";
+  else if (testSecret && await verify(raw, signature, testSecret)) verifiedMode = "test";
+
+  // One refusal, same status and same words whichever secret it missed by, so
+  // a caller learns only that it was refused -- never which of the two keys
+  // the function was holding, nor whether a second one exists.
+  if (!verifiedMode) return new Response("Bad signature", { status: 400 });
+
+  if (verifiedMode === "test") {
+    // The function log only, which nobody but the project owner can read, and
+    // it says nothing about the live secret. Worth having: a test run that
+    // correctly leaves the books untouched is otherwise indistinguishable
+    // from an event that never arrived.
+    console.log("stripe-webhook: event verified against the TEST signing secret.");
+  }
 
   const event = JSON.parse(raw);
   const admin = createClient(
@@ -1020,7 +1067,9 @@ Deno.serve(async (req) => {
         const intent = String(dispute?.payment_intent ?? "");
         if (!intent) break;
         const { data: rows } = await admin.from("job_payments")
-          .select("job_sync_id, company_id, amount_cents, fee_cents")
+          // livemode, because both writes below are real: one stamps a dispute
+          // on the job and the other puts a positive row in the ledger.
+          .select("job_sync_id, company_id, amount_cents, fee_cents, livemode")
           .eq("processor", "stripe")
           .eq("external_id", intent)
           .limit(1);
@@ -1029,6 +1078,24 @@ Deno.serve(async (req) => {
         // Nothing to attach it to, and inventing a job to hang it on would be
         // worse than the gap.
         if (!request?.job_sync_id) break;
+
+        /* A TEST DISPUTE DOES NOT TOUCH A REAL JOB.
+
+           Same rule applyPaymentToJob already follows, read from the same
+           place: the payment ROW's mode, stamped by Stripe when the link was
+           created. A test payment carries a REAL job's sync_id -- that is what
+           testing the checkout on a live job means -- so without this, a
+           test-mode dispute stamps dispute_status on that job and, on
+           funds_reinstated, writes a positive row into its ledger. Both were
+           reproduced before this line existed.
+
+           Logged rather than silent: a dispute is the one event where nothing
+           happening needs to be explainable afterwards. */
+        if (request.livemode !== true) {
+          console.error("stripe-webhook: ignoring a TEST-mode dispute on job",
+            String(request.job_sync_id), "- test money is never booked");
+          break;
+        }
 
         const amount = minorToMajor(jobShare(Number(dispute.amount ?? 0), request), String(dispute.currency ?? "usd"));
         const closed = event.type === "charge.dispute.closed";
@@ -1090,6 +1157,27 @@ Deno.serve(async (req) => {
         const sub = event.data.object;
         const companyId = sub.metadata?.company_id;
         if (!companyId) break;
+
+        /* A TEST SUBSCRIPTION DOES NOT SPEAK FOR A REAL COMPANY.
+
+           This branch has no row whose mode it could read -- a company carries
+           no livemode column -- so it reads the EVENT's own flag, which Stripe
+           sets and which nothing can forge: the signature was checked before
+           any of this ran.
+
+           The grant is not the worst of it. Writing stripe_subscription_id
+           from a test subscription is, because the LIVE
+           invoice.payment_succeeded / invoice.payment_failed handlers below
+           match a company on exactly that column -- so once a sandbox id is
+           stored, a real renewal failure stops matching the company and nobody
+           hears about it. Reproduced on a company with no subscription id: a
+           test-mode created event set it active and called
+           release_for_payment. */
+        if (event.livemode !== true) {
+          console.error("stripe-webhook: ignoring a TEST-mode subscription event for company",
+            String(companyId), "- test billing never changes a real company");
+          break;
+        }
 
         // Only the subscription the company currently points at may speak
         // for it. A canceled OLD subscription's deleted-event once arrived
