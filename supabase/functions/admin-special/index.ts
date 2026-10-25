@@ -196,10 +196,34 @@ Deno.serve(async (req) => {
   // A note on the company, so the console says why their price looks odd
   // without anybody having to open Stripe. NOT the price itself: Stripe owns
   // that, and the webhook will report the discounted figure on its own.
+  //
+  // APPENDED, never assigned. This used to overwrite admin_notes outright,
+  // and every other writer of that column preserves what is already there:
+  // admin_grant_access and admin_suspend take `coalesce(note, admin_notes)`,
+  // and the r17 trial-lockout audit lines use
+  // `coalesce(nullif(c.admin_notes, '') || E'\n', '') || ...`, which is the
+  // shape copied here -- the existing note first, then the new line. Live, a
+  // company carrying "Owner company. Permanent access." also has a Stripe
+  // subscription, so one special on it erased that line and any r17 audit
+  // trail with it. The table's own trigger does not save it either:
+  // protect_billing_columns holds admin_notes back only for a request with a
+  // login behind it (`if auth.uid() is null then return new`), and this write
+  // has no login -- it is the service role.
+  //
+  // Read immediately before the write rather than from the company row
+  // fetched further up, so the window in which a concurrent writer could be
+  // clobbered is as narrow as PostgREST allows: it has no `col = col || x`,
+  // so this cannot be one statement without a new database function.
   const stamp = new Date().toISOString().slice(0, 10);
+  const line = `${stamp}: special $${specialPrice.toFixed(2)}/mo for ${months} month${months === 1 ? "" : "s"}, ` +
+    `then back to $${(nowCents / 100).toFixed(2)}.`;
+  const { data: notesRow } = await admin
+    .from("companies").select("admin_notes").eq("id", companyId).maybeSingle();
+  // nullif-on-empty semantics, like r17: prior is kept byte for byte when it
+  // has anything in it, and nothing is prefixed when it does not.
+  const prior = String(notesRow?.admin_notes ?? "");
   await admin.from("companies").update({
-    admin_notes: `${stamp}: special $${specialPrice.toFixed(2)}/mo for ${months} month${months === 1 ? "" : "s"}, ` +
-      `then back to $${(nowCents / 100).toFixed(2)}.`,
+    admin_notes: prior.trim() ? `${prior}\n${line}` : line,
   }).eq("id", companyId);
 
   return json({

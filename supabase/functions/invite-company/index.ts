@@ -136,26 +136,40 @@ Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
 
   try {
-    const authHeader = req.headers.get("Authorization");
-    if (!authHeader) return json({ error: "No login sent with the request" }, 401);
-
-    const admin = createClient(
-      Deno.env.get("SUPABASE_URL")!,
-      Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!,
-    );
-
-    // Validate the token rather than trusting a header a client handed us.
-    const jwt = authHeader.replace(/^Bearer\s+/i, "").trim();
-    const { data: userData } = await admin.auth.getUser(jwt);
-    const user = userData?.user;
-    if (!user) return json({ error: "Login not accepted" }, 401);
-
-    // Only the platform admin invites companies onto FenceFlow.
-    const { data: profile } = await admin
-      .from("profiles").select("is_platform_admin").eq("id", user.id).single();
-    if (!profile?.is_platform_admin) {
-      return json({ error: "Only a FenceFlow admin may invite a company." }, 403);
+    // THE GATE IS is_platform_admin(), asked AS THE CALLER -- the same one
+    // funnel every admin action on this console goes through, including the
+    // second factor. Not a check of our own invention sitting beside it.
+    //
+    // This used to read profiles.is_platform_admin with the SERVICE ROLE and
+    // gate on that raw column. The column is one third of the gate: the live
+    // function is `flag AND lower(email) = the owner's address AND
+    // admin_second_factor_ok()`. The owner has a verified MFA factor
+    // enrolled, so the factor is not vacuously true for him -- it wants an
+    // aal2 session or an aal2 claim. Reading the column skipped the address
+    // lock and the factor both, which left admin.html's own
+    // secondFactorFresh() -- a prompt in a browser, and therefore not a gate
+    // -- as the only thing that asked. admin-special and admin-mail-send
+    // already do it this way; this function never got the correction.
+    const auth = req.headers.get("Authorization") ?? "";
+    if (!auth.toLowerCase().startsWith("bearer ")) {
+      return json({ error: "No login sent with the request" }, 401);
     }
+
+    const supaUrl = Deno.env.get("SUPABASE_URL")!;
+    const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+
+    const asCaller = createClient(supaUrl, Deno.env.get("SUPABASE_ANON_KEY") ?? serviceKey, {
+      global: { headers: { Authorization: auth } },
+      auth: { persistSession: false, autoRefreshToken: false },
+    });
+    const { data: isAdmin, error: adminErr } = await asCaller.rpc("is_platform_admin");
+    if (adminErr || isAdmin !== true) {
+      return json({
+        error: "Only a FenceFlow admin may invite a company, and the admin's second factor has to be current.",
+      }, 403);
+    }
+
+    const admin = createClient(supaUrl, serviceKey);
 
     const { companyId, email, companyName } = await req.json();
     if (!companyId || !email) return json({ error: "Need a company and an email address." }, 400);
@@ -418,14 +432,24 @@ Deno.serve(async (req) => {
     //
     // This call used to be fired and forgotten, and it raised every single
     // time: the function guarded on is_platform_admin(), which reads
-    // auth.uid(), and this client is the service role, which has no user. So
-    // the mail genuinely went out, admin.html said "Invitation sent", and the
+    // auth.uid(), and the service-role client has no user. So the mail
+    // genuinely went out, admin.html said "Invitation sent", and the
     // company's onboarding stayed "Not started" forever with its button still
     // reading Invite -- no way to tell who had already been contacted, and the
-    // same invitation sent again and again. The guard now lets a caller with
-    // no user context through, and if the write still fails the admin is told
-    // rather than shown a success that is only half true.
-    const { error: markError } = await admin.rpc("admin_mark_invited", {
+    // same invitation sent again and again. The guard therefore grew a branch
+    // for a caller with no user context: `if auth.uid() is null then if not
+    // is_service_role() then raise`.
+    //
+    // It is asked AS THE CALLER, so the branch it takes is the one that
+    // re-asks is_platform_admin() in the database. Handed the service-role
+    // client it took that other branch and verified nothing at all -- and the
+    // function writes companies.invited_at, invited_email and
+    // email = coalesce(to_email, email) for whatever id it is given, all
+    // eleven of them. The gate above decides who may be in this function;
+    // this makes the database decide again at the row it writes. If the write
+    // fails the admin is told rather than shown a success that is only half
+    // true.
+    const { error: markError } = await asCaller.rpc("admin_mark_invited", {
       target: companyId,
       to_email: email,
     });
