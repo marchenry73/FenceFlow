@@ -267,23 +267,32 @@ const itemsOf = (out: ReturnType<typeof priceJob>) => out.items.map((i) => [i.so
   // $7.00 is listed last, exactly as it was. The quote on the replaced
   // generated post still carries onto the rebuilt LINE_POST.
   //
-  // END_POST is 1, not 2: stale since engine 2026.10.9 (4 Oct 2026), see the
-  // entries note above. The gate's other post is now a GATE_POST entry, and it
-  // builds NO line item here because this file's CATALOG stocks no GATE_POST row
+  // TWO posts at 9.50 again, with the roles 2026.10.9 gave them: a GATE_POST
+  // for the hinge side and an END_POST for the latch side. The GATE_POST line
+  // exists even though this CATALOG stocks no GATE_POST row, because
+  // PRICING_FALLBACK_ROLE borrows the end-post row for it -- which is what the
+  // old END_POST 2 was really charging for all along, under one role
   // -- pinned in "case2 gate posts bill nothing without a GATE_POST row" below.
   check("case2 items", itemsOf(out), [
     [0, "WOOD_PICKET", 280, 3.25, null, true], [2, "LINE_POST", 10, 9.50, 8.00, true],
     [3, "CORNER_POST", 4, 9.50, null, true], [4, "POST_CAP", 16, 2.25, null, true], [5, "GATE_FRAME_KIT", 1, 65, null, true],
-    [6, "HINGE_SET", 1, 14, null, true], [7, "LATCH", 1, 9, null, true], [8, "END_POST", 1, 9.50, null, true],
-    [9, "CONCRETE_BAG", 19, 4.75, null, true], [0, "WOOD_RAIL", 1, 7.00, null, false],
+    [6, "HINGE_SET", 1, 14, null, true], [7, "LATCH", 1, 9, null, true],
+    [8, "GATE_POST", 1, 9.50, null, true], [9, "END_POST", 1, 9.50, null, true],
+    [10, "CONCRETE_BAG", 19, 4.75, null, true], [0, "WOOD_RAIL", 1, 7.00, null, false],
   ]);
-  check("case2 the edited rail line is the one written by hand", [out.items[9].sync_id, out.items[9].description], ["old-rail", "Rail"]);
+  // items[10], not [9]: the borrowed GATE_POST line pushed the hand-written
+  // rail one place along. It is still last, and still the typed one.
+  check("case2 the edited rail line is the one written by hand", [out.items[10].sync_id, out.items[10].description], ["old-rail", "Rail"]);
   // BRACE and STIFFENER left this list in engine 2026.10.7 because the takeoff
-  // stopped asking for them at all on wood; GATE_POST joined it because the
-  // takeoff started asking (2026.10.4/2026.10.9) and nothing prices it. HANDLE
+  // stopped asking for them at all on wood. GATE_POST was here too, for the
+  // months when the takeoff asked for it and nothing priced it; it bills off
+  // the end-post row now and has left this list. HANDLE
   // is the one that was always here: this file's CATALOG has no WOOD HANDLE row.
   check("case2 unmatched", out.unmatched_roles, [
-    { run_sync_id: "run-2", role: "HANDLE" }, { run_sync_id: "run-2", role: "GATE_POST" },
+    // GATE_POST is no longer here: it bills off the END_POST row through
+    // PRICING_FALLBACK_ROLE. HANDLE remains, because this catalog genuinely
+    // stocks no WOOD HANDLE and nothing stands in for it.
+    { run_sync_id: "run-2", role: "HANDLE" },
   ]);
   // A CATALOG WITH NO GATE_POST ROW BILLS NOTHING FOR ITS GATE POSTS. Pinned
   // deliberately, because it is a known open decision rather than an accident:
@@ -293,7 +302,14 @@ const itemsOf = (out: ReturnType<typeof priceJob>) => out.items.map((i) => [i.so
   // engines behave identically, so parity stays green either way -- which is
   // exactly why it needs an assertion of its own and not a shrug. The owner's
   // own catalog HAS GATE_POST rows, so his quotes do bill the post.
-  check("case2 gate posts bill nothing without a GATE_POST row", out.items.filter((i) => i.role === "GATE_POST").length, 0);
+  // A CATALOG WITH NO GATE_POST ROW NOW BILLS THE POST OFF ITS END POST.
+  // This pinned the opposite until the owner decided: the gate's hinge post
+  // matched nothing and no line appeared, so one post per gate was quietly
+  // free. The line keeps role GATE_POST and takes its price and description
+  // from the end-post row actually chosen.
+  check("case2 gate post bills off the end post", out.items.filter((i) => i.role === "GATE_POST").length, 1);
+  check("case2 the borrowed gate post costs what an end post costs",
+    out.items.find((i) => i.role === "GATE_POST")!.unit_price, 9.5);
   // The built rows come to 910 + 80 + 38 + 36 + 65 + 14 + 9 + 9.50 + 90.25
   // = 1251.75, and the kept rail line 1 x 7.00. The "other-run" row names a
   // run this job does not carry, so it is job-level: a regenerate never
@@ -303,12 +319,14 @@ const itemsOf = (out: ReturnType<typeof priceJob>) => out.items.map((i) => [i.so
   // Was 1269.25 until 24 Oct 2026: the END_POST term was 2 x 9.50 = 19, and the
   // gate's hinge post has billed off GATE_POST since engine 2026.10.9 (see the
   // entries note above), which this CATALOG does not stock. 1269.25 - 9.50.
-  check("case2 materials", out.totals.materials_subtotal, 1259.75);
+  // 1269.25 again: two posts at 9.50 (one GATE_POST borrowed from the end-post
+  // row, one END_POST), as it was before 2026.10.9 stopped billing the first.
+  check("case2 materials", out.totals.materials_subtotal, 1269.25);
   // sort_order, then sync id: a uuid sorts before "old-rail" and "other-run".
   const idOf = (role: string) => out.items.find((i) => i.role === role && i.auto_generated)!.sync_id;
   check("case2 totals order", out.totals_items, [
     idOf("WOOD_PICKET"), "old-rail", idOf("LINE_POST"), "other-run", idOf("CORNER_POST"), idOf("POST_CAP"),
-    idOf("GATE_FRAME_KIT"), idOf("HINGE_SET"), idOf("LATCH"), idOf("END_POST"), idOf("CONCRETE_BAG"),
+    idOf("GATE_FRAME_KIT"), idOf("HINGE_SET"), idOf("LATCH"), idOf("GATE_POST"), idOf("END_POST"), idOf("CONCRETE_BAG"),
   ]);
   check("case2 change order", [out.totals.change_order_cost, out.totals.change_order_feet], [200, 10]);
   check("case2 billable", out.billable_linear_feet, 130);
@@ -318,7 +336,7 @@ const itemsOf = (out: ReturnType<typeof priceJob>) => out.items.map((i) => [i.so
   // 1259.75 materials + 630 labour + 410 teardown (100 flat + 2 x 130 billable
   // ft + 50 trash haul) + 200 change order + 100 gate. Tax is 0 on this job.
   // Was 2609.25: the same 9.50 end post, stale since engine 2026.10.9.
-  check("case2 pre-markup", out.totals.pre_markup_total, 2599.75);
+  check("case2 pre-markup", out.totals.pre_markup_total, 2609.25);
   // 2599.75 * 1.10 = 2859.725, less 5% of that (142.98625) = 2716.73875, exact
   // to the cent: 2716.74. (2730 until engine 2026.10.1, when the total stopped
   // being rounded up to the next ten. The comment used to say 2726.16625 -- a
@@ -326,7 +344,8 @@ const itemsOf = (out: ReturnType<typeof priceJob>) => out.items.map((i) => [i.so
   // Was 2726.67 until 24 Oct 2026: 2609.25 pre-markup x 1.10 less 5%. The
   // $9.50 end post is worth $9.93 here once the 10% markup and 5% discount run
   // over it, which is the whole of the 2726.67 -> 2716.74 move.
-  check("case2 grand total", out.totals.grand_total, 2716.74);
+  // 2609.25 * 1.10 = 2870.175, less 5% (143.50875) = 2726.66625 -> 2726.67.
+  check("case2 grand total", out.totals.grand_total, 2726.67);
 }
 
 // Case 3: a drawn L at 20 px/ft (two 1000 px legs = 100 ft, one 90 degree corner)
@@ -378,12 +397,16 @@ const itemsOf = (out: ReturnType<typeof priceJob>) => out.items.map((i) => [i.so
     [3, "END_POST", 5, 16.56, null, true], [4, "POST_CAP", 18, 0.74, null, true], [5, "GATE_PANEL", 1, 290, null, true],
     [6, "HINGE_SET", 4, 32.25, null, true], [7, "LATCH", 2, 25.87, null, true], [8, "HANDLE", 2, 5, null, true],
     [9, "BRACE", 4, 6.5, null, true], [10, "TRIM", 8, 2, null, true], [11, "STIFFENER", 2, 52.75, null, true],
-    [12, "GATE_PANEL", 1, 290, null, true], [13, "BLANK_POST", 1, 16.56, null, true], [14, "HOLE_PLUG", 4, 0.15, null, true],
-    [15, "CONCRETE_BAG", 18, 4.75, null, true],
+    // GATE_POST at 12, borrowed from the END_POST row at its price. Everything
+    // after it shifts by one.
+    [12, "GATE_POST", 1, 16.56, null, true],
+    [13, "GATE_PANEL", 1, 290, null, true], [14, "BLANK_POST", 1, 16.56, null, true], [15, "HOLE_PLUG", 4, 0.15, null, true],
+    [16, "CONCRETE_BAG", 18, 4.75, null, true],
   ]);
   check("case3 colour narrowing picked White", out.items[0].description, "Panel 6 White");
-  check("case3 nearest gate width", [out.items[5].description, out.items[12].description], ["Gate 10 White", "Gate 10 White"]);
-  check("case3 gate ids qualified by width", [out.items[5].sync_id, out.items[12].sync_id], [
+  // 13, not 12: the borrowed GATE_POST line sits in front of the second gate.
+  check("case3 nearest gate width", [out.items[5].description, out.items[13].description], ["Gate 10 White", "Gate 10 White"]);
+  check("case3 gate ids qualified by width", [out.items[5].sync_id, out.items[13].sync_id], [
     nameUUIDFromString("fenceflow-line:run-3:GATE_PANEL:8.0"), nameUUIDFromString("fenceflow-line:run-3:GATE_PANEL:12.0"),
   ]);
   check("case3 single-role ids unqualified", out.items[1].sync_id, nameUUIDFromString("fenceflow-line:run-3:LINE_POST"));
@@ -391,12 +414,16 @@ const itemsOf = (out: ReturnType<typeof priceJob>) => out.items.map((i) => [i.so
   // the note on "case3 items" above. The terms are in the order the engine
   // builds the lines, so the sum reproduces its double exactly -- do not
   // re-order them to tidy the arithmetic.
+  // The extra 16.56 is the gate post, billed off the end-post row. Kept in the
+  // order the engine builds the lines so the sum reproduces its double
+  // exactly -- do not re-order them to tidy the arithmetic.
   const materials = 14 * 52.35 + 10 * 16.56 + 1 * 16.56 + 5 * 16.56 + 18 * 0.74 + 290 + 4 * 32.25 + 2 * 25.87 + 2 * 5
-    + 4 * 6.5 + 8 * 2 + 2 * 52.75 + 290 + 16.56 + 4 * 0.15 + 18 * 4.75;
+    + 4 * 6.5 + 8 * 2 + 2 * 52.75 + 16.56 + 290 + 16.56 + 4 * 0.15 + 18 * 4.75;
   check("case3 materials", out.totals.materials_subtotal, materials);
   // The GATE_POST this run now asks for, and the post it bills nothing for.
   // Same open decision as case2 -- see the long note there.
-  check("case3 unmatched is the unpriceable gate post", out.unmatched_roles, [{ run_sync_id: "run-3", role: "GATE_POST" }]);
+  // Nothing is unmatched now: the gate post bills off the end-post row.
+  check("case3 nothing is unmatched", out.unmatched_roles, []);
   check("case3 gate", [out.totals.gate_feet, out.totals.gate_charge], [20, 400]);
   check("case3 labor on 80 ft", out.totals.labor_cost, 800);
   // One more $0.74 cap than before the LINE_TO_WALL post-cap fix.
@@ -409,7 +436,7 @@ const itemsOf = (out: ReturnType<typeof priceJob>) => out.items.map((i) => [i.so
   // GATE_POST row since engine 2026.10.9 (4 Oct 2026, commit "One gate, one
   // gate post") and this file's CATALOG stocks none, so it bills nothing here.
   // 16.56 of material + 1.1592 of tax = the 17.72 that 3340.74 - 3323.02 is.
-  check("case3 grand total", out.totals.grand_total, 3323.02);
+  check("case3 grand total", out.totals.grand_total, 3340.74);
 }
 
 // Case 3b: the same drawing with the calibration missing. FIXED: this used

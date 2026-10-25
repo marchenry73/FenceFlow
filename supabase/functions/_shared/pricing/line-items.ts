@@ -117,6 +117,14 @@ function mergeKey(role: MaterialRole, coversFt: number | null): string {
  */
 const PRICING_FALLBACK_ROLE: Partial<Record<MaterialRole, MaterialRole>> = {
   BLANK_POST: "GATE_POST",
+  // The other direction, and the owner's call made: a catalog with no
+  // GATE_POST row used to bill NOTHING for a gate's hinge post -- one post per
+  // gate, silently, on every estimate that company ever wrote. An end post is
+  // the same thing in any catalog that separates them, and every catalog has
+  // one. Still a preference: a company that prices its own GATE_POST row gets
+  // that row, because this is consulted only when the real role matches
+  // nothing.
+  GATE_POST: "END_POST",
 };
 
 export function buildLineItems(

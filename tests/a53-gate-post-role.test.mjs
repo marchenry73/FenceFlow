@@ -457,27 +457,31 @@ test("THE TEETH: price the GATE_POST row differently and the quote DOES move, by
 // WALL has LEFT this loop, because change (D) means a wall gate asks for no gate post at all --
 // there is nothing for it to lose. What WALL loses with no GATE_POST row is its BLANK_POST, and
 // that is asserted separately below (and in a58's "NO CHAINING").
-test("THE MISSING HALF: a catalog with NO GATE_POST row loses the gate posts of a LINE gate outright -- the GATE_POST fallback has NOT landed", () => {
+test("THE MISSING HALF HAS LANDED: a catalog with NO GATE_POST row now bills the gate post off its end post", () => {
   const bare = without(CATALOG, "GATE_POST");
   // ONE post apiece since 5 Oct 2026, not two: each LINE mounting now hangs
   // its gate on a single GATE_POST, and the latch post bills off END_POST --
   // which this catalog still has, so only the hinge post goes missing.
-  for (const [m, lost] of [["LINE", 1], ["LINE_TO_WALL", 1]]) {
+  // The same fixtures that proved the posts were being lost, now proving they
+  // are billed. PRICING_FALLBACK_ROLE wires GATE_POST -> END_POST in both
+  // engines, so the hinge post is priced off the end-post row.
+  for (const [m, wasLost] of [["LINE", 1], ["LINE_TO_WALL", 1]]) {
     const out = quote(m, bare);
-    assert.ok(unmatchedOf(out).includes("GATE_POST"),
-      m + ": GATE_POST is no longer reported unmatched. If the role preference has LANDED in " +
-      "buildLineItems (line-items.ts and EstimateEngine.kt), this whole block is stale -- delete it " +
-      "and turn block 6's reference model into an assertion against the engine itself.");
-    assert.equal(billedQty(out, "GATE_POST"), 0, m + ": a GATE_POST line was billed with no row to bill");
-    // and the posts really are GONE from the order, not merely renamed
+    assert.ok(!unmatchedOf(out).includes("GATE_POST"),
+      m + ": GATE_POST is still reported unmatched -- the fallback has been removed from " +
+      "line-items.ts or EstimateEngine.kt");
+    assert.equal(billedQty(out, "GATE_POST"), 1, m + ": the gate post was not billed");
+    // The money is now the money a catalog WITH a gate post produces: nothing
+    // lost, and nothing invented either.
     const withRow = quote(m, CATALOG);
-    assert.equal(billedQty(withRow, "GATE_POST") - billedQty(out, "GATE_POST"), lost,
-      m + ": " + lost + " post(s) should be missing from this estimate");
-    assert.ok(out.totals.grand_total < withRow.totals.grand_total,
-      m + ": the estimate is SHORT and nothing on it looks wrong");
+    assert.equal(billedQty(withRow, "GATE_POST") - billedQty(out, "GATE_POST"), 0,
+      m + ": " + wasLost + " post(s) used to be missing from this estimate and must not be now");
+    assert.equal(out.totals.grand_total, withRow.totals.grand_total,
+      m + ": the estimate no longer matches the gate-post-present quote");
   }
-  // THE SIZE OF IT, on his own prices: $16.56 a post, before markup, with 7% tax.
-  // One post now rather than two, so half what it was.
+  // WHAT IT WAS WORTH, on his own prices: $16.56 a post before markup, 7% tax.
+  // This is the money that used to go missing, one post per gate, on every
+  // estimate a company without a GATE_POST row ever wrote.
   assert.equal(money(1 * 16.56 * 1.07), 17.72);
   // WALL, the case that left the loop: no gate post is ASKED for, so none is lost -- but the
   // blank post that borrows that row is, and it is reported under its own name.
@@ -512,13 +516,19 @@ function modelFallback(rows) {
   return rows.concat(ends.map((r) => ({ ...r, role: "GATE_POST" })));
 }
 
-test("THE FALLBACK, modelled: a catalog with no GATE_POST row prices EXACTLY as 2026.10.3 did -- item for item, penny for penny", () => {
+test("THE FALLBACK, in the ENGINE: a catalog with no GATE_POST row prices EXACTLY as 2026.10.3 did -- item for item, penny for penny", () => {
   const bare = without(CATALOG, "GATE_POST");
   // WALL has left this loop for the same reason as block 5: change (D) means it asks for no gate
   // post, so there is no GATE_POST line for the model to produce. It is still checked below, for
   // the thing the model DOES reach there -- the blank post.
   for (const m of ["LINE", "LINE_TO_WALL"]) {
-    const fixed = quote(m, modelFallback(bare));
+    // The ENGINE now, not the model. The model is kept below as an independent
+    // cross-check: it was written before the engine did any of this, so the
+    // two agreeing penny for penny is evidence rather than a tautology.
+    const fixed = quote(m, bare);
+    assert.deepEqual(
+      quote(m, modelFallback(bare)).totals.grand_total, fixed.totals.grand_total,
+      m + ": the engine and the reference model disagree on the total");
     // the gate post is billed off the END_POST row, by name and by price
     const gp = itemOf(fixed, "GATE_POST");
     assert.ok(gp !== undefined, m + ": the model did not produce a gate-post line");

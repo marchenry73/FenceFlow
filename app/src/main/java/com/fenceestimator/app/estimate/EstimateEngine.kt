@@ -1428,7 +1428,14 @@ object EstimateEngine {
      * same single entry, consulted at the same point.
      */
     private val PRICING_FALLBACK_ROLE: Map<MaterialRole, MaterialRole> = mapOf(
-        MaterialRole.BLANK_POST to MaterialRole.GATE_POST
+        MaterialRole.BLANK_POST to MaterialRole.GATE_POST,
+        // The other direction, and the owner's call made: a catalog with no
+        // GATE_POST row billed NOTHING for a gate's hinge post -- one post per
+        // gate, silently, on every estimate that company ever wrote. An end
+        // post is the same thing in any catalog that separates them, and every
+        // catalog has one. Still a preference, not a replacement: a company
+        // that prices its own GATE_POST row gets that row.
+        MaterialRole.GATE_POST to MaterialRole.END_POST
     )
 
     fun buildLineItems(
