@@ -186,22 +186,48 @@ test("PLANTED FAILURE: the pre-fix saveSettings wipes the address on a blank box
 // to $200. Actual labour cost so far: $150. Correct verdict: $50 UNDER
 // budget. The bug's verdict: quoted stays $32, so $150 actual reads as
 // "$118.00 over budget" -- backwards, not just off by a little.
+// labor_cost is what price-job recorded: the engine's own figure, already
+// floored ($32 raw -> the $200 minimum) and already measured over billable
+// feet minus gate feet. The rate/feet/flat/minimum columns stay on the fixture
+// deliberately -- they are what the office used to multiply for itself, so a
+// regression to that arithmetic yields $32 or $200-by-luck instead of reading
+// the record, and the checks below can tell the difference.
 const floorJob = () => ({
   sync_id: "j1", id: 9,
+  labor_cost: 200,
   labor_rate_per_ft: 8, signed_linear_feet: 4, labor_flat_fee: 0,
   minimum_labor_charge: 200,
 });
 const floorCosting = () => ({ job_sync_id: "j1", labour_cost: 150 });
 
-test("DEFECT 2: quotedLaborOf floors rate+flat to the minimum, and 0 means off", () => {
+test("DEFECT 2: quotedLaborOf reports the engine's figure verbatim, and nothing when there is none", () => {
   const quotedLaborOf = new Function(grab("quotedLaborOf") + "\nreturn quotedLaborOf;")();
-  assert.equal(quotedLaborOf(floorJob()), 200, "32 raw must be floored to the 200 minimum");
-  assert.equal(quotedLaborOf({ ...floorJob(), minimum_labor_charge: 0 }), 32, "0 must mean off, raw arithmetic unchanged");
-  assert.equal(
-    quotedLaborOf({ ...floorJob(), labor_flat_fee: 500 }),
-    500 + 32,
-    "already above the floor (rate+flat combined) must be left alone, not re-floored"
-  );
+
+  // The record, read as it stands.
+  assert.equal(quotedLaborOf(floorJob()), 200, "the engine's labor_cost must be reported as it stands");
+
+  // And NOT recomputed. Every one of these would come out differently if the
+  // office were still multiplying: raw 32, unfloored 32, flat+rate 532.
+  assert.equal(quotedLaborOf({ ...floorJob(), minimum_labor_charge: 0 }), 200,
+    "the office must not re-apply or un-apply the floor; the engine already did");
+  assert.equal(quotedLaborOf({ ...floorJob(), labor_flat_fee: 500 }), 200,
+    "the office must not add the flat fee again; it is already inside labor_cost");
+  assert.equal(quotedLaborOf({ ...floorJob(), signed_linear_feet: 4000 }), 200,
+    "signed feet must not move the figure -- the engine charges over billable feet minus gate feet");
+
+  // Never priced on the server is a real state, and the answer is NOTHING.
+  // Falling back to the old arithmetic would print a number wrong by an amount
+  // nobody can bound, which looks exactly like a right one.
+  const { labor_cost, ...neverPriced } = floorJob();
+  assert.equal(quotedLaborOf(neverPriced), null,
+    "a job the server has never priced must report null, never a computed guess");
+  assert.equal(quotedLaborOf({ ...floorJob(), labor_cost: null }), null,
+    "an explicit null is the same answer as an absent column");
+
+  // Zero is an ANSWER, not an absence -- a job really can have no labour, and
+  // it must not be confused with one the server has not priced.
+  assert.equal(quotedLaborOf({ ...floorJob(), labor_cost: 0 }), 0,
+    "a recorded zero is a figure, not a missing one");
 });
 
 test("DEFECT 2: labourVsQuoted reads the $200-floor job as $50.00 UNDER, not over", () => {

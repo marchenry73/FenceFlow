@@ -330,7 +330,13 @@ try {
     // floors this to $200.
     // minimum_labor_charge is named on this fixture row deliberately -- it is
     // the key whose absence made the old expectation unfalsifiable.
-    const jobRow = { sync_id: "job-A", labor_rate_per_ft: 8, signed_linear_feet: 4, labor_flat_fee: 0,
+    // labor_cost is what price-job records: the engine's own figure. 200 is
+    // not a guess here -- the precondition a few lines below runs the REAL
+    // engine on these same settings and asserts it charges exactly this.
+    // The inputs stay on the row so that a regression to the old office
+    // arithmetic produces $32, visibly different from what is read.
+    const jobRow = { sync_id: "job-A", labor_cost: 200,
+                     labor_rate_per_ft: 8, signed_linear_feet: 4, labor_flat_fee: 0,
                      minimum_labor_charge: 200 };
     // A crew actually spent $150 in wages on this job -- real, under the true
     // $200 quote, by $50.
@@ -353,10 +359,11 @@ try {
     // verdict depends on.
     const jcStart = src.indexOf("const JOB_COLUMNS = [");
     const jobColumnsSrc = jcStart < 0 ? "" : src.slice(jcStart, src.indexOf("].join", jcStart));
-    ok("fixture check: JOB_COLUMNS selects minimum_labor_charge, so a live job row really carries the " +
-       "floor these fixtures set (positive control -- if it did not, the floor would silently be 0 on " +
-       "every real job and this whole section would prove nothing)",
-      jobColumnsSrc.includes("'minimum_labor_charge'"),
+    ok("fixture check: JOB_COLUMNS selects labor_cost, so a live job row really carries the engine's " +
+       "labour figure these fixtures set (positive control -- a column left out of the select arrives " +
+       "undefined, which would make EVERY real job report 'never priced' while this section went on " +
+       "passing against its own fixtures)",
+      jobColumnsSrc.includes("'labor_cost'"),
       `JOB_COLUMNS slice ${jobColumnsSrc.length} chars`);
 
     const html = withLabourVsQuoted(jobRow, costingRow);
@@ -391,7 +398,12 @@ try {
     // and read "$118.00 over" -- the CORRECT verdict there, and the same number
     // the real engine gives. This keeps the fix honest in the other direction:
     // it floors when there is a floor and does not invent one when there is not.
-    const jobRowNoFloor = { sync_id: "job-B", labor_rate_per_ft: 8, signed_linear_feet: 4, labor_flat_fee: 0,
+    // No floor on this one, so the engine charges the raw 8*4 = $32 and that
+    // is what it records. The positive control of the pair: it proves the
+    // office reports what the engine said rather than flooring anything of
+    // its own, in the case where the two answers differ.
+    const jobRowNoFloor = { sync_id: "job-B", labor_cost: 32,
+                            labor_rate_per_ft: 8, signed_linear_feet: 4, labor_flat_fee: 0,
                             minimum_labor_charge: 0 };
     const costingRowNoFloor = { job_sync_id: "job-B", labour_cost: 150, hours_worked: 10 };
     const trueOutNoFloor = priceJob(input(job({ minimum_labor_charge: 0, labor_rate_per_ft: 8 }), [run("run-B", { manual_linear_feet: 4 })]));
@@ -411,8 +423,11 @@ try {
     // priced them at. The pre-fix sum was 32+32=64 -- a $168 understatement of
     // what labour was quoted at, for a company with just these two jobs.
     const jobsIn = [
-      { sync_id: "job-C", labor_rate_per_ft: 8, signed_linear_feet: 4, labor_flat_fee: 0, minimum_labor_charge: 200 },
-      { sync_id: "job-D", labor_rate_per_ft: 8, signed_linear_feet: 4, labor_flat_fee: 0, minimum_labor_charge: 0 },
+      // Floored by the engine to 200, and not floored (raw 32): the aggregate
+      // must sum 232, which neither "both floored" (400) nor "neither floored"
+      // (64) can reach by accident.
+      { sync_id: "job-C", labor_cost: 200, labor_rate_per_ft: 8, signed_linear_feet: 4, labor_flat_fee: 0, minimum_labor_charge: 200 },
+      { sync_id: "job-D", labor_cost: 32,  labor_rate_per_ft: 8, signed_linear_feet: 4, labor_flat_fee: 0, minimum_labor_charge: 0 },
     ];
     const costingBySync = new Map([
       ["job-C", { labour_cost: 0 }],
@@ -448,7 +463,8 @@ try {
       "id: j.id, key:'labour_over:'+j.id, fp:j.updated_at });\n    }\n  });");
     // Same job as above: priced at the floored $200, cost $150. $50 UNDER, so
     // there is nothing to alert about.
-    const alertJob = { id: "job-E-id", sync_id: "job-E", labor_rate_per_ft: 8, signed_linear_feet: 4,
+    const alertJob = { id: "job-E-id", sync_id: "job-E", labor_cost: 200,
+                       labor_rate_per_ft: 8, signed_linear_feet: 4,
                        labor_flat_fee: 0, minimum_labor_charge: 200, updated_at: "2026-01-01T00:00:00Z" };
     const runAlert = (quotedSrc) => {
       const items = [];

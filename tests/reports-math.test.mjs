@@ -128,19 +128,36 @@ test('crewProductivityPerHour: revenue per clocked hour, zero hours guarded', ()
 });
 
 // ---- labourEstVsActualTotals -----------------------------------------------
-test('labourEstVsActualTotals: sums quoted labour vs job_costing.labour_cost, skips jobs with no costing row', () => {
+test('labourEstVsActualTotals: sums the ENGINE labour vs job_costing.labour_cost, skipping what it has not got', () => {
+  // labor_cost is what price-job recorded -- the figure the engine actually
+  // charged, already floored and already measured over billable feet MINUS
+  // gate feet. The rate/feet/flat columns are left on the rows deliberately:
+  // they are the numbers the office used to multiply together for itself, and
+  // leaving them here means a regression to that arithmetic produces a
+  // DIFFERENT total rather than the same one.
   const jobs = [
-    { sync_id: 'a', labor_rate_per_ft: 2, signed_linear_feet: 100, labor_flat_fee: 50 }, // quoted 250
-    { sync_id: 'b', labor_rate_per_ft: 1, signed_linear_feet: 100, labor_flat_fee: 0 },   // quoted 100, no costing row
-    { sync_id: 'c', labor_rate_per_ft: 0, signed_linear_feet: 0, labor_flat_fee: 0 },
+    { sync_id: 'a', labor_cost: 250, labor_rate_per_ft: 2, signed_linear_feet: 100, labor_flat_fee: 50 },
+    { sync_id: 'b', labor_cost: 100, labor_rate_per_ft: 1, signed_linear_feet: 100, labor_flat_fee: 0 }, // no costing row
+    { sync_id: 'c', labor_cost: 0,   labor_rate_per_ft: 0, signed_linear_feet: 0,   labor_flat_fee: 0 },
+    // Never priced on the server: inputs only, no figure. The state the old
+    // fixtures could not express, and the one that must be SKIPPED rather than
+    // counted as zero -- otherwise the estimate shrinks while its actual stays,
+    // and the aggregate reads as a saving nobody made.
+    { sync_id: 'd', labor_rate_per_ft: 9, signed_linear_feet: 100, labor_flat_fee: 0 },
   ];
   const bySync = new Map([
     ['a', { job_sync_id: 'a', labour_cost: 300 }],
     ['c', { job_sync_id: 'c', labour_cost: 20 }],
+    ['d', { job_sync_id: 'd', labour_cost: 400 }],
   ]);
   const t = labourEstVsActualTotals(jobs, bySync);
-  assert.equal(t.estimated, 250 + 0); // job b skipped: no costing row
-  assert.equal(t.actual, 300 + 20);
+  assert.equal(t.estimated, 250 + 0); // b skipped: no costing row. d skipped: no engine figure.
+  assert.equal(t.actual, 300 + 20);   // and d's actual is skipped WITH it, not left behind
+  // Said from the other side: the office must not have multiplied anything.
+  // Job d's inputs come to 900, and job a's to 250 only by coincidence of the
+  // fixture -- 900 appearing anywhere here means the old arithmetic is back.
+  assert.ok(t.estimated !== 250 + 900 && t.actual !== 300 + 20 + 400,
+    'the aggregate counted a job the server has never priced');
 });
 
 // ---- materialEstVsActualTotals ---------------------------------------------

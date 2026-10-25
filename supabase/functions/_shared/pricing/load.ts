@@ -442,6 +442,16 @@ export interface CommitPlan {
   tombstoneSyncIds: string[];
   jobPatch: {
     contract_total: number;
+    /**
+     * The labour this run charged, so the office can report the figure the
+     * engine used instead of working one out of its own arithmetic. A record,
+     * never an input -- nothing prices from it.
+     *
+     * On touch_updated_at()'s quiet list (supabase_r43_job_labor_cost.sql),
+     * like every other column in this patch, because it is written in the same
+     * statement and that statement must not move the sync clock.
+     */
+    labor_cost: number;
     priced_by: "OFFICE";
     priced_at: string;
     pricing_engine_version: string;
@@ -659,6 +669,11 @@ export function buildCommitPlan(args: {
     tombstoneSyncIds,
     jobPatch: {
       contract_total: output.totals.grand_total,
+      // The engine's own labour figure -- already floored, already measured
+      // over billable feet MINUS gate feet -- rather than anything recomputed
+      // here. Read off the same output grand_total came from, so the two can
+      // never describe different pricing runs.
+      labor_cost: output.totals.labor_cost,
       priced_by: "OFFICE",
       priced_at: nowIso,
       // The module's own version, read off the output priceJob just
