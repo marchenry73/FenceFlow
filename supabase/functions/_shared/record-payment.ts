@@ -129,16 +129,33 @@ export async function recordClearedPayment(
   // Summed from the ledger rather than incremented, so a replayed webhook or a
   // manual correction cannot drift the total -- and so cash and cheque count
   // alongside the card, which is the same rule the app uses.
-  const { data: ledger } = await admin.from("payment_records")
+  const { data: ledger, error: ledgerError } = await admin.from("payment_records")
     .select("amount")
     .eq("company_id", p.companyId)
     .eq("job_sync_id", p.jobSyncId)
     .is("deleted_at", null);
+  /* A FAILED READ IS NOT AN EMPTY LEDGER.
+     This error used to be dropped. data comes back null, the reduce below
+     makes that 0, and the job is then written amount_paid: 0 through a
+     mustWrite that SUCCEEDS -- so a cleared payment left the job reading
+     nothing paid and the webhook answered 200, which means Stripe never
+     retried it.
+     Throwing reaches the webhook's catch, which answers 500, and Stripe
+     retries with backoff for hours. That is safe precisely because the
+     ledger upsert above is keyed on the processor's own id: the retry
+     re-upserts the same row and recomputes the total. */
+  if (ledgerError) {
+    throw new Error("could not read the ledger to total this job: " + ledgerError.message);
+  }
   const paid = (ledger ?? []).reduce(
     (sum: number, r: any) => sum + Math.max(0, Number(r.amount || 0)), 0);
 
   const { data: job } = await admin.from("jobs")
-    .select("id, sync_id, company_id, customer_name, deposit_amount")
+    // contract_total, refunded_amount and payment_status join the read so the
+    // status below can be decided rather than assumed. recordRefund already
+    // reads the same three for the same purpose.
+    .select("id, sync_id, company_id, customer_name, deposit_amount, " +
+            "contract_total, refunded_amount, payment_status")
     .eq("company_id", p.companyId)
     .eq("sync_id", p.jobSyncId)
     .maybeSingle();
@@ -151,14 +168,33 @@ export async function recordClearedPayment(
     };
   }
 
-  // Records that money arrived, and no more than that. Whether the job is paid
-  // in full depends on the contract total, which the app computes from line
-  // items, change orders and gate charges -- the server does not have it and
-  // should not guess.
+  /* THE STATUS MOVES UP, OR IT DOES NOT MOVE.
+
+     This used to write "DEPOSIT_PAID" flat, on the stated grounds that the
+     server "does not have" the contract total and should not guess. It does:
+     recordRefund, below, reads job.contract_total and ranks against it. The
+     consequence was a job already PAID_IN_FULL being stepped BACKWARDS by its
+     own balance payment -- the office and the quote page then both telling a
+     settled customer they still owe money.
+
+     recordRefund's ladder, mirrored. A payment may only raise the status; a
+     refund may only lower it; neither can undo the other. A job with no
+     contract_total -- never priced on the server -- still lands on
+     DEPOSIT_PAID exactly as before, because the `total > 0` guard is what
+     decides that, so nothing changes for a job this server has not priced. */
+  const netPaid = paid - Number(job.refunded_amount || 0);
+  const contractTotal = Number(job.contract_total || 0);
+  const RANK: Record<string, number> = { UNPAID: 0, DEPOSIT_PAID: 1, PAID_IN_FULL: 2 };
+  const wanted = netPaid <= 0.005 ? "UNPAID"
+    : (contractTotal > 0 && netPaid >= contractTotal - 0.005) ? "PAID_IN_FULL"
+    : "DEPOSIT_PAID";
+  const currentStatus = String(job.payment_status ?? "UNPAID");
+  const nextStatus = (RANK[wanted] ?? 0) > (RANK[currentStatus] ?? 0) ? wanted : currentStatus;
+
   await mustWrite("mark the job paid",
     admin.from("jobs").update({
     amount_paid: paid,
-    payment_status: "DEPOSIT_PAID",
+    payment_status: nextStatus,
     // Latches the figure read-only in the app: what the processor reports is
     // the record, and typing over it is a discrepancy, not a correction.
     payments_from_processor: true,
