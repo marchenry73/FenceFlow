@@ -2702,13 +2702,35 @@ private fun HoaFields(job: Job, runs: List<FenceRun>, profile: BusinessProfile, 
     val hoaSubject = stringResource(R.string.jd_hoa_subject, job.address)
     Button(
         onClick = {
-            val firstRun = runs.firstOrNull()
+            /* EVERY SIDE, not the first one.
+               This read runs.firstOrNull() and named that side's height, type
+               and colour. A job with a 6 ft back fence and a 4 ft side fence
+               told the association 6 ft; three vinyl sides and one wood side
+               told them vinyl. The letter is what the association approves
+               against, so what it leaves out is what comes back as a
+               violation. Already wrong for any multi-side job, and now the
+               normal case: splitting a side for a different height is exactly
+               how a job comes to have two.
+
+               Teardown runs are left out -- the association approves the fence
+               going in, and the old one coming out has no height to state. */
+            val building = runs.filter { !it.isTeardown }.ifEmpty { runs }
             val body = TemplateFiller.fillHoaTemplate(
                 template = profile.hoaEmailTemplate,
                 address = job.address,
-                fenceType = firstRun?.fenceType?.let { context.getString(it.labelRes()) } ?: "",
-                height = firstRun?.panelHeightFt?.toString() ?: "",
-                material = firstRun?.colorOrFinish ?: "",
+                fenceType = TemplateFiller.phrase(
+                    building.map { context.getString(it.fenceType.labelRes()) },
+                    context.getString(R.string.word_and),
+                ),
+                height = TemplateFiller.heightPhrase(
+                    building.map { it.panelHeightFt },
+                    context.getString(R.string.word_and),
+                    context.getString(R.string.word_ft),
+                ),
+                material = TemplateFiller.phrase(
+                    building.map { it.colorOrFinish },
+                    context.getString(R.string.word_and),
+                ),
                 businessName = profile.businessName,
                 phone = profile.phone
             )

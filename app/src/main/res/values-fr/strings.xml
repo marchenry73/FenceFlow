@@ -2305,4 +2305,6 @@
     <string name="run_split_gate">La coupe est tombée dans un portail, donc ce portail reste avec %1$s.</string>
     <string name="run_split_off_end">Cela dépasse ce côté. Choisissez une distance à l\'intérieur de %1$s pieds.</string>
     <string name="run_split_not_measurable">Ce dessin n\'a pas encore d\'échelle. Calibrez la photo du terrain, ou saisissez les pieds de ce côté, et il pourra alors être coupé.</string>
+    <string name="word_and">et</string>
+    <string name="word_ft">pieds</string>
 </resources>

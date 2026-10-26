@@ -2305,4 +2305,6 @@
     <string name="run_split_gate">El corte cayó dentro de una puerta, así que esa puerta se queda con %1$s.</string>
     <string name="run_split_off_end">Eso queda fuera de este lado. Elige una distancia dentro de %1$s pies.</string>
     <string name="run_split_not_measurable">Este dibujo todavía no tiene escala. Calibra la foto del terreno, o escribe los pies de este lado, y entonces se podrá cortar.</string>
+    <string name="word_and">y</string>
+    <string name="word_ft">pies</string>
 </resources>

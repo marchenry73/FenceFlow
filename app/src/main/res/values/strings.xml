@@ -2382,4 +2382,6 @@
     <string name="run_split_gate">The cut fell inside a gate, so that gate stays with %1$s.</string>
     <string name="run_split_off_end">That is off the end of this side. Pick a distance inside %1$s ft.</string>
     <string name="run_split_not_measurable">This drawing has no scale yet. Calibrate the survey photo, or type the footage for this side, and then it can be cut.</string>
+    <string name="word_and">and</string>
+    <string name="word_ft">ft</string>
 </resources>
