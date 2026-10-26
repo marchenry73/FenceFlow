@@ -117,17 +117,22 @@ function fakeDb(tables, calls) {
       return { data: out, error: null };
     }
   }
-  return {
+  const api = {
     tables: t,
     fail,
+    /* company_allowed's answer, injectable. It was hardcoded to true, so this
+       file never exercised the entitlement gate at all. Set `db.rpcAnswer` in
+       a test; the default leaves every existing case unchanged. */
+    rpcAnswer: null,
     from: (table) => new Query(table),
-    rpc: async () => ({ data: true, error: null }),
+    rpc: async () => api.rpcAnswer ?? { data: true, error: null },
     auth: {
       getUser: async (jwt) => jwt === "office-jwt"
         ? { data: { user: { id: "user-1" } }, error: null }
         : { data: { user: null }, error: { message: "bad jwt" } },
     },
   };
+  return api;
 }
 
 /** Stripe and Square, faked, with planted failures on request. */
@@ -959,4 +964,64 @@ test("control: the deposit branch was never affected -- deposit.due is already f
   const r = await homeowner(w, "deposit");
   assert.equal(r.status, 200, JSON.stringify(r.body));
   assert.equal(inserts(w)[0][4], 200000, "asked = min(2000, 9710) = 2000; due = max(0, 2000 - flooredNetPaid(0)) = 2000");
+});
+
+
+// ============ the entitlement gate, which this file could only say yes to ===
+//
+// company_allowed is a bare scalar subquery -- `select <expr> from companies
+// where id = cid` -- so an id matching no row returns NULL, not false, and a
+// failed RPC returns undefined. The gate tested `=== false`, so both walked
+// straight past the comment above it saying a shut company kept billing its
+// customers through FenceFlow. Live when this was written, 7 of 11 companies
+// answer false, so the guard carries weight rather than guarding a
+// hypothetical.
+//
+// The positive control for all three is every other test in this file: they
+// leave rpcAnswer at its default and still mint.
+for (const [label, answer] of [
+  ["NULL, which is what the subquery returns for an id matching no row", { data: null, error: null }],
+  ["an error, so the answer never arrived at all", { data: null, error: { message: "planted: rpc failed" } }],
+  ["a plain false, the company really is switched off", { data: false, error: null }],
+]) {
+  test(`a company not PROVEN allowed may not raise money: ${label}`, async () => {
+    const w = world();
+    w.db.rpcAnswer = answer;
+    const out = await office(w, { amountCents: 50000 });
+    assert.equal(out.status, 403, "an unproven company must be refused, not billed");
+    assert.equal(out.body.code, "company_not_active");
+    assert.equal(inserts(w).length, 0, "nothing recorded against a company that is not proven allowed");
+    assert.equal(made(w).length, 0, "and no link minted");
+  });
+}
+
+test("a refusal written for the office does not reach a homeowner", async () => {
+  // website/quote.html prints whatever `error` it is handed, so an office
+  // sentence lands on the customer's screen -- in English, on a trilingual
+  // page, telling them their contractor is in arrears. The code is enough for
+  // the page to say its own thing. openLinkRefusal and the outer catch
+  // already took care of this; these refusals did not.
+  // The same payable shape the other homeowner tests use: without a
+  // deposit to ask for, the door refuses at 400 long before the
+  // entitlement gate, and the test would prove nothing.
+  const w = world({ job: { contract_total: 1000, deposit_amount: 400 } });
+  w.db.rpcAnswer = { data: false, error: null };
+  const out = await homeowner(w);
+  assert.equal(out.status, 403);
+  assert.equal(out.body.code, "company_not_active", "the page still gets a code to speak from");
+  assert.equal(out.body.error, undefined, "the office's wording must not reach the customer");
+});
+
+test("a failed companies read refuses rather than passing for a legacy plan", async () => {
+  // The read used .single() and dropped its error, so `company` came back
+  // undefined and subscription_plan read "" -- which PASSES the Solo paywall,
+  // because a blank plan is how a hand-granted company from before plans is
+  // spelled. A read that failed is not a company on a free legacy plan.
+  const w = world();
+  w.db.fail["companies:select"] = "planted: read failed";
+  const out = await office(w, { amountCents: 50000 });
+  assert.equal(out.status, 500, "a failed read must refuse");
+  assert.equal(out.body.code, "company_unreadable");
+  assert.equal(inserts(w).length, 0);
+  assert.equal(made(w).length, 0, "no link may be minted on settings nobody could read");
 });

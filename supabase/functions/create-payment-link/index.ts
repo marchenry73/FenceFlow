@@ -752,10 +752,23 @@ async function makeLink(
        than by reading the call sites. */
     const chargeSavedCard = a.chargeSavedCard === true && !publicDoor;
 
-    const { data: company } = await admin
+    const { data: company, error: companyError } = await admin
       .from("companies")
       .select("name, stripe_account_id, subscription_plan, auto_charge_balance")
       .eq("id", profile.company_id).single();
+    /* A FAILED READ IS NOT A COMPANY ON A LEGACY PLAN.
+       This error used to be dropped. `company` is then undefined, which makes
+       subscription_plan "" -- and "" PASSES the Solo paywall a few lines
+       below, because a blank plan is how a hand-granted company from before
+       plans is spelled. It would also name the customer's Stripe product
+       "Fence work -- FenceFlow" rather than the contractor's business. */
+    if (companyError) {
+      console.error("create-payment-link company read", companyError.message);
+      return json(publicDoor ? { code: "company_unreadable" } : {
+        code: "company_unreadable",
+        error: "Could not read your company's settings, so no payment was requested. Try again in a moment.",
+      }, 500);
+    }
 
     /* KEEP THE CARD FOR THE BALANCE -- only when this company has asked for
        it, and only on a deposit. See supabase_r40_auto_charge_balance.sql for
@@ -781,17 +794,41 @@ async function makeLink(
     // function runs as the service role, so RLS is not watching it -- without
     // this check a suspended or lapsed company kept billing its customers
     // through FenceFlow while its own account was shut.
-    const { data: entitled } = await admin
+    /* FAILS CLOSED, and this is the third copy of the same mistake --
+       lead-intake and send-follow-ups both had it. The error was dropped and
+       the test was `=== false`. company_allowed is a bare scalar subquery, so
+       an id matching no row returns NULL, and a failed RPC gives undefined:
+       neither is `false`, so both walked through the gate whose own comment
+       above says a shut company kept billing its customers. mail-send's shape
+       is the one that closes the NULL case too. */
+    const { data: entitled, error: entitledError } = await admin
       .rpc("company_allowed", { cid: profile.company_id });
-    if (entitled === false) {
-      return json({ error: "This FenceFlow account is not active. Check the Billing tab." }, 403);
+    if (entitledError || entitled !== true) {
+      if (entitledError) {
+        console.error("create-payment-link company_allowed", entitledError.message);
+      }
+      /* The HOMEOWNER may be standing at this door, and this sentence is
+         written for the office -- it names the Billing tab. openLinkRefusal
+         and the outer catch both take care of this; these two refusals did
+         not, and quote.html prints whatever `error` it is handed. A customer
+         should not learn their contractor's account is in arrears. */
+      return json(publicDoor ? { code: "company_not_active" } : {
+        code: "company_not_active",
+        error: "This FenceFlow account is not active. Check the Billing tab.",
+      }, 403);
     }
 
     // Card payments are sold with the Crew plan. Enforced here rather than in
     // any client, because a client that forgets is not a paywall. A blank plan
     // is a hand-granted company from before plans existed -- no cap applies.
     if ((company?.subscription_plan ?? "").toLowerCase() === "solo") {
-      return json({ error: "Card payments are part of the Crew plan. Upgrade in the dashboard's Billing tab." }, 403);
+      // Which plan the contractor bought is their business, not their
+      // customer's. The code is enough for the page to say something of its
+      // own in the reader's language.
+      return json(publicDoor ? { code: "card_not_on_this_plan" } : {
+        code: "card_not_on_this_plan",
+        error: "Card payments are part of the Crew plan. Upgrade in the dashboard's Billing tab.",
+      }, 403);
     }
 
     // A link may not ask for more than the job still owes.
