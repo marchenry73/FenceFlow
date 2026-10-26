@@ -45,6 +45,7 @@ import {
   roundToCents,
 } from "../_shared/quote-deposit.ts";
 import { standingJobEvent } from "../_shared/job-push.ts";
+import { paymentsReadyFrom } from "../_shared/payments-ready.ts";
 import { jobDevices, moneyDevices } from "../_shared/push-recipients.ts";
 
 const cors = {
@@ -454,21 +455,9 @@ async function readPlan(
  * button on, and a second copy of that rule could only come to disagree with
  * the first.
  */
-function paymentsReadyFrom(
-  conn: { processor?: unknown; external_id?: unknown; access_token?: unknown } | null,
-  plan: string | null,
-): boolean {
-  // A read that failed is not permission to offer a button.
-  if (plan === null) return false;
-  // Card payments are part of the Crew plan. A blank plan predates plans.
-  if (plan === "solo") return false;
-  const processor = String(conn?.processor ?? "none").toLowerCase();
-  // Square needs a real connection: the token is what charges the card.
-  if (processor === "square") return !!(conn?.access_token && conn?.external_id);
-  // The Stripe path. A connected account id is what gets refused, so the only
-  // configuration that mints is the one without one.
-  return !String(conn?.external_id ?? "").trim();
-}
+// paymentsReadyFrom now lives in ../_shared/payments-ready.ts, because the
+// contract email asked the same question with its own copy and that copy was
+// the exact inverse of this one. Imported at the top of this file.
 
 /**
  * job-files is private, so the path itself is useless to a browser -- and the

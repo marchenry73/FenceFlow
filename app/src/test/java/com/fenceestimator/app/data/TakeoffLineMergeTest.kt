@@ -123,9 +123,20 @@ class TakeoffLineMergeTest {
     fun `a role that leaves and comes back cancels its own queued delete and is revived`() {
         val gate = GateMarker(0f, 0f, 4f)
         val withGate = build(run(100f, listOf(gate)))
-        val gateIds = withGate.filter { it.role in setOf(MaterialRole.GATE_PANEL, MaterialRole.HINGE_SET, MaterialRole.LATCH) }
-            .map { it.syncId }.toSet()
-        assertEquals(3, gateIds.size)
+        // Four, not three: a gate's hinge post bills off GATE_POST, and on a
+        // catalog with no gate-post row of its own that line exists anyway,
+        // borrowed from the end post (PRICING_FALLBACK_ROLE). It is as much
+        // part of the gate as the latch, so it leaves and returns with it.
+        //
+        // The roles are named rather than the size loosened, so this still
+        // fails if a gate ever starts building some other line nobody meant.
+        val gateIds = withGate.filter {
+            it.role in setOf(
+                MaterialRole.GATE_PANEL, MaterialRole.HINGE_SET,
+                MaterialRole.LATCH, MaterialRole.GATE_POST,
+            )
+        }.map { it.syncId }.toSet()
+        assertEquals(4, gateIds.size)
 
         // The gate is removed: its lines go, and their tombstones are queued.
         val plan1 = TakeoffLineMerge.plan(withGate, build(run(100f)))

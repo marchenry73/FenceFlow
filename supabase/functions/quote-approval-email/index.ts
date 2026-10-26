@@ -90,6 +90,7 @@ import {
   STORED_TEXT_MAX_BYTES,
 } from "../_shared/mail/limits.ts";
 import { addressText, capUtf8, counterpartEmails, snippetOf } from "../_shared/mail/message-meta.ts";
+import { paymentsReadyFrom } from "../_shared/payments-ready.ts";
 import type { MailAddress } from "../_shared/mail/message-meta.ts";
 import {
   buildResendEmail,
@@ -345,7 +346,10 @@ interface Loaded {
 
 async function loadFacts(db: Db, deps: Deps, job: Row): Promise<Loaded> {
   const [company, runs, settings, connection, followUps] = await Promise.all([
-    db.from("companies").select("name, phone, email, suspended, logo_path").eq("id", job.company_id).maybeSingle(),
+    // subscription_plan joins this read because the card line is gated on the
+    // plan: create-payment-link answers 403 to a Solo company, so promising a
+    // card button to one is a control that cannot work.
+    db.from("companies").select("name, phone, email, suspended, logo_path, subscription_plan").eq("id", job.company_id).maybeSingle(),
     db.from("fence_runs")
       .select("label, fence_type, color_or_finish, points_encoded, gates_encoded, closed_loop, panel_height_ft, " +
         "manual_linear_feet, fabric_height_ft, is_teardown")
@@ -366,6 +370,11 @@ async function loadFacts(db: Db, deps: Deps, job: Row): Promise<Loaded> {
   ]);
   const co = must(company, "company");
   if (!co) throw new Error("company: not found");
+  /* The plan the card line is gated on. must() has already refused a FAILED
+     read, so reaching here means the row was read -- and a blank plan is a
+     real company that predates plans, which the predicate allows. Only a
+     genuinely absent company would be null, and that threw one line up. */
+  const companyPlan = String(co.subscription_plan ?? "");
   const runRows: Row[] = must(runs, "runs") ?? [];
   const settingsRow = must(settings, "payment methods");
   const paymentMethods = publicPaymentMethods(settingsRow?.payment_methods);
@@ -377,11 +386,17 @@ async function loadFacts(db: Db, deps: Deps, job: Row): Promise<Loaded> {
   // being judged in two places that could disagree.
   const brandColorRaw = typeof settingsRow?.brand_color === "string" ? settingsRow.brand_color : null;
   const conn = must(connection, "payment connection");
-  // The same test quote-view's paymentsReady uses: a real checkout exists.
-  const cardOnline = !!(conn && (
-    (conn.processor === "square" && conn.access_token && conn.external_id) ||
-    (conn.processor === "stripe" && conn.external_id)
-  ));
+  /* THE SAME PREDICATE THE QUOTE PAGE USES, now literally the same function.
+     This said it was "the same test quote-view's paymentsReady uses" and was
+     its exact INVERSE for Stripe: it demanded a connected-account id, which is
+     the configuration create-payment-link refuses with a 501. False for all 11
+     companies, so no contract email has ever mentioned paying by card, beside
+     a quote page that offers it.
+
+     It also never applied the Solo gate the quote page applies, so it would
+     have promised a card button to a company whose checkout answers 403.
+     Reading the shared predicate closes both in one move. */
+  const cardOnline = paymentsReadyFrom(conn, companyPlan);
   // The company's own zone, when it has set one; the app's default otherwise.
   // A failure here only means the date is written in the default zone.
   const timeZone = String((followUps.error ? null : followUps.data?.timezone) || "America/New_York");

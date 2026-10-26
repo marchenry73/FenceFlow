@@ -40,6 +40,8 @@ import { registerHooks, stripTypeScriptTypes } from "node:module";
 import * as quoteDeposit from "../supabase/functions/_shared/quote-deposit.ts";
 import * as jobPush from "../supabase/functions/_shared/job-push.ts";
 import * as pushRecipients from "../supabase/functions/_shared/push-recipients.ts";
+// The one predicate the quote page and the contract email now share.
+import * as paymentsReady from "../supabase/functions/_shared/payments-ready.ts";
 
 const SUPABASE_JS = "https://esm.sh/@supabase/supabase-js@2.39.0";
 registerHooks({
@@ -438,7 +440,12 @@ test("a bad body is refused: not JSON, not an object, no job, a job that is not 
 test("an approved job is emailed once: one message, to the customer, from the company's name, replies to the company, with the contract in it", async () => {
   resetWorld();
   world.db.company_settings.push({ company_id: COMPANY, settings: { payment_methods: { cash_app: { on: true, tag: "TestOnlyTag" }, zelle: { on: true, to: "zelle@example.test" }, wire: { on: true, details: "Bank: TEST ONLY BANK" }, cash: { on: true } } } });
-  world.db.payment_connections.push({ company_id: COMPANY, processor: "stripe", external_id: "acct_fake", access_token: null });
+  // THE PLATFORM ACCOUNT, which is every real company: no connected-account
+  // id. This used to push external_id "acct_fake" -- a connected account,
+  // which is the configuration create-payment-link REFUSES with a 501. The
+  // fixture and the old predicate were wrong in the same direction and so
+  // agreed with each other, which is how the inversion survived review.
+  world.db.payment_connections.push({ company_id: COMPANY, processor: "stripe", external_id: "", access_token: null });
   const r = await send({ job_id: JOB_ID, lang: "en" });
   assert.equal(r.status, 200, JSON.stringify(r.body));
   assert.deepEqual(r.body, { state: "sent", to: "p***@customer.example.test" }, "the answer carries the address masked, never whole");
@@ -957,7 +964,7 @@ const QV_SRC = readFileSync(new URL("../supabase/functions/quote-view/index.ts",
 
 function loadQuoteView({ waitMs } = {}) {
   let js = stripTypeScriptTypes(QV_SRC);
-  const shared = { "../_shared/quote-deposit.ts": quoteDeposit, "../_shared/job-push.ts": jobPush, "../_shared/push-recipients.ts": pushRecipients };
+  const shared = { "../_shared/quote-deposit.ts": quoteDeposit, "../_shared/job-push.ts": jobPush, "../_shared/push-recipients.ts": pushRecipients, "../_shared/payments-ready.ts": paymentsReady };
   const importRe = /^import\s*\{([\s\S]*?)\}\s*from\s*"([^"]+)";?[ \t]*$/gm;
   const provided = {};
   for (const [, list, from] of js.matchAll(importRe)) {
