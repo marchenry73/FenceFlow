@@ -2306,4 +2306,7 @@
     <string name="word_and">et</string>
     <string name="word_ft">pieds</string>
     <string name="sync_plain_table_too_large">Il y a trop de choses dans une table (%1$s) pour que ce téléphone les lise en une seule passe, donc la synchronisation s\'est arrêtée au lieu de deviner ce qui manquait. Rien n\'a été changé sur ce téléphone. Prévenez March.</string>
+    <string name="est_note_gate_alone">Un portail seul : pas de clôture, donc pas de panneaux. Le portail, ses deux poteaux et sa quincaillerie sont ci-dessous.</string>
+    <string name="est_note_no_length">Ce côté n\'a pas encore de longueur. Dessinez-le, ou saisissez les pieds, et les matériaux suivent.</string>
+    <string name="est_note_gates_fill_side">Les portails sont aussi larges que ce côté, il ne reste donc pas de clôture à panneauter.</string>
 </resources>

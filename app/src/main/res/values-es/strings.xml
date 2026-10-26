@@ -2306,4 +2306,7 @@
     <string name="word_and">y</string>
     <string name="word_ft">pies</string>
     <string name="sync_plain_table_too_large">Hay demasiado en una tabla (%1$s) para que este teléfono lo lea todo de una vez, así que la sincronización se detuvo en lugar de adivinar lo que faltaba. No se cambió nada en este teléfono. Dile a March.</string>
+    <string name="est_note_gate_alone">Una puerta sola: no hay cerca, así que no hay paneles. La puerta, sus dos postes y sus herrajes están abajo.</string>
+    <string name="est_note_no_length">Este lado todavía no tiene largo. Dibújalo, o escribe los pies, y los materiales aparecen solos.</string>
+    <string name="est_note_gates_fill_side">Las puertas son tan anchas como este lado, así que no queda cerca para poner paneles.</string>
 </resources>

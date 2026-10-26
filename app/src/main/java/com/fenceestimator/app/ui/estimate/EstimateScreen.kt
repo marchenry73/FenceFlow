@@ -116,6 +116,7 @@ fun EstimateScreen(jobId: Long, onBack: () -> Unit, onOpenSupplierPrices: (Long)
     val profile by app.settingsStore.profile.collectAsState(initial = BusinessProfile())
     val totals by viewModel.totals.collectAsState()
     val takeoff by viewModel.takeoff.collectAsState()
+    val takeoffNotes by viewModel.takeoffNotes.collectAsState()
     val changeOrders by viewModel.changeOrders.collectAsState()
     val currentJob = job ?: return
     // The guest demo: look at everything on this estimate, change nothing.
@@ -166,6 +167,7 @@ fun EstimateScreen(jobId: Long, onBack: () -> Unit, onOpenSupplierPrices: (Long)
                     linearFeet = viewModel.linearFeetFor(run),
                     items = itemsByRun[run.id].orEmpty(),
                     takeoff = takeoff[run.id].orEmpty(),
+                    takeoffNote = takeoffNotes[run.id] ?: EstimateViewModel.TakeoffNote.NONE,
                     editable = editable,
                     onRegenerate = { viewModel.regenerateSuggested(run) },
                     onManualFeet = { feet, corners -> viewModel.setManualFeet(run, feet, corners) },
@@ -264,6 +266,7 @@ private fun RunSection(
     linearFeet: Float,
     items: List<EstimateLineItem>,
     takeoff: List<TakeoffLine>,
+    takeoffNote: EstimateViewModel.TakeoffNote,
     /** False in the guest demo: every field below reads, none of them write. */
     editable: Boolean,
     onRegenerate: () -> Unit,
@@ -408,7 +411,7 @@ private fun RunSection(
 
             if (takeoff.isNotEmpty()) {
                 Spacer(Modifier.height(Space.md))
-                TakeoffBlock(takeoff, onExplainPosts)
+                TakeoffBlock(takeoff, takeoffNote, onExplainPosts)
             } else {
                 val summary = quantitySummary(items)
                 if (summary.isNotBlank()) {
@@ -444,7 +447,11 @@ private fun RunSection(
 
 /** The counts a contractor reads off before calling the supply house. */
 @Composable
-private fun TakeoffBlock(takeoff: List<TakeoffLine>, onExplainPosts: () -> Unit) {
+private fun TakeoffBlock(
+    takeoff: List<TakeoffLine>,
+    takeoffNote: EstimateViewModel.TakeoffNote,
+    onExplainPosts: () -> Unit,
+) {
     Column(
         Modifier.fillMaxWidth()
             .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(Radius.sm))
@@ -452,6 +459,24 @@ private fun TakeoffBlock(takeoff: List<TakeoffLine>, onExplainPosts: () -> Unit)
         verticalArrangement = Arrangement.spacedBy(Space.xs)
     ) {
         Text(stringResource(R.string.est_what_job_needs), style = MaterialTheme.typography.labelLarge)
+
+        /* WHY A SECTION IS MISSING, said once at the top rather than left to
+           the reader. The readout drops every line that comes to zero, so a
+           gate on its own loses the whole Panels section and a correct answer
+           reads as a broken one -- which is exactly what was reported. */
+        val noteText = when (takeoffNote) {
+            EstimateViewModel.TakeoffNote.GATE_ON_ITS_OWN -> stringResource(R.string.est_note_gate_alone)
+            EstimateViewModel.TakeoffNote.NO_LENGTH_YET -> stringResource(R.string.est_note_no_length)
+            EstimateViewModel.TakeoffNote.GATES_TAKE_THE_WHOLE_SIDE -> stringResource(R.string.est_note_gates_fill_side)
+            EstimateViewModel.TakeoffNote.NONE -> null
+        }
+        if (noteText != null) {
+            Text(
+                noteText,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
 
         // Grouped under headings, in the order someone works through them.
         //

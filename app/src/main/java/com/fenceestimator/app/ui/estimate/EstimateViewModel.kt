@@ -154,6 +154,79 @@ class EstimateViewModel(
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
 
     /**
+     * Why "What this job needs" has no panels, pickets or fabric on it.
+     *
+     * The readout drops any line that comes to zero, which is right -- nobody
+     * wants "Pickets 0" on a vinyl fence -- but it makes "this does not apply
+     * to this side" and "something is broken" look exactly the same. A gate on
+     * its own genuinely has no panels, and the screen said nothing at all,
+     * which reads as a fault.
+     */
+    enum class TakeoffNote {
+        /** Nothing to explain: either there are panels, or the type has none. */
+        NONE,
+
+        /** A gate and no fence. Its own posts and hardware are listed; panels are not a thing it has. */
+        GATE_ON_ITS_OWN,
+
+        /** Nothing drawn and no footage typed, so there is nothing to work from yet. */
+        NO_LENGTH_YET,
+
+        /** The gates are as wide as the side, so there is no fence left to panel. */
+        GATES_TAKE_THE_WHOLE_SIDE,
+    }
+
+    /**
+     * One note per run, worked out from the run's own geometry.
+     *
+     * Deliberately NOT part of [takeoff] and NOT a field on TakeoffLine: that
+     * type's own doc refuses display concerns because it is "part of the
+     * pricing contract, mirrored by the TypeScript engine and pinned by 77
+     * golden fixtures". A sentence about emptiness is exactly such a concern.
+     * This costs one length and one sum per run and calls nothing in the
+     * engine's pricing path.
+     */
+    val takeoffNotes: StateFlow<Map<Long, TakeoffNote>> =
+        combine(runs, job) { rs, currentJob ->
+            rs.associate { r -> r.id to noteFor(r, currentJob) }
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyMap())
+
+    private fun noteFor(run: FenceRun, currentJob: Job?): TakeoffNote {
+        // The old fence has no bill of materials at all -- the readout gives it
+        // a footage line and nothing else, on purpose -- so there is no absence
+        // here to explain.
+        if (run.isTeardown) return TakeoffNote.NONE
+        // An uncalibrated survey photo already has its own message elsewhere;
+        // two explanations for one silence is worse than one.
+        if (currentJob != null && TakeoffRefresher.blockedByUncalibratedPhoto(currentJob, run)) {
+            return TakeoffNote.NONE
+        }
+        // Only the types that have panels, pickets or fabric to be missing.
+        if (run.fenceType == com.fenceestimator.app.data.FenceType.UNIVERSAL) return TakeoffNote.NONE
+
+        val typed = run.manualLinearFeet?.takeIf { it.isFinite() && it > 0f }
+        val feet = typed ?: currentJob?.let { DrawingScale.of(it) }
+            ?.let { scale ->
+                FenceGeometryEngine.pixelLength(
+                    FenceCodec.decodePoints(run.pointsEncoded), run.closedLoop
+                ) / scale
+            } ?: 0f
+
+        val gates = FenceCodec.decodeGates(run.gatesEncoded)
+        val gateFeet = gates.sumOf { it.widthFt.toDouble() }.toFloat()
+
+        return when {
+            feet <= 0f && gates.isNotEmpty() -> TakeoffNote.GATE_ON_ITS_OWN
+            feet <= 0f -> TakeoffNote.NO_LENGTH_YET
+            // Strictly: a side whose gates leave nothing to panel. Not an
+            // error -- an opening the full width of the run is a real thing --
+            // but it must not look like a missing answer.
+            feet - gateFeet <= 0f -> TakeoffNote.GATES_TAKE_THE_WHOLE_SIDE
+            else -> TakeoffNote.NONE
+        }
+    }
+
+    /**
      * The arithmetic behind one run's post count, for the "why?" sheet.
      *
      * Null for a run [TakeoffRefresher.blockedByUncalibratedPhoto] blocks,

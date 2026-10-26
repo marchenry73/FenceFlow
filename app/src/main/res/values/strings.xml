@@ -2383,4 +2383,7 @@
     <string name="word_and">and</string>
     <string name="word_ft">ft</string>
     <string name="sync_plain_table_too_large">There is too much in one table (%1$s) for this phone to read all of it in one pass, so the sync stopped instead of guessing at what was missing. Nothing on this phone was changed. Tell March.</string>
+    <string name="est_note_gate_alone">A gate on its own: no fence, so no panels. The gate, its two posts and its hardware are below.</string>
+    <string name="est_note_no_length">No length on this side yet. Draw it, or type the footage, and the materials follow.</string>
+    <string name="est_note_gates_fill_side">The gates are as wide as this side, so there is no fence left to panel.</string>
 </resources>
