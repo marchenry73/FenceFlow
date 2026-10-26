@@ -461,19 +461,65 @@ class EstimateViewModel(
         )
     }
 
-    /** Clears the run's removed-item list so auto-added hardware comes back. */
+    /**
+     * Clears the run's removed-item list so auto-added hardware comes back --
+     * and brings it back NOW.
+     *
+     * It cleared the list and said "restored", while the lines themselves only
+     * returned the next time something happened to regenerate that run. The
+     * message was true about the list and false about the materials, which is
+     * the same disagreement as setManualFeet in a smaller coat.
+     */
     fun restoreRemovedItems(run: FenceRun) {
         if (session.state.value.isGuestDemo) return
+        if (run.suppressedRolesCsv.isBlank()) return
         viewModelScope.launch {
             repository.updateFenceRun(run.copy(suppressedRolesCsv = ""))
+            val landed = withTimeoutOrNull(WASTE_SETTLE_MS) {
+                runs.first { list -> list.any { it.id == run.id && it.suppressedRolesCsv.isBlank() } }
+            }
+            landed?.firstOrNull { it.id == run.id }?.let { regenerateSuggested(it) }
             _message.tryEmit(com.fenceestimator.app.ui.components.UiMessage(R.string.evm_removed_restored))
         }
     }
 
+    /**
+     * The typed length and corner count, AND the re-pricing they earn.
+     *
+     * "here it shows that it's supposed to have seven line post but on the
+     * details it shows that it has five each."
+     *
+     * This wrote the row and stopped. The "What this job needs" readout is
+     * computed live from the run every time it draws, so it moved at once; the
+     * priced lines are stored and are only rewritten by a regenerate, which
+     * nothing asked for. The two then disagreed about the same job -- and not
+     * harmlessly: post caps and concrete follow the live post count, so the
+     * quote billed 9 caps and 9 bags against 7 posts' worth of posts. Two
+     * posts short, on a real quote, with both numbers on the same screen.
+     *
+     * Footage is the bigger half of this. The length IS the price, and it goes
+     * through this same function.
+     *
+     * Returns early when nothing moved, so re-opening the field or retyping the
+     * same number does not rebuild every line on the run for an answer that
+     * cannot have changed -- the rule setWastePercent already follows.
+     */
     fun setManualFeet(run: FenceRun, feet: Float?, corners: Int) {
         if (session.state.value.isGuestDemo) return
+        if (run.manualLinearFeet == feet && run.manualCornerCount == corners) return
         viewModelScope.launch {
             repository.updateFenceRun(run.copy(manualLinearFeet = feet, manualCornerCount = corners))
+            // Waited for, not assumed: regenerateInternal reads the run's own
+            // usesManualFeet and footage, and `runs` has not caught up the
+            // instant the write returns. Re-pricing straight away prices the
+            // PREVIOUS number, which looks like it worked and is the worse bug.
+            val landed = withTimeoutOrNull(WASTE_SETTLE_MS) {
+                runs.first { list ->
+                    list.any { it.id == run.id && it.manualLinearFeet == feet && it.manualCornerCount == corners }
+                }
+            }
+            val fresh = landed?.firstOrNull { it.id == run.id } ?: return@launch
+            regenerateSuggested(fresh)
         }
     }
 
@@ -525,6 +571,23 @@ class EstimateViewModel(
             // The drawing now says the same thing, so the typed override goes.
             // Two sources of truth for one number is how they drift apart.
             repository.updateFenceRun(run.copy(manualLinearFeet = null))
+            /* AND RE-PRICE EVERY RUN, not just this one. A new scale is the
+               whole plan's scale: every run's footage is measured off it, so
+               every run's posts, panels, caps and concrete move. This wrote the
+               calibration and stopped, so the readouts changed on every side of
+               the job and the priced lines on every side did not -- the same
+               disagreement setManualFeet produced, multiplied by the number of
+               sides.
+
+               Both writes are waited for: the job, because regenerateInternal
+               reads the scale out of it, and this run, because it must no
+               longer look like a typed-footage run by the time it is priced. */
+            val scale = pixels / actualFeet
+            val landed = withTimeoutOrNull(WASTE_SETTLE_MS) {
+                job.first { it?.calibrationPixelsPerFoot == scale }
+                runs.first { list -> list.any { it.id == run.id && it.manualLinearFeet == null } }
+            } != null
+            if (landed) regenerateAll()
             _message.tryEmit(com.fenceestimator.app.ui.components.UiMessage(
                 R.string.evm_scale_set, listOf("%.0f".format(java.util.Locale.US, actualFeet))
             ))
