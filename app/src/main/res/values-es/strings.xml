@@ -153,6 +153,7 @@
     <string name="sync_unsynced_jobs">Los cambios de trabajos hechos en este teléfono aún no están en la nube. Están guardados aquí y cada sincronización vuelve a intentarlo.</string>
     <string name="sync_unsynced_records">Algunos registros de este teléfono, distintos de los trabajos, aún no están en la nube. Están guardados aquí y cada sincronización vuelve a intentarlo.</string>
     <string name="sync_scope_not_confirmed">Esta vez no se tocaron los trabajos ni los precios: este teléfono todavía está confirmando qué puede ver tu cuenta y no lo va a suponer. Se vuelve a comprobar en un momento.</string>
+    <string name="sync_displaced_elsewhere">Este teléfono dejó de sincronizar porque la cuenta se abrió en otro teléfono. Lo que cambie aquí se queda en este teléfono hasta que vuelva a usarlo.</string>
     <string name="sync_unsynced_unspecified">Parte del trabajo de este teléfono aún no ha llegado a la nube. Se subirá en la próxima sincronización.</string>
     <string name="sync_plain_no_signal">No hay señal por ahora. Tu trabajo está guardado en este teléfono y se sube solo en cuanto vuelvas a tener conexión.</string>
     <string name="sync_plain_signed_out">Se cerró tu sesión. Vuelve a iniciar sesión y todo lo que hay en este teléfono se subirá.</string>

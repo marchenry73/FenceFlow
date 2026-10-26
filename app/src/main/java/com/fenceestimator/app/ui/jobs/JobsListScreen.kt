@@ -1142,6 +1142,7 @@ private fun unsyncedReasonMessage(reason: UnsyncedReason?): String = when (reaso
     UnsyncedReason.RECORDS_HELD_BACK_AND_ACCESS_NOT_CONFIRMED ->
         stringResource(R.string.sync_unsynced_records) + " " + stringResource(R.string.sync_scope_not_confirmed)
     UnsyncedReason.ACCESS_NOT_CONFIRMED -> stringResource(R.string.sync_scope_not_confirmed)
+    UnsyncedReason.DISPLACED_BY_ANOTHER_PHONE -> stringResource(R.string.sync_displaced_elsewhere)
     null -> stringResource(R.string.sync_unsynced_unspecified)
 }
 

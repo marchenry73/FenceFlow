@@ -153,6 +153,7 @@
     <string name="sync_unsynced_jobs">Les modifications de chantiers faites sur ce téléphone ne sont pas encore dans le cloud. Elles sont enregistrées ici, et chaque synchronisation réessaie.</string>
     <string name="sync_unsynced_records">Certains enregistrements de ce téléphone, autres que les chantiers, ne sont pas encore dans le cloud. Ils sont enregistrés ici, et chaque synchronisation réessaie.</string>
     <string name="sync_scope_not_confirmed">Les chantiers et les prix n\'ont pas été touchés cette fois : ce téléphone confirme encore ce que votre compte est autorisé à voir, et il ne devinera pas. Nouvelle vérification dans un instant.</string>
+    <string name="sync_displaced_elsewhere">Ce téléphone a cessé de se synchroniser, car le compte a été ouvert sur un autre téléphone. Ce que vous modifiez ici reste sur ce téléphone jusqu’à ce que vous le réutilisiez.</string>
     <string name="sync_unsynced_unspecified">Une partie du travail de ce téléphone n\'a pas encore atteint le cloud. Elle sera envoyée à la prochaine synchronisation.</string>
     <string name="sync_plain_no_signal">Pas de réseau pour le moment. Votre travail est enregistré sur ce téléphone et sera envoyé automatiquement dès que vous serez de nouveau en ligne.</string>
     <string name="sync_plain_signed_out">Vous avez été déconnecté. Reconnectez-vous et tout ce qui se trouve sur ce téléphone sera envoyé.</string>

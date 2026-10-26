@@ -172,6 +172,7 @@
     <string name="sync_unsynced_jobs">Job changes made on this phone are not in the cloud yet. They are saved here, and every sync tries them again.</string>
     <string name="sync_unsynced_records">Some records on this phone, other than jobs, are not in the cloud yet. They are saved here, and every sync tries them again.</string>
     <string name="sync_scope_not_confirmed">Jobs and prices were left alone this time — this phone is still confirming what your account is allowed to see, and it will not guess. Checking again in a moment.</string>
+    <string name="sync_displaced_elsewhere">This phone has stopped syncing because the account was opened on another phone. Anything you change here stays on this phone until you use this one again.</string>
     <!-- The null-reason fallback, unchanged wording from the old
          catch-all sentence, now reached only when unsyncedReason itself is
          null. -->

@@ -68,6 +68,22 @@ enum class UnsyncedReason {
     ACCESS_NOT_CONFIRMED,
 
     /**
+     * Another phone holds this login, so the pass did not run at all.
+     *
+     * Not a queue, which is what every other value here describes. The pass
+     * declined to start, so whether anything of the person's is waiting is
+     * exactly what it never got to find out -- and the sentence must not claim
+     * either way, the same rule [ACCESS_NOT_CONFIRMED] follows.
+     *
+     * It is set WITH hasUnsyncedWork because the card's other branch says
+     * "Everything is backed up", and a pass that did not run cannot assert
+     * that. Saying nothing was the old behaviour: the bail left both fields
+     * untouched, so the card kept whatever it last said -- "it will go up on
+     * the next sync", when there was no next sync.
+     */
+    DISPLACED_BY_ANOTHER_PHONE,
+
+    /**
      * [RECORDS_HELD_BACK] and [ACCESS_NOT_CONFIRMED] at the same time: a
      * table push this pass genuinely refused something, AND the money scope
      * came back unknown, so the jobs half of the same pass never ran at all
@@ -624,9 +640,18 @@ class AutoSync(
             val mineAgain = SupabaseModule.hasLiveSession() &&
                 runCatching { ServiceGate.stillMine(context) }.getOrDefault(false)
             if (!mineAgain) {
+                /* SAY WHY, on the card itself.
+                   This used to copy only phase and lastError, leaving
+                   hasUnsyncedWork and unsyncedReason as they were -- so the
+                   card kept its previous sentence. lastError does hold the
+                   true one, but the card renders lastError only for
+                   SyncPhase.FAILED and this sets IDLE, so the real reason was
+                   computed and discarded. */
                 _state.value = _state.value.copy(
                     phase = SyncPhase.IDLE,
-                    lastError = context.getString(R.string.svc_elsewhere_body)
+                    lastError = context.getString(R.string.svc_elsewhere_body),
+                    hasUnsyncedWork = true,
+                    unsyncedReason = UnsyncedReason.DISPLACED_BY_ANOTHER_PHONE
                 )
                 return
             }
