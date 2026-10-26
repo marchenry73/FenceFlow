@@ -1216,7 +1216,12 @@ async function makeLink(
         job_sync_id: jobSyncId,
         kind,
         amount_cents: amount,
-        currency: "USD",
+        // Lower case, like every other row in this table. The column has no
+        // check constraint, so 'usd' and 'USD' both store happily and any
+        // report that groups or filters by it silently splits one currency in
+        // two. Square's OWN api field above stays upper case: that is ISO, and
+        // theirs to specify.
+        currency: "usd",
         status: "pending",
         payment_url: link.url,
         processor: "square",
@@ -1345,7 +1350,7 @@ async function makeLink(
         job_sync_id: jobSyncId,
         kind,
         amount_cents: amount,
-        currency: "USD",
+        currency: "usd",
         status: "pending",
         payment_url: "",
         processor: "stripe",
@@ -1433,6 +1438,10 @@ async function makeLink(
       kind,
       amount_cents: amount,
       fee_cents: stripeFee,
+      // Stated, not left to the column default. The default happens to be the
+      // same today; a row whose currency depends on a default is a row that
+      // changes meaning if the default ever does.
+      currency: "usd",
       status: "pending",
       payment_url: link.url,
       stripe_id: link.id,

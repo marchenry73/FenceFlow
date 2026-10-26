@@ -14,17 +14,24 @@
  * Reads that fail make the audience smaller, never larger.
  *
  * HOW: the same Firebase v1 path quote-view and notify-job-change use. The
- * OAuth dance is repeated here (the fourth copy; notify-device-displaced/fcm.ts
- * says the right move is one shared copy, and when that exists this file
- * should import it). It is repeated rather than imported from a sibling
+ * OAuth dance is repeated here -- the SEVENTH copy, not the fourth it used to
+ * claim: attention-sweep, notify-device-displaced/fcm.ts, notify-job-change,
+ * this file, quote-view, square-webhook and stripe-webhook each carry it.
+ * notify-device-displaced/fcm.ts says the right move is one shared copy, and
+ * when that exists this file should import it. It is repeated rather than
+ * imported from a sibling
  * function's folder because a function's bundle is what its own imports reach,
  * and a deploy that quietly left a sibling's file out would turn this alarm
  * into a no-op without anything saying so.
  *
  * Never throws: the answer to the approval, and the ledger row that records
- * what happened, do not depend on a notification getting through. Returns how
- * many phones were sent to, so the caller can log "told 0 phones" -- which is
- * a different thing from "told nobody because there was nothing to tell".
+ * what happened, do not depend on a notification getting through.
+ *
+ * Returns how many phones were SENT TO. It cannot tell "there were no phones
+ * to tell" apart from "five phones were tried and all five failed" -- both are
+ * 0, and the caller logs one sentence for both. This used to claim it made
+ * that distinction, which it never has. Worth having if the distinction ever
+ * matters; today the number is only ever logged.
  */
 import { moneyDevices } from "../_shared/push-recipients.ts";
 
@@ -94,7 +101,23 @@ export async function pushToOffice(db: any, deps: PushDeps, companyId: string, t
         const res = await deps.fetch(`https://fcm.googleapis.com/v1/projects/${sa.project_id}/messages:send`, {
           method: "POST",
           headers: { Authorization: `Bearer ${bearer}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ message: { token: d.token, notification: { title, body } } }),
+          /* A DATA MESSAGE, not a notification one, and the difference is
+             whether the alarm works at all when the app is in the background
+             -- which is when an alarm matters.
+
+             FenceFlowMessagingService says it plainly: "Messages are expected
+             to be 'data' messages (not 'notification' messages) so this runs
+             even when the app is backgrounded and we control how it looks."
+             A notification message backgrounded does NOT call
+             onMessageReceived, so the app never draws it on the channel the
+             owner configured, never gets to decide how it looks, and never
+             calls autoSync.requestSync() -- and with no
+             default_notification_channel_id in the manifest the SDK puts it
+             on a channel it invents. Five of the seven senders in this repo
+             already send this exact shape. */
+          body: JSON.stringify({
+            message: { token: d.token, data: { title, body }, android: { priority: "HIGH" } },
+          }),
         });
         if (res.ok) told++;
       } catch {

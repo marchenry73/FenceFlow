@@ -218,7 +218,15 @@ export interface ScopeRow {
   finish: string;
   label: string;
   heightFt: number;
+  /** What this row PRINTS: whole feet, because a row showing 40.37 ft reads as broken. */
   feet: number;
+  /**
+   * The unrounded length, for adding up. Optional so a row built by hand (a
+   * test, a future caller) still works, and installTotals falls back to
+   * [feet] when it is absent -- which is the old, slightly-off behaviour,
+   * stated rather than silent.
+   */
+  feetExact?: number;
   gates: number;
 }
 
@@ -231,6 +239,14 @@ export function scopeRows(runs: readonly RunFact[], pxPerFoot: number): ScopeRow
     label: oneLine(r.label, 60),
     heightFt: Number(r.heightFt) || 6,
     feet: Math.round(runFeet(r, pxPerFoot)),
+    /* THE SAME NUMBER THE PAGE ADDS UP. quote.html sums the unrounded run
+       lengths and rounds the sum once; this file rounded each run and added
+       the rounded ones, so three runs of 40.4 / 30.4 / 25.4 ft read 96 ft on
+       the page she approved and 95 ft in the contract email she was sent.
+       `feet` above is still what a ROW prints -- a row should show a whole
+       number -- and this rides alongside only so installTotals can add before
+       it rounds. */
+    feetExact: runFeet(r, pxPerFoot),
     gates: gateCount(r),
   })).sort((a, b) =>
     Number(a.teardown) - Number(b.teardown) || a.type.localeCompare(b.type) || a.finish.localeCompare(b.finish) ||
@@ -238,9 +254,17 @@ export function scopeRows(runs: readonly RunFact[], pxPerFoot: number): ScopeRow
   );
 }
 
-/** The fence being INSTALLED: a teardown run is old fence coming out. */
+/**
+ * The fence being INSTALLED: a teardown run is old fence coming out.
+ *
+ * Summed from the exact lengths and rounded ONCE, which is what quote.html
+ * does. Adding the already-rounded rows loses up to half a foot per run, and
+ * the two documents then state different totals for the same job.
+ */
 export function installTotals(rows: readonly ScopeRow[]): { feet: number; gates: number } {
-  return rows.filter((r) => !r.teardown).reduce((t, r) => ({ feet: t.feet + r.feet, gates: t.gates + r.gates }), { feet: 0, gates: 0 });
+  const kept = rows.filter((r) => !r.teardown);
+  const exact = kept.reduce((t, r) => t + (Number.isFinite(r.feetExact) ? r.feetExact : r.feet), 0);
+  return { feet: Math.round(exact), gates: kept.reduce((t, r) => t + r.gates, 0) };
 }
 
 // ---------------------------------------------------------------------------
