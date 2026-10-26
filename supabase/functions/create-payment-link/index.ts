@@ -1056,10 +1056,16 @@ async function makeLink(
     // Already asked for, and not yet paid? Hand back the same link.
     //
     // A homeowner pressing "Pay deposit" twice made two rows carrying the same
-    // order id. The webhook looks that id up expecting one row, finds two,
-    // gives up with "not a FenceFlow payment request", and is never retried --
-    // so the money lands in the contractor's account, nothing is recorded, and
-    // the job still shows the full balance owing.
+    // order id, and the webhook gave up on finding two where it expected one.
+    //
+    // THAT PART IS HISTORY, and the reason is kept as history rather than as a
+    // reason: square-webhook now orders by created_at and takes limit(1), and
+    // the database carries a unique index on (processor, external_id) where
+    // external_id <> '', so two such rows can neither exist nor confuse the
+    // webhook. The guard stays because the other half of it was never about
+    // the webhook -- two live links for one job is a homeowner who can pay
+    // twice -- but a comment that justifies a guard with a fault that has been
+    // fixed is how a guard gets removed by somebody who checks.
     //
     // Deliberately before the processor is chosen. The first version of this
     // guard sat inside the Square branch because that is where the audit found
@@ -1137,9 +1143,14 @@ async function makeLink(
         ? "https://connect.squareup.com"
         : "https://connect.squareupsandbox.com";
 
-      // Which of the merchant's locations to bill against. Square requires one,
-      // and a merchant can have several -- the main one is what a fencing
-      // contractor means by "my business".
+      // Which of the merchant's locations to bill against. Square requires
+      // one, and a merchant can have several: prefer the one Square itself
+      // marks as the main location, which is what a fencing contractor means
+      // by "my business", then a physical one, then whatever is active. This
+      // used to take the first ACTIVE in Square's response order while the
+      // comment claimed it took the main one -- a multi-location merchant
+      // could have deposits booked against the wrong location, which moves
+      // their Square reporting and their deposit routing.
       const locRes = await fetch(`${host}/v2/locations`, {
         headers: {
           Authorization: `Bearer ${conn.access_token}`,
@@ -1147,8 +1158,31 @@ async function makeLink(
         },
       });
       const locBody = await locRes.json().catch(() => ({}));
-      const locationId = (locBody?.locations ?? [])
-        .find((l: any) => l.status === "ACTIVE")?.id;
+      /* SAY WHICH THING IS WRONG. locRes.ok was never checked, and a refused
+         response carries no `locations`, so a DEAD TOKEN produced the message
+         below -- "check the account is fully set up in Square" -- about an
+         account that is perfectly set up. Nothing in this project refreshes a
+         Square token (square-oauth stores refresh_token and token_expires_at
+         and no function reads either), so from day 30 that was the permanent
+         answer to every deposit request, with nothing anywhere telling the
+         owner the one thing that would fix it. */
+      if (!locRes.ok) {
+        const dead = locRes.status === 401 || locRes.status === 403;
+        return json({
+          error: dead
+            ? "Square is no longer accepting this connection -- their access expires after " +
+              "30 days. Reconnect Square from the Billing tab, or take this payment as cash, " +
+              "check or card by phone and record it on the job."
+            : "Square could not be reached just now, so no payment request was made. " +
+              "Try again in a minute.",
+        }, dead ? 409 : 502);
+      }
+      const active = (locBody?.locations ?? []).filter((l: any) => l.status === "ACTIVE");
+      const locationId = (
+        active.find((l: any) => l.is_main_location === true) ??
+        active.find((l: any) => l.type === "PHYSICAL") ??
+        active[0]
+      )?.id;
       if (!locationId) {
         return json({
           error: "Square did not return an active location for your account. " +
@@ -1204,6 +1238,22 @@ async function makeLink(
         const why = linkBody?.errors?.[0]?.detail ?? "Square would not create the payment link.";
         return json({ error: why }, 502);
       }
+      /* REFUSED RATHER THAN RECORDED UNMATCHABLY. external_id is NOT NULL
+         DEFAULT '' and the unique index on (processor, external_id)
+         deliberately excludes '', so an empty id used to insert cleanly and
+         this function answered 200 with a live checkout URL. square-webhook
+         matches payments on (processor, external_id) and can never match an
+         empty one: the customer pays, the money reaches the merchant, nothing
+         is recorded against the job, and the balance still reads in full.
+         Defensive -- Square returns order_id for quick_pay -- but the failure
+         mode is a paid job that looks unpaid, so it refuses instead. */
+      const squareOrderId = String(link.order_id ?? link.id ?? "").trim();
+      if (!squareOrderId) {
+        return json({
+          error: "Square created a checkout page but did not give it an order number, " +
+                 "so it could not be tied to this job and has not been sent. Try again.",
+        }, 502);
+      }
 
       // The mapping back, recorded BEFORE the customer can pay.
       //
@@ -1225,7 +1275,7 @@ async function makeLink(
         status: "pending",
         payment_url: link.url,
         processor: "square",
-        external_id: String(link.order_id ?? link.id ?? ""),
+        external_id: squareOrderId,
         livemode: (Deno.env.get("SQUARE_ENVIRONMENT") ?? "sandbox") === "production",
       });
       if (insertError) {

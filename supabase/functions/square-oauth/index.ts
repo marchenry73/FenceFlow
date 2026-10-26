@@ -73,9 +73,26 @@ Deno.serve(async (req) => {
     // contractor a link that attaches THEIR Square account to somebody else's
     // company.
     const state = crypto.randomUUID();
+    /* NOT `processor: "square"` -- that is what the CALLBACK writes, once an
+       account actually exists.
+
+       This upsert used to set it here, before anything was connected. A
+       company taking card payments through the platform Stripe link that
+       clicked Connect Square and then closed the tab lost its card button on
+       the spot: paymentsReadyFrom (_shared/payments-ready.ts) answers false
+       for square with no access token, and create-payment-link answers 409.
+       There is no disconnect action in this function, so the only way back was
+       to go and finish connecting Square.
+
+       Only the parked state is written now. The callback finds the row by
+       refresh_token = pending:<state> and never by processor, so nothing
+       downstream wants it. processor is NOT NULL DEFAULT 'none' and PostgREST
+       sets only the columns in the payload: a new row gets 'none', which is
+       true, and an existing row keeps what it had, which is also true.
+       OMITTED rather than nulled -- an explicit null beats the default and
+       would fail the NOT NULL. */
     await admin.from("payment_connections").upsert({
       company_id: profile.company_id,
-      processor: "square",
       // Parked where the refresh token will go. No client can read this table,
       // and the real token overwrites it when the exchange completes.
       refresh_token: `pending:${state}`,
@@ -147,9 +164,17 @@ Deno.serve(async (req) => {
       external_id: String(body.merchant_id ?? ""),
       access_token: body.access_token,
       refresh_token: body.refresh_token ?? null,
-      // Square's tokens expire after 30 days and they ask you to renew well
-      // before that. Storing the expiry is what makes an unattended refresh
-      // possible, rather than finding out when a customer's payment fails.
+      /* Stored, and NOT YET USED BY ANYTHING. Square's tokens expire after 30
+         days. This used to say that storing the expiry "is what makes an
+         unattended refresh possible, rather than finding out when a customer's
+         payment fails" -- but no function in this project reads
+         token_expires_at or exchanges refresh_token for a new one; these two
+         columns have only ever been written, here and by the manual connect.
+         So finding out when a customer's payment fails is exactly what
+         happens, on day 30, and create-payment-link now at least says the
+         token is dead instead of blaming the account. The columns are kept
+         because they are what a refresh will need; the claim that one exists
+         is removed. */
       token_expires_at: body.expires_at ?? null,
       display_name: displayName,
       connected_at: new Date().toISOString(),
