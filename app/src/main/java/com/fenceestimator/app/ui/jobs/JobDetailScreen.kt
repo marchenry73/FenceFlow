@@ -868,6 +868,102 @@ fun JobDetailScreen(
                     var scheduleOpen by remember(j.id) { mutableStateOf(false) }
                     val scheduledOkMsg = stringResource(R.string.jd_quote_scheduled_ok)
                     val scheduleFailedMsg = stringResource(R.string.jd_quote_schedule_failed)
+                    val whenFmt = remember {
+                        java.text.SimpleDateFormat("EEE, MMM d 'at' h:mm a", java.util.Locale.getDefault())
+                    }
+
+                    /* One body for the quick choices and the picker alike.
+                       It resolves the quote link the same three ways the Send
+                       button does -- so a job that has not reached the cloud
+                       says so rather than queueing a letter with no quote in
+                       it -- then queues and reports whatever came back.
+
+                       Hoisted rather than copied: a second copy is a second
+                       place for that link check to rot. */
+                    val scheduleAt: (Long) -> Unit = { millis ->
+                        scope.launch {
+                            val link = quoteLinkFor(context, app, session.signedIn, j.syncId)
+                            val url = (link as? QuoteLink.Ready)?.url
+                            if (url == null) {
+                                android.widget.Toast.makeText(
+                                    context,
+                                    when (link) {
+                                        is QuoteLink.SignedOut -> signedOutMsg
+                                        is QuoteLink.NotSyncedYet -> notSyncedYet
+                                        else -> shareFailed
+                                    },
+                                    android.widget.Toast.LENGTH_LONG
+                                ).show()
+                            } else {
+                                val queued = com.fenceestimator.app.cloud.ScheduledMailApi.scheduleQuote(
+                                    companyId = session.companyId,
+                                    toAddress = j.email,
+                                    subject = qeSubject.format(company),
+                                    // EMPTY ON PURPOSE -- no payment link is queued.
+                                    body = quoteEmailBody(url, ""),
+                                    jobSyncId = j.syncId,
+                                    sendAtMillis = millis,
+                                    nowMillis = System.currentTimeMillis(),
+                                )
+                                android.widget.Toast.makeText(
+                                    context,
+                                    when (queued) {
+                                        is com.fenceestimator.app.cloud.ScheduledMailApi.Result.Ok ->
+                                            scheduledOkMsg.format(
+                                                whenFmt.format(java.util.Date(queued.sendAtMillis))
+                                            )
+                                        is com.fenceestimator.app.cloud.ScheduledMailApi.Result.Failed ->
+                                            scheduleFailedMsg + " " + queued.reason.take(140)
+                                    },
+                                    android.widget.Toast.LENGTH_LONG
+                                ).show()
+                            }
+                        }
+                    }
+
+                    /* The picker, for the times the three choices do not
+                       cover. Date first, then time, which is the order both
+                       platform dialogs are built for.
+
+                       minDate is today, so a day already gone cannot be
+                       chosen at all -- but the API is still the thing that
+                       decides: a time earlier TODAY passes the date picker
+                       and is refused by scheduleQuote in its own words. One
+                       set of rules, named once. */
+                    val openWhenPicker: () -> Unit = {
+                        val cal = java.util.Calendar.getInstance()
+                        android.app.DatePickerDialog(
+                            context,
+                            { _, year, month, day ->
+                                val chosen = java.util.Calendar.getInstance().apply {
+                                    set(java.util.Calendar.YEAR, year)
+                                    set(java.util.Calendar.MONTH, month)
+                                    set(java.util.Calendar.DAY_OF_MONTH, day)
+                                    set(java.util.Calendar.SECOND, 0)
+                                    set(java.util.Calendar.MILLISECOND, 0)
+                                }
+                                android.app.TimePickerDialog(
+                                    context,
+                                    { _, hour, minute ->
+                                        chosen.set(java.util.Calendar.HOUR_OF_DAY, hour)
+                                        chosen.set(java.util.Calendar.MINUTE, minute)
+                                        scheduleAt(chosen.timeInMillis)
+                                    },
+                                    cal.get(java.util.Calendar.HOUR_OF_DAY),
+                                    cal.get(java.util.Calendar.MINUTE),
+                                    android.text.format.DateFormat.is24HourFormat(context),
+                                ).show()
+                            },
+                            cal.get(java.util.Calendar.YEAR),
+                            cal.get(java.util.Calendar.MONTH),
+                            cal.get(java.util.Calendar.DAY_OF_MONTH),
+                        ).apply {
+                            // Yesterday is never an answer. Today is, because
+                            // a later hour today is a perfectly ordinary thing
+                            // to want.
+                            datePicker.minDate = System.currentTimeMillis() - 1000L
+                        }.show()
+                    }
                     OutlinedButton(
                         onClick = { scheduleOpen = true },
                         modifier = Modifier.fillMaxWidth()
@@ -889,14 +985,18 @@ fun JobDetailScreen(
                         }
                         val daysToMonday =
                             ((java.time.DayOfWeek.MONDAY.value - nowZ.dayOfWeek.value + 6) % 7) + 1L
+                        // distinct(), because on a SUNDAY "tomorrow at 8" and
+                        // "Monday at 8" are the same instant and the menu
+                        // listed it twice -- two rows that did the same thing,
+                        // which reads as a bug and leaves him guessing which
+                        // one he tapped. distinct() keeps the first, so
+                        // tomorrow stays ahead of Monday rather than the pair
+                        // swapping places once a week.
                         val choices = listOf(
                             atHour(1L, 8),
                             atHour(1L, 13),
                             atHour(daysToMonday, 8),
-                        )
-                        val whenFmt = remember {
-                            java.text.SimpleDateFormat("EEE, MMM d 'at' h:mm a", java.util.Locale.getDefault())
-                        }
+                        ).distinct()
                         AlertDialog(
                             onDismissRequest = { scheduleOpen = false },
                             title = { Text(stringResource(R.string.jd_quote_schedule_title)) },
@@ -905,53 +1005,17 @@ fun JobDetailScreen(
                                     choices.forEach { millis ->
                                         TextButton(onClick = {
                                             scheduleOpen = false
-                                            scope.launch {
-                                                // The same three-way link
-                                                // answer the send button gets,
-                                                // so a job that has not reached
-                                                // the cloud says so instead of
-                                                // queueing a letter with no
-                                                // quote in it.
-                                                val link = quoteLinkFor(context, app, session.signedIn, j.syncId)
-                                                val url = (link as? QuoteLink.Ready)?.url
-                                                if (url == null) {
-                                                    android.widget.Toast.makeText(
-                                                        context,
-                                                        when (link) {
-                                                            is QuoteLink.SignedOut -> signedOutMsg
-                                                            is QuoteLink.NotSyncedYet -> notSyncedYet
-                                                            else -> shareFailed
-                                                        },
-                                                        android.widget.Toast.LENGTH_LONG
-                                                    ).show()
-                                                    return@launch
-                                                }
-                                                val queued = com.fenceestimator.app.cloud.ScheduledMailApi.scheduleQuote(
-                                                    companyId = session.companyId,
-                                                    toAddress = j.email,
-                                                    subject = qeSubject.format(company),
-                                                    // EMPTY ON PURPOSE -- no payment link is queued.
-                                                    body = quoteEmailBody(url, ""),
-                                                    jobSyncId = j.syncId,
-                                                    sendAtMillis = millis,
-                                                    nowMillis = System.currentTimeMillis(),
-                                                )
-                                                android.widget.Toast.makeText(
-                                                    context,
-                                                    when (queued) {
-                                                        is com.fenceestimator.app.cloud.ScheduledMailApi.Result.Ok ->
-                                                            scheduledOkMsg.format(
-                                                                whenFmt.format(java.util.Date(queued.sendAtMillis))
-                                                            )
-                                                        is com.fenceestimator.app.cloud.ScheduledMailApi.Result.Failed ->
-                                                            scheduleFailedMsg + " " + queued.reason.take(140)
-                                                    },
-                                                    android.widget.Toast.LENGTH_LONG
-                                                ).show()
-                                            }
+                                            scheduleAt(millis)
                                         }) {
                                             Text(whenFmt.format(java.util.Date(millis)))
                                         }
+                                    }
+                                    // Anything the three above do not cover.
+                                    TextButton(onClick = {
+                                        scheduleOpen = false
+                                        openWhenPicker()
+                                    }) {
+                                        Text(stringResource(R.string.jd_quote_schedule_pick))
                                     }
                                 }
                             },

@@ -1171,6 +1171,7 @@
     <string name="jd_quote_not_emailed">Not emailed yet. (A quote sent by text is not recorded — nothing can tell the app the message left.)</string>
     <string name="jd_quote_send_later">Send later</string>
     <string name="jd_quote_schedule_title">When should it send?</string>
+    <string name="jd_quote_schedule_pick">Choose a date and time…</string>
     <string name="jd_quote_scheduled_ok">Queued. It sends %1$s. The pay button is left off, because a payment link can only charge the amount it was made for.</string>
     <string name="jd_quote_schedule_failed">Not queued.</string>
     <string name="jd_quote_email_sent">Quote emailed to the customer.</string>

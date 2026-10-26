@@ -1132,6 +1132,7 @@
     <string name="jd_quote_not_emailed">Aún no se ha enviado por correo. (Un presupuesto enviado por mensaje de texto no queda registrado: nada puede decirle a la app que el mensaje salió.)</string>
     <string name="jd_quote_send_later">Enviar más tarde</string>
     <string name="jd_quote_schedule_title">¿Cuándo debe enviarse?</string>
+    <string name="jd_quote_schedule_pick">Elegir fecha y hora…</string>
     <string name="jd_quote_scheduled_ok">En cola. Se enviará %1$s. El botón de pago se omite, porque un enlace de pago solo puede cobrar el importe para el que se creó.</string>
     <string name="jd_quote_schedule_failed">No se puso en cola.</string>
     <string name="jd_quote_email_sent">Presupuesto enviado al cliente por correo.</string>
