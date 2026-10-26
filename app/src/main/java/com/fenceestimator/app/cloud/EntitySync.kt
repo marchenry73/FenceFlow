@@ -76,6 +76,17 @@ private val netGate = kotlinx.coroutines.sync.Semaphore(4)
  * the loop; a full one means ask again. The cap is a runaway stop rather than
  * a limit: fifty pages is fifty thousand rows, and a company there needs a
  * delta sync, not a longer loop.
+ *
+ * HITTING THE CAP THROWS. It used to break and return what it had, which put
+ * back the exact fault this function exists to remove -- a truncated answer
+ * the caller cannot tell from a complete one -- two lines from the end. And
+ * the stakes are the ones above: on a sync a missing row "decides what gets
+ * pushed, and in places what gets tombstoned", so a company past the cap would
+ * have had live rows re-pushed and live rows tombstoned on the strength of an
+ * answer that was never complete, silently. [pullAll] turns the throw into a
+ * reported failure (every pull survives its neighbours), so the pass stops and
+ * the card says so. A sync that does nothing is recoverable; a sync that
+ * tombstones a job is not.
  */
 internal suspend inline fun <reified T : Any> pagedList(
     table: String,
@@ -95,10 +106,27 @@ internal suspend inline fun <reified T : Any> pagedList(
         all += batch
         if (batch.size < page) break
         from += page
-        if (all.size >= page * 50) break
+        // REFUSED, not returned. See the note above: returning here hands the
+        // caller a truncated list it cannot tell from a complete one, which is
+        // the one thing this function exists to prevent.
+        if (all.size >= page * MAX_PAGES) throw TableTooLarge(table, all.size)
     }
     return all
 }
+
+/** How many 1000-row pages [pagedList] will read before it refuses. */
+const val MAX_PAGES = 50
+
+/**
+ * A table is bigger than [pagedList] will read in one pass.
+ *
+ * Carries the table name because that is the only thing that makes it
+ * actionable, and because the sentence on the sync card names it.
+ */
+class TableTooLarge(val table: String, val rows: Int) : Exception(
+    "$table returned at least $rows rows, which is more than one pass reads, " +
+        "so this phone cannot tell what else is up there"
+)
 
 private fun io.github.jan.supabase.postgrest.query.filter.PostgrestFilterBuilder.notDeleted() =
     filter("deleted_at", io.github.jan.supabase.postgrest.query.filter.FilterOperator.IS, "null")
@@ -4695,7 +4723,12 @@ object DeletionReaper {
      *
      * Ordered by sync_id, so pages cannot overlap or skip. A short page ends
      * it; a full one means ask again. The fifty-page stop is a runaway guard,
-     * not a limit.
+     * not a limit -- and like [pagedList]'s it THROWS rather than returning
+     * what it has. Returning is how this read came to be wrong in the first
+     * place: a short list here is indistinguishable from a complete one, and
+     * the paragraph above is what a short list costs. A reap that does not run
+     * is a retry; a reap carried out against half the tombstones resurrects
+     * rows on every device.
      */
     private suspend fun tombstonedSyncIds(source: String, companyId: String): List<String> {
         val page = 1000
@@ -4718,7 +4751,10 @@ object DeletionReaper {
             all += batch.map { it.syncId }.filter { it.isNotBlank() }
             if (batch.size < page) break
             from += page
-            if (all.size >= page * 50) break
+            // REFUSED, not returned -- see the note above. `from` is what has
+            // actually been read; `all` can be smaller, because a blank sync
+            // id is dropped on the way in.
+            if (from >= page.toLong() * MAX_PAGES) throw TableTooLarge(source, all.size)
         }
         return all
     }

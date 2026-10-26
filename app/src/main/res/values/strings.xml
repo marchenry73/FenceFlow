@@ -2384,4 +2384,5 @@
     <string name="run_split_not_measurable">This drawing has no scale yet. Calibrate the survey photo, or type the footage for this side, and then it can be cut.</string>
     <string name="word_and">and</string>
     <string name="word_ft">ft</string>
+    <string name="sync_plain_table_too_large">There is too much in one table (%1$s) for this phone to read all of it in one pass, so the sync stopped instead of guessing at what was missing. Nothing on this phone was changed. Tell March.</string>
 </resources>

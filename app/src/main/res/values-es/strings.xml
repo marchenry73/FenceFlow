@@ -2307,4 +2307,5 @@
     <string name="run_split_not_measurable">Este dibujo todavía no tiene escala. Calibra la foto del terreno, o escribe los pies de este lado, y entonces se podrá cortar.</string>
     <string name="word_and">y</string>
     <string name="word_ft">pies</string>
+    <string name="sync_plain_table_too_large">Hay demasiado en una tabla (%1$s) para que este teléfono lo lea todo de una vez, así que la sincronización se detuvo en lugar de adivinar lo que faltaba. No se cambió nada en este teléfono. Dile a March.</string>
 </resources>

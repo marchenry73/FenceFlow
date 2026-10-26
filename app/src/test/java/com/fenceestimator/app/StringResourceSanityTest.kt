@@ -33,6 +33,31 @@ class StringResourceSanityTest {
 
     private val positional = Regex("%\\d+\\$[sdf]")
 
+    /**
+     * No bare apostrophe anywhere, in any language.
+     *
+     * The resource compiler rejects one, so it is a BUILD failure rather than a
+     * display bug -- but it is a build failure caused by a file most changes
+     * never touch, and in practice it arrives in the French or Spanish string
+     * of an English-authored change: "n'a", "s'est", "l'image". Nothing else
+     * here looks at the Spanish and French bodies character by character, and
+     * the %% checks above all pass straight over it.
+     *
+     * Written after an apostrophe reached values-fr through a shell that ate
+     * its escaping backslash -- which is also why the message names the string
+     * rather than just failing: the compiler's own error points at a line
+     * number in a 1400-line file.
+     */
+    @Test
+    fun `no string carries an unescaped apostrophe`() {
+        val offenders = resourceFiles().flatMap { f ->
+            strings(f).filter { (_, body) ->
+                body.withIndex().any { (i, c) -> c == '\'' && (i == 0 || body[i - 1] != '\\') }
+            }.map { (name, _) -> "${f.parentFile.name}/$name" }
+        }
+        assertTrue("apostrophe must be written \\' in: $offenders", offenders.isEmpty())
+    }
+
     @Test
     fun `no string carries a tripled percent`() {
         val offenders = resourceFiles().flatMap { f ->

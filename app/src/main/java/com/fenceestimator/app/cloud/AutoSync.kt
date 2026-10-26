@@ -527,7 +527,18 @@ class AutoSync(
         // sync_plain_unknown instead of showing what the server actually
         // said.
         val permanentDetail = permanentRejectionDetail(error)
+        /* A table too big to read in one pass, by TYPE rather than by matching
+           its words: the rest of this function matches text because that is
+           all a library exception gives it, but this one is ours and an exact
+           check cannot be fooled by a URL or a server's phrasing. Down the
+           cause chain, because a pull runs inside a coroutineScope and what
+           arrives here may be wrapping it. */
+        val tooLarge = generateSequence(error) { it.cause }
+            .filterIsInstance<TableTooLarge>()
+            .firstOrNull()
         return when {
+            tooLarge != null ->
+                context.getString(R.string.sync_plain_table_too_large, tooLarge.table)
             permanentDetail != null ->
                 context.getString(R.string.sync_plain_rejected, permanentDetail)
             looksLikeNoSignal(error) ->
