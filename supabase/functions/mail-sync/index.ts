@@ -1009,11 +1009,43 @@ export function reachTargets(): ReachTarget[] {
   return out;
 }
 
-/** Fixed. Must fail, each for a network reason. */
+/**
+ * Fixed. Must fail, each for a network reason, and each for a reason NOBODY
+ * CAN CHANGE.
+ *
+ * That last part is the lesson from the one that was here before: port 587,
+ * "which Supabase blocks outbound". The platform stopped blocking it, the
+ * control connected, failed_as_expected went false and the scheduled run went
+ * red -- with every real mail server in the same answer reporting ok. The
+ * control was right to fail: what it asserts had stopped being true. But a
+ * proof pinned to a vendor's firewall policy breaks whenever the vendor
+ * changes their mind, and a red build with nothing wrong is the most expensive
+ * kind. 587 is now a platform probe below, measured and reported with no vote.
+ *
+ * The three here are intrinsic: a name RFC 6761 guarantees can never resolve,
+ * an address RFC 5737 reserves so it is never routed, and the discard port.
+ * They also cover three different failure paths -- dns_failed, timeout (or
+ * connect_failed, if the network answers "unreachable" rather than dropping
+ * it) and connect_failed -- so the set proves more than one way of failing is
+ * still detected.
+ */
 export const REACH_NEGATIVE_CONTROLS: ReadonlyArray<{ host: string; port: number; via: "tls" | "tcp"; why: string }> = [
   { host: "reach-probe.invalid", port: IMAP_PORT, via: "tls", why: "a name that can never resolve (RFC 6761), through the same path as the targets" },
-  { host: "smtp.zoho.com", port: 587, via: "tcp", why: "port 587, which Supabase blocks outbound" },
+  { host: "192.0.2.1", port: IMAP_PORT, via: "tcp", why: "an address RFC 5737 reserves for documentation, so it is never routed" },
   { host: "imap.gmail.com", port: 9, via: "tcp", why: "a closed port" },
+];
+
+/**
+ * Measured and reported, with NO vote on `ok`.
+ *
+ * Whether 587 is reachable from here decides whether STARTTLS submission is
+ * even possible, which is worth knowing -- SMTP_PORT is 465 partly because it
+ * was not. But it is an observation about someone else's network, so it says
+ * what it found and leaves the verdict alone. Either answer is fine; neither
+ * is a failure.
+ */
+export const REACH_PLATFORM_PROBES: ReadonlyArray<{ host: string; port: number; why: string }> = [
+  { host: "smtp.zoho.com", port: 587, why: "SMTP submission over STARTTLS, which this platform used to block outbound" },
 ];
 
 function safeTokens(list: Iterable<string>): string[] {
@@ -1080,7 +1112,20 @@ export async function reach(deps: SyncDeps) {
     const failedAsExpected = code !== null && NETWORK_FAILURES.has(code);
     return { host: n.host, port: n.port, via: n.via, why: n.why, failed_as_expected: failedAsExpected, error_code: code, ms: deps.now() - started };
   }));
+  const platform = await Promise.all(REACH_PLATFORM_PROBES.map(async (n) => {
+    const started = deps.now();
+    let code: MailErrorCode | null = null;
+    try {
+      await deps.tcpProbe(n.host, n.port, REACH_TCP_TIMEOUT_MS);
+    } catch (e) {
+      code = e instanceof MailError ? e.code : classifyNetworkError(e).code;
+    }
+    return { host: n.host, port: n.port, why: n.why, reachable: code === null, error_code: code, ms: deps.now() - started };
+  }));
   return {
+    // `platform` is deliberately absent from this line. Those probes report
+    // what someone else's network is doing today; a change there is news, not
+    // a fault, and must not be able to turn a scheduled run red.
     ok: targets.every((t) => t.ok) && negative_controls.every((n) => n.failed_as_expected),
     action: "reach" as const,
     runtime: {
@@ -1090,6 +1135,7 @@ export async function reach(deps: SyncDeps) {
     },
     targets,
     negative_controls,
+    platform,
   };
 }
 

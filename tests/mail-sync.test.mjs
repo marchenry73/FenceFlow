@@ -1354,7 +1354,14 @@ test("reach: the preset servers only, no credentials, and a result that proves i
   assert.ok(sentLines.length > 0);
   assert.ok(!sentLines.some((l) => /LOGIN|AUTH(ENTICATE)?\b|MAIL FROM|RCPT/i.test(l.replace(/^A\d+ /, ""))), sentLines.join("\n"));
   assert.deepEqual(r.body.negative_controls.map((n) => [n.host, n.port, n.failed_as_expected]),
-    [["reach-probe.invalid", 993, true], ["smtp.zoho.com", 587, true], ["imap.gmail.com", 9, true]]);
+    [["reach-probe.invalid", 993, true], ["192.0.2.1", 993, true], ["imap.gmail.com", 9, true]]);
+  // No control is anybody's policy any more. A vendor opening or closing a
+  // port must not be able to invalidate a proof -- that is what put 587 here
+  // and what made a scheduled run go red with nothing wrong.
+  assert.ok(!r.body.negative_controls.some((n) => n.port === 587),
+    "587 is back among the controls, so the next firewall change fails the run again");
+  assert.deepEqual(r.body.platform.map((n) => [n.host, n.port, n.reachable]),
+    [["smtp.zoho.com", 587, false]]);
   // Never touched the database.
   assert.ok(!world.rpcLog.length && !world.queryLog.length);
 });
@@ -1368,11 +1375,12 @@ test("PLANTED: reach fails when a server is unreachable, or when a negative cont
   assert.ok(r.text.startsWith('{"ok":false'));
   assert.equal(r.body.targets.find((t) => t.host === "smtppro.zoho.com").error_code, "timeout");
 
-  // Port 587 suddenly connects: the control no longer proves anything.
+  // An address that cannot be routed suddenly connects: the control no longer
+  // proves anything, and the run says so.
   d = reachDeps({ tcpProbe: async () => {} });
   r = await call(triggerReq({ action: "reach" }), d.deps);
   assert.equal(r.body.ok, false);
-  assert.equal(r.body.negative_controls.find((n) => n.port === 587).failed_as_expected, false);
+  assert.equal(r.body.negative_controls.find((n) => n.host === "192.0.2.1").failed_as_expected, false);
 
   // No socket API at all "fails" too -- and must not count as a network failure.
   d = reachDeps({ tcpProbe: async () => {
@@ -1380,6 +1388,28 @@ test("PLANTED: reach fails when a server is unreachable, or when a negative cont
   } });
   r = await call(triggerReq({ action: "reach" }), d.deps);
   assert.equal(r.body.ok, false);
+});
+
+test("587 opening up is reported, and does NOT fail the run -- the regression that did", async () => {
+  // THE ACTUAL FAILURE, pinned. The platform stopped blocking outbound 587,
+  // the control that asserted it connected, and every scheduled mail-sync run
+  // went red while every real mail server in the same answer reported ok.
+  newWorld();
+  const { deps } = reachDeps({
+    tcpProbe: async (host, port) => {
+      // Open now, exactly as production found it.
+      if (port === 587) return;
+      throw new MailError("connect_failed");
+    },
+  });
+  const r = await call(triggerReq({ action: "reach" }), deps);
+  assert.equal(r.status, 200, r.text);
+  assert.equal(r.body.ok, true, r.text);
+  assert.ok(r.text.startsWith('{"ok":true'));
+  // Reported, so the change is visible rather than invisible.
+  assert.deepEqual(r.body.platform.map((n) => [n.port, n.reachable]), [[587, true]]);
+  // And the controls that do vote are untouched by it.
+  assert.ok(r.body.negative_controls.every((n) => n.failed_as_expected));
 });
 
 // ===========================================================================

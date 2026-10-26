@@ -21,8 +21,13 @@
  *  cannot upgrade a socket (denoland/deno#27087), and a plaintext first leg
  *  is the one place a password could cross the wire unencrypted. */
 export const IMAP_PORT = 993;
-/** SMTP submission over implicit TLS. 587 is blocked outbound by Supabase,
- *  and 25 is both blocked and not a submission port. */
+/** SMTP submission over implicit TLS, which is the whole reason: Deno's
+ *  node:tls cannot upgrade a socket (denoland/deno#27087), so 587 + STARTTLS
+ *  could not be used here even where it is reachable. It was ALSO blocked
+ *  outbound by the platform when this was written and is not any more -- which
+ *  is why that is no longer given as the reason. 25 is not a submission port
+ *  regardless. mail-sync's `reach` reports 587's reachability under
+ *  `platform`, as an observation with no vote on the verdict. */
 export const SMTP_PORT = 465;
 
 // ---------------------------------------------------------------------------
