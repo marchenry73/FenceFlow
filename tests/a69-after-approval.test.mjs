@@ -58,6 +58,8 @@ import { stripTypeScriptTypes } from "node:module";
 import * as quoteDeposit from "../supabase/functions/_shared/quote-deposit.ts";
 import * as jobPush from "../supabase/functions/_shared/job-push.ts";
 import * as pushRecipients from "../supabase/functions/_shared/push-recipients.ts";
+// The one predicate the quote page and the contract email now share.
+import * as paymentsReady from "../supabase/functions/_shared/payments-ready.ts";
 
 const COMPANY = "c6900000-0000-4000-8000-000000000001";
 const JOB = "a6900000-0000-4000-8000-00000000000a";
@@ -70,6 +72,7 @@ const SHARED = {
   "../_shared/quote-deposit.ts": quoteDeposit,
   "../_shared/job-push.ts": jobPush,
   "../_shared/push-recipients.ts": pushRecipients,
+  "../_shared/payments-ready.ts": paymentsReady,
 };
 const QUOTE_VIEW = new URL("../supabase/functions/quote-view/index.ts", import.meta.url);
 

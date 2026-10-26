@@ -37,6 +37,7 @@ import { readFileSync } from 'node:fs';
 import { stripTypeScriptTypes } from 'node:module';
 import { join } from 'node:path';
 import * as jobPush from '../supabase/functions/_shared/job-push.ts';
+import * as paymentsReady from '../supabase/functions/_shared/payments-ready.ts';
 import * as pushRecipients from '../supabase/functions/_shared/push-recipients.ts';
 import * as quoteDeposit from '../supabase/functions/_shared/quote-deposit.ts';
 import * as recordPayment from '../supabase/functions/_shared/record-payment.ts';
@@ -330,6 +331,7 @@ try {
 
 const SHARED = {
   '../_shared/job-push.ts': jobPush,
+  '../_shared/payments-ready.ts': paymentsReady,
   '../_shared/push-recipients.ts': pushRecipients,
   '../_shared/quote-deposit.ts': quoteDeposit,
   '../_shared/record-payment.ts': recordPayment,
