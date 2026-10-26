@@ -251,7 +251,16 @@ object EstimateEngine {
      * GATE_POST ([gateAreaEntries], and takeoff.ts gateAreaEntries on the
      * server). WALL is BLANK_POST + GATE_POST, LINE is GATE_POST 2,
      * LINE_TO_WALL is GATE_POST 2 + END_POST 1 -- that third post is where the
-     * run terminates at the wall, which is a genuine end post. Every COUNT is
+     * run terminates at the wall, which is a genuine end post.
+     *
+     * SUPERSEDED BY 2026.10.9, and left standing as the record of what 10.4
+     * did rather than of what the engine does. 10.9 settled that the gate
+     * hangs from ONE post: LINE is GATE_POST 1 + END_POST 1 (BLANK_POST where
+     * no fence connects), LINE_TO_WALL is GATE_POST 1 + END_POST 2, and WALL
+     * is BLANK_POST 1 + END_POST 1. The 10.9 entry below records the joint
+     * arithmetic and not this, which is why the correction is written here --
+     * otherwise the version history's last word on gate posts is the wrong
+     * one. Counts unchanged throughout, then and now. Every COUNT is
      * unchanged: gatePosts, totalPosts, POST_CAP and CONCRETE_BAG all come out
      * exactly as under 2026.10.3, and the takeoff summary lines do not move.
      * What changes is WHICH CATALOG ROW IS BILLED for those posts, so it is a
@@ -1136,15 +1145,26 @@ object EstimateEngine {
      * untouched by this -- but a post standing at a gate opening is a GATE_POST
      * and is not the post where a fence line terminates:
      *
-     *  - The two posts a gate hangs between (hinge side and latch side) are
-     *    GATE_POST. Both stand at the opening; neither is an end of the fence.
-     *    On a WALL gate only the latch side is one of these, because the hinge
-     *    side is the BLANK_POST bolted to the wall.
-     *  - The THIRD post on a LINE_TO_WALL is an END_POST, and genuinely so: it
-     *    is where the rest of the run terminates against the wall, nowhere near
-     *    the gate leaf. [GateMounting.LINE_TO_WALL]'s own wording is "the run
-     *    terminates twice and needs a second end post". So LINE_TO_WALL is
-     *    GATE_POST 2 + END_POST 1, not GATE_POST 3.
+     *  - THE GATE HANGS FROM ONE POST. The hinge side carries the whole leaf
+     *    and the econo stiffener, and that one is the GATE_POST. The owner's
+     *    rule, confirmed 4 Oct 2026 and settled by engine 2026.10.9.
+     *  - The OTHER post of the pair is whatever the fence makes it: an
+     *    END_POST where the fence connects to it, a BLANK_POST where nothing
+     *    does. On a WALL gate the hinge side is instead the BLANK_POST bolted
+     *    to the wall, so the pair is BLANK_POST + END_POST.
+     *  - The THIRD post on a LINE_TO_WALL is an END_POST too, and genuinely
+     *    so: it is where the rest of the run terminates against the wall,
+     *    nowhere near the gate leaf. [GateMounting.LINE_TO_WALL]'s own wording
+     *    is "the run terminates twice and needs a second end post". So
+     *    LINE_TO_WALL is GATE_POST 1 + END_POST 2, and never GATE_POST 3.
+     *
+     * THIS PARAGRAPH SAID THE OPPOSITE until 26 Oct 2026, in the present
+     * tense, while the code a dozen lines below already carried the
+     * correction in its own words: "a gate post and an end post are different
+     * catalog rows at different prices, so billing two of one kind bills the
+     * wrong row once per gate on every job." The COUNTS were never wrong --
+     * gatePosts, POST_CAP and the concrete are all untouched -- only the
+     * prose about which row each post is billed from.
      *
      * This used to ask for END_POST for all of them, which meant nothing could
      * ever reach a GATE_POST row: the enum has the role, the catalog editor

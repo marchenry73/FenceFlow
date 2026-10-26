@@ -639,8 +639,6 @@
     <string name="jd_teardown_flat_fee">Forfait démolition ($)</string>
     <string name="jd_teardown_per_ft">Démolition $/pi</string>
     <string name="jd_haul_fee">Évacuation / décharge ($)</string>
-    <string name="jd_teardown_length">Longueur à démolir (pi) -- 0 = identique à la nouvelle clôture</string>
-    <string name="jd_teardown_note">La démolition est facturée sur le même métrage que la nouvelle clôture. Si l\'ancienne clôture avait une autre longueur, ajoutez une section séparée et saisissez sa longueur dans « Pieds au total » -- elle restera ainsi hors du métré de la nouvelle clôture.</string>
     <string name="jd_teardown_basis_typed_over_drawn">Facturé sur %1$s pi : la longueur saisie ci-dessous. %2$s du plan (environ %3$s pi) n\'est pas utilisé.</string>
     <string name="jd_teardown_basis_typed">Facturé sur %1$s pi : la longueur saisie ci-dessous. Rien sur le plan n\'est marqué comme l\'ancienne clôture.</string>
     <string name="jd_teardown_basis_drawn">D\'après le plan : %1$s, environ %2$s pi. C\'est la longueur facturée.</string>

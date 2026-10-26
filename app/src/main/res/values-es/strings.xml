@@ -639,8 +639,6 @@
     <string name="jd_teardown_flat_fee">Tarifa fija de retiro ($)</string>
     <string name="jd_teardown_per_ft">Retiro $/pie</string>
     <string name="jd_haul_fee">Acarreo / tiradero ($)</string>
-    <string name="jd_teardown_length">Largo del retiro (pies) -- 0 = igual que la cerca nueva</string>
-    <string name="jd_teardown_note">El retiro se cobra por el mismo metraje que la cerca nueva. Si la cerca vieja tenía otro largo, agrega un tramo aparte y escribe su largo en “Pies totales” -- así no se mezcla con el cálculo de la cerca nueva.</string>
     <string name="jd_teardown_basis_typed_over_drawn">Se cobran %1$s pies: el largo escrito abajo. %2$s del dibujo (unos %3$s pies) no se está usando.</string>
     <string name="jd_teardown_basis_typed">Se cobran %1$s pies: el largo escrito abajo. Nada en el dibujo está marcado como la cerca vieja.</string>
     <string name="jd_teardown_basis_drawn">Del dibujo: %1$s, unos %2$s pies. Ese es el largo que se cobra.</string>

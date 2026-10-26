@@ -605,15 +605,26 @@ function gateEntries(fenceType: FenceType, gate: GateMarker, hasFenceLine: boole
  * untouched by this -- but a post standing at a gate opening is a GATE_POST
  * and is not the post where a fence line terminates:
  *
- *  - The two posts a gate hangs between (hinge side and latch side) are
- *    GATE_POST. Both stand at the opening; neither is an end of the fence.
- *    On a WALL gate only the latch side is one of these, because the hinge
- *    side is the BLANK_POST bolted to the wall.
- *  - The THIRD post on a LINE_TO_WALL is an END_POST, and genuinely so: it
- *    is where the rest of the run terminates against the wall, nowhere near
- *    the gate leaf. GateMounting.LINE_TO_WALL's own wording is "the run
+ *  - THE GATE HANGS FROM ONE POST. The hinge side carries the whole leaf
+ *    and the econo stiffener, and that one is the GATE_POST. The owner's
+ *    rule, confirmed 4 Oct 2026 and settled by engine 2026.10.9.
+ *  - The OTHER post of the pair is whatever the fence makes it: an END_POST
+ *    where the fence connects to it, a BLANK_POST where nothing does. On a
+ *    WALL gate the hinge side is instead the BLANK_POST bolted to the wall,
+ *    so the pair is BLANK_POST + END_POST.
+ *  - The THIRD post on a LINE_TO_WALL is an END_POST too, and genuinely so:
+ *    it is where the rest of the run terminates against the wall, nowhere
+ *    near the gate leaf. GateMounting.LINE_TO_WALL's own wording is "the run
  *    terminates twice and needs a second end post". So LINE_TO_WALL is
- *    GATE_POST 2 + END_POST 1, not GATE_POST 3.
+ *    GATE_POST 1 + END_POST 2, and never GATE_POST 3.
+ *
+ * THIS PARAGRAPH SAID THE OPPOSITE until 26 Oct 2026, in the present tense,
+ * while the code a dozen lines below already carried the correction in its
+ * own words: "a gate post and an end post are different catalog rows at
+ * different prices, so billing two of one kind bills the wrong row once per
+ * gate on every job." The COUNTS were never wrong -- gatePosts, POST_CAP and
+ * the concrete are all untouched -- only the prose about which row each post
+ * is billed from.
  *
  * This used to ask for END_POST for all of them, which meant nothing could
  * ever reach a GATE_POST row: the enum has the role, the catalog editor

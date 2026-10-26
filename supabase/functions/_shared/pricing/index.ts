@@ -118,7 +118,16 @@ export {
  * GATE_POST (takeoff.ts gateAreaEntries / EstimateEngine.gateAreaEntries).
  * WALL is BLANK_POST + GATE_POST, LINE is GATE_POST 2, LINE_TO_WALL is
  * GATE_POST 2 + END_POST 1 -- that third post is where the run terminates at
- * the wall, which is a genuine end post. Every COUNT is unchanged: gatePosts,
+ * the wall, which is a genuine end post.
+ *
+ * SUPERSEDED BY 2026.10.9, and left standing as the record of what 10.4 did
+ * rather than of what the engine does. 10.9 settled that the gate hangs from
+ * ONE post: LINE is GATE_POST 1 + END_POST 1 (BLANK_POST where no fence
+ * connects), LINE_TO_WALL is GATE_POST 1 + END_POST 2, and WALL is
+ * BLANK_POST 1 + END_POST 1. The 10.9 entry below records the joint
+ * arithmetic and not this, which is why the correction is written here --
+ * otherwise the version history's last word on gate posts is the wrong one.
+ * Counts unchanged throughout, then and now. Every COUNT is unchanged: gatePosts,
  * totalPosts, POST_CAP and CONCRETE_BAG all come out exactly as under
  * 2026.10.3, and the takeoff summary lines do not move. What changes is WHICH
  * CATALOG ROW IS BILLED for those posts, so it is a formula change, so a

@@ -675,8 +675,6 @@
     <string name="jd_teardown_flat_fee">Teardown flat fee ($)</string>
     <string name="jd_teardown_per_ft">Teardown $/ft</string>
     <string name="jd_haul_fee">Haul away / dump fee ($)</string>
-    <string name="jd_teardown_length">Teardown length (ft) -- 0 = same as the new fence</string>
-    <string name="jd_teardown_note">Teardown is charged on the same footage as the new fence. If the old fence ran a different length, add a separate run for it and type its length in “Total feet” -- that keeps it off the new fence\'s takeoff.</string>
     <!-- Which basis a teardown charge is priced on, and the override field -->
     <string name="jd_teardown_basis_typed_over_drawn">Pricing %1$s ft: the length typed below. The drawing\'s %2$s (about %3$s ft) is not being used.</string>
     <string name="jd_teardown_basis_typed">Pricing %1$s ft: the length typed below. Nothing on the drawing is marked as the old fence.</string>
