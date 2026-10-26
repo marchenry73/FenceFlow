@@ -702,10 +702,22 @@ data class RunPostAdjustment(
 data class JoinedPost(
     val jointId: String,
     val kind: JoinPostKind,
-    /** The run whose own post counts keep the shared post. Every other member gives its end post up. */
+    /**
+     * The run whose own post counts keep the shared post. Every other member
+     * gives its end post up. BLANK when [sharedPost] is false, because then
+     * there is no shared post for anyone to own.
+     */
     val ownerRunId: String,
     /** Every run that meets here, owner included, sorted by run id. */
     val memberRunIds: List<String>,
+    /**
+     * Whether one post stands here for all of them.
+     *
+     * False where the members' heights differ: each side then keeps its own
+     * post, at its own height, and no post is removed. Defaulted true so every
+     * existing caller and test reads exactly as it did.
+     */
+    val sharedPost: Boolean = true,
 ) {
     /** How many run ends meet here. */
     val degree: Int get() = memberRunIds.size
@@ -896,8 +908,54 @@ object RunJoinArithmetic {
                 continue
             }
 
-            val owner = ownerOf(live)
             val kind = kindOf(live)
+
+            /* A HEIGHT CHANGE IS NOT A SHARED POST, and the owner's words are
+               the rule: "the corner from teh 4ft to the 6ft, it should be a
+               corner 4ft post" -- then, asked two posts or one, "Do the two
+               posts".
+
+               [outranks] below already argued this and could not act on it:
+               the rule it rejected, that the fence steps down onto the short
+               post rather than leaving a tall one standing proud, "describes
+               an arrangement where each run ends on its own post. That is two
+               posts. This function only ever runs when there is one." So here
+               it stops running rather than choosing a winner.
+
+               Each member converts its END post into a corner (or line, by the
+               same angle rule) post. NOBODY LOSES A POST: the job builds one
+               more post at each transition than it did, each at its own run's
+               height and off its own run's catalog row. One routed vinyl post
+               cannot carry a 4 ft panel on one face and a 6 ft panel on the
+               other.
+
+               UNKNOWN HEIGHTS FALL THROUGH, deliberately. Split rail declares
+               none (0f) and chain link keeps its height elsewhere, so a run
+               that declares nothing cannot be said to DIFFER from anything.
+               Inventing a transition out of missing data would move prices on
+               joins nobody has ruled on. */
+            val declared = live.map { it.run.heightFt }
+            val mixedHeights = declared.all { it > 0f && it.isFinite() } &&
+                declared.distinct().size > 1
+            if (mixedHeights) {
+                for (member in live) {
+                    if (kind == JoinPostKind.CORNER) bump(deltas, member.run.id, 0, 1, -1)
+                    else bump(deltas, member.run.id, 1, 0, -1)
+                }
+                posts.add(
+                    JoinedPost(
+                        jointId = jointId,
+                        kind = kind,
+                        // Nobody owns it: there is no shared post to own.
+                        ownerRunId = "",
+                        memberRunIds = live.map { it.run.id }.sorted(),
+                        sharedPost = false,
+                    )
+                )
+                continue
+            }
+
+            val owner = ownerOf(live)
             for (member in live) {
                 if (member === owner) {
                     if (kind == JoinPostKind.CORNER) bump(deltas, member.run.id, 0, 1, -1)

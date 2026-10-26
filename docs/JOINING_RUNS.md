@@ -299,7 +299,31 @@ split rail. The owner's end bills a `LINE_POST` or `CORNER_POST`; every other me
 nothing. Surfaced as the owner's "Line posts" / "Corner posts" takeoff lines and entries, so caps,
 concrete and the post readout need no new path. Per-run results are in D1, D2.
 
-Why the tallest: a taller post can carry a shorter panel, not the reverse. It changes nothing while
+**SUPERSEDED 26 OCTOBER 2026 WHERE THE HEIGHTS DIFFER.** Asked whether the corner where his 4 ft
+side meets his 6 ft side should bill two posts or one, the owner said: **"Do the two posts"**. So a
+joint whose members differ in height shares NO post. Each member converts its end post into a corner
+(or line) post and keeps it, at its own height and off its own catalog row -- a 4 ft corner post for
+the 4 ft side, a 6 ft one for the 6 ft side. The job builds one MORE post at each transition than it
+did, and `outranks`' height branch is now unreachable: by the time a winner is chosen every member is
+the same height. The paragraph below still governs a joint whose members are the SAME height.
+
+`outranks`' own comment had already argued this and could not act on it -- the rule it rejected,
+that the fence steps down onto the short post rather than leaving a tall one standing proud,
+"describes an arrangement where each run ends on its own post. That is two posts. This function only
+ever runs when there is one." That arrangement is now the chosen one.
+
+A NOTE ON SECTION 6, which reads his 23 Oct words -- "The shared posts is 6ft and when it goes down
+to 4 ft, it becomes 4ft" -- as "the shared post at the step is the 6 ft one, so nothing changes". That
+sentence reads at least as naturally the other way: the posts are 6 ft along the tall part, and where
+it drops to 4 ft they become 4 ft -- a description of post heights along the job, not of who wins a
+shared post. The first reading is what kept a 4 ft corner post off his quote until he asked where it
+had gone. Written down because the next reader deserves to know which of those two paragraphs was an
+inference and which is his answer to a direct question.
+
+Unknown heights fall through unchanged: split rail declares none and chain link keeps its height
+elsewhere, so a run that declares nothing cannot be said to differ from anything.
+
+Why the tallest, while it lasted: a taller post can carry a shorter panel, not the reverse. It changes nothing while
 the catalog ignores height (6.3), and starts mattering the day the 4 ft rows land. Why billed to a
 run at all and not to a job-level line: the whole line-item machinery (edited-line merge, per-run
 sync ids, suppression, teardown) is per run, and a "shared posts" line would need a second
@@ -610,7 +634,7 @@ All of these are in files held by other work; they are the requirements, not a p
 
 | # | Question | Proposed |
 |---|---|---|
-| Q1 | Where two joined fences differ in height, whose post is it? | The taller one |
+| Q1 | Where two joined fences differ in height, whose post is it? | ~~The taller one~~ **ANSWERED 26 Oct 2026: NOBODY -- there is no shared post at a height change.** Each side keeps its own, at its own height. Asked two posts or one, his words: "Do the two posts". See 2.4. |
 | Q2 | A T-junction post | A corner post (no tee item exists) |
 | Q3 | A join between two typed-footage runs, where there is no angle | A corner post |
 | **Q4** | **Is there a transition product, or is the 6-to-4 bay priced as an ordinary 6 ft bay?** Contested (4.2) | If he cuts a standard 6 ft panel on site: **A**, nothing to build beyond joining. If suppliers sell a rake or step panel: **C** (section 6), one bay of it in place of one bay of ordinary panel, labour as ordinary footage |

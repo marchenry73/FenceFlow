@@ -497,10 +497,21 @@ section("6. WHO IS BILLED THE SHARED POST");
   const short = run(U(2), LEG_B_UP, { sort_order: 0, panel_height_ft: 4, panel_width_ft: 6 });
   const out = price([{ ...tall, end_joint: U(30) }, { ...short, start_joint: U(30) }]);
   const cornerOn = out.runs.filter((r) => r.posts.corner > 0).map((r) => r.run_sync_id);
-  eq("6a", "the TALLER run is billed the shared post -- a 6 ft panel cannot hang on a 4 ft post",
-    cornerOn, [U(1)]);
-  eq("6a-ii", "and it is billed to exactly ONE of them, never both",
-    out.runs.filter((r) => r.posts.corner > 0).length, 1);
+  // SUPERSEDED 26 Oct 2026. There is no shared post here to bill to anybody.
+  // Asked whether a 4-to-6 corner should bill two posts or one, the owner
+  // said: "Do the two posts". So each side keeps its own corner post, at its
+  // own height, off its own catalog row -- a 4 ft corner post for the 4 ft
+  // side, which is the thing he was looking for and could not find, and a
+  // 6 ft one for the 6 ft side. One routed vinyl post cannot carry a 4 ft
+  // panel on one face and a 6 ft panel on the other, which is what the
+  // taller-owns rule assumed it could.
+  //
+  // The assertions are re-aimed, not loosened: still exact, still naming both
+  // runs, and 6a-ii still forbids the count drifting.
+  eq("6a", "a height change bills a corner post on BOTH sides -- neither gives its end up",
+    cornerOn.slice().sort(), [U(1), U(2)].sort());
+  eq("6a-ii", "and that is exactly two posts, never one and never three",
+    out.runs.filter((r) => r.posts.corner > 0).length, 2);
 
   // Equal heights: the lower sort order, then the lower id. Never list order.
   const e1 = run(U(1), LEG_A, { sort_order: 5 });

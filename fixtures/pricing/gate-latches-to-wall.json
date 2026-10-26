@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "engine": {
-    "version": "2026.10.23",
-    "generated_at": "2026-10-23T17:30:10.101233400Z"
+    "version": "2026.10.24",
+    "generated_at": "2026-10-26T17:31:59.220554800Z"
   },
   "case": "gate-latches-to-wall",
   "note": "Fence runs up to the gate post and stops; the gate closes the gap to a wall. ONE post, billed off GATE_POST because it carries the gate, one lot of hinge concrete because only it is in the ground, and the same 4 wall-mount hole plugs a wall-hung gate uses for the latch side. No end post: the post is already billed once.",
   "input": {
-    "engine_version": "2026.10.23",
+    "engine_version": "2026.10.24",
     "pixels_per_foot": 20.0,
     "job": {
       "calibration_pixels_per_foot": 20.0,
@@ -380,7 +380,7 @@
     "existing_items": []
   },
   "expected": {
-    "engine_version": "2026.10.23",
+    "engine_version": "2026.10.24",
     "linear_feet": 100.0,
     "teardown_linear_feet": 0.0,
     "billable_linear_feet": 100.0,

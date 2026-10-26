@@ -110,10 +110,20 @@ export interface RunPostAdjustment {
 export interface JoinedPost {
   jointId: string;
   kind: JoinPostKind;
-  /** The run whose own end post BECOMES the shared post. Every other member gives its end post up. */
+  /**
+   * The run whose own end post BECOMES the shared post. Every other member
+   * gives its end post up. EMPTY when `sharedPost` is false, because then
+   * there is no shared post for anyone to own.
+   */
   ownerRunId: string;
   /** Every run that meets here, owner included, sorted by run id. */
   memberRunIds: string[];
+  /**
+   * Whether one post stands here for all of them. False where the members'
+   * heights differ: each side keeps its own post, at its own height, and no
+   * post is removed.
+   */
+  sharedPost: boolean;
 }
 
 export interface IgnoredJoint {
@@ -377,8 +387,33 @@ export function adjustJoins(runs: readonly JoinableRun[]): JoinAdjustment {
       continue;
     }
 
-    const owner = ownerOf(live);
     const kind = kindOf(live);
+
+    /* A HEIGHT CHANGE IS NOT A SHARED POST -- the port of the Kotlin's rule,
+       which carries the full reasoning. Each member converts its end post into
+       a corner (or line) post and nobody loses one, so the job builds one more
+       post at each transition, each at its own run's height. Unknown heights
+       (split rail declares none) fall through to the shared-post rule
+       unchanged: a run that declares no height cannot be said to differ. */
+    const declared = live.map((m) => m.run.heightFt);
+    const mixedHeights = declared.every((h) => Number.isFinite(h) && h > 0) &&
+      new Set(declared).size > 1;
+    if (mixedHeights) {
+      for (const member of live) {
+        if (kind === "CORNER") bump(member.run.id, 0, 1, -1);
+        else bump(member.run.id, 1, 0, -1);
+      }
+      posts.push({
+        jointId,
+        kind,
+        ownerRunId: "",
+        memberRunIds: live.map((m) => m.run.id).sort(),
+        sharedPost: false,
+      });
+      continue;
+    }
+
+    const owner = ownerOf(live);
     for (const member of live) {
       if (member === owner) {
         if (kind === "CORNER") bump(member.run.id, 0, 1, -1);
@@ -387,7 +422,13 @@ export function adjustJoins(runs: readonly JoinableRun[]): JoinAdjustment {
         bump(member.run.id, 0, 0, -1);
       }
     }
-    posts.push({ jointId, kind, ownerRunId: owner.run.id, memberRunIds: live.map((m) => m.run.id).sort() });
+    posts.push({
+      jointId,
+      kind,
+      ownerRunId: owner.run.id,
+      memberRunIds: live.map((m) => m.run.id).sort(),
+      sharedPost: true,
+    });
   }
 
   const perRun = new Map<string, RunPostAdjustment>();

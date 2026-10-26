@@ -61,33 +61,57 @@ class RunJoinOwnerTest {
     }
 
     @Test
-    fun `the taller run is billed the shared post`() {
-        // 6 ft meets 4 ft. The post must carry the 6 ft panel.
+    fun `a height change shares no post at all, so nobody is billed one`() {
+        // 6 ft meets 4 ft. SUPERSEDED 26 Oct 2026: this used to assert that
+        // the taller run was billed the one shared post, on the reasoning that
+        // the post has to carry the 6 ft panel. Asked two posts or one, the
+        // owner answered "Do the two posts" -- so there is no shared post here
+        // for anyone to own, and each side keeps its own at its own height.
         val tall = run("a-tall", heightFt = 6f, sortOrder = 0, endJointId = "j1")
         val short = run("b-short", heightFt = 4f, sortOrder = 1, startJointId = "j1")
         val post = soleJoint(RunJoinArithmetic.adjust(listOf(tall, short)))
-        assertEquals("the shared post went to the shorter run", "a-tall", post.ownerRunId)
+        assertEquals("a height change still claims to share a post", false, post.sharedPost)
+        assertEquals("a joint that shares nothing still named an owner", "", post.ownerRunId)
     }
 
     @Test
-    fun `height beats sort order, even when the tall run sorts last`() {
-        // a32's case D2, in Kotlin. Sort order must not be able to hand the
-        // post to the short run: that is exactly the answer the old rule gave,
-        // and the one the catalog will start charging for.
+    fun `neither side of a height change gives up its end post`() {
+        // The money half of the rule above: the 4 ft side must end up with a
+        // post of its own, which is what puts a 4 ft corner post on his quote.
         val short = run("a-short", heightFt = 4f, sortOrder = 0, endJointId = "j1")
         val tall = run("b-tall", heightFt = 6f, sortOrder = 9, startJointId = "j1")
-        val post = soleJoint(RunJoinArithmetic.adjust(listOf(short, tall)))
-        assertEquals("sort order outranked height", "b-tall", post.ownerRunId)
+        val result = RunJoinArithmetic.adjust(listOf(short, tall))
+        assertEquals("a height change saved a post; it must save none", 0, result.postsSaved)
+        // Each converts an end post into a corner post, so each moves, and
+        // both move the SAME way -- neither is the owner of anything.
+        // The DELTAS, not the whole object: RunPostAdjustment carries its own
+        // runId, so comparing toString() can only ever fail.
+        val a = result.forRun("a-short")
+        val b = result.forRun("b-tall")
+        assertEquals(
+            "the two sides of a height change were treated differently",
+            listOf(a.linePostsDelta, a.cornerPostsDelta, a.endPostsDelta),
+            listOf(b.linePostsDelta, b.cornerPostsDelta, b.endPostsDelta),
+        )
+        // And each really did trade an end post for a corner post, rather than
+        // both simply being left alone.
+        // A post of its own, of whichever KIND the angle calls for -- these two
+        // legs run straight on, so it is a line post. The kind is decided by
+        // the same 15-degree rule a bend inside one run follows; what this case
+        // pins is that a post is kept, not which sort it is.
+        assertEquals("the 4 ft side did not gain a post of its own", 1, a.linePostsDelta + a.cornerPostsDelta)
+        assertEquals("the 4 ft side did not give up its end post", -1, a.endPostsDelta)
     }
 
     @Test
     fun `the answer does not depend on the order the runs are listed in`() {
         val short = run("a-short", heightFt = 4f, sortOrder = 0, endJointId = "j1")
         val tall = run("b-tall", heightFt = 6f, sortOrder = 9, startJointId = "j1")
-        val forward = soleJoint(RunJoinArithmetic.adjust(listOf(short, tall))).ownerRunId
-        val backward = soleJoint(RunJoinArithmetic.adjust(listOf(tall, short))).ownerRunId
-        assertEquals("the owner changed when the list was reversed", forward, backward)
-        assertEquals("b-tall", forward)
+        val forward = soleJoint(RunJoinArithmetic.adjust(listOf(short, tall)))
+        val backward = soleJoint(RunJoinArithmetic.adjust(listOf(tall, short)))
+        assertEquals("the answer changed when the list was reversed", forward.sharedPost, backward.sharedPost)
+        assertEquals(forward.memberRunIds, backward.memberRunIds)
+        assertEquals(false, forward.sharedPost)
     }
 
     @Test
@@ -108,8 +132,12 @@ class RunJoinOwnerTest {
 
     @Test
     fun `only one run gives up its end post, and the owner keeps its own`() {
+        // EQUAL heights, deliberately. This case is about the shared-post
+        // arithmetic, and since 26 Oct 2026 a height change shares no post, so
+        // the old 6-and-4 fixture would have tested the transition rule
+        // instead of the thing this case is named for.
         val tall = run("a-tall", heightFt = 6f, sortOrder = 0, endJointId = "j1")
-        val short = run("b-short", heightFt = 4f, sortOrder = 1, startJointId = "j1")
+        val short = run("b-short", heightFt = 6f, sortOrder = 1, startJointId = "j1")
         val result = RunJoinArithmetic.adjust(listOf(tall, short))
         assertEquals("the job did not save exactly one post", 1, result.postsSaved)
         // The owner's counts must not shrink; the other member's must.

@@ -361,7 +361,7 @@ object EstimateEngine {
      * Anchored (signed/sent) totals do not move regardless, as above.
      *
      */
-    const val PRICING_ENGINE_VERSION = "2026.10.23"
+    const val PRICING_ENGINE_VERSION = "2026.10.24"
     /**
      * A thousandth of a foot, which is a hundredth of an inch: the slack every
      * count of bays, panels and pickets allows before it rounds up.

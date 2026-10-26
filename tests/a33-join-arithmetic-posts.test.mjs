@@ -161,9 +161,9 @@ e-gate-line-to-wall|ADJ|A|1|0|-1
 e-gate-line-to-wall|ADJ|B|0|0|-1
 e-gate-line-to-wall|POST|J1|LINE|A|A,B
 e-gate-line-to-wall|SAVED|1
-e-gate-run-gives-up|ADJ|A|1|0|-1
-e-gate-run-gives-up|ADJ|B|0|0|-1
-e-gate-run-gives-up|POST|J1|LINE|A|A,B
+e-gate-run-gives-up|ADJ|A|0|0|-1
+e-gate-run-gives-up|ADJ|B|1|0|-1
+e-gate-run-gives-up|POST|J1|LINE|B|A,B
 e-gate-run-gives-up|SAVED|1
 f-no-joints|SAVED|0
 f-dangling-ids|IGN|J1|FEWER_THAN_TWO_LIVE_RUNS
@@ -679,15 +679,31 @@ function adjustJoins(runs) {
     for (let i = 0; i < live.length; i++) for (let j = i + 1; j < live.length; j++) if (live[i].run.id === live[j].run.id) sameRunTwice = true;
     if (sameRunTwice) { ignored.push({ jointId, reason: "SAME_RUN_TWICE" }); continue; }
 
+    const kind = kindOf(live);
+
+    // A HEIGHT CHANGE IS NOT A SHARED POST (owner, 26 Oct 2026: "Do the two
+    // posts"). Each member keeps its own post, converted from an end post to
+    // a corner (or line) post, and none is removed. Unknown heights -- split
+    // rail declares none -- fall through to the shared-post rule unchanged.
+    const declared = live.map((m) => m.run.heightFt);
+    const mixedHeights = declared.every((h) => Number.isFinite(h) && h > 0) &&
+      new Set(declared).size > 1;
+    if (mixedHeights) {
+      for (const member of live) {
+        if (kind === "CORNER") bump(member.run.id, 0, 1, -1); else bump(member.run.id, 1, 0, -1);
+      }
+      posts.push({ jointId, kind, ownerRunId: "", memberRunIds: live.map((m) => m.run.id).sort(), sharedPost: false });
+      continue;
+    }
+
     let owner = live[0];
     for (let i = 1; i < live.length; i++) if (outranks(live[i].run, owner.run)) owner = live[i];
-    const kind = kindOf(live);
     for (const member of live) {
       if (member === owner) {
         if (kind === "CORNER") bump(member.run.id, 0, 1, -1); else bump(member.run.id, 1, 0, -1);
       } else bump(member.run.id, 0, 0, -1);
     }
-    posts.push({ jointId, kind, ownerRunId: owner.run.id, memberRunIds: live.map((m) => m.run.id).sort() });
+    posts.push({ jointId, kind, ownerRunId: owner.run.id, memberRunIds: live.map((m) => m.run.id).sort(), sharedPost: true });
   }
 
   const perRun = {};
@@ -949,11 +965,18 @@ console.log("\n2. THE CASES -- posts before and after joining, by type (hand-der
   expectEq("2e-6", "  a gate on EACH side of the joint: 12 posts before, 11 after (still one saved), gate posts 4", [both.fenceBefore.total, both.fence.total, both.fence.gate], [12, 11, 4]);
   const toWall = compose("e-gate-line-to-wall", mk("590:0:4:LINE_TO_WALL:IN", ""));
   expectEq("2e-7", "  a LINE_TO_WALL gate (3 gate posts): 12 before, 11 after, gate posts 3", [toWall.fenceBefore.total, toWall.fence.total, toWall.fence.gate], [12, 11, 3]);
+  // The lever here is SORT ORDER, not height. It used to make B 4 ft and A
+  // 6 ft so the taller gated run would own the post -- but since 26 Oct 2026 a
+  // height change shares no post at all, so that setup now tests the
+  // transition rule instead of the thing this case is about. Equal heights,
+  // and the lower sort order (B) owns it, which flips ownership to the
+  // UNGATED run and still leaves the total at 10. That is the claim: who owns
+  // the shared post never moves the number of posts, only which run bills it.
   const gatedOwnsNot = compose("e-gate-run-gives-up", [
-    R("B", B_STRAIGHT, { sort: 0, height: 4, start: "J1" }),
-    R("A", A_PTS, { sort: 1, height: 6, end: "J1", gates: "590:0:4:LINE:IN" }),
+    R("B", B_STRAIGHT, { sort: 0, start: "J1" }),
+    R("A", A_PTS, { sort: 1, end: "J1", gates: "590:0:4:LINE:IN" }),
   ]);
-  expectEq("2e-8", "  who owns the post does not change the total: the taller gated run owns it, 10 again", gatedOwnsNot.fence.total, 10);
+  expectEq("2e-8", "  who owns the post does not change the total: the ungated run owns it by sort order, 10 again", gatedOwnsNot.fence.total, 10);
 }
 
 // ---- f. no joints at all: identical to today, to the post
@@ -1079,13 +1102,27 @@ console.log("\n4. OWNER, KIND AND IGNORED JOINTS -- the rules, one number each")
   const eq = pair({}, {});
   expectEq("4a", "equal heights: the LOWER sort order is billed the shared post (A keeps 6, B drops 4 -> 3)", [eq.byId.A.total, eq.byId.B.total], [6, 3]);
   const tall = pair({ height: 4 }, { height: 6 });
-  // THE TALLER RUN KEEPS THE POST, whatever it sorts. B is 6 ft and holds its
-  // 4 posts; A is 4 ft, is 6 posts alone, and gives its end up to 5. This case
-  // read the other way until 23 Oct 2026 -- see the note at 6d, which carries
-  // the decision behind it.
-  expectEq("4b", "the TALLER run is billed the post even when it sorts earlier (B is 6 ft high, A 4 ft high): B keeps its 4 posts, A gives its end up and drops 6 -> 5", [tall.byId.A.total, tall.byId.B.total], [5, 4],
-    "RIGHT: the post stays with the taller run B (4 posts); A, 6 posts alone, gives its end up (5).");
-  expectEq("4c", "...and the post's TYPE is unchanged by who owns it: same fence total either way", [eq.fence.total, tall.fence.total], [9, 9]);
+  // A HEIGHT CHANGE IS NOT A SHARED POST, decided by the owner 26 Oct 2026.
+  // Asked whether the 4-to-6 corner should bill two posts or one, in his
+  // words: "Do the two posts".
+  //
+  // So NEITHER run gives its end up. Each keeps its own post at its own
+  // height -- a 4 ft corner post for the 4 ft side, a 6 ft one for the 6 ft
+  // side -- because one routed vinyl post cannot carry a 4 ft panel on one
+  // face and a 6 ft panel on the other. A is 6 posts, B is 4, and the fence
+  // builds 10 where a same-height join builds 9.
+  //
+  // This case has now read three ways. Until 22 Oct the SHORTER run owned the
+  // post; until 26 Oct the taller did; now nobody does, because there is no
+  // one post to own. The first two were arguments about who wins a post that
+  // was assumed to be shared, and the assumption was the part that was wrong.
+  expectEq("4b", "a height change is not a shared post: NEITHER side gives its end up, so A (4 ft) keeps 6 and B (6 ft) keeps 4", [tall.byId.A.total, tall.byId.B.total], [6, 4],
+    "RIGHT: no post is removed at a height change; each side keeps its own at its own height.");
+  expectEq("4c", "...so a height change builds ONE MORE post than a same-height join of the same two runs", [eq.fence.total, tall.fence.total], [9, 10]);
+  // The post each side keeps is a CORNER (or line, by the same angle rule),
+  // not an end: that is what puts "a corner 4ft post" on the 4 ft side, which
+  // is what he was looking for and could not find.
+  expectEq("4b-kind", "a height change still records the joint, and records that nothing was shared there", [tall.adj.posts[0].sharedPost, tall.adj.posts[0].ownerRunId], [false, ""]);
   const idTie = compose(null, [R("Z", A_PTS, { sort: 0, end: "J1" }), R("M", B_STRAIGHT, { sort: 0, start: "J1" })]);
   expectEq("4d", "equal height AND equal sort order: the lower id (M) owns it, so the answer never depends on list order", idTie.adj.posts[0].ownerRunId, "M");
   const typed = compose("4e-typed", [R("A", "", { sort: 0, manual: 30, end: "J1" }), R("B", "", { sort: 1, manual: 17, start: "J1" })]);
@@ -1240,18 +1277,31 @@ const perRunJson = (adj) => JSON.stringify(Object.keys(adj.perRun).sort().map((k
     // for a hole that needs a 6 ft one.
     const hs = specs.map((s) => ({ ...s, height: [4, 5, 6][Math.floor(rand() * 3)] }));
     const rh = compose(null, hs);
+    // SINCE 26 Oct 2026 a joint whose members differ in height shares NO post
+    // (the owner's "Do the two posts"), so most of these random chains now
+    // have joints with no owner at all. The property splits in two: a joint
+    // that shares a post must still give it to the tallest, then the lowest
+    // sort order; a joint that shares none must say so and name no owner.
     const ownersRight = rh.adj.posts.every((jp) => {
       const members = hs.filter((s) => jp.memberRunIds.includes(s.id));
+      const heights = new Set(members.map((m) => m.height));
+      if (heights.size > 1) return jp.sharedPost === false && jp.ownerRunId === "";
       const high = Math.max(...members.map((m) => m.height));
       const owner = members.find((m) => m.id === jp.ownerRunId);
-      return owner.height === high && members.filter((m) => m.height === high).every((m) => m.sort >= owner.sort);
+      return jp.sharedPost === true && owner !== undefined && owner.height === high &&
+        members.filter((m) => m.height === high).every((m) => m.sort >= owner.sort);
     });
-    if (ownersRight && rh.fence.total === r.fence.total) ownerOk++; else bad.owner.push(`chain ${n}: owner is not the shortest / lowest-sorted`);
+    // The fence total is only expected to match the one-polyline answer where
+    // every height is equal: a transition deliberately builds one more post
+    // per joint than a polyline does, which is the whole point of the change.
+    const allSameHeight = new Set(hs.map((s) => s.height)).size === 1;
+    const totalRight = allSameHeight ? rh.fence.total === r.fence.total : rh.fence.total >= r.fence.total;
+    if (ownersRight && totalRight) ownerOk++; else bad.owner.push(`chain ${n}: owner/ shared-post rule broken`);
   }
   expectEq("6a", "40 random rectilinear chains (2-6 legs, mixed turns incl. straight): joined == the real engine's ONE polyline, line/corner/end/total, and saves legs-1 posts", chainsOk, 40, bad.chain.slice(0, 3).join(" ; "));
   expectEq("6b", "...the list order of the runs never changes the answer", orderOk, 40, bad.order.slice(0, 3).join(" ; "));
   expectEq("6c", "...the drawing direction of each run (points reversed, ends swapped) never changes the answer", reverseOk, 40, bad.reverse.slice(0, 3).join(" ; "));
-  expectEq("6d", "...the shared post always goes to the TALLEST member, then the lowest sort order, and the fence total never depends on who owns it", ownerOk, 40, bad.owner.slice(0, 3).join(" ; "));
+  expectEq("6d", "...a joint of EQUAL heights gives its shared post to the lowest sort order and the total never depends on who owns it, while a joint of MIXED heights shares no post at all and names no owner", ownerOk, 40, bad.owner.slice(0, 3).join(" ; "));
 
   // WHERE THE POLYLINE COMPARISON STOPS HOLDING, pinned so nobody "fixes" the join to match it. A polyline rounds its bays up ONCE over
   // the whole length; joined runs round up PER RUN. Two 7 ft legs: 2 bays each (a 7 ft bay will not take a 6 ft panel), so 3 + 3 posts
@@ -1297,13 +1347,17 @@ const perRunJson = (adj) => JSON.stringify(Object.keys(adj.perRun).sort().map((k
     const r = compose(null, specs);
     total++;
     const nonNegative = r.after.every((p) => p.line >= 0 && p.corner >= 0 && p.end >= 0 && p.total >= 0 && p.end <= 2);
-    const saved = r.adj.posts.reduce((t, jp) => t + jp.memberRunIds.length - 1, 0);
+    // A joint that SHARES a post saves degree-1; a joint at a height change
+    // shares none and saves nothing (owner, 26 Oct 2026: "Do the two posts").
+    // The invariant is still exact -- the saving is just counted per joint
+    // from what that joint actually did, rather than assumed.
+    const saved = r.adj.posts.reduce((t, jp) => t + (jp.sharedPost === false ? 0 : jp.memberRunIds.length - 1), 0);
     const conserved = r.adj.postsSaved === saved && sumPosts(r.after).total === sumPosts(r.base).total - saved;
     const gatesUntouched = r.after.every((p, i) => p.gate === r.base[i].gate);
     const teardownUntouched = specs.every((s, i) => !s.teardown || r.adj.forRun(s.id).end === 0);
     if (nonNegative && conserved && gatesUntouched && teardownUntouched) invariantOk++;
   }
-  expectEq("6f", "60 random jobs with random joints on random runs (typed, closed, empty, teardown, gated, mixed heights): no negative counts, ends never exceed 2, the total falls by exactly sum(degree-1), gate posts and teardown runs untouched",
+  expectEq("6f", "60 random jobs with random joints on random runs (typed, closed, empty, teardown, gated, mixed heights): no negative counts, ends never exceed 2, the total falls by exactly sum(degree-1) over the joints that SHARE a post and by nothing at a height change, gate posts and teardown runs untouched",
     invariantOk, total);
 }
 
