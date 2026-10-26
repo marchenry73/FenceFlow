@@ -2366,4 +2366,20 @@
     <string name="draw_marker_width_ft">Width ft</string>
     <string name="draw_marker_depth_ft">Depth ft</string>
     <string name="draw_marker_turn_deg">Turn °</string>
+    <string name="action_ok">OK</string>
+    <string name="run_split_title">Two heights on one side</string>
+    <string name="run_split_hint">If part of this side is a different height, cut it where the height changes. Both pieces keep the spec of this side, and you set each height on its own.</string>
+    <string name="run_split_unmeasurable">This side has no measured length yet. Draw it, or type its footage, and then it can be cut.</string>
+    <string name="run_split_total">This side measures %1$s ft.</string>
+    <string name="run_split_btn">Split this side</string>
+    <string name="run_split_dialog_title">Where does the height change?</string>
+    <string name="run_split_feet_label">Feet from the start of this side</string>
+    <string name="run_split_corner">Corner at %1$s ft</string>
+    <string name="run_split_preview">Two sides: %1$s ft and %2$s ft.</string>
+    <string name="run_split_cut">Cut here</string>
+    <string name="run_split_typed_note">The footage on this side was typed in, so the new side starts with no corners. Add them there if it has any.</string>
+    <string name="run_split_done">Split into %1$s ft and %2$s ft. The new side is called %3$s — set its height there.</string>
+    <string name="run_split_gate">The cut fell inside a gate, so that gate stays with %1$s.</string>
+    <string name="run_split_off_end">That is off the end of this side. Pick a distance inside %1$s ft.</string>
+    <string name="run_split_not_measurable">This drawing has no scale yet. Calibrate the survey photo, or type the footage for this side, and then it can be cut.</string>
 </resources>

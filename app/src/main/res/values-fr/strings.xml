@@ -2289,4 +2289,20 @@
     <string name="draw_marker_width_ft">Largeur pi</string>
     <string name="draw_marker_depth_ft">Profondeur pi</string>
     <string name="draw_marker_turn_deg">Rotation °</string>
+    <string name="action_ok">OK</string>
+    <string name="run_split_title">Deux hauteurs sur un côté</string>
+    <string name="run_split_hint">Si une partie de ce côté a une autre hauteur, coupez-le là où la hauteur change. Les deux parties gardent les specs de ce côté, et vous réglez chaque hauteur séparément.</string>
+    <string name="run_split_unmeasurable">Ce côté n\'a pas encore de longueur mesurée. Dessinez-le, ou saisissez ses pieds, et il pourra alors être coupé.</string>
+    <string name="run_split_total">Ce côté mesure %1$s pieds.</string>
+    <string name="run_split_btn">Diviser ce côté</string>
+    <string name="run_split_dialog_title">Où la hauteur change-t-elle ?</string>
+    <string name="run_split_feet_label">Pieds depuis le début de ce côté</string>
+    <string name="run_split_corner">Coin à %1$s pieds</string>
+    <string name="run_split_preview">Deux côtés : %1$s pieds et %2$s pieds.</string>
+    <string name="run_split_cut">Couper ici</string>
+    <string name="run_split_typed_note">Les pieds de ce côté ont été saisis à la main, donc le nouveau côté commence sans coins. Ajoutez-les là s\'il en a.</string>
+    <string name="run_split_done">Divisé en %1$s pieds et %2$s pieds. Le nouveau côté s\'appelle %3$s : réglez sa hauteur là.</string>
+    <string name="run_split_gate">La coupe est tombée dans un portail, donc ce portail reste avec %1$s.</string>
+    <string name="run_split_off_end">Cela dépasse ce côté. Choisissez une distance à l\'intérieur de %1$s pieds.</string>
+    <string name="run_split_not_measurable">Ce dessin n\'a pas encore d\'échelle. Calibrez la photo du terrain, ou saisissez les pieds de ce côté, et il pourra alors être coupé.</string>
 </resources>

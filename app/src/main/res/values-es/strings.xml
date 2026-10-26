@@ -2289,4 +2289,20 @@
     <string name="draw_marker_width_ft">Ancho pies</string>
     <string name="draw_marker_depth_ft">Fondo pies</string>
     <string name="draw_marker_turn_deg">Giro °</string>
+    <string name="action_ok">OK</string>
+    <string name="run_split_title">Dos alturas en un lado</string>
+    <string name="run_split_hint">Si una parte de este lado tiene otra altura, córtalo donde cambia la altura. Las dos partes conservan la especificación de este lado, y tú ajustas cada altura por separado.</string>
+    <string name="run_split_unmeasurable">Este lado todavía no tiene una longitud medida. Dibújalo, o escribe sus pies, y entonces se podrá cortar.</string>
+    <string name="run_split_total">Este lado mide %1$s pies.</string>
+    <string name="run_split_btn">Dividir este lado</string>
+    <string name="run_split_dialog_title">¿Dónde cambia la altura?</string>
+    <string name="run_split_feet_label">Pies desde el inicio de este lado</string>
+    <string name="run_split_corner">Esquina a %1$s pies</string>
+    <string name="run_split_preview">Dos lados: %1$s pies y %2$s pies.</string>
+    <string name="run_split_cut">Cortar aquí</string>
+    <string name="run_split_typed_note">Los pies de este lado se escribieron a mano, así que el lado nuevo empieza sin esquinas. Agrégalas allí si las tiene.</string>
+    <string name="run_split_done">Dividido en %1$s pies y %2$s pies. El lado nuevo se llama %3$s: ajusta su altura allí.</string>
+    <string name="run_split_gate">El corte cayó dentro de una puerta, así que esa puerta se queda con %1$s.</string>
+    <string name="run_split_off_end">Eso queda fuera de este lado. Elige una distancia dentro de %1$s pies.</string>
+    <string name="run_split_not_measurable">Este dibujo todavía no tiene escala. Calibra la foto del terreno, o escribe los pies de este lado, y entonces se podrá cortar.</string>
 </resources>

@@ -6,6 +6,8 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
@@ -20,6 +22,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -33,6 +36,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.fenceestimator.app.R
@@ -40,6 +44,7 @@ import com.fenceestimator.app.data.AluminumStyle
 import com.fenceestimator.app.data.FenceRun
 import com.fenceestimator.app.data.FenceType
 import com.fenceestimator.app.data.WoodStyle
+import com.fenceestimator.app.geometry.RunSplit
 import com.fenceestimator.app.ui.components.DraftNumberField
 import com.fenceestimator.app.ui.components.DraftTextField
 import com.fenceestimator.app.ui.components.GenericViewModelFactory
@@ -85,6 +90,7 @@ fun RunEditScreen(
     // hold this write -- loses it.
     val editable = !session.isGuestDemo
     var pendingDelete by remember { mutableStateOf(false) }
+    var pendingSplit by remember { mutableStateOf(false) }
     val viewModel: RunEditViewModel = viewModel(
         key = "run_edit_$runId",
         factory = GenericViewModelFactory { RunEditViewModel(app.repository, runId, app.session) }
@@ -223,6 +229,92 @@ fun RunEditScreen(
                     FenceType.UNIVERSAL -> {}
                 }
             }
+            // DIFFERENT HEIGHTS ON ONE SIDE, asked next to the height field
+            // rather than next to Delete, because that is the field it is
+            // about. A height belongs to a run, so the answer is two runs.
+            item {
+                val splitContext by viewModel.splitContext.collectAsState()
+                val splitOutcome by viewModel.splitOutcome.collectAsState()
+                SectionCard(stringResource(R.string.run_split_title)) {
+                    Text(
+                        stringResource(R.string.run_split_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    val ctx = splitContext
+                    if (ctx == null) {
+                        // SAYS WHY, rather than offering a button that refuses.
+                        // There are two ways to get here -- nothing drawn, or a
+                        // survey photo nobody has calibrated -- and both are
+                        // fixed by the same two things, so one sentence covers
+                        // it honestly.
+                        Text(
+                            stringResource(R.string.run_split_unmeasurable),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    } else {
+                        Text(
+                            stringResource(R.string.run_split_total, feetText(ctx.totalFeet)),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                        OutlinedButton(
+                            onClick = { pendingSplit = true },
+                            enabled = editable,
+                            modifier = Modifier.fillMaxWidth()
+                        ) { Text(stringResource(R.string.run_split_btn)) }
+                    }
+                    // The answer is shown HERE and waits to be dismissed, not
+                    // flashed and gone: it names the new side, and that name is
+                    // the thing he has to go and set a height on.
+                    when (val outcome = splitOutcome) {
+                        is RunEditViewModel.SplitOutcome.Done -> {
+                            Text(
+                                stringResource(
+                                    R.string.run_split_done,
+                                    feetText(outcome.firstFeet),
+                                    feetText(outcome.secondFeet),
+                                    outcome.newLabel
+                                ),
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            if (outcome.gateStayedWith != null) {
+                                Text(
+                                    stringResource(R.string.run_split_gate, outcome.gateStayedWith),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            OutlinedButton(onClick = { viewModel.clearSplitOutcome() }) {
+                                Text(stringResource(R.string.action_ok))
+                            }
+                        }
+                        RunEditViewModel.SplitOutcome.OffTheEnd -> {
+                            Text(
+                                stringResource(
+                                    R.string.run_split_off_end,
+                                    feetText(splitContext?.totalFeet ?: 0f)
+                                ),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                            OutlinedButton(onClick = { viewModel.clearSplitOutcome() }) {
+                                Text(stringResource(R.string.action_ok))
+                            }
+                        }
+                        RunEditViewModel.SplitOutcome.NotMeasurable -> {
+                            Text(
+                                stringResource(R.string.run_split_not_measurable),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.error
+                            )
+                            OutlinedButton(onClick = { viewModel.clearSplitOutcome() }) {
+                                Text(stringResource(R.string.action_ok))
+                            }
+                        }
+                        null -> {}
+                    }
+                }
+            }
             item {
                 SectionCard(stringResource(R.string.est2_section_posts_concrete)) {
                     val locked = currentRun.fenceType == FenceType.VINYL || currentRun.fenceType == FenceType.ALUMINUM || currentRun.fenceType == FenceType.ORNAMENTAL_IRON
@@ -300,6 +392,18 @@ fun RunEditScreen(
             }
         }
     }
+    // Same rule as the delete dialog below: the permission is re-read on the
+    // dialog rather than trusted to the button that raised it.
+    val splitCtx by viewModel.splitContext.collectAsState()
+    if (pendingSplit && editable && splitCtx != null) {
+        SplitSideDialog(
+            totalFeet = splitCtx!!.totalFeet,
+            cornerFeet = splitCtx!!.cornerFeet,
+            typed = splitCtx!!.typed,
+            onDismiss = { pendingSplit = false },
+            onCut = { feet -> pendingSplit = false; viewModel.splitAt(feet) },
+        )
+    }
     // The gate is repeated on the dialog rather than trusted to the button that
     // sets the flag. A permission read once at the top of a screen and acted on
     // further down is a permission that survives the screen being recomposed
@@ -330,6 +434,126 @@ fun RunEditScreen(
             }
         )
     }
+}
+
+/**
+ * Feet for reading, not for storing: a whole number stays whole, and anything
+ * else keeps one decimal. 39.999999 ft reading as "40" is the point -- a
+ * measured length off a drawing is never exact, and showing it to six places
+ * makes a correct figure look broken.
+ */
+private fun feetText(feet: Float): String =
+    if (!feet.isFinite()) "0"
+    else if (kotlin.math.abs(feet - Math.round(feet)) < 0.05f) Math.round(feet).toString()
+    else String.format(java.util.Locale.US, "%.1f", feet)
+
+/**
+ * WHERE DOES THE HEIGHT CHANGE?
+ *
+ * One number, measured from the start of the side, plus the corners offered as
+ * chips because a cut at a corner adds no point at all and saves him measuring.
+ * A straight side has no corners, which is the case the box exists for.
+ *
+ * The number is read ONCE, on Cut, through readPositiveMeasure -- the same
+ * guard every other measurement in this app passes, so "0", "", "5ft" and
+ * "Infinity" get the sentences they already get elsewhere. A field that pushed
+ * on every keystroke (DraftNumberField) would try to cut at 4 ft on the way to
+ * typing 40.
+ */
+@Composable
+private fun SplitSideDialog(
+    totalFeet: Float,
+    cornerFeet: List<Float>,
+    typed: Boolean,
+    onDismiss: () -> Unit,
+    onCut: (Float) -> Unit,
+) {
+    var text by remember { mutableStateOf("") }
+    var refusal by remember { mutableStateOf<String?>(null) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+
+    // Live, so he can see both pieces before committing. Only for a number
+    // that is actually in range: a preview of an impossible cut would be
+    // telling him it is fine right up until the button says it is not.
+    val asked = text.replace(',', '.').toFloatOrNull()
+    val previewable = asked != null && asked.isFinite() &&
+        asked >= RunSplit.MIN_PIECE_FT && asked <= totalFeet - RunSplit.MIN_PIECE_FT
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.run_split_dialog_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(Space.row)) {
+                Text(stringResource(R.string.run_split_total, feetText(totalFeet)))
+                OutlinedTextField(
+                    value = text,
+                    onValueChange = { raw -> text = raw.replace(',', '.'); refusal = null },
+                    label = { Text(stringResource(R.string.run_split_feet_label)) },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    singleLine = true,
+                    isError = refusal != null,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                if (cornerFeet.isNotEmpty()) {
+                    FlowRowCompat {
+                        for (at in cornerFeet) {
+                            OutlinedButton(onClick = { text = feetText(at); refusal = null }) {
+                                Text(stringResource(R.string.run_split_corner, feetText(at)))
+                            }
+                        }
+                    }
+                }
+                if (previewable) {
+                    Text(
+                        stringResource(
+                            R.string.run_split_preview,
+                            feetText(asked!!),
+                            feetText(totalFeet - asked)
+                        ),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                }
+                if (typed) {
+                    Text(
+                        stringResource(R.string.run_split_typed_note),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                refusal?.let {
+                    Text(it, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.error)
+                }
+            }
+        },
+        confirmButton = {
+            Button(onClick = {
+                val entry = SurveyViewModel.readPositiveMeasure(text)
+                val feet = entry.value
+                if (feet == null) {
+                    // The same four sentences the gate-width dialog gives, by
+                    // the same route: "0", "", "5ft" and "Infinity" are four
+                    // different mistakes with four different fixes.
+                    refusal = entry.refusal?.let { context.getString(numberRefusalMessage(it)) }
+                    return@Button
+                }
+                if (feet < RunSplit.MIN_PIECE_FT || feet > totalFeet - RunSplit.MIN_PIECE_FT) {
+                    refusal = context.getString(R.string.run_split_off_end, feetText(totalFeet))
+                    return@Button
+                }
+                onCut(feet)
+            }) { Text(stringResource(R.string.run_split_cut)) }
+        },
+        dismissButton = {
+            OutlinedButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
+        }
+    )
+}
+
+/** FlowRow, wrapped once so the opt-in annotation is not repeated at the call. */
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun FlowRowCompat(content: @Composable () -> Unit) {
+    FlowRow(horizontalArrangement = Arrangement.spacedBy(Space.row)) { content() }
 }
 
 @Composable
