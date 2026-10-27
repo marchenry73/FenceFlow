@@ -2386,4 +2386,20 @@
     <string name="est_note_gate_alone">A gate on its own: no fence, so no panels. The gate, its two posts and its hardware are below.</string>
     <string name="est_note_no_length">No length on this side yet. Draw it, or type the footage, and the materials follow.</string>
     <string name="est_note_gates_fill_side">The gates are as wide as this side, so there is no fence left to panel.</string>
+    <string name="jd_cancel_title">Cancel this job</string>
+    <string name="jd_cancel_work_out">Work out what is kept</string>
+    <string name="jd_cancel_reason">Reason (optional)</string>
+    <string name="jd_cancel_confirm">Cancel this job</string>
+    <string name="jd_cancel_mat_ordered">Material, ordered</string>
+    <string name="jd_cancel_mat_not_ordered">Material, not ordered</string>
+    <string name="jd_cancel_fee">Work not done, %1$s ft at $1</string>
+    <string name="jd_cancel_kept">Kept in total</string>
+    <string name="jd_cancel_paid">Paid so far</string>
+    <string name="jd_cancel_refund">To refund</string>
+    <string name="jd_cancel_no_money">You cannot see this job\'s money, so the figures cannot be worked out.</string>
+    <string name="jd_cancel_failed">Could not reach the office to work the figures out. Try again when you have signal.</string>
+    <string name="jd_cancel_banner_title">This job is cancelled</string>
+    <string name="jd_cancel_banner_body">Cancelled on %1$s. It stays here with its history; nothing has been deleted.</string>
+    <string name="jd_cancel_ask_body">The figures above are what is kept and what goes back. The job stays in the list with its history.</string>
+    <string name="jd_cancel_done">Job cancelled.</string>
 </resources>

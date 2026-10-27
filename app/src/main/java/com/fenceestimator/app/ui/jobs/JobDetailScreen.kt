@@ -286,6 +286,15 @@ fun JobDetailScreen(
     // at all; that no longer applies now that the merged section is always
     // present for the field-changes half anyway, but the fetch still has to
     // be hoisted for the reason above.
+    // Cancellation, keyed on the job so opening another one starts clean
+    // rather than showing the previous job's figures.
+    var cancelTerms by remember(currentJob.syncId) {
+        mutableStateOf<com.fenceestimator.app.cloud.CancellationApi.TermsResult?>(null)
+    }
+    var cancelBusy by remember(currentJob.syncId) { mutableStateOf(false) }
+    var cancelReason by remember(currentJob.syncId) { mutableStateOf("") }
+    var cancelAsk by remember(currentJob.syncId) { mutableStateOf(false) }
+
     var drawingHistory by remember(currentJob.syncId) {
         mutableStateOf<DrawingHistory>(DrawingHistory.Loading)
     }
@@ -317,6 +326,50 @@ fun JobDetailScreen(
             contentPadding = PaddingValues(Space.screen),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
+            // CANCELLED COMES FIRST, above the reapproval banner: a job nobody
+            // is paying for is the fact that decides what you do next, and it
+            // used to be invisible on the handset entirely.
+            currentJob.cancelledAt?.let { cancelledAt ->
+                item(key = "cancelled-banner") {
+                    val dateFmt = androidx.compose.runtime.remember {
+                        java.text.SimpleDateFormat("MMM d, yyyy", java.util.Locale.US)
+                    }
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer
+                        )
+                    ) {
+                        Column(modifier = Modifier.padding(Space.md)) {
+                            Text(
+                                stringResource(R.string.jd_cancel_banner_title),
+                                style = MaterialTheme.typography.titleMedium,
+                                color = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                            Spacer(Modifier.height(Space.sm))
+                            Text(
+                                stringResource(
+                                    R.string.jd_cancel_banner_body,
+                                    dateFmt.format(java.util.Date(cancelledAt))
+                                ),
+                                color = MaterialTheme.colorScheme.onErrorContainer
+                            )
+                            // The reason, when somebody gave one. Shown to
+                            // everyone who can see the job: a crew member
+                            // arriving needs to know why as much as the owner.
+                            if (currentJob.cancellationReason.isNotBlank()) {
+                                Spacer(Modifier.height(Space.sm))
+                                Text(
+                                    currentJob.cancellationReason,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onErrorContainer
+                                )
+                            }
+                        }
+                    }
+                }
+            }
+
             if (com.fenceestimator.app.reapproval.needsReapproval(currentJob.reapprovalRequiredAt)) {
                 item(key = "reapproval-banner") {
                     val dateFmt = androidx.compose.runtime.remember {
@@ -1306,6 +1359,95 @@ fun JobDetailScreen(
             }
             item { SectionCard(title = stringResource(R.string.section_review), icon = Icons.Filled.StarRate) { ReviewRequestFields(currentJob, profile, viewModel) } }
             item { StatusSelector(currentJob, fullControl = session.canEditJobs, editable = !session.isGuestDemo, viewModel = viewModel) }
+
+            /* CANCELLING, with the arithmetic read first. Behind canSeeMoney
+               because the figures ARE money -- and the database says the same
+               thing independently, since job_cancellation_terms is scoped by
+               money_scope_company_id() and hands a crew account no row at
+               all. Stated twice, neither relying on the other.
+
+               Hidden once the job is cancelled: the banner at the top is then
+               the whole story, and a second Cancel button under it would
+               invite a second cancellation that keeps a second fee. */
+            if (session.canSeeMoney && currentJob.cancelledAt == null && !session.isGuestDemo) {
+                item(key = "cancel-job") {
+                    SectionCard(
+                        title = stringResource(R.string.jd_cancel_title),
+                        icon = Icons.Filled.Delete,
+                    ) {
+                        when (val answer = cancelTerms) {
+                            null -> OutlinedButton(
+                                onClick = {
+                                    scope.launch {
+                                        cancelBusy = true
+                                        cancelTerms = com.fenceestimator.app.cloud.CancellationApi
+                                            .terms(currentJob.syncId)
+                                        cancelBusy = false
+                                    }
+                                },
+                                enabled = !cancelBusy,
+                                modifier = Modifier.fillMaxWidth(),
+                            ) { Text(stringResource(R.string.jd_cancel_work_out)) }
+
+                            is com.fenceestimator.app.cloud.CancellationApi.TermsResult.Ok -> {
+                                val t = answer.terms
+                                val fmt = androidx.compose.runtime.remember {
+                                    java.text.NumberFormat.getCurrencyInstance(java.util.Locale.US)
+                                }
+                                CancelRow(
+                                    stringResource(
+                                        if (t.materialsOrdered) R.string.jd_cancel_mat_ordered
+                                        else R.string.jd_cancel_mat_not_ordered
+                                    ),
+                                    fmt.format(if (t.materialsOrdered) t.materialQuoted else 0.0),
+                                )
+                                CancelRow(
+                                    stringResource(R.string.jd_cancel_fee, Math.round(t.feet).toString()),
+                                    fmt.format(t.inconvenience),
+                                )
+                                CancelRow(stringResource(R.string.jd_cancel_kept), fmt.format(t.retained), strong = true)
+                                CancelRow(stringResource(R.string.jd_cancel_paid), fmt.format(t.paid))
+                                CancelRow(stringResource(R.string.jd_cancel_refund), fmt.format(t.refundDue), strong = true)
+                                Spacer(Modifier.height(Space.sm))
+                                OutlinedTextField(
+                                    value = cancelReason,
+                                    onValueChange = { cancelReason = it.take(300) },
+                                    label = { Text(stringResource(R.string.jd_cancel_reason)) },
+                                    singleLine = true,
+                                    modifier = Modifier.fillMaxWidth(),
+                                )
+                                Spacer(Modifier.height(Space.sm))
+                                Button(
+                                    onClick = { cancelAsk = true },
+                                    enabled = !cancelBusy,
+                                    modifier = Modifier.fillMaxWidth(),
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = MaterialTheme.colorScheme.error,
+                                        contentColor = MaterialTheme.colorScheme.onError
+                                    )
+                                ) { Text(stringResource(R.string.jd_cancel_confirm)) }
+                            }
+
+                            /* NO ROW IS NOT ZERO. The SEE_MONEY gate answers
+                               with nothing, and rendering that as "$0.00 kept"
+                               would be a lie that costs him. */
+                            com.fenceestimator.app.cloud.CancellationApi.TermsResult.NotVisible ->
+                                Text(
+                                    stringResource(R.string.jd_cancel_no_money),
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+
+                            is com.fenceestimator.app.cloud.CancellationApi.TermsResult.Failed ->
+                                Text(
+                                    stringResource(R.string.jd_cancel_failed),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.error
+                                )
+                        }
+                    }
+                }
+            }
+
             // Owner only, and behind a typed confirmation. Deleting a job takes
             // its signed change orders, its payment record and its photos with
             // it -- exactly the evidence you would need in a dispute.
@@ -1332,6 +1474,51 @@ fun JobDetailScreen(
                 }
             }
         }
+    }
+
+    if (cancelAsk) {
+        val cancelCompanyId = session.companyId
+        AlertDialog(
+            onDismissRequest = { cancelAsk = false },
+            title = { Text(stringResource(R.string.jd_cancel_title)) },
+            text = { Text(stringResource(R.string.jd_cancel_ask_body)) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        cancelAsk = false
+                        scope.launch {
+                            cancelBusy = true
+                            val done = com.fenceestimator.app.cloud.CancellationApi.cancel(
+                                companyId = cancelCompanyId ?: "",
+                                jobSyncId = currentJob.syncId,
+                                reason = cancelReason,
+                            )
+                            cancelBusy = false
+                            /* The write went to the SERVER, because the phone
+                               never pushes these columns. A sync is what
+                               brings it home, so the banner appears from the
+                               pull rather than from a local guess that would
+                               be wrong if the write had been refused. */
+                            if (done is com.fenceestimator.app.cloud.CancellationApi.CancelResult.Ok) {
+                                app.autoSync.requestSync()
+                            } else {
+                                cancelTerms = com.fenceestimator.app.cloud.CancellationApi
+                                    .TermsResult.Failed(null)
+                            }
+                        }
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.error,
+                        contentColor = MaterialTheme.colorScheme.onError
+                    )
+                ) { Text(stringResource(R.string.jd_cancel_confirm)) }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { cancelAsk = false }) {
+                    Text(stringResource(R.string.action_cancel))
+                }
+            }
+        )
     }
 
     if (showAddRunDialog) {
@@ -1780,6 +1967,26 @@ private fun JobMailSection(jobSyncId: String) {
         }
     }
 }
+/** One label-and-figure line in the cancellation card. */
+@Composable
+private fun CancelRow(label: String, value: String, strong: Boolean = false) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Text(
+            label,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = if (strong) FontWeight.Bold else FontWeight.Normal
+        )
+        Text(
+            value,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = if (strong) FontWeight.Bold else FontWeight.Normal
+        )
+    }
+}
+
 @Composable
 private fun SectionCard(
     title: String,

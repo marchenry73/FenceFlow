@@ -419,6 +419,29 @@ data class Job(
     /** The acceptance signature in cloud storage. Local files do not survive a new phone. */
     val signatureStoragePath: String? = null,
     val signedAt: Long? = null,
+    /**
+     * When this job was cancelled, who did it, and why. Null means live.
+     *
+     * A DATE AND NOT A STATUS, which is supabase_r45_job_cancellation.sql's
+     * decision and this is the code that would have broken it: [JobStatus] has
+     * no CANCELLED, and adding one would be read by any older build as DRAFT
+     * (JobSync's getOrDefault) and then pushed back, undoing the cancellation.
+     * Three columns instead; an older build's cloudJson has ignoreUnknownKeys
+     * and simply does not know yet.
+     *
+     * READ-ONLY ON THE PHONE. `toCloud` leaves all three out, the same way it
+     * leaves out production_stage and for the same reason: the office and
+     * job_cancellation_terms' own door are the writers, so a handset that has
+     * only ever read these cannot send a stale copy back over a cancellation
+     * made somewhere else.
+     *
+     * What it is KEPT for is in r45: $1 a foot on every cancellation, plus the
+     * material when it was ordered. Nothing in the app computes that -- the
+     * figures come from the database so the two halves cannot drift.
+     */
+    val cancelledAt: Long? = null,
+    val cancelledBy: String = "",
+    val cancellationReason: String = "",
     /** When the customer approved the quote page, and who typed their name. */
     val quoteApprovedAt: Long? = null,
     val quoteApprovedName: String = "",

@@ -126,6 +126,14 @@ data class CloudJob(
     @SerialName("signature_storage_path") val signatureStoragePath: String? = null,
     @SerialName("final_sign_off_storage_path") val finalSignOffStoragePath: String? = null,
     @SerialName("signed_at") val signedAt: String? = null,
+    /**
+     * Cancellation, read and never written by the phone. See [Job.cancelledAt]
+     * for why these are columns rather than a status, and why toCloud omits
+     * them.
+     */
+    @SerialName("cancelled_at") val cancelledAt: String? = null,
+    @SerialName("cancelled_by") val cancelledBy: String? = null,
+    @SerialName("cancellation_reason") val cancellationReason: String? = null,
     @SerialName("quote_approved_at") val quoteApprovedAt: String? = null,
     @SerialName("quote_approved_name") val quoteApprovedName: String = "",
     // Pull-only (docs/REAPPROVAL_RULE.md): the server sets these when a
@@ -1864,6 +1872,13 @@ internal fun CloudJob.mergeOnto(local: Job, keepMoney: Boolean = false): Job = l
     refundedAmount = if (keepMoney) local.refundedAmount else JobSync.ledgerBackedAmountPaid(refundedAmount),
     refundedAt = if (keepMoney) local.refundedAt else (CloudTime.parseMillis(refundedAt) ?: local.refundedAt),
     signedAt = CloudTime.parseMillis(signedAt) ?: local.signedAt,
+    // A cancellation only ever arrives from the cloud, and it never un-happens:
+    // once a date is here it stays, so a pull that answers null (an older
+    // server, a narrowed select) cannot quietly bring a cancelled job back to
+    // life on this phone.
+    cancelledAt = CloudTime.parseMillis(cancelledAt) ?: local.cancelledAt,
+    cancelledBy = (cancelledBy ?: "").ifBlank { local.cancelledBy },
+    cancellationReason = (cancellationReason ?: "").ifBlank { local.cancellationReason },
     quoteApprovedAt = CloudTime.parseMillis(quoteApprovedAt) ?: local.quoteApprovedAt,
     quoteApprovedName = quoteApprovedName.ifBlank { local.quoteApprovedName },
     reapprovalRequiredAt = CloudTime.parseMillis(reapprovalRequiredAt),
@@ -2016,6 +2031,9 @@ internal fun CloudJob.toLocalJob(): Job = Job(
     refundedAmount = refundedAmount,
     refundedAt = CloudTime.parseMillis(refundedAt),
     signedAt = CloudTime.parseMillis(signedAt),
+    cancelledAt = CloudTime.parseMillis(cancelledAt),
+    cancelledBy = cancelledBy ?: "",
+    cancellationReason = cancellationReason ?: "",
     quoteApprovedAt = CloudTime.parseMillis(quoteApprovedAt),
     quoteApprovedName = quoteApprovedName,
     reapprovalRequiredAt = CloudTime.parseMillis(reapprovalRequiredAt),

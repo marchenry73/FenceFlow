@@ -2309,4 +2309,20 @@
     <string name="est_note_gate_alone">Un portail seul : pas de clôture, donc pas de panneaux. Le portail, ses deux poteaux et sa quincaillerie sont ci-dessous.</string>
     <string name="est_note_no_length">Ce côté n\'a pas encore de longueur. Dessinez-le, ou saisissez les pieds, et les matériaux suivent.</string>
     <string name="est_note_gates_fill_side">Les portails sont aussi larges que ce côté, il ne reste donc pas de clôture à panneauter.</string>
+    <string name="jd_cancel_title">Annuler ce chantier</string>
+    <string name="jd_cancel_work_out">Calculer ce qui est retenu</string>
+    <string name="jd_cancel_reason">Motif (facultatif)</string>
+    <string name="jd_cancel_confirm">Annuler ce chantier</string>
+    <string name="jd_cancel_mat_ordered">Matériel, commandé</string>
+    <string name="jd_cancel_mat_not_ordered">Matériel, non commandé</string>
+    <string name="jd_cancel_fee">Travail non fait, %1$s pieds à 1 $</string>
+    <string name="jd_cancel_kept">Retenu au total</string>
+    <string name="jd_cancel_paid">Payé à ce jour</string>
+    <string name="jd_cancel_refund">À rembourser</string>
+    <string name="jd_cancel_no_money">Vous ne pouvez pas voir l\'argent de ce chantier, les montants ne peuvent donc pas être calculés.</string>
+    <string name="jd_cancel_failed">Impossible de joindre le bureau pour calculer les montants. Réessayez quand vous aurez du réseau.</string>
+    <string name="jd_cancel_banner_title">Ce chantier est annulé</string>
+    <string name="jd_cancel_banner_body">Annulé le %1$s. Il reste ici avec son historique ; rien n\'a été supprimé.</string>
+    <string name="jd_cancel_ask_body">Les montants ci-dessus sont ce qui est retenu et ce qui est rendu. Le chantier reste dans la liste avec son historique.</string>
+    <string name="jd_cancel_done">Chantier annulé.</string>
 </resources>
