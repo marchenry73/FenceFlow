@@ -3235,6 +3235,24 @@
     <div class="panel"><h2 data-t="jobSecPunch">Punch List</h2><div id="jobPunch"></div></div>
     <div class="panel"><h2 data-t="jobSecOrders">Change Orders</h2><div id="jobOrders"></div></div>
     <div class="panel"><h2 data-t="jobSecTime">Time Logged</h2><div id="jobTime"></div></div>
+
+    <!-- CANCELLING, with the arithmetic in front of him before he commits.
+         A panel and not a dialog: ask() carries text only, and this has five
+         figures and a reason to collect. -->
+    <div class="panel"><h2 data-t="jobSecCancel">Cancel this job</h2>
+      <div id="jobCancelledNote" style="display:none"></div>
+      <div id="jobCancelBox">
+        <button class="btn btn-grey" id="cancelTerms" data-t="cancelWorkOut">Work out what is kept</button>
+        <div id="cancelFigures" style="display:none;margin-top:10px">
+          <table id="cancelLines" style="width:100%;margin-bottom:8px"></table>
+          <label data-t="cancelReasonLabel">Reason (optional)</label>
+          <input id="j_cancel_reason" type="text" maxlength="300">
+          <button class="btn" id="confirmCancel" data-t="cancelConfirmBtn"
+                  style="background:var(--red);margin-top:8px">Cancel this job</button>
+        </div>
+      </div>
+      <div id="cancelMsg"></div>
+    </div>
   </div>
   <div class="sheet-foot">
     <button class="btn btn-grey" id="deleteJob" data-t="jobDeleteBtn">Delete</button>
@@ -4072,41 +4090,10 @@ jobViewAll:'All', jobViewToday:'Today', jobViewWeek:'This week', jobViewUnschedu
     errInvalid:'One of the values is not valid. Check the fields and try again.',
     errTimeout:'That took too long to answer. Try again in a moment.',
     errNotReady:'This part of FenceFlow is not available on your account yet. Contact support if it should be.',
-    reportsFilterDate:'Date range',
-    reportsFilterFrom:'From',
-    reportsFilterTo:'To',
     reportsFilterEmployee:'Employee',
-    reportsFilterCrew:'Crew',
-    reportsFilterSalesperson:'Salesperson',
     reportsFilterFenceType:'Fence type',
     reportsFilterStatus:'Job status',
     reportsFilterAll:'All',
-    reportsSalesHead:'Sales',
-    reportsSalesLeads:'Leads',
-    reportsSalesResponseTime:'Avg. response time',
-    reportsSalesQuotesSent:'Quotes sent',
-    reportsSalesApprovalRate:'Approval rate',
-    reportsSalesValue:'Sales value',
-    reportsSalesBySalesperson:'By salesperson',
-    reportsProductionHead:'Production',
-    reportsProductionCompleted:'Completed',
-    reportsProductionDelayed:'Delayed',
-    reportsProductionCycleTime:'Avg. cycle time (sold → completed)',
-    reportsProductionBacklog:'Backlog',
-    reportsLabourHead:'Labour',
-    reportsLabourHours:'Hours',
-    reportsLabourCost:'Labour cost',
-    reportsLabourCrewProductivity:'Crew productivity ($/hr)',
-    reportsMaterialsHead:'Materials',
-    reportsMaterialsSupplierPricing:'Supplier pricing',
-    reportsFinancialHead:'Financial',
-    reportsFinancialRevenue:'Revenue',
-    reportsFinancialDeposits:'Deposits',
-    reportsFinancialOutstanding:'Outstanding',
-    reportsFinancialExpenses:'Expenses',
-    reportsFinancialMargin:'Job margin',
-    reportsFinancialEstVsActualProfit:'Estimated vs. actual profit',
-    reportsNoData:'No data for this range.',
     reportsMoneyHidden:'Hidden — your role can\'t see money figures.',
     repBizHead:'Business report',
     repBizSub:'Sales, production, labour, materials and financial answers, filtered below',
@@ -4298,6 +4285,8 @@ jobViewAll:'All', jobViewToday:'Today', jobViewWeek:'This week', jobViewUnschedu
     bizHViewedNoSentWhy:'Usually shared from the phone, which does not stamp a sent date. Counted as delivered anyway.',
     bizHSignoffNotDone:'Signed off but not marked Completed',
     bizHSignoffNotDoneWhy:'They count as installed, but still sit in the backlog as sold work.',
+    bizHCompletedNoSignoff:'Marked Completed but never signed off',
+    bizHCompletedNoSignoffWhy:'They count as neither installed nor backlog, so they are missing from every production figure above.',
     bizHWonNoDate:'Won with no signing or approval date',
     bizHWonNoDateWhy:'They cannot be placed in any period, so they are missing from Jobs won.',
     bizHNoSource:'Jobs with no lead source',
@@ -4535,7 +4524,7 @@ jobViewAll:'All', jobViewToday:'Today', jobViewWeek:'This week', jobViewUnschedu
     jobOptDenied:'Denied', jobLabelPermitNumber:'Permit number',
     jobLabelPermitStatus:'Permit status',
     jobSecExpenses:'Expenses', jobSecPunch:'Punch List', jobSecOrders:'Change Orders',
-    jobSecTime:'Time Logged', jobDeleteBtn:'Delete', jobSaveBtn:'Save Changes',
+    jobSecTime:'Time Logged', jobDeleteBtn:'Delete', jobSaveBtn:'Save Changes', jobSecCancel:'Cancel this job', cancelWorkOut:'Work out what is kept', cancelReasonLabel:'Reason (optional)', cancelConfirmBtn:'Cancel this job', cancelMatOrdered:'Material, ordered', cancelMatNotOrdered:'Material, not ordered', cancelFee:'Work not done, %s ft at $1', cancelKept:'Kept in total', cancelPaid:'Paid so far', cancelRefund:'To refund', cancelNoMoney:'You cannot see this job\'s money, so the figures cannot be worked out.', cancelAlready:'Cancelled on %s.', cancelAskTitle:'Cancel the job for %s?', cancelAskBody:'The figures above are what is kept and what goes back. The job stays in the list with its history; it is not deleted.', cancelDone:'Job cancelled.',
     jobProgStep1:'Quote sent', jobProgStep2:'Quote approved', jobProgStep3:'Deposit collected in full',
     jobProgStep4:'HOA and permit cleared', jobProgStep5:'Installation scheduled',
     jobProgStep6:'Installation complete', jobProgStep7:'Final payment', jobProgNext:'Next',
@@ -5961,41 +5950,10 @@ jobViewAll:'Todos', jobViewToday:'Hoy', jobViewWeek:'Esta semana', jobViewUnsche
     errInvalid:'Uno de los valores no es válido. Revise los campos e inténtelo de nuevo.',
     errTimeout:'Tardó demasiado en responder. Inténtelo de nuevo en un momento.',
     errNotReady:'Esta parte de FenceFlow todavía no está disponible en su cuenta. Contacte a soporte si debería estarlo.',
-    reportsFilterDate:'Rango de fechas',
-    reportsFilterFrom:'Desde',
-    reportsFilterTo:'Hasta',
     reportsFilterEmployee:'Empleado',
-    reportsFilterCrew:'Cuadrilla',
-    reportsFilterSalesperson:'Vendedor',
     reportsFilterFenceType:'Tipo de cerca',
     reportsFilterStatus:'Estado del trabajo',
     reportsFilterAll:'Todos',
-    reportsSalesHead:'Ventas',
-    reportsSalesLeads:'Leads',
-    reportsSalesResponseTime:'Tiempo de respuesta prom.',
-    reportsSalesQuotesSent:'Presupuestos enviados',
-    reportsSalesApprovalRate:'Tasa de aprobación',
-    reportsSalesValue:'Valor de ventas',
-    reportsSalesBySalesperson:'Por vendedor',
-    reportsProductionHead:'Producción',
-    reportsProductionCompleted:'Completados',
-    reportsProductionDelayed:'Retrasados',
-    reportsProductionCycleTime:'Tiempo de ciclo prom. (vendido → completado)',
-    reportsProductionBacklog:'Pendientes',
-    reportsLabourHead:'Mano de obra',
-    reportsLabourHours:'Horas',
-    reportsLabourCost:'Costo de mano de obra',
-    reportsLabourCrewProductivity:'Productividad de cuadrilla ($/hr)',
-    reportsMaterialsHead:'Materiales',
-    reportsMaterialsSupplierPricing:'Precios de proveedores',
-    reportsFinancialHead:'Financiero',
-    reportsFinancialRevenue:'Ingresos',
-    reportsFinancialDeposits:'Depósitos',
-    reportsFinancialOutstanding:'Pendiente de cobro',
-    reportsFinancialExpenses:'Gastos',
-    reportsFinancialMargin:'Margen del trabajo',
-    reportsFinancialEstVsActualProfit:'Ganancia estimada vs. real',
-    reportsNoData:'Sin datos para este rango.',
     reportsMoneyHidden:'Oculto — su rol no puede ver cifras de dinero.',
     repBizHead:'Informe de negocio',
     repBizSub:'Ventas, producción, mano de obra, materiales y finanzas, filtrado abajo',
@@ -6187,6 +6145,8 @@ jobViewAll:'Todos', jobViewToday:'Hoy', jobViewWeek:'Esta semana', jobViewUnsche
     bizHViewedNoSentWhy:'Normalmente se compartió desde el teléfono, que no registra fecha de envío. Se cuenta como entregado de todos modos.',
     bizHSignoffNotDone:'Aprobados como terminados pero no marcados Completados',
     bizHSignoffNotDoneWhy:'Cuentan como instalados, pero siguen en el trabajo pendiente como obra vendida.',
+    bizHCompletedNoSignoff:'Marcados Completados pero nunca aprobados como terminados',
+    bizHCompletedNoSignoffWhy:'No cuentan ni como instalados ni como pendientes, así que faltan en todas las cifras de producción de arriba.',
     bizHWonNoDate:'Ganados sin fecha de firma ni de aprobación',
     bizHWonNoDateWhy:'No pueden ubicarse en ningún período, así que faltan en Trabajos ganados.',
     bizHNoSource:'Trabajos sin origen del cliente',
@@ -6424,7 +6384,7 @@ jobViewAll:'Todos', jobViewToday:'Hoy', jobViewWeek:'Esta semana', jobViewUnsche
     jobOptDenied:'Denegado', jobLabelPermitNumber:'Número de permiso',
     jobLabelPermitStatus:'Estado del permiso',
     jobSecExpenses:'Gastos', jobSecPunch:'Lista de pendientes', jobSecOrders:'Órdenes de cambio',
-    jobSecTime:'Horas registradas', jobDeleteBtn:'Eliminar', jobSaveBtn:'Guardar cambios',
+    jobSecTime:'Horas registradas', jobDeleteBtn:'Eliminar', jobSaveBtn:'Guardar cambios', jobSecCancel:'Cancelar este trabajo', cancelWorkOut:'Calcular lo que se retiene', cancelReasonLabel:'Motivo (opcional)', cancelConfirmBtn:'Cancelar este trabajo', cancelMatOrdered:'Material, pedido', cancelMatNotOrdered:'Material, no pedido', cancelFee:'Trabajo no realizado, %s pies a $1', cancelKept:'Retenido en total', cancelPaid:'Pagado hasta ahora', cancelRefund:'A devolver', cancelNoMoney:'No puedes ver el dinero de este trabajo, así que no se pueden calcular las cifras.', cancelAlready:'Cancelado el %s.', cancelAskTitle:'¿Cancelar el trabajo de %s?', cancelAskBody:'Las cifras de arriba son lo que se retiene y lo que se devuelve. El trabajo sigue en la lista con su historial; no se elimina.', cancelDone:'Trabajo cancelado.',
     jobProgStep1:'Presupuesto enviado', jobProgStep2:'Presupuesto aprobado', jobProgStep3:'Depósito cobrado por completo',
     jobProgStep4:'HOA y permiso en orden', jobProgStep5:'Instalación programada',
     jobProgStep6:'Instalación terminada', jobProgStep7:'Pago final', jobProgNext:'Siguiente',
@@ -7820,41 +7780,10 @@ jobViewAll:'Tous', jobViewToday:'Aujourdhui', jobViewWeek:'Cette semaine', jobVi
     errInvalid:'Une des valeurs n’est pas valide. Vérifiez les champs et réessayez.',
     errTimeout:'La réponse a pris trop de temps. Réessayez dans un instant.',
     errNotReady:'Cette partie de FenceFlow n’est pas encore disponible sur votre compte. Contactez le support si elle devrait l’être.',
-    reportsFilterDate:'Plage de dates',
-    reportsFilterFrom:'Du',
-    reportsFilterTo:'Au',
     reportsFilterEmployee:'Employé',
-    reportsFilterCrew:'Équipe',
-    reportsFilterSalesperson:'Vendeur',
     reportsFilterFenceType:'Type de clôture',
     reportsFilterStatus:'Statut du chantier',
     reportsFilterAll:'Tous',
-    reportsSalesHead:'Ventes',
-    reportsSalesLeads:'Pistes',
-    reportsSalesResponseTime:'Temps de réponse moy.',
-    reportsSalesQuotesSent:'Devis envoyés',
-    reportsSalesApprovalRate:'Taux d\'approbation',
-    reportsSalesValue:'Valeur des ventes',
-    reportsSalesBySalesperson:'Par vendeur',
-    reportsProductionHead:'Production',
-    reportsProductionCompleted:'Terminés',
-    reportsProductionDelayed:'Retardés',
-    reportsProductionCycleTime:'Temps de cycle moy. (vendu → terminé)',
-    reportsProductionBacklog:'En attente',
-    reportsLabourHead:'Main-d’œuvre',
-    reportsLabourHours:'Heures',
-    reportsLabourCost:'Coût de main-d’œuvre',
-    reportsLabourCrewProductivity:'Productivité de l\'équipe ($/h)',
-    reportsMaterialsHead:'Matériaux',
-    reportsMaterialsSupplierPricing:'Prix des fournisseurs',
-    reportsFinancialHead:'Financier',
-    reportsFinancialRevenue:'Revenu',
-    reportsFinancialDeposits:'Acomptes',
-    reportsFinancialOutstanding:'Solde dû',
-    reportsFinancialExpenses:'Dépenses',
-    reportsFinancialMargin:'Marge du chantier',
-    reportsFinancialEstVsActualProfit:'Profit estimé vs. réel',
-    reportsNoData:'Aucune donnée pour cette période.',
     reportsMoneyHidden:'Masqué — votre rôle ne peut pas voir les montants.',
     repBizHead:'Rapport d\'entreprise',
     repBizSub:'Ventes, production, main-d’œuvre, matériaux et finances, filtrés ci-dessous',
@@ -8046,6 +7975,8 @@ jobViewAll:'Tous', jobViewToday:'Aujourdhui', jobViewWeek:'Cette semaine', jobVi
     bizHViewedNoSentWhy:'Généralement partagé depuis le téléphone, qui n’enregistre pas de date d’envoi. Compté comme remis malgré tout.',
     bizHSignoffNotDone:'Validés mais pas marqués Terminés',
     bizHSignoffNotDoneWhy:'Ils comptent comme posés, mais restent dans le carnet de commandes comme travail vendu.',
+    bizHCompletedNoSignoff:'Marqués Terminés mais jamais validés',
+    bizHCompletedNoSignoffWhy:'Ils ne comptent ni comme posés ni comme carnet de commandes : ils manquent donc dans tous les chiffres de production ci-dessus.',
     bizHWonNoDate:'Gagnés sans date de signature ni d’approbation',
     bizHWonNoDateWhy:'Ils ne peuvent être placés dans aucune période : ils manquent donc dans Chantiers gagnés.',
     bizHNoSource:'Chantiers sans source du client',
@@ -8283,7 +8214,7 @@ jobViewAll:'Tous', jobViewToday:'Aujourdhui', jobViewWeek:'Cette semaine', jobVi
     jobOptDenied:'Refusé', jobLabelPermitNumber:'Numéro de permis',
     jobLabelPermitStatus:'Statut du permis',
     jobSecExpenses:'Dépenses', jobSecPunch:'Liste des correctifs', jobSecOrders:'Avenants',
-    jobSecTime:'Heures enregistrées', jobDeleteBtn:'Supprimer', jobSaveBtn:'Enregistrer les modifications',
+    jobSecTime:'Heures enregistrées', jobDeleteBtn:'Supprimer', jobSaveBtn:'Enregistrer les modifications', jobSecCancel:'Annuler ce chantier', cancelWorkOut:'Calculer ce qui est retenu', cancelReasonLabel:'Motif (facultatif)', cancelConfirmBtn:'Annuler ce chantier', cancelMatOrdered:'Matériel, commandé', cancelMatNotOrdered:'Matériel, non commandé', cancelFee:'Travail non fait, %s pieds à 1 $', cancelKept:'Retenu au total', cancelPaid:'Payé à ce jour', cancelRefund:'À rembourser', cancelNoMoney:'Vous ne pouvez pas voir l\'argent de ce chantier, les montants ne peuvent donc pas être calculés.', cancelAlready:'Annulé le %s.', cancelAskTitle:'Annuler le chantier de %s ?', cancelAskBody:'Les montants ci-dessus sont ce qui est retenu et ce qui est rendu. Le chantier reste dans la liste avec son historique ; il n\'est pas supprimé.', cancelDone:'Chantier annulé.',
     jobProgStep1:'Devis envoyé', jobProgStep2:'Devis approuvé', jobProgStep3:'Acompte encaissé en entier',
     jobProgStep4:'Association et permis réglés', jobProgStep5:'Installation planifiée',
     jobProgStep6:'Installation terminée', jobProgStep7:'Paiement final', jobProgNext:'Suivant',
@@ -11499,7 +11430,8 @@ async function boot(){
   if(!canEdit()){
     const n='<div class="note">Crew-level access: financials and settings are read-only here.</div>';
     $('jobReadonly').innerHTML=n; $('setNote').innerHTML=n;
-    ['saveJob','deleteJob','saveSettings','newJob','newEmp','saveEmp','deleteEmp',
+    ['cancelTerms','confirmCancel',
+     'saveJob','deleteJob','saveSettings','newJob','newEmp','saveEmp','deleteEmp',
      // The logo controls start disabled in the markup and are only enabled by
      // renderCompanyLogo() for a confirmed OWNER, so this is belt and braces
      // rather than the gate -- but it keeps the read-only sweep honest: every
@@ -12332,6 +12264,11 @@ async function ensureStageEventsForJobs(syncIds){
 // source and fails the build if any accessed property is missing here --
 // keep this list and that test in sync; do not edit one without the other.
 const JOB_COLUMNS = [
+  // r45's cancellation columns. Safe to add: jobs carries a TABLE-level
+  // select grant for authenticated, so a new column is readable the moment it
+  // exists -- unlike companies, whose per-column grants once took the office
+  // down for a day. Checked live before this line was written.
+  'cancelled_at','cancelled_by','cancellation_reason',
   'id','sync_id','company_id','customer_id','local_id','customer_name',
   'address','phone','email','notes','status','referral_source',
   'scheduled_date','estimated_duration_hours','assigned_employee_id',
@@ -18549,26 +18486,63 @@ function approvalRatePct(jobsIn){
   return approved / delivered.length * 100;
 }
 
-/* Completed / delayed / backlog, from jobs.status and jobs.scheduled_date
-   alone -- nothing here is a number FenceFlow doesn't already store.
-   "Delayed" is scheduled in the past and never finished; "backlog" is sold
-   (ACCEPTED) and not yet COMPLETED. */
-function productionStats(jobsIn, nowMs){
-  const completed = jobsIn.filter(j => j.status === 'COMPLETED').length;
-  const delayed = jobsIn.filter(j => j.scheduled_date
-    && new Date(j.scheduled_date).getTime() < nowMs
-    && !['COMPLETED', 'DECLINED'].includes(j.status)).length;
-  const backlog = jobsIn.filter(j => j.status === 'ACCEPTED').length;
-  return { completed, delayed, backlog };
-}
+/* WHERE THE FIRST BUSINESS REPORT'S FIGURES WENT (removed 25 Oct 2026).
 
-/* $ collected per hour clocked, over the same period -- the one crew
-   productivity figure this data actually supports. Individual $/hr needs a
-   per-person rate, which is exactly the pay figure SEE_MONEY gates; this is
-   the crew-wide number that does not require it. */
-function crewProductivityPerHour(revenue, hours){
-  return hours > 0.005 ? revenue / hours : 0;
-}
+   The first report (55944cc) was replaced by the richer one (4ef5961), which
+   deleted its render sites and left four helpers here with no caller at all.
+   They are gone now. This says what answers the same question today, so that
+   nobody reinstates a second definition of a figure that already exists:
+
+     productionStats().backlog   -> backlogBuckets(), the sold-work-waiting
+                                    panel. Same rule (status ACCEPTED), split
+                                    by when the work is scheduled.
+     productionStats().delayed   -> the `overdue` bucket of that same panel,
+                                    on a TIGHTER rule. This one also counted
+                                    Draft and Sent quotes carrying a stale
+                                    scheduled date, which is a data-hygiene
+                                    problem and not late production, and it
+                                    compared against the clock rather than
+                                    against midnight, so a job scheduled for
+                                    this morning read as late by lunchtime.
+     productionStats().completed -> NOT restored as a count, deliberately.
+                                    "Done" on this report is final_sign_off_at
+                                    (the Installed tile), and a second count
+                                    taken off jobs.status would be a second
+                                    definition of done that disagrees with it.
+                                    What WAS lost is the disagreement itself: a
+                                    job marked Completed that was never signed
+                                    off is in NEITHER the Installed tile nor
+                                    the backlog, so it fell out of the whole
+                                    production panel with nothing saying so.
+                                    dataHealth()'s completedNoSignoff now names
+                                    it, beside signoffNotDone, which had only
+                                    ever covered the opposite direction.
+     crewProductivityPerHour()   -> the Value-per-hour production tile
+                                    (hoursVsEstimate().valuePerHour). Same
+                                    question, sounder basis: that one divides
+                                    the value of the installed jobs by the
+                                    hours clocked ON THOSE JOBS, where this
+                                    divided money received in the window by
+                                    hours worked in the window -- two sets
+                                    that need not overlap at all, so a quiet
+                                    month collecting on last quarter's work
+                                    read as a wildly productive crew.
+     salesValueTotal()           -> the Signed-value headline tile, which is
+                                    the same arithmetic: this summed
+                                    billableTotalOf() with the items-plus-
+                                    change-orders fallback over won jobs, and
+                                    the tile sums contractTotalOf(), which is
+                                    exactly that -- anchorOrdersOf() being the
+                                    accepted_total conditional this spelled
+                                    out inline.
+     estVsActualProfitTotals()   -> the Projected-profit and Cash-position
+                                    tiles. job_costing() computes both sides
+                                    per job on the server (projected_profit is
+                                    quoted minus the three cost buckets,
+                                    cash_position is collected minus the same
+                                    three), so the page sums the rows instead
+                                    of redoing the subtraction in the browser
+                                    against totals it gathered separately. */
 
 /* What labour was QUOTED at, the one definition every report, alert and
    estimate-vs-actual figure on this page reads instead of each spelling the
@@ -18656,35 +18630,6 @@ function materialEstVsActualTotals(jobsIn, jobCostingBySync){
    so instead of printing a total. */
 function estVsActualDisplay(totals, pricedCount, fmt){
   return pricedCount > 0 ? fmt(totals.estimated) + ' / ' + fmt(totals.actual) : '—';
-}
-
-/* Sales value: the contract value of jobs that were actually won, using the
-   same fallback contractTotalOf() uses (a job with no contract_total totals
-   its own line items and change orders) so this never disagrees with what
-   the Jobs/Pipeline lists already show for the same job. Takes the raw
-   arrays rather than closing over the page's globals so it can run the same
-   way in a test as it does on the page. A won job's value is the price the
-   customer accepted, the same billableTotalOf() rule contractTotalOf() uses. */
-function salesValueTotal(wonJobs, itemsAll, ordersAll){
-  return wonJobs.reduce((sum, j) => {
-    const billable = billableTotalOf(j, j.accepted_total != null
-      ? ordersAll.filter(o => o.job_sync_id === j.sync_id) : []);
-    if (billable != null) return sum + billable;
-    const mat = itemsAll.filter(i => i.job_sync_id === j.sync_id)
-      .reduce((s, i) => s + (i.quantity || 0) * (i.unit_price || 0), 0);
-    const co = ordersAll.filter(o => o.job_sync_id === j.sync_id)
-      .reduce((s, o) => s + (o.additional_cost || 0), 0);
-    return sum + mat + co;
-  }, 0);
-}
-
-/* Estimated profit is quoted-minus-costs (job_costing's own projected_profit,
-   summed over the period). Actual profit is the same subtraction done against
-   what has really moved: money collected less the same three cost buckets.
-   Kept as one function so the two figures can never be computed against
-   different cost totals by accident. */
-function estVsActualProfitTotals(estimatedProfit, collected, materialCost, labourCost, otherCost){
-  return { estimated: estimatedProfit, actual: collected - materialCost - labourCost - otherCost };
 }
 
 /* ===================== Business report: the maths =========================
@@ -19261,6 +19206,15 @@ function dataHealth(jobs, ctx){
   add('signedDraft', jobs.filter(j => j.status === 'DRAFT' && j.signed_at));
   add('viewedNoSent', jobs.filter(j => (j.quote_viewed_at || j.quote_approved_at) && !j.quote_sent_at));
   add('signoffNotDone', jobs.filter(j => j.final_sign_off_at && j.status !== 'COMPLETED'));
+  /* The other direction, and the one that hides a job rather than showing it
+     twice. "Installed" is final_sign_off_at and the backlog is status
+     ACCEPTED, so a job marked Completed that was never signed off is in
+     NEITHER: not on the Installed tile, not in its feet, not in
+     hours-vs-estimate, not in the cycle times, not in the backlog. The
+     production panel just shows one job fewer, everywhere, and nothing says a
+     job went missing. This is the one figure the first report's
+     productionStats() carried that the rewrite did not keep. */
+  add('completedNoSignoff', jobs.filter(j => j.status === 'COMPLETED' && !j.final_sign_off_at));
   add('wonNoDate', jobs.filter(j => isWonJob(j) && !wonAt(j)));
   add('noSource', jobs.filter(j => !sourceKey(j.referral_source)), { of: jobs.length });
   if (ctx.seePay) {
@@ -21242,6 +21196,7 @@ async function bizRender(seq){
     const words = {
       signedDraft: ['bizHSignedDraft', 'bizHSignedDraftWhy'], viewedNoSent: ['bizHViewedNoSent', 'bizHViewedNoSentWhy'],
       signoffNotDone: ['bizHSignoffNotDone', 'bizHSignoffNotDoneWhy'], wonNoDate: ['bizHWonNoDate', 'bizHWonNoDateWhy'],
+      completedNoSignoff: ['bizHCompletedNoSignoff', 'bizHCompletedNoSignoffWhy'],
       noSource: ['bizHNoSource', 'bizHNoSourceWhy'], noRate: ['bizHNoRate', 'bizHNoRateWhy'],
       noSupplier: ['bizHNoSupplier', 'bizHNoSupplierWhy'], contractDrift: ['bizHContractDrift', 'bizHContractDriftWhy'],
       paidNoLedger: ['bizHPaidNoLedger', 'bizHPaidNoLedgerWhy'], thinHours: ['bizHThinHours', 'bizHThinHoursWhy']
@@ -24824,6 +24779,10 @@ async function showJob(id){
   $('jobProgress').innerHTML='<ol class="jp-list">'+st.map(([key,done],i)=>
     `<li class="${done?'is-done':i===next?'is-next':''}">${uiIcon(done?'check':i===next?'arrow':'circle')}<span>${esc(tr(key))}</span>${
       i===next?` <span class="pill wait">${esc(tr('jobProgNext'))}</span>`:''}</li>`).join('')+'</ol>';
+
+  // The cancellation panel reads openJob, so it is refreshed here rather
+  // than left showing the previous job's state.
+  showCancellationState();
 
   $('jobOverlay').classList.add('on');
 }
@@ -29087,6 +29046,75 @@ async function deleteJob(){
   $('jobOverlay').classList.remove('on'); await loadAll();
 }
 
+/* ---------- cancelling a job ----------
+   The rule is r45's job_cancellation_terms, read and shown before anything is
+   written. Nothing here computes money: the figures come from the database so
+   the office and the phone cannot drift apart about what a cancellation
+   costs. */
+async function loadCancellationTerms(){
+  if(!openJob) return;
+  msg('cancelMsg','','');
+  const {data,error} = await db.rpc('job_cancellation_terms', { jsync: openJob.sync_id });
+  if(error) return msg('cancelMsg', plainError(error.message), 'err');
+  const t = Array.isArray(data) ? data[0] : data;
+  // NO ROW IS NOT ZERO. job_cancellation_terms is scoped by
+  // money_scope_company_id(), so an account without SEE_MONEY gets nothing
+  // back -- and showing that as "$0.00 kept" would be a lie that costs him.
+  if(!t) return msg('cancelMsg', tr('cancelNoMoney'), 'err');
+
+  const feet = Math.round(Number(t.feet)||0);
+  const rows = [
+    [t.materials_ordered ? tr('cancelMatOrdered') : tr('cancelMatNotOrdered'),
+     money(t.materials_ordered ? t.material_quoted : 0)],
+    [tr('cancelFee', feet), money(t.inconvenience)],
+    [tr('cancelKept'), money(t.retained)],
+    [tr('cancelPaid'), money(t.paid)],
+    [tr('cancelRefund'), money(t.refund_due)],
+  ];
+  $('cancelLines').innerHTML = rows.map(([k,v],i)=>
+    `<tr${i>=2?' style="font-weight:600"':''}><td>${esc(k)}</td><td style="text-align:right">${esc(v)}</td></tr>`
+  ).join('');
+  $('cancelFigures').style.display='';
+}
+
+async function cancelJob(){
+  if(!openJob||!canEdit()) return;
+  const ok = await ask({
+    title: tr('cancelAskTitle', openJob.customer_name || ''),
+    body: tr('cancelAskBody'),
+    confirmLabel: tr('cancelConfirmBtn'), danger: true,
+  });
+  if(!ok) return;
+  const { data: who } = await db.auth.getUser();
+  /* A DATE, NOT A STATUS -- see r45. The status is left exactly as it is, so
+     an old phone that has never heard of these columns cannot push a stale
+     one back and undo the cancellation. */
+  const {error} = await db.from('jobs').update({
+    cancelled_at: new Date().toISOString(),
+    cancelled_by: who?.user?.id ?? null,
+    cancellation_reason: ($('j_cancel_reason').value || '').trim() || null,
+  }).eq('id', openJob.id);
+  if(error) return msg('cancelMsg', plainError(error.message), 'err');
+  msg('cancelMsg', tr('cancelDone'), 'ok');
+  await loadAll();
+}
+
+/** Already cancelled: say so and put the buttons away. */
+function showCancellationState(){
+  const note = $('jobCancelledNote'), box = $('jobCancelBox');
+  if(!note || !box) return;
+  const when = openJob && openJob.cancelled_at;
+  if(when){
+    const why = (openJob.cancellation_reason||'').trim();
+    note.textContent = tr('cancelAlready', new Date(when).toLocaleDateString(LANG)) + (why ? ' ' + why : '');
+    note.style.display=''; box.style.display='none';
+  }else{
+    note.style.display='none'; box.style.display='';
+  }
+  $('cancelFigures').style.display='none';
+  msg('cancelMsg','','');
+}
+
 /* ---------- crew invites ----------
    invite-crew is the only door this page uses to reach it: built from the
    caller's own session, never a service key, exactly like callPriceJob above
@@ -32915,6 +32943,8 @@ $('saveJob').addEventListener('click',saveJob);
 $('repriceOffice').addEventListener('click',repriceAtOffice);
 $('showEstBreakdown').addEventListener('click',showEstimateBreakdown);
 $('deleteJob').addEventListener('click',deleteJob);
+$('cancelTerms').addEventListener('click',loadCancellationTerms);
+$('confirmCancel').addEventListener('click',cancelJob);
 $('q_copy').addEventListener('click', async ()=>{
   if(!openJob) return;
   try{ await navigator.clipboard.writeText(quoteLinkFor(openJob)); }

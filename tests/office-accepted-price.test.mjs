@@ -322,7 +322,7 @@ test('business_report()\'s aging moves by exactly what the re-based rows moved, 
 // no jobs rows at all (the RESTRICTIVE jobs_money_hidden_from_crew policy) --
 // and on this page it is only ever turned into "the price" by the money layer,
 // never printed by a screen of its own.
-const READERS = new Set(['anchoredTotalOf', 'anchorOrdersOf', 'anchorArRows', 'salesValueTotal']);
+const READERS = new Set(['anchoredTotalOf', 'anchorOrdersOf', 'anchorArRows']);
 // Comments are skipped the way this file writes them: a block comment opens at
 // the start of a line and runs to the first line holding its close; a line
 // comment follows whitespace (so a URL's // inside a string is left alone).
@@ -356,4 +356,17 @@ test('accepted_total is selected with the job row, and read only by the money la
 test('PLANTED FAILURE: a render function printing accepted_total itself is caught', () => {
   const planted = src + '\nfunction renderSomethingNew(j){\n  return money(j.accepted_total);\n}\n';
   assert.deepEqual([...readersOf(planted)].filter(f => !READERS.has(f)), ['renderSomethingNew']);
+});
+
+/* An allowlist entry for a function that no longer exists is not harmless
+   clutter -- it is a hole with a name on it. salesValueTotal was on this list
+   until 25 Oct 2026, when the function was removed as an orphan of the
+   business-report rewrite (see tests/reports-orphans-resolved.test.mjs). Had
+   the entry stayed, the next function written under that name could have
+   printed accepted_total on any screen it liked and this file would have
+   passed: the check only ever asks whether a reader is ON the list, never
+   whether a name on the list is still a reader. */
+test('the allowlist holds no name that is not a reader any more', () => {
+  const found = readersOf(src);
+  assert.deepEqual([...READERS].filter((r) => !found.has(r)), []);
 });

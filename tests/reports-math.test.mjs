@@ -2,9 +2,18 @@
    standalone -- same grab()/new Function() idiom as
    tests/per-foot-pay.test.mjs and tests/catalog-run-viewer.test.mjs.
    Covers the pure functions behind the office's Reports > Business report
-   panel: sales (response time, approval rate, sales value), production
-   (completed/delayed/backlog), labour and materials estimate-vs-actual, crew
-   productivity, and estimated-vs-actual profit. */
+   panel: response time, approval rate, and labour and materials
+   estimate-vs-actual.
+
+   productionStats, crewProductivityPerHour, salesValueTotal and
+   estVsActualProfitTotals used to be covered here too. They were the first
+   report's helpers, left with no caller when 4ef5961 replaced it, and this
+   file was the only thing keeping them alive; they were removed on 25 Oct
+   2026 and the figures they carried are listed in dashboard.html beside
+   quotedLaborOf(). The one figure the rewrite genuinely dropped came back as
+   dataHealth()'s completedNoSignoff -- see
+   tests/reports-orphans-resolved.test.mjs, which also pins the four
+   supersession claims so none of this can be undone by accident. */
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
@@ -23,20 +32,17 @@ const grab = (name) => {
 
 // approvalRatePct counts quotes that reached the customer, which is
 // quoteDeliveredAt() -- and that reads dates through bizMs(). Lifted with it.
-// salesValueTotal asks billableTotalOf() for a won job's price, so the
-// accepted-price helpers come too. labourEstVsActualTotals now reads the
-// $200-labour-floor formula through the one shared quotedLaborOf() (the
-// three duplicated copies of "rate*feet+flat" were consolidated into it),
-// so it has to be lifted alongside it or labourEstVsActualTotals throws
-// "quotedLaborOf is not defined" the moment it runs.
-const names = ['medianDays', 'medianHours', 'approvalRatePct', 'productionStats',
-  'crewProductivityPerHour', 'quotedLaborOf', 'labourEstVsActualTotals', 'materialEstVsActualTotals',
-  'salesValueTotal', 'estVsActualProfitTotals', 'bizMs', 'quoteDeliveredAt',
-  'stampMs', 'anchoredTotalOf', 'billableTotalOf'];
+// labourEstVsActualTotals now reads the $200-labour-floor formula through the
+// one shared quotedLaborOf() (the three duplicated copies of "rate*feet+flat"
+// were consolidated into it), so it has to be lifted alongside it or
+// labourEstVsActualTotals throws "quotedLaborOf is not defined" the moment it
+// runs.
+const names = ['medianDays', 'medianHours', 'approvalRatePct',
+  'quotedLaborOf', 'labourEstVsActualTotals', 'materialEstVsActualTotals',
+  'bizMs', 'quoteDeliveredAt', 'stampMs', 'anchoredTotalOf', 'billableTotalOf'];
 const lib = new Function(names.map(grab).join('\n') + '\nreturn {' + names.join(',') + '};')();
-const { medianDays, medianHours, approvalRatePct, productionStats, crewProductivityPerHour,
-  labourEstVsActualTotals, materialEstVsActualTotals, salesValueTotal,
-  estVsActualProfitTotals } = lib;
+const { medianDays, medianHours, approvalRatePct,
+  labourEstVsActualTotals, materialEstVsActualTotals } = lib;
 
 // ---- medianHours --------------------------------------------------------
 test('medianHours: response time between enquiry and first contact', () => {
@@ -104,29 +110,6 @@ test('PLANTED FAILURE: approvals of never-sent quotes must not inflate the rate 
   assert.notEqual(approvalRatePct(jobs), old);
 });
 
-// ---- productionStats ------------------------------------------------------
-test('productionStats: completed, delayed (scheduled in the past, not finished), backlog (sold, not completed)', () => {
-  const now = new Date('2026-09-17T12:00:00Z').getTime();
-  const jobs = [
-    { status: 'COMPLETED', scheduled_date: '2026-09-01' },
-    { status: 'ACCEPTED', scheduled_date: '2026-09-10' },      // past due, not completed -> delayed AND backlog
-    { status: 'ACCEPTED', scheduled_date: '2026-09-25' },      // future, not delayed, but backlog
-    { status: 'DECLINED', scheduled_date: '2026-09-01' },      // declined never counts as delayed
-    { status: 'DRAFT', scheduled_date: null },
-  ];
-  const s = productionStats(jobs, now);
-  assert.equal(s.completed, 1);
-  assert.equal(s.delayed, 1);
-  assert.equal(s.backlog, 2);
-});
-
-// ---- crewProductivityPerHour ----------------------------------------------
-test('crewProductivityPerHour: revenue per clocked hour, zero hours guarded', () => {
-  assert.equal(crewProductivityPerHour(1000, 20), 50);
-  assert.equal(crewProductivityPerHour(1000, 0), 0);
-  assert.equal(crewProductivityPerHour(0, 20), 0);
-});
-
 // ---- labourEstVsActualTotals -----------------------------------------------
 test('labourEstVsActualTotals: sums the ENGINE labour vs job_costing.labour_cost, skipping what it has not got', () => {
   // labor_cost is what price-job recorded -- the figure the engine actually
@@ -170,47 +153,6 @@ test('materialEstVsActualTotals: sums job_costing.quoted_material vs .material_c
   const t = materialEstVsActualTotals(jobs, bySync);
   assert.equal(t.estimated, 700);
   assert.equal(t.actual, 800);
-});
-
-// ---- salesValueTotal --------------------------------------------------------
-test('salesValueTotal: contract_total wins; falls back to items + change orders, same as contractTotalOf', () => {
-  const jobs = [
-    { sync_id: 'a', contract_total: 5000 },
-    { sync_id: 'b', contract_total: null },
-  ];
-  const items = [
-    { job_sync_id: 'b', quantity: 10, unit_price: 20 },  // 200
-    { job_sync_id: 'other', quantity: 999, unit_price: 999 },
-  ];
-  const orders = [{ job_sync_id: 'b', additional_cost: 75 }];
-  assert.equal(salesValueTotal(jobs, items, orders), 5000 + 275);
-});
-
-test('PLANTED FAILURE: ignoring the contract_total fallback would undercount sales value', () => {
-  const jobs = [{ sync_id: 'b', contract_total: null }];
-  const items = [{ job_sync_id: 'b', quantity: 10, unit_price: 20 }];
-  const naive = jobs.reduce((s, j) => s + Number(j.contract_total || 0), 0); // 0, wrong
-  assert.equal(salesValueTotal(jobs, items, []), 200);
-  assert.notEqual(salesValueTotal(jobs, items, []), naive);
-});
-
-test('salesValueTotal: an accepted job counts at the price the customer accepted, not a drifted contract_total', () => {
-  const jobs = [{ sync_id: 'w', contract_total: 13410, accepted_total: 9710,
-    signed_at: '2026-09-01T12:00:00Z', quote_approved_at: null, reapproval_required_at: null }];
-  const orders = [
-    { job_sync_id: 'w', additional_cost: 900, signed_at: '2026-09-02T12:00:00Z', in_accepted_total: true },   // inside the $9,710
-    { job_sync_id: 'w', additional_cost: 455, signed_at: '2026-09-02T12:00:00Z', in_accepted_total: false },  // signed for since
-  ];
-  assert.equal(salesValueTotal(jobs, [], orders), 9710 + 455);
-  // PLANTED FAILURE: the order already inside the accepted price, billed again.
-  assert.notEqual(salesValueTotal(jobs, [], orders), 9710 + 455 + 900);
-});
-
-// ---- estVsActualProfitTotals ------------------------------------------------
-test('estVsActualProfitTotals: actual is collected minus the same three cost buckets', () => {
-  const t = estVsActualProfitTotals(1000, 4000, 1500, 1200, 300);
-  assert.equal(t.estimated, 1000);
-  assert.equal(t.actual, 4000 - 1500 - 1200 - 300);
 });
 
 // ---- medianDays sanity (already exists on the page; confirm still liftable
