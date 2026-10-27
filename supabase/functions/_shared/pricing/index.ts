@@ -875,7 +875,7 @@ export function priceJob(input: PricingInput): PricingOutput {
     // Edited lines stay and stand in for the built line they correct, the
     // generated ones give way to the rebuild, supplier quotes carry
     // (line-items.ts mergeTakeoff, the phone's TakeoffLineMerge.plan).
-    const merge = mergeTakeoff(existingForRun, built.items);
+    const merge = mergeTakeoff(existingForRun, built.items, run.concreteBagsPerPost);
     for (const item of merge.insert) if (item.unitPrice <= 0.0) zeroPricedIds.push(item.syncId);
     for (const item of merge.insert) takeoffItems.push(item);
     for (const item of merge.keptEdited) takeoffItems.push(item);
