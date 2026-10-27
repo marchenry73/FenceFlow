@@ -177,7 +177,8 @@ const scenarios = [
   {
     name: "a rebuild that matches what is there writes nothing",
     planted: [
-      "a second commit with nothing changed writes nothing", "the same with an edited line on the run",
+      "a second commit with nothing changed writes nothing",
+      "an edited post count rewrites the caps and the concrete, and only those",
       "lines that differ only in their order are not rewritten",
     ],
     run(rule) {
@@ -186,6 +187,11 @@ const scenarios = [
       const again = commit(t, { runs: [run()] }, rule).plan;
       phoneEdits(t, deterministicSyncId(RUN_ID, "LINE_POST"), { quantity: 20 });
       const withEdit = commit(t, { job: { ...JOB, tax_rate_percent: 8 }, runs: [run()] }, rule).plan;
+      // ...and once more, with the edit already accounted for. This is the
+      // one that matters: a rule that rewrote the caps on every commit would
+      // churn the table for ever.
+      const settled = commit(t, { runs: [run()] }, rule).plan;
+      const rolesWritten = (p) => [...new Set(p.upsertItems.map((w) => w.role))].sort();
       // Rows an older build numbered differently: the same lines in another
       // order are not a change (the phone's takeoffFingerprint has no sort
       // order in it), so the whole run is left alone.
@@ -193,7 +199,19 @@ const scenarios = [
       const renumbered = commit(t, { runs: [run()] }, rule).plan;
       return [
         ["a second commit with nothing changed writes nothing", again.upsertItems.length === 0 && again.tombstoneSyncIds.length === 0],
-        ["the same with an edited line on the run", withEdit.upsertItems.length === 0 && withEdit.tombstoneSyncIds.length === 0],
+        // CHANGED 26 Oct 2026, and this is the behaviour the owner asked for:
+        // "Yes make the caps and concrete follow my edit." Editing a post
+        // count by hand is no longer a change to one line -- the caps and the
+        // concrete are priced off that count, so they move with it, and the
+        // commit that notices the edit writes exactly those two and nothing
+        // else. It used to write nothing at all, which is how a side came to
+        // bill 15 caps and 15 bags against 14 posts.
+        ["an edited post count rewrites the caps and the concrete, and only those",
+          JSON.stringify(rolesWritten(withEdit)) === JSON.stringify(["CONCRETE_BAG", "POST_CAP"]) &&
+          withEdit.tombstoneSyncIds.length === 0],
+        // The idempotence that keeps it honest.
+        ["and the commit after that writes nothing, so the edit settles",
+          settled.upsertItems.length === 0 && settled.tombstoneSyncIds.length === 0],
         ["lines that differ only in their order are not rewritten",
           renumbered.upsertItems.length === 0 && renumbered.tombstoneSyncIds.length === 0],
       ];
