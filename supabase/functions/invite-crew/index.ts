@@ -67,6 +67,7 @@
 // before anything is sent.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 import { buildInviteCrewEmail } from "../_shared/invite-crew-email.ts";
+import { bareAddressOf, cleanDisplayName } from "../_shared/mail/mime-build.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -173,13 +174,20 @@ Deno.serve(async (req) => {
 
     const mailKey = Deno.env.get("MAIL_API_KEY");
     // MAIL_FROM is expected to carry its own display name already, e.g.
-    // "FenceFlow <crew@fenceflowapp.com>" -- see the runbook note up top.
-    // MAIL_FROM_NAME exists for invite-company's own template; this one has
-    // no separate use for it.
+    // "FenceFlow <crew@fenceflowapp.com>" -- see the runbook note up top. Only
+    // the BARE ADDRESS out of it is used here: the display name on this letter
+    // is the business's own (senderFrom below), which is the whole reason the
+    // letter is sent under the brand the reader expects. MAIL_FROM_NAME is the
+    // fallback name when the company has none, the same as mail-send and
+    // quote-approval-email use it.
     const mailFrom = Deno.env.get("MAIL_FROM");
+    const mailAddress = bareAddressOf(mailFrom);
     const mailUrl = Deno.env.get("MAIL_API_URL") ?? "https://api.resend.com/emails";
 
-    if (!mailKey || !mailFrom) {
+    // A MAIL_FROM that holds no valid address is "not set up", not something
+    // to hand to the provider and let it answer 400: the office gets the same
+    // "give them the code by hand" instruction either way.
+    if (!mailKey || !mailAddress) {
       // Not an error the office caused -- tell them exactly what to do
       // instead of sending nothing and saying nothing. The team code comes back
       // only to somebody who may be shown it (the owner, or a manager the owner
@@ -240,7 +248,16 @@ Deno.serve(async (req) => {
         // Business name as the sender, the platform address underneath. A
         // display name matching the brand the reader expects keeps it out of
         // spam; the address stays on the verified domain.
-        from: senderWithName(company?.name ?? "", mailFrom),
+        //
+        // The name is composed with the bare address, so this now HAPPENS. The
+        // old senderWithName() returned MAIL_FROM untouched whenever it already
+        // carried a display name -- which the runbook at the top of this file
+        // says it always does, "FenceFlow <crew@fenceflowapp.com>" -- so the
+        // anti-spam measure the comment above describes never once occurred:
+        // every invitation went out as "FenceFlow", never as the business. Same
+        // rule and the same two helpers as fenceflowFrom() in
+        // ../_shared/mail/mime-build.ts, whose own doc names this exact trap.
+        from: senderFrom(company?.name ?? "", mailAddress),
         to: [email],
         subject,
         html,
@@ -264,9 +281,16 @@ Deno.serve(async (req) => {
   }
 });
 
-/** "Acme Fence <noreply@x>"; the bare address when no name, or when MAIL_FROM already carries one. */
-function senderWithName(name: string, address: string): string {
-  const clean = name.replace(/[\r\n<>"]/g, "").trim().slice(0, 70);
-  if (!clean || address.includes("<")) return address;
+/** The sender line: the company's name on the platform's own address, e.g.
+ *  `"Acme Fence" <crew@fenceflowapp.com>`. `address` is ALREADY bare
+ *  (bareAddressOf), which is what stops a MAIL_FROM carrying its own display
+ *  name from silencing the business's. cleanDisplayName strips line breaks,
+ *  angle brackets, quotes, backslashes, every control character and the
+ *  invisible ones, and caps at 70 -- so no company name can forge a header or
+ *  escape the quoted string. MAIL_FROM_NAME, then "FenceFlow", so the line
+ *  always carries a name rather than falling back to a bare address. */
+function senderFrom(name: string, address: string): string {
+  const clean = cleanDisplayName(name) ||
+    cleanDisplayName(Deno.env.get("MAIL_FROM_NAME")) || "FenceFlow";
   return `"${clean}" <${address}>`;
 }

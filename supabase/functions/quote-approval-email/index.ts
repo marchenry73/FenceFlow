@@ -545,6 +545,9 @@ interface SendResult {
  */
 async function sendViaFenceflow(
   db: Db, deps: Deps, job: Row, loaded: Loaded, lang: Lang, ledgerId: string, to: string,
+  /** Filled in the moment the Sent copy exists, so a throw after that point
+   *  still leaves the caller able to link the ledger to it. */
+  recorded: { mailMessageId: string | null },
 ): Promise<SendResult> {
   const key = envOf(deps, "MAIL_API_KEY");
   const mailFrom = envOf(deps, "MAIL_FROM");
@@ -655,6 +658,9 @@ async function sendViaFenceflow(
     throw new MailError("server_error", "Could not record the email before sending it.");
   }
   const mailMessageId = String(hit.message_id);
+  // Told to the caller BEFORE the provider is called: from here on every exit
+  // from this function, thrown or returned, has a Sent copy to point at.
+  recorded.mailMessageId = mailMessageId;
   if (!hit.inserted) {
     // This contract's mail row already exists: an earlier call sent, or began to. Never send a second copy.
     const { data: prior } = await db.from("mail_messages").select("send_state")
@@ -834,8 +840,17 @@ export async function handleRequest(req: Request, deps: Deps = productionDeps())
     // ----- send ---------------------------------------------------------------
     let result: SendResult | null = null;
     let failure: Outcome | null = null;
+    /* The Sent copy's id, recorded as soon as mail_ingest has made the row --
+       BEFORE the provider is called. An unconfirmed send THROWS, and the
+       failure settle below used to write the state alone: the mail_messages
+       row existed, carrying UNCONFIRMED_NOTE ("Check Sent before sending it
+       again"), while quote_approval_emails.mail_message_id stayed NULL. So the
+       ledger could not reach the one row the office had just been pushed to go
+       and look at -- the push sends them to Sent and the record that should
+       take them there was blank. */
+    const recorded: { mailMessageId: string | null } = { mailMessageId: null };
     try {
-      result = await sendViaFenceflow(db, deps, job, loaded as Loaded, lang, ledgerId, to);
+      result = await sendViaFenceflow(db, deps, job, loaded as Loaded, lang, ledgerId, to, recorded);
     } catch (e) {
       failure = e instanceof DeliveryUnknown ? UNCONFIRMED : e instanceof MailError ? outcomeFromMailError(e) : UNEXPECTED;
       if (!(e instanceof MailError)) console.error(`${FN}: unexpected ${(e as { name?: string })?.name ?? typeof e}`);
@@ -851,7 +866,13 @@ export async function handleRequest(req: Request, deps: Deps = productionDeps())
       return json({ state: result.state, to: maskEmail(to) });
     }
     const f = failure as Outcome;
-    await settleLedger(db, deps, ledgerId, { state: f.state, reason_code: f.code, reason: f.reason });
+    await settleLedger(db, deps, ledgerId, {
+      state: f.state, reason_code: f.code, reason: f.reason,
+      // Whatever the verdict, the ledger points at the copy THIS attempt made.
+      // A 'failed' row links to a mail row marked failed, which is equally the
+      // truth; only an attempt that never got as far as a row links to nothing.
+      ...(recorded.mailMessageId ? { mail_message_id: recorded.mailMessageId } : {}),
+    });
     await tell(db, deps, job, f);
     return json({
       state: f.state,

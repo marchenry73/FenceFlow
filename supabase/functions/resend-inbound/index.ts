@@ -429,7 +429,11 @@ export interface PendingPart {
   idx: number;
   filename: string;
   content_type: string;
-  size: number;
+  /** Bytes, or NULL when Resend's metadata did not say. Null, not 0: a part
+   *  whose size is unknown until the download lands must not be indistinguishable
+   *  from a genuinely empty attachment, and every size here is Resend's CLAIM
+   *  until storeAttachments() replaces it with the bytes actually received. */
+  size: number | null;
   content_id: string | null;
   disposition: "inline" | "attachment";
   storage_path: string | null;
@@ -472,7 +476,11 @@ export function partsFromResend(list: unknown): PendingPart[] {
       idx: out.length,
       filename: cleanFilename(item.filename),
       content_type: contentType,
-      size: size ?? 0,
+      // Not `size ?? 0`: absent is not zero. The inline decision above already
+      // treats an unknown size as "do not inline"; this keeps the row honest
+      // about it too, so nothing downstream can read "0 bytes" off a part whose
+      // size Resend simply omitted.
+      size,
       content_id: contentId,
       disposition: inline ? "inline" : "attachment",
       storage_path: null,
@@ -651,10 +659,14 @@ function isProven(settings: PlatformSettings, domain: string): boolean {
   return settings.verifiedAt !== null && settings.domain === domain;
 }
 
-/** last_inbound_at on every delivery that reached the reply domain; and,
- *  when this one proved the whole chain and the domain was not yet proven,
- *  inbound_verified_at with the domain it was proven for. Best effort: a
- *  failure leaves verification to the next delivery. */
+/** last_inbound_at on every delivery that reached the reply domain -- stored,
+ *  dropped for an unknown recipient, or dropped by a company's daily cap
+ *  alike. It means MAIL ARRIVED, not mail was stored; "was it stored" is
+ *  answered by mail_messages and the mail_events ledger, which already counts
+ *  an inbound_dropped for each of those drops. And, when this delivery proved
+ *  the whole chain and the domain was not yet proven, inbound_verified_at with
+ *  the domain it was proven for. Best effort: a failure leaves verification to
+ *  the next delivery. */
 async function noteReceived(admin: SupabaseClient, cfg: ReceivingConfig, settings: PlatformSettings, nowMs: number, proved: boolean): Promise<void> {
   const at = new Date(nowMs).toISOString();
   const patch: Record<string, unknown> = { last_inbound_at: at };
@@ -843,6 +855,14 @@ async function receive(deps: InboundDeps, cfg: ReceivingConfig, svixId: string, 
     else await noteEvent(admin, t.companyId, "inbound_dropped");
   }
   if (open.length === 0) {
+    /* It ARRIVED -- at a real address of a real company, which is more than
+       the unknown-recipient branch above can say, and that branch already
+       notes it. Leaving last_inbound_at untouched here made a company sitting
+       at its daily cap look exactly like a reply domain receiving nothing at
+       all, which is the single question this column exists to answer.
+       `false`: the message was never fetched from Resend, so this delivery
+       proves nothing about RESEND_RECEIVING_KEY and must not verify. */
+    await noteReceived(admin, cfg, settings, deps.now(), false);
     await recordHandled(admin, svixId, emailId, targets[0].companyId);
     return json({ ok: true, stored: 0, dropped: "daily_limit" });
   }

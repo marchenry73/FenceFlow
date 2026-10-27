@@ -111,6 +111,13 @@ interface Candidate {
   fp: string;
 }
 
+/** A candidate whose attention_findings row THIS run claimed, carrying that
+ *  row's own id. The id is what notified_at is stamped by at the end of the
+ *  push loop; see the comment there for why nothing else will do. */
+interface Claimed extends Candidate {
+  finding_id: string;
+}
+
 Deno.serve(async (req) => {
   try {
     /* Its own secret first, the shared one as a fallback -- the same shape
@@ -170,7 +177,7 @@ Deno.serve(async (req) => {
     // job) is skipped: notified once per occurrence, not once per sweep run
     // (the sweep may run hourly; a finding that is still true an hour later
     // must not re-notify).
-    const toNotify: Candidate[] = [];
+    const toNotify: Claimed[] = [];
     for (const c of candidates as Candidate[]) {
       const settings = settingsByCompany.get(c.company_id);
       if (settings) {
@@ -200,7 +207,7 @@ Deno.serve(async (req) => {
         results.push({ company_id: c.company_id, detector: c.detector, job_sync_id: c.job_sync_id, skipped: "already recorded" });
         continue;
       }
-      toNotify.push(c);
+      toNotify.push({ ...c, finding_id: String(claimed.id) });
       results.push({ company_id: c.company_id, detector: c.detector, job_sync_id: c.job_sync_id, recorded: true, finding_id: claimed.id });
     }
 
@@ -309,12 +316,24 @@ Deno.serve(async (req) => {
         }
         if (stale.length) await db.from("device_tokens").delete().in("token", stale);
 
-        const ids = forThisUser.map((c) => c.job_sync_id);
+        /* Stamped BY THE CLAIMED ROW'S OWN ID, never by (job_sync_id,
+           detector) lists. Two .in() filters are a CROSS PRODUCT: for the
+           findings (jobA, no_deposit) and (jobB, chargeback) that pair of
+           lists also matches (jobA, chargeback) and (jobB, no_deposit) --
+           rows this person was never pushed, including ones they muted on the
+           dashboard, which forThisUser has just finished filtering out. And
+           because attention_findings is unique on (company, detector, job,
+           fp), not on (company, detector, job), it matched every OLDER
+           FINGERPRINT for the same three as well: a finding whose message
+           changed last week, stamped as notified today.
+
+           notified_at is read nowhere in the repo yet, so no production row
+           has been read wrongly -- it would be wrong the first time anything
+           trusts the column, which is exactly when nobody would look. */
         await db.from("attention_findings")
           .update({ notified_at: new Date().toISOString() })
           .eq("company_id", companyId)
-          .in("job_sync_id", ids)
-          .in("detector", forThisUser.map((c) => c.detector));
+          .in("id", forThisUser.map((c) => c.finding_id));
       }
     }
 
