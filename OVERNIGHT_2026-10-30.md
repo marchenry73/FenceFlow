@@ -185,6 +185,38 @@ are **stale tests, not bugs**. The product code is correct in both.
 
 ---
 
+## Your teardown question, answered — and one job to check
+
+> "Do I need the tear part in the job since it's already in the drawing?"
+
+**You need the switch. You do not need to type the footage.** The engine
+decides in this order (`totals.ts`):
+
+1. the figure typed on the job, if it is above zero;
+2. otherwise the old fence **as drawn** — which is the whole point of drawing it;
+3. otherwise the new fence's length, as a last guess.
+
+But all of that is multiplied by nothing unless **Tearing down an old fence**
+is ticked. `teardown_enabled` is the switch; drawing an old fence charges
+nothing by itself.
+
+Two things that follow, measured against your live jobs:
+
+- **One job has an old fence drawn and the switch OFF.** That old fence is
+  being torn out for free. Two jobs have teardown on, two have an old fence
+  drawn, and they are not the same two. Find it with:
+
+```bash
+npx supabase db query --linked --project-ref newcrgafcptspmapacrx --execute "select customer_name, scheduled_date from jobs j where not coalesce(teardown_enabled,false) and exists (select 1 from fence_runs r where r.company_id=j.company_id and r.job_sync_id=j.sync_id and r.is_teardown and r.deleted_at is null) and not coalesce(is_test_fixture,false) and deleted_at is null"
+```
+
+- **A typed figure beats the drawing, silently.** That is deliberate — the old
+  fence does not always match the new one — but it means a number typed once
+  and then forgotten keeps overriding a redrawn old fence. None of your jobs
+  has a typed figure today, so nothing is wrong now; it is worth knowing before
+  you type one. If you would rather the drawing always win once an old fence is
+  drawn, say so and I will make the typed box an override you have to mean.
+
 ## Where the repo is left
 
 `main` is at commit 837 and pushed. The office and the database are fully
