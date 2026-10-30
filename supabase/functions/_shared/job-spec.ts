@@ -237,10 +237,14 @@ function gateWords(gates: SpecGates): string {
  * one would be inventing requirements; this supplies the facts those forms
  * ask for, in one place, over the contractor's license number.
  */
-export function hoaLetter(
-  spec: JobSpec,
-  company: SpecCompany,
-): { subject: string; text: string; html: string } {
+/**
+ * The specification itself, line by line.
+ *
+ * ONE source for it, because it goes out twice: in the body of the email and
+ * again as the attached PDF. Built in two places it would eventually say two
+ * different things, and the one the HOA keeps is the attachment.
+ */
+export function scopeOfWorkLines(spec: JobSpec, company: SpecCompany): string[] {
   const companyName = clean(company.name) || "your fence contractor";
   const who = spec.customerName || "the homeowner";
   const addr = spec.address || "the property";
@@ -286,7 +290,15 @@ export function hoaLetter(
   if (clean(company.phone)) lines.push(`Phone: ${clean(company.phone)}`);
   if (clean(company.email)) lines.push(`Email: ${clean(company.email)}`);
 
-  const spec_block = lines.join("\n");
+  return lines;
+}
+
+export function hoaLetter(
+  spec: JobSpec,
+  company: SpecCompany,
+): { subject: string; text: string; html: string } {
+  const addr = spec.address || "the property";
+  const spec_block = scopeOfWorkLines(spec, company).join("\n");
 
   const intro =
     `Hi ${spec.customerName ? spec.customerName.split(" ")[0] : "there"}, here is ` +

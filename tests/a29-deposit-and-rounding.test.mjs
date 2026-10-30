@@ -33,6 +33,12 @@ import { stripTypeScriptTypes } from "node:module";
 import * as quoteDeposit from "../supabase/functions/_shared/quote-deposit.ts";
 import * as jobPush from "../supabase/functions/_shared/job-push.ts";
 import * as pushRecipients from "../supabase/functions/_shared/push-recipients.ts";
+// quote-view gained this import when paymentsReadyFrom moved out of it. The
+// harness refuses an import it has not been told about -- rightly, since a
+// stub it invented could hide a real change -- so the three money checks
+// below had been failing to LOAD, not failing to agree: "the page adds the
+// lines up EXACTLY, to the cent" had quietly stopped checking anything.
+import * as paymentsReady from "../supabase/functions/_shared/payments-ready.ts";
 import { priceJob, PRICING_ENGINE_VERSION } from "../supabase/functions/_shared/pricing/index.ts";
 import { roundToCents as engineRoundToCents } from "../supabase/functions/_shared/pricing/totals.ts";
 
@@ -260,6 +266,7 @@ const SHARED = {
   "../_shared/quote-deposit.ts": quoteDeposit,
   "../_shared/job-push.ts": jobPush,
   "../_shared/push-recipients.ts": pushRecipients,
+  "../_shared/payments-ready.ts": paymentsReady,
 };
 
 // The same real-function harness tests/accepted-price-functions.test.mjs uses:

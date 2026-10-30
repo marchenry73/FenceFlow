@@ -1047,7 +1047,29 @@ data class JobPhoto(
     /** Where this photo lives in cloud storage. */
     val storagePath: String? = null,
     val caption: String = "",
-    val takenAt: Long = System.currentTimeMillis()
+    val takenAt: Long = System.currentTimeMillis(),
+    /**
+     * Removed from the job -- a STAMP, never a removed row.
+     *
+     * Photos sync as rows (r51), so a hard delete here would be undone by the
+     * next pull: the cloud row would still exist, this phone would have
+     * nothing to match it to, and the photo would reappear on the job. The
+     * stamp is what travels, and the other devices hide it when they see it.
+     *
+     * The file and the storage path are deliberately LEFT ALONE. "Removed"
+     * means off the job, not shredded: the picture is still in any email
+     * already sent, and keeping the path means it can be put back.
+     */
+    val deletedAt: Long? = null,
+    /**
+     * Last local change, for the push to compare against the cloud's copy.
+     *
+     * Without it the push cannot tell a caption edited on this phone from one
+     * edited on another and sent down here already -- it would write the
+     * stale one back over the new one, which is the same last-write-wins
+     * mistake fence_runs carries a clock to avoid.
+     */
+    val updatedAt: Long = System.currentTimeMillis()
 )
 
 @Entity(

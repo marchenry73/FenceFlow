@@ -213,6 +213,30 @@ data class CloudManufacturer(
 // the handset for good.
 internal const val JOIN_COLUMNS_LIVE = true
 
+/**
+ * A job photo, as public.job_photos holds it (r51).
+ *
+ * taken_at and updated_at are the phone's clocks, sent as ISO. updated_at is
+ * sent -- unlike fence_runs, where the trigger owns it -- because r51 attaches
+ * touch_updated_at to this table too and it only fires on UPDATE; an insert
+ * must carry its own, or a brand-new row arrives claiming the epoch and the
+ * next pull treats every cloud copy as newer.
+ */
+@Serializable
+data class CloudJobPhoto(
+    @SerialName("company_id") val companyId: String,
+    @SerialName("sync_id") val syncId: String,
+    @SerialName("job_sync_id") val jobSyncId: String,
+    val kind: String = "JOBSITE",
+    @SerialName("storage_path") val storagePath: String = "",
+    val caption: String = "",
+    @SerialName("taken_at") val takenAt: String? = null,
+    @SerialName("deleted_at") val deletedAt: String? = null,
+    @SerialName("updated_at") val updatedAt: String? = null,
+) {
+    fun updatedAtMillis(): Long = CloudTime.parseMillis(updatedAt) ?: 0L
+}
+
 @Serializable
 data class CloudFenceRun(
     @SerialName("company_id") val companyId: String,
@@ -1843,6 +1867,10 @@ object EntitySync {
                 // jobStepsInSameColumnBatches.
                 step("job steps")     { jobStepPushRows(rows.steps).sumOf { upsert("job_steps", it) } }
                 step("site markers")  { pushSiteMarkers(repository, rows.markers, rows.markerSources) }
+                // Photo ROWS. The files go up in JobFileUploader; without this
+                // step the rows stayed on whichever phone took the picture and
+                // no other device had anything to point at the bucket.
+                step("photos")        { pushJobPhotos(repository, companyId) }
                 // Insert-only, for two reasons that point the same way.
                 //
                 // A field change is the crew asking the office a question -- move the
@@ -2563,6 +2591,10 @@ object EntitySync {
                 // nothing did.
                 val runsPull = async { runCatching { netGate.withPermit { pullFenceRuns(repository, companyId) } } }
                 listOf(
+                    // Photo rows, so downloadMissing() has something to fetch.
+                    // Reads the local jobs table like pullJobChildren does, so
+                    // it needs no ordering against the other pulls.
+                    async { runCatching { netGate.withPermit { pullJobPhotos(repository, companyId) } } },
                     async { runCatching { netGate.withPermit { pullEmployees(repository, companyId, employeePayScope) } } },
                     suppliersPull,
                     // Tiers are SEE_MONEY-gated at the base table; asking
@@ -4075,6 +4107,116 @@ object EntitySync {
         }
     }
 
+    /**
+     * Sends the photo ROWS up. The files are JobFileUploader's job.
+     *
+     * Only what this phone has changed since the cloud's copy, the same
+     * comparison pushFenceRuns makes: a phone that merely pulled a photo must
+     * not push its now-stale caption back over an edit made elsewhere.
+     *
+     * The cloud read SEES TOMBSTONES on purpose (no notDeleted()). A photo
+     * removed on another device has deleted_at set; if this read hid those,
+     * the row would look like "no cloud copy", and this phone's older live
+     * copy would be pushed straight back over the removal.
+     *
+     * A photo whose job the cloud has never seen is skipped, not sent: the
+     * table takes job_sync_id without a foreign key, so a row for an unknown
+     * job would be accepted and then point at nothing.
+     */
+    private suspend fun pushJobPhotos(repository: Repository, companyId: String): Int {
+        val jobSyncIdById = repository.getAllJobs().associateBy({ it.id }, { it.syncId })
+        if (jobSyncIdById.isEmpty()) return 0
+
+        // Tombstones included: a removal is exactly what has to go up.
+        val local = repository.photosForSync()
+            .mapNotNull { photo -> jobSyncIdById[photo.jobId]?.let { photo to it } }
+        if (local.isEmpty()) return 0
+
+        val cloudBySyncId = pagedList<CloudJobPhoto>("job_photos") {
+            eq("company_id", companyId)
+        }.associateBy { it.syncId }
+
+        val rows = local.filter { (photo, _) ->
+            val claimed = cloudBySyncId[photo.syncId]
+            claimed == null || photo.updatedAt > claimed.updatedAtMillis()
+        }.map { (photo, jobSyncId) -> photo.toCloud(companyId, jobSyncId) }
+
+        return upsert("job_photos", rows)
+    }
+
+    /**
+     * Brings photo rows down, so a second device knows the pictures exist and
+     * JobFileUploader.downloadMissing() has something to fetch.
+     *
+     * No queued-delete guard, unlike pullJobChildren: removing a photo stamps
+     * the row rather than deleting it (Repository.deletePhoto), so a removed
+     * photo is still here to be matched by sync id. There is no window in
+     * which a deletion looks like a photo this phone has never seen -- which
+     * is the window that put deleted fence runs back on the drawing.
+     */
+    private suspend fun pullJobPhotos(repository: Repository, companyId: String): Int {
+        val cloud = pagedList<CloudJobPhoto>("job_photos") {
+            eq("company_id", companyId)
+        }
+        if (cloud.isEmpty()) return 0
+
+        val jobIdBySyncId = repository.getAllJobs().associateBy({ it.syncId }, { it.id })
+        if (jobIdBySyncId.isEmpty()) return 0
+
+        val localBySyncId = repository.photosBySyncIds(cloud.map { it.syncId })
+            .associateBy { it.syncId }
+
+        var added = 0
+        cloud.forEach { row ->
+            // A photo for a job this phone has not pulled yet waits for the
+            // next pass rather than being orphaned.
+            val localJobId = jobIdBySyncId[row.jobSyncId] ?: return@forEach
+            val kind = runCatching { com.fenceestimator.app.data.PhotoKind.valueOf(row.kind) }
+                .getOrDefault(com.fenceestimator.app.data.PhotoKind.JOBSITE)
+            val cloudUpdated = row.updatedAtMillis()
+            val existing = localBySyncId[row.syncId]
+
+            if (existing == null) {
+                // NOT a row stamped deleted: a photo removed before this phone
+                // ever saw it should not arrive as a new picture on the job.
+                if (row.deletedAt != null) return@forEach
+                skipIfOrphaned {
+                    repository.createPhotoFromCloud(
+                        com.fenceestimator.app.data.JobPhoto(
+                            jobId = localJobId,
+                            syncId = row.syncId,
+                            kind = kind,
+                            // No local file yet. downloadMissing() fills it in
+                            // from the storage path on the next pass; an empty
+                            // path is what tells it to.
+                            filePath = "",
+                            storagePath = row.storagePath.ifBlank { null },
+                            caption = row.caption,
+                            takenAt = CloudTime.parseMillis(row.takenAt) ?: System.currentTimeMillis(),
+                            deletedAt = null,
+                            updatedAt = cloudUpdated,
+                        )
+                    )
+                }
+                added++
+            } else if (cloudUpdated > existing.updatedAt) {
+                // The cloud is newer, so take its caption and its removal --
+                // but never its file path, which is this device's own.
+                repository.updatePhotoFromCloud(
+                    existing.copy(
+                        kind = kind,
+                        caption = row.caption,
+                        // Keep a path this phone has; adopt one it lacks.
+                        storagePath = existing.storagePath ?: row.storagePath.ifBlank { null },
+                        deletedAt = CloudTime.parseMillis(row.deletedAt),
+                        updatedAt = cloudUpdated,
+                    )
+                )
+            }
+        }
+        return added
+    }
+
     private suspend fun pushFenceRuns(
         repository: Repository,
         companyId: String,
@@ -4553,6 +4695,22 @@ private fun Employee.toCloud(companyId: String) = CloudEmployee(
 private fun Manufacturer.toCloud(companyId: String) = CloudManufacturer(
     companyId = companyId, syncId = syncId, name = name, email = email,
     phone = phone, address = address, hours = hours, notes = notes
+)
+
+private fun com.fenceestimator.app.data.JobPhoto.toCloud(companyId: String, jobSyncId: String) = CloudJobPhoto(
+    companyId = companyId,
+    syncId = syncId,
+    jobSyncId = jobSyncId,
+    kind = kind.name,
+    // Blank, not null: the column is NOT NULL, and blank is the honest value
+    // for a photo whose file has not been uploaded yet. The row goes up
+    // first so other devices know the picture exists; the path follows on the
+    // sync after JobFileUploader has sent the file.
+    storagePath = storagePath ?: "",
+    caption = caption,
+    takenAt = CloudTime.format(takenAt),
+    deletedAt = deletedAt?.let { CloudTime.format(it) },
+    updatedAt = CloudTime.format(updatedAt),
 )
 
 private fun FenceRun.toCloud(companyId: String, jobSyncId: String) = CloudFenceRun(

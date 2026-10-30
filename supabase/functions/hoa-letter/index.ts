@@ -34,7 +34,8 @@
  */
 import { mailCaller } from "../_shared/mail/caller.ts";
 import { MESSAGES, toMailError } from "../_shared/mail/errors.ts";
-import { describeJob, hoaLetter, RunMeasurement } from "../_shared/job-spec.ts";
+import { describeJob, hoaLetter, RunMeasurement, scopeOfWorkLines } from "../_shared/job-spec.ts";
+import { pdfFromText, toBase64 } from "../_shared/pdf-text.ts";
 
 const FN = "hoa-letter";
 
@@ -181,6 +182,35 @@ Deno.serve(async (req) => {
     const spec = describeJob(job as never, runs as never, measured);
     const { subject, text, html } = hoaLetter(spec, (company ?? {}) as never);
 
+    /* THE SAME SPECIFICATION AGAIN, AS A PDF.
+       An association keeps a file, not an email body -- and a board member
+       forwarding "the fence details" to the next person forwards an
+       attachment. Built from scopeOfWorkLines(), the identical lines the
+       body above uses, so the sheet they keep cannot say something the
+       email did not.
+       No library: _shared/pdf-text.ts writes the few hundred bytes of PDF
+       structure itself, because an edge function cannot pull a PDF package
+       at runtime and bundling one into the path of every outgoing email to
+       lay out a page of text is not a trade worth making. */
+    let attachments: Array<{ filename: string; content: string }> = [];
+    try {
+      const pdf = pdfFromText({
+        title: "Scope of Work",
+        lines: scopeOfWorkLines(spec, (company ?? {}) as never),
+        footer: String((company as Record<string, unknown>)?.name ?? ""),
+      });
+      // A filename the customer can find again in six months, and one that
+      // cannot carry a path or a quote into a mail header.
+      const safeAddr = (spec.address || "fence").replace(/[^A-Za-z0-9 ]+/g, " ")
+        .trim().replace(/\s+/g, "-").slice(0, 40) || "fence";
+      attachments = [{ filename: `Scope-of-Work-${safeAddr}.pdf`, content: toBase64(pdf) }];
+    } catch (e) {
+      // The letter is worth sending without the sheet. Logged, not raised:
+      // refusing the whole email because an attachment failed to build would
+      // leave the customer with nothing at all.
+      console.error(`${FN}: could not build the PDF; sending the letter without it`, String(e));
+    }
+
     const mailKey = Deno.env.get("MAIL_API_KEY");
     const mailFrom = Deno.env.get("MAIL_FROM");
     const mailUrl = Deno.env.get("MAIL_API_URL") ?? "https://api.resend.com/emails";
@@ -205,6 +235,7 @@ Deno.serve(async (req) => {
         subject,
         html,
         text,
+        ...(attachments.length ? { attachments } : {}),
         ...(replyTo ? { reply_to: replyTo } : {}),
       }),
       signal: AbortSignal.timeout(20_000),
@@ -247,6 +278,7 @@ Deno.serve(async (req) => {
       total_feet: spec.totalFeet,
       sections: spec.sides.length,
       gates: spec.gates.count,
+      pdf_attached: attachments.length > 0,
       stamped: !stampError,
     });
   } catch (e) {

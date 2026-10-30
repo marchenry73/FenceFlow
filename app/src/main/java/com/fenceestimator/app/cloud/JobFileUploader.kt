@@ -70,7 +70,17 @@ class JobFileUploader(
             //    the least likely to be needed in a dispute -- on a phone plan
             //    the order these go up in is a real cost.
             repository.getPhotos(job.id).forEach { photo ->
-                if (photo.storagePath == null) {
+                // A BLANK PATH IS A ROW THAT ARRIVED BEFORE ITS FILE.
+                //
+                // Photos sync as rows now, so this list contains pictures
+                // taken on another device whose file has not been fetched
+                // yet. There is nothing local to upload for those, and
+                // ImageCompressor would be handed an empty path.
+                // downloadMissing() below is what fills them in.
+                //
+                // getPhotos() already hides the ones stamped deleted, so a
+                // removed photo is never uploaded either.
+                if (photo.storagePath == null && photo.filePath.isNotBlank()) {
                     // Shrunk before it goes up. A phone photo is four to eight
                     // megabytes and a crew takes a dozen a job -- untouched,
                     // they fill storage and spend the crew's data in a yard
@@ -87,7 +97,15 @@ class JobFileUploader(
                     // in ImageCompressor.
                     val toUpload = ImageCompressor.compressForUpload(photo.filePath, context.cacheDir)
                     FileSync.upload(companyId, job.syncId, "photo", toUpload)?.let { remote ->
-                        repository.updatePhoto(photo.copy(storagePath = remote))
+                        // updatedAt moves with it ON PURPOSE: the push only
+                        // sends a photo row whose local clock beats the
+                        // cloud's, so without this the storage path would
+                        // stay on this phone and no other device would ever
+                        // learn where the picture is -- the same silence the
+                        // missing rows caused in the first place.
+                        repository.updatePhoto(
+                            photo.copy(storagePath = remote, updatedAt = System.currentTimeMillis())
+                        )
                     }
                     if (toUpload != photo.filePath) {
                         runCatching { java.io.File(toUpload).delete() }
@@ -139,6 +157,11 @@ class JobFileUploader(
                 photo.storagePath?.let { remote ->
                     if (!java.io.File(photo.filePath).exists()) {
                         FileSync.ensureLocal(context, remote, "photos")?.let { local ->
+                            // A DOWNLOAD, NOT AN EDIT -- so updatedAt stays
+                            // where it is. Where the file landed on this
+                            // handset is this handset's business; bumping the
+                            // clock would push a row whose only change is a
+                            // path no other device can use.
                             repository.updatePhoto(photo.copy(filePath = local))
                         }
                     }

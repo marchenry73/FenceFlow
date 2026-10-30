@@ -408,15 +408,29 @@ interface PricingTierDao {
 
 @Dao
 interface JobPhotoDao {
-    @Query("SELECT * FROM job_photos WHERE jobId = :jobId ORDER BY takenAt DESC")
+    @Query("SELECT * FROM job_photos WHERE jobId = :jobId AND deletedAt IS NULL ORDER BY takenAt DESC")
     fun observeForJob(jobId: Long): Flow<List<JobPhoto>>
 
-    @Query("SELECT * FROM job_photos WHERE jobId = :jobId")
+    @Query("SELECT * FROM job_photos WHERE jobId = :jobId AND deletedAt IS NULL")
     suspend fun getForJob(jobId: Long): List<JobPhoto>
 
     /** Every photo on the phone, for the unsynced-work check -- one query beats one per job. */
     @Query("SELECT * FROM job_photos")
     suspend fun getAll(): List<JobPhoto>
+
+    /**
+     * Every photo INCLUDING the ones stamped deleted.
+     *
+     * The sync has to see a tombstone. If it read the filtered list above, a
+     * photo this phone deleted would look like a photo this phone has never
+     * heard of -- and the pull would helpfully put it back.
+     */
+    @Query("SELECT * FROM job_photos")
+    suspend fun getAllForSync(): List<JobPhoto>
+
+    /** By sync id, tombstones included, so the pull can match what it reads. */
+    @Query("SELECT * FROM job_photos WHERE syncId IN (:syncIds)")
+    suspend fun bySyncIds(syncIds: List<String>): List<JobPhoto>
 
     @Update
     suspend fun update(photo: JobPhoto)

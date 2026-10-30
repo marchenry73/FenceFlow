@@ -4482,10 +4482,15 @@ private fun PhotosSection(photos: List<JobPhoto>, canDelete: Boolean, editable: 
     var pendingKind by remember { mutableStateOf(PhotoKind.BEFORE) }
     var pendingTarget by remember { mutableStateOf<NewPhotoTarget?>(null) }
     // The remove target on a photo was just enlarged to 44dp for a gloved
-    // hand, which makes it easier to hit BY ACCIDENT too. Unlike the other
-    // records on this screen, a deleted photo has no tombstone at all --
-    // Repository.deletePhoto removes the row outright, so it never reaches
-    // Deleted Items. Asked first, and told plainly that it is gone for good.
+    // hand, which makes it easier to hit BY ACCIDENT too, so it is still
+    // asked first.
+    //
+    // What it does changed with the photo sync: Repository.deletePhoto now
+    // STAMPS the row (JobPhoto.deletedAt) instead of removing it, because a
+    // removed row would be put straight back by the next pull from the cloud
+    // copy. So the photo comes off the job on every device, the file stays on
+    // this phone, and any email already sent still has it. The dialog says
+    // that rather than the old "gone for good", which stopped being true.
     var deletingPhoto by remember { mutableStateOf<JobPhoto?>(null) }
 
     val cameraLauncher = rememberLauncherForActivityResult(ActivityResultContracts.TakePicture()) { success ->
@@ -4530,12 +4535,39 @@ private fun PhotosSection(photos: List<JobPhoto>, canDelete: Boolean, editable: 
             LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 items(kindPhotos, key = { it.id }) { photo ->
                     Box {
-                        AsyncImage(
-                            model = photo.filePath,
-                            contentDescription = null,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.size(90.dp).clip(RoundedCornerShape(8.dp))
-                        )
+                        /* A ROW CAN ARRIVE BEFORE ITS FILE.
+                           That is how the photo sync works: the row comes down
+                           with the job, and JobFileUploader.downloadMissing()
+                           fetches the picture on a later pass. Until it does,
+                           filePath is blank -- and AsyncImage("") draws an
+                           empty square, which reads as a photo that failed
+                           rather than one still coming. Only the blank case is
+                           checked, deliberately: stat()ing every path would be
+                           disk I/O inside composition for a case that resolves
+                           itself. */
+                        if (photo.filePath.isBlank()) {
+                            Box(
+                                modifier = Modifier
+                                    .size(90.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(MaterialTheme.colorScheme.surfaceVariant),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    stringResource(R.string.jd_photo_on_its_way),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(horizontal = 6.dp)
+                                )
+                            }
+                        } else {
+                            AsyncImage(
+                                model = photo.filePath,
+                                contentDescription = null,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.size(90.dp).clip(RoundedCornerShape(8.dp))
+                            )
+                        }
                         if (canDelete) {
                             // Was a 24dp target sitting over the top-left of
                             // the photo: too small to hit reliably with a work

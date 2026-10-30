@@ -1,3 +1,36 @@
+-- ===========================================================================
+-- SUPERSEDED. DO NOT APPLY. Undone by r56; the real feature is
+-- supabase_crew_job_scope.sql (see docs/CREW_ON_A_JOB_PENDING.md).
+--
+-- I wrote this to give the owner more than one crew member on a job, because
+-- nothing in the database provided it. The office had provided it since
+-- September -- pickers, an access-request queue, calendar chips naming who is
+-- on each job -- against a table with columns `kind` ('CREW' | 'ACCESS') and
+-- `ended_at`, written by set_job_crew / end_job_assignment /
+-- decide_job_access, all of it in supabase_crew_job_scope.sql, which had
+-- never been applied. The office hides those sections when the table is
+-- missing, by design, so nothing looked broken.
+--
+-- This table used crew_role and removed_at instead. Worse than redundant:
+-- crew_job_scope.sql opens with `create table if not exists
+-- public.job_assignments`, so this table would have satisfied that test and
+-- the real definition would have been SKIPPED -- an apply that reports
+-- success and leaves the wrong columns behind the office and three functions.
+--
+-- The whole file is kept rather than deleted because the reasoning in it is
+-- still worth reading (why writes need SCHEDULE_AND_ASSIGN, why removal is a
+-- stamp, why absence is never deletion) and because deleting the evidence of
+-- a mistake is how the next person repeats it. It refuses to run.
+-- ===========================================================================
+
+do $$
+begin
+    raise exception 'r53 is SUPERSEDED and must not be applied: it creates '
+      'job_assignments with the wrong columns and would make '
+      'supabase_crew_job_scope.sql skip the real definition. See '
+      'docs/CREW_ON_A_JOB_PENDING.md.';
+end $$;
+
 -- MORE THAN ONE PERSON ON A JOB.
 --
 -- "I want to be able to add multiple crew members to a job."

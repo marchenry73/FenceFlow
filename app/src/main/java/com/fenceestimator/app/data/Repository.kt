@@ -634,7 +634,12 @@ class Repository(private val db: AppDatabase) {
             }
         }
         jobPhotoDao.getAll().forEach { photo ->
-            if (photo.storagePath == null) { files++; unsyncedJobIds += photo.jobId }
+            // A photo that has been removed from the job is not work waiting
+            // to go up: nothing will ever upload it, so counting it would
+            // leave "1 file not synced" on the sign-out dialog for ever.
+            if (photo.deletedAt == null && photo.storagePath == null) {
+                files++; unsyncedJobIds += photo.jobId
+            }
         }
         changeOrderDao.getAll().forEach { order ->
             if (order.signatureImagePath != null && order.signatureStoragePath == null) {
@@ -1310,7 +1315,28 @@ class Repository(private val db: AppDatabase) {
     suspend fun getPhotos(jobId: Long): List<JobPhoto> = jobPhotoDao.getForJob(jobId)
     suspend fun updatePhoto(photo: JobPhoto) = guardWrite("updatePhoto") { jobPhotoDao.update(photo) }
     suspend fun addPhoto(photo: JobPhoto): Long = guardWrite("addPhoto") { jobPhotoDao.insert(photo) }
-    suspend fun deletePhoto(photo: JobPhoto) = guardWrite("deletePhoto") { jobPhotoDao.delete(photo) }
+    /**
+     * Takes a photo off the job, on every device.
+     *
+     * A STAMP, not a delete. See [JobPhoto.deletedAt]: the row has to survive
+     * so the removal can travel, and so a pull cannot mistake it for a photo
+     * this phone simply has not seen yet and put it back.
+     *
+     * The file on disk and the storage path are left alone on purpose.
+     */
+    suspend fun deletePhoto(photo: JobPhoto) = guardWrite("deletePhoto") {
+        val now = System.currentTimeMillis()
+        jobPhotoDao.update(photo.copy(deletedAt = now, updatedAt = now))
+    }
+
+    /** Every photo, tombstones included -- for the sync only. */
+    suspend fun photosForSync(): List<JobPhoto> = jobPhotoDao.getAllForSync()
+    suspend fun photosBySyncIds(syncIds: List<String>): List<JobPhoto> =
+        if (syncIds.isEmpty()) emptyList() else jobPhotoDao.bySyncIds(syncIds)
+
+    /** Written by the pull; never queues a push of its own. */
+    suspend fun createPhotoFromCloud(photo: JobPhoto): Long = jobPhotoDao.insert(photo)
+    suspend fun updatePhotoFromCloud(photo: JobPhoto) = jobPhotoDao.update(photo)
 
     fun observeInventory(jobId: Long): Flow<List<InventoryChecklistItem>> = inventoryItemDao.observeForJob(jobId)
     suspend fun getInventory(jobId: Long): List<InventoryChecklistItem> = inventoryItemDao.getForJob(jobId)

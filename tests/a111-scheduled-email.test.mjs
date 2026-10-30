@@ -130,7 +130,19 @@ console.log("\n3b. The phone queues the quote without ever queuing a payment lin
 {
   const api = read("app/src/main/java/com/fenceestimator/app/cloud/ScheduledMailApi.kt");
   const screen = read("app/src/main/java/com/fenceestimator/app/ui/jobs/JobDetailScreen.kt");
-  const sched = body(screen, "if (scheduleOpen) {");
+  /* THE QUEUEING MOVED. This used to slice `if (scheduleOpen) {`, which is
+     now only the date-picker dialog -- it sets scheduleOpen = false and calls
+     scheduleAt(millis). Everything these checks are about lives in
+     scheduleAt, so the two most important ones ("a queued payment link can
+     charge a stale amount" and "a job that has not reached the cloud is
+     refused") had been failing against perfectly correct code since the
+     refactor, which is a worse state than failing: nobody reads a check that
+     is always red. Re-aimed, with a canary below so an empty slice cannot
+     pass instead. */
+  const sched = body(screen, "val scheduleAt: (Long) -> Unit = {");
+  ok("CANARY: the slice really is the queueing code",
+    /ScheduledMailApi|scheduleQuote|quoteEmailBody/.test(sched) && sched.length > 400,
+    `sliced ${sched.length} chars and found none of the queueing calls`);
 
   // THE ONE THAT MATTERS MOST. A Stripe link is locked to the amount it was
   // made for, so one queued tonight can be asking for the wrong money by the

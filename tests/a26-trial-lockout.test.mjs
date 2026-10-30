@@ -119,7 +119,21 @@ function fakeDb(tables, { failUpdates = [] } = {}) {
   return { tables: t, rpcCalls, from: (n) => new Query(n), rpc: async (name, args) => { rpcCalls.push([name, args]); return { data: true, error: null }; } };
 }
 
-const mkEvent = (type, obj) => ({ id: "evt_" + Math.random().toString(36).slice(2), type, livemode: false, data: { object: obj } });
+/* livemode OPT-IN, and that is the point of the parameter.
+
+   stripe-webhook now refuses to let a TEST-mode subscription event change a
+   real company at all ("test billing never changes a real company") -- a
+   guard added after a sandbox event stamped a live company active and wrote a
+   sandbox subscription id, which then stopped real renewal failures matching
+   that company. Every event here was built livemode:false, so the two checks
+   below that exercise a REAL conversion were asserting the behaviour the
+   guard removed: the handler was correctly writing nothing, and they read it
+   as the handler being broken.
+
+   The default stays false, so the ten other cases in this file are untouched;
+   the two that mean to speak for a real company say so. */
+const mkEvent = (type, obj, livemode = false) =>
+  ({ id: "evt_" + Math.random().toString(36).slice(2), type, livemode, data: { object: obj } });
 async function post(handler, body) {
   const raw = JSON.stringify(body);
   const ts = Math.floor(Date.now() / 1000);
@@ -158,18 +172,45 @@ test("control: the harness runs the real webhook and can tell a converted compan
   const h = loadWebhook({ db });
   // A subscription event that is STILL trialing must leave the company trialing.
   const ev = convertedSub({ status: "trialing", trial_end: nowS() + 3 * DAY });
-  const r = await post(h, mkEvent("customer.subscription.updated", ev));
+  const r = await post(h, mkEvent("customer.subscription.updated", ev, true));
   assert.equal(r.status, 200, r.text);
   assert.equal(company(db).subscription_status, "trialing", "a still-trialing event must not flip the company");
   // ...and the handler DID run and write: the trial date moved to the event's. That is what makes the line above mean something.
   assert.equal(company(db).trial_ends_at, new Date(ev.trial_end * 1000).toISOString(), "control: the handler wrote the event's trial end");
 });
 
+test("a TEST-mode subscription event changes nothing about a real company", async () => {
+  /* The guard the two checks above were fighting, asserted on purpose now.
+     Nothing covered it directly: ten cases in this file happen to send
+     livemode:false, but they assert paths that do not depend on it, so the
+     guard could have been deleted and this file would still have been green.
+     It is not a small guard -- a sandbox event once set a live company active
+     and wrote a sandbox subscription id, after which real renewal failures
+     stopped matching that company at all. */
+  const db = fakeDb({ companies: [lapsedRow()] });
+  const before = JSON.stringify(company(db));
+  const h = loadWebhook({ db });
+  const r = await post(h, mkEvent("customer.subscription.updated", convertedSub(), false));
+  assert.equal(r.status, 200, r.text);
+  assert.equal(JSON.stringify(company(db)), before,
+    "a test-mode event changed a real company's billing row");
+  assert.ok(!db.rpcCalls.some(([n]) => n === "release_for_payment"),
+    "a test-mode event released a real company's suspension");
+
+  // CONTROL: the very same event, live, DOES change it -- otherwise this test
+  // would pass just as well against a handler that ignores everything.
+  const db2 = fakeDb({ companies: [lapsedRow()] });
+  const h2 = loadWebhook({ db: db2 });
+  await post(h2, mkEvent("customer.subscription.updated", convertedSub(), true));
+  assert.equal(company(db2).subscription_status, "active",
+    "control: the live event did not convert the company either, so this test proves nothing");
+});
+
 test("the handover works when the event arrives: customer.subscription.updated (active) moves a lapsed trial to active", async () => {
   const db = fakeDb({ companies: [lapsedRow()] });
   const h = loadWebhook({ db });
   const sub = convertedSub();
-  const r = await post(h, mkEvent("customer.subscription.updated", sub));
+  const r = await post(h, mkEvent("customer.subscription.updated", sub, true));
   assert.equal(r.status, 200, r.text);
   const c = company(db);
   assert.equal(c.subscription_status, "active");

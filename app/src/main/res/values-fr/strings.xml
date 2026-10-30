@@ -824,8 +824,8 @@
     <string name="jd_camera">Appareil photo</string>
     <string name="jd_gallery">Galerie</string>
     <string name="jd_remove_photo">Supprimer la photo</string>
-    <string name="jd_delete_photo_title">Supprimer cette photo ?</string>
-    <string name="jd_delete_photo_body">Cette photo est supprimée définitivement — avant/après, dégât, quoi qu’elle montre. Elle ne va pas dans Éléments supprimés, donc il n’y a aucun moyen de la récupérer.</string>
+    <string name="jd_delete_photo_title">Retirer cette photo ?</string>
+    <string name="jd_delete_photo_body">Retirée de ce chantier sur tous les appareils. Le fichier reste sur ce téléphone, et tout courriel déjà envoyé contient toujours la photo.</string>
     <string name="jd_record_refund">Enregistrer un remboursement</string>
     <string name="jd_collected_so_far">Encaissé à ce jour : %1$s $</string>
     <string name="jd_refund_amount">Montant du remboursement ($)</string>
@@ -2333,4 +2333,5 @@
     <string name="jd_review_auto_sent">Avis: demande envoyée %1$s</string>
     <string name="jd_review_auto_sent_note">Envoyée automatiquement au client avec votre lien pour les avis. Rien de plus à faire ici.</string>
     <string name="jd_review_auto_hint">Si les demandes sont activées au bureau, elle part toute seule quelques jours après que le chantier est marqué termine.</string>
+    <string name="jd_photo_on_its_way">En route</string>
 </resources>

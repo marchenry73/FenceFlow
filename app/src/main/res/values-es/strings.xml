@@ -824,8 +824,8 @@
     <string name="jd_camera">Cámara</string>
     <string name="jd_gallery">Galería</string>
     <string name="jd_remove_photo">Quitar foto</string>
-    <string name="jd_delete_photo_title">¿Eliminar esta foto?</string>
-    <string name="jd_delete_photo_body">Esta foto se elimina para siempre — antes/después, daños, lo que muestre. No va a Elementos eliminados, así que no hay forma de recuperarla.</string>
+    <string name="jd_delete_photo_title">¿Quitar esta foto?</string>
+    <string name="jd_delete_photo_body">Se quita de este trabajo en todos los dispositivos. El archivo permanece en este teléfono, y cualquier correo ya enviado sigue teniendo la foto.</string>
     <string name="jd_record_refund">Registrar un reembolso</string>
     <string name="jd_collected_so_far">Cobrado hasta ahora: $%1$s</string>
     <string name="jd_refund_amount">Monto del reembolso ($)</string>
@@ -2333,4 +2333,5 @@
     <string name="jd_review_auto_sent">Solicitud de reseña enviada %1$s</string>
     <string name="jd_review_auto_sent_note">Enviada automáticamente al cliente con tu enlace de reseñas. No hay nada más que hacer aquí.</string>
     <string name="jd_review_auto_hint">Si las solicitudes de reseña están activadas en la oficina, esto se envía solo unos días después de marcar el trabajo como completado.</string>
+    <string name="jd_photo_on_its_way">En camino</string>
 </resources>

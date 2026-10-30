@@ -861,8 +861,8 @@
     <string name="jd_camera">Camera</string>
     <string name="jd_gallery">Gallery</string>
     <string name="jd_remove_photo">Remove photo</string>
-    <string name="jd_delete_photo_title">Delete this photo?</string>
-    <string name="jd_delete_photo_body">This photo is deleted for good — before/after, damage, whatever it shows. It does not go to Deleted Items, so there is no way to bring it back.</string>
+    <string name="jd_delete_photo_title">Remove this photo?</string>
+    <string name="jd_delete_photo_body">Removed from this job on every device. The file stays on this phone, and any email already sent still has the picture.</string>
     <string name="jd_record_refund">Record a refund</string>
     <string name="jd_collected_so_far">Collected so far: $%1$s</string>
     <string name="jd_refund_amount">Refund amount ($)</string>
@@ -2410,4 +2410,5 @@
     <string name="jd_review_auto_sent">Review request emailed %1$s</string>
     <string name="jd_review_auto_sent_note">Sent automatically to the customer with your review link. Nothing more to do here.</string>
     <string name="jd_review_auto_hint">When review requests are switched on in the office, this goes out on its own a few days after the job is marked complete.</string>
+    <string name="jd_photo_on_its_way">On its way</string>
 </resources>
