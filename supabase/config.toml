@@ -60,6 +60,12 @@ verify_jwt = true
 [functions.send-follow-ups]
 verify_jwt = true
 
+# Called by a signed-in owner/manager from the office or the app, and the
+# function reads the job AS THAT CALLER so row security decides what they
+# may send. Verification on; mailCaller() is the gate behind it.
+[functions.hoa-letter]
+verify_jwt = true
+
 # Two doors now: the office (the function checks its own JWT inside) and a
 # homeowner holding a quote token, who has no JWT and never will. The gateway
 # must let both reach the function; the function is the bouncer for each.

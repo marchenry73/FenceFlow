@@ -3245,6 +3245,11 @@
           <option value="NOT_REQUIRED" data-t="jobOptNotRequired">Not required</option><option value="PENDING" data-t="jobOptPending">Pending</option>
           <option value="APPROVED" data-t="jobOptApproved">Approved</option></select></div>
       </div>
+      <div style="margin-top:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <button class="btn btn-sm" id="hoaSendBtn" data-t="hoaSendBtn">Email HOA details to the customer</button>
+        <span class="sub" id="hoaSentNote"></span>
+      </div>
+      <div class="sub" id="hoaMsg"></div>
     </div>
 
     <div class="panel"><h2 data-t="jobSecExpenses">Expenses</h2><div id="jobExpenses"></div></div>
@@ -5172,7 +5177,7 @@ jobViewAll:'All', jobViewToday:'Today', jobViewWeek:'This week', jobViewUnschedu
     fuPreviewEmptyMsg:'Nothing would send right now.',
     fuLogHead:'Recent sends',
     fuLogBody:'Every follow-up email actually sent: what kind, which job, and when.',
-    fuRuleWaiting:'%s waiting now', fuRuleWaitingNone:'none waiting',
+    fuRuleWaiting:'%s waiting now', hoaSendBtn:'Email HOA details to the customer', hoaSentOn:'Sent %s', hoaNotSentYet:'Not sent yet', hoaNoEmailMsg:'This job has no customer email address to send to.', hoaAskTitle:'Email the HOA details?', hoaAskBody:'This sends the fence details to %s so they can forward them to their association. Nothing goes to the HOA directly.', hoaAskSendBtn:'Send it', hoaSendingMsg:'Sending...', hoaSentMsg:'Sent to %s.', hoaCouldNotSendMsg:'Could not send that. Nothing was emailed.', fuRuleWaitingNone:'none waiting',
     fuCouldNotAsk:'Could not read your follow-up settings just now, so everything below is a guess from the defaults rather than what is actually switched on. Try Refresh before changing anything.',
     fuStateOff:'Follow-ups are off. Nothing below will send, and the list of what is due stays empty whether anyone is waiting or not.',
     fuStateOnButNoRules:'Switched on, but no rule below is ticked -- so nothing will ever send. Tick the ones you want.',
@@ -7032,7 +7037,7 @@ jobViewAll:'Todos', jobViewToday:'Hoy', jobViewWeek:'Esta semana', jobViewUnsche
     fuPreviewEmptyMsg:'No se enviaría nada ahora mismo.',
     fuLogHead:'Envíos recientes',
     fuLogBody:'Cada correo de seguimiento realmente enviado: qué tipo, qué trabajo y cuándo.',
-    fuRuleWaiting:'%s esperando ahora', fuRuleWaitingNone:'ninguno esperando',
+    fuRuleWaiting:'%s esperando ahora', hoaSendBtn:'Enviar los datos para la HOA al cliente', hoaSentOn:'Enviado %s', hoaNotSentYet:'Sin enviar', hoaNoEmailMsg:'Este trabajo no tiene correo del cliente para enviar.', hoaAskTitle:'¿Enviar los datos para la HOA?', hoaAskBody:'Esto envía los datos de la cerca a %s para que los reenvíe a su asociación. Nada se envía directamente a la HOA.', hoaAskSendBtn:'Enviar', hoaSendingMsg:'Enviando...', hoaSentMsg:'Enviado a %s.', hoaCouldNotSendMsg:'No se pudo enviar. No se envió ningún correo.', fuRuleWaitingNone:'ninguno esperando',
     fuCouldNotAsk:'No se pudo leer tu configuración de seguimientos ahora mismo, así que todo lo de abajo es una suposición basada en los valores por defecto, no en lo que está activado. Prueba Actualizar antes de cambiar nada.',
     fuStateOff:'Los seguimientos están desactivados. Nada de lo de abajo se enviará, y la lista de pendientes queda vacía haya quien haya esperando.',
     fuStateOnButNoRules:'Activado, pero no hay ninguna regla marcada abajo, así que nunca se enviará nada. Marca las que quieras.',
@@ -8860,7 +8865,7 @@ jobViewAll:'Tous', jobViewToday:'Aujourdhui', jobViewWeek:'Cette semaine', jobVi
     fuPreviewHead:'Ce qui serait envoyé maintenant',
     fuPreviewBody:'Lecture seule. Calculé à partir des mêmes règles que la fonction d\'envoi, y compris les heures de silence et le plafond quotidien, pour voir l\'effet avant d\'activer quoi que ce soit. Ceci n\'envoie jamais de courriel par lui-même.',
     fuPreviewEmptyMsg:'Rien ne serait envoyé pour le moment.',
-    fuRuleWaiting:'%s en attente', fuRuleWaitingNone:'aucun en attente',
+    fuRuleWaiting:'%s en attente', hoaSendBtn:'Envoyer les informations pour la HOA au client', hoaSentOn:'Envoyé %s', hoaNotSentYet:'Pas encore envoyé', hoaNoEmailMsg:'Aucune adresse courriel du client pour ce chantier.', hoaAskTitle:'Envoyer les informations pour la HOA ?', hoaAskBody:'Ceci envoie les informations de la clôture à %s, qui pourra les transmettre à son association. Rien ne part directement vers la HOA.', hoaAskSendBtn:'Envoyer', hoaSendingMsg:'Envoi en cours...', hoaSentMsg:'Envoyé à %s.', hoaCouldNotSendMsg:'Envoi impossible. Aucun courriel envoyé.', fuRuleWaitingNone:'aucun en attente',
     fuCouldNotAsk:'Impossible de lire vos réglages de relance pour le moment : tout ce qui suit est une supposition basée sur les valeurs par défaut, pas sur ce qui est réellement activé. Essayez Actualiser avant de changer quoi que ce soit.',
     fuStateOff:'Les relances sont désactivées. Rien ci-dessous ne partira, et la liste des relances dues reste vide même si quelqu'+"'"+'un attend.',
     fuStateOnButNoRules:'Activé, mais aucune règle ci-dessous n'+"'"+'est cochée, donc rien ne partira jamais. Cochez celles que vous voulez.',
@@ -12314,7 +12319,7 @@ const JOB_COLUMNS = [
   // out. The follow-up preview computes on these -- left off the select
   // they arrive undefined, which dueFollowUp reads as nothing due, so the
   // panel would show an empty list on the night the review emails send.
-  'completed_at','review_email_sent_at',
+  'completed_at','review_email_sent_at','hoa_letter_sent_at',
   'id','sync_id','company_id','customer_id','local_id','customer_name',
   'address','phone','email','notes','status','referral_source',
   'scheduled_date','estimated_duration_hours','assigned_employee_id',
@@ -23804,6 +23809,68 @@ function officePricingErrorMessage(status, body){
 /** The one place this page calls price-job. Built from the caller's own
     session -- never a service key -- so RLS and company_allowed hold exactly
     as they do for every other request this page makes. */
+/* Emails the HOA details to the CUSTOMER, for them to forward.
+   Asks first, because this puts a letter in a customer's inbox: the office
+   should never send one by brushing a button. The caller's own session goes
+   up, exactly as callPriceJob below -- never a service key -- so the function
+   reads the job under this person's row security and refuses anything that is
+   not theirs. */
+async function sendHoaLetter(){
+  if (!openJob || !canEdit()) return;
+  const to = (openJob.email || '').trim();
+  if (!to) { msg('hoaMsg', tr('hoaNoEmailMsg'), 'err'); return; }
+
+  const ok = await ask({
+    title: tr('hoaAskTitle'),
+    body: tr('hoaAskBody', to),
+    confirmLabel: tr('hoaAskSendBtn'),
+  });
+  if (!ok) return;
+
+  const btn = $('hoaSendBtn');
+  if (btn) btn.disabled = true;
+  msg('hoaMsg', tr('hoaSendingMsg'), 'working');
+  try {
+    const { data: sess } = await db.auth.getSession();
+    const res = await fetch(`${SUPA_URL}/functions/v1/hoa-letter`, {
+      method:'POST',
+      headers:{
+        'Content-Type':'application/json',
+        Authorization:`Bearer ${sess?.session?.access_token}`,
+        apikey: window.FENCEFLOW_CONFIG.SUPABASE_KEY,
+      },
+      body: JSON.stringify({ job_sync_id: openJob.sync_id }),
+    });
+    const body = await res.json().catch(()=>({}));
+    if (!res.ok) {
+      // The server's own sentence, not a generic one: it says which of the
+      // half-dozen reasons this was refused, and most of them are fixable
+      // on the job itself.
+      msg('hoaMsg', body.error || tr('hoaCouldNotSendMsg'), 'err');
+      return;
+    }
+    msg('hoaMsg', tr('hoaSentMsg', to), 'ok');
+    /* Re-read the stamp so the marker is the SERVER's answer, not this
+       page's assumption. The function reports whether it managed to stamp
+       (the email goes first, and a failed stamp is logged rather than
+       raised), so believing the button here could show "sent on ..." for a
+       row that says nothing of the kind. */
+    const { data: fresh } = await db.from('jobs')
+      .select('hoa_letter_sent_at').eq('sync_id', openJob.sync_id).maybeSingle();
+    const at = fresh?.hoa_letter_sent_at || null;
+    openJob.hoa_letter_sent_at = at;
+    const note = $('hoaSentNote');
+    if (note) {
+      note.textContent = at ? tr('hoaSentOn', d(at).toLocaleString()) : tr('hoaNotSentYet');
+      note.className = at ? 'sub ok' : 'sub';
+    }
+  } catch (e) {
+    msg('hoaMsg', tr('hoaCouldNotSendMsg'), 'err');
+  } finally {
+    if (btn) btn.disabled = !canEdit();
+  }
+}
+
 async function callPriceJob(jobSyncId, mode, expectedUpdatedAt){
   try{
     const { data: sess } = await db.auth.getSession();
@@ -24622,6 +24689,21 @@ async function showJob(id){
   // real lead source with nobody having touched the field.
   fillReferralOptions('j_referral_source', openJob.referral_source);
   J_TEXT.forEach(k=>{const el=$('j_'+k); if(el) el.value=openJob[k]||'';});
+
+  /* WHETHER THE HOA PACKET HAS GONE, and when.
+     Without this the button is the only thing on the panel and there is no
+     way to tell a job whose details went out last week from one where nobody
+     has sent anything -- so it gets sent again, and the customer gets the
+     same letter twice. The send is still allowed (an association does lose
+     emails); it just is not blind. */
+  const hoaNote = $('hoaSentNote');
+  if (hoaNote) {
+    const at = openJob.hoa_letter_sent_at;
+    hoaNote.textContent = at ? tr('hoaSentOn', d(at).toLocaleString()) : tr('hoaNotSentYet');
+    hoaNote.className = at ? 'sub ok' : 'sub';
+  }
+  const hoaBtn = $('hoaSendBtn');
+  if (hoaBtn) hoaBtn.disabled = !canEdit();
   // A timestamp shown as a tick. The DATE is kept rather than replaced on
   // every save -- when somebody asked to stop being emailed is worth
   // knowing, and rewriting it each time the sheet is saved would lose it.
@@ -28601,6 +28683,7 @@ $('ppClose').addEventListener('click', ppCloseDialog);
 $('ppOverlay').addEventListener('click', e => { if(e.target.id === 'ppOverlay') ppCloseDialog(); });
 $('ppAddSupplier').addEventListener('click', () => { $('ppOverlay').classList.remove('on'); openSupplierDialog(null); });
 $('ppFile').addEventListener('change', e => { const f = e.target.files && e.target.files[0]; if(f) ppOnFile(f); });
+$('hoaSendBtn')?.addEventListener('click', sendHoaLetter);
 $('ppReadBtn').addEventListener('click', ppOnPaste);
 $('ppSupplier').addEventListener('change', ppRecompute);
 ['ppColName', 'ppColPrice', 'ppColSku', 'ppColUnit', 'ppAssign', 'ppSaveSku'].forEach(id => $(id).addEventListener('change', ppRecompute));
