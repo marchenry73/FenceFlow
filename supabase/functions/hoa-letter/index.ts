@@ -11,40 +11,45 @@
  * everything a board asks for, formatted to forward or paste into the
  * association's own form.
  *
- * IT MEASURES NOTHING OF ITS OWN. The footage comes from the pricing
- * engine's own linearFeet()/teardownLinearFeet(), called one run at a time,
- * so the letter can never state a length the quote disagrees with. The
- * wording lives in _shared/job-spec.ts, which is pure and tested under Node
- * (tests/job-spec.test.mjs) -- this file is only the impure half: read, send,
- * stamp.
+ * IT MEASURES NOTHING OF ITS OWN, AND IT DOES NOT BUNDLE THE ENGINE.
  *
- * WHY THE ENGINE IS NOT RUN IN FULL: priceJob() needs the catalog, the
- * manufacturers, the change orders and the existing line items, none of which
- * a letter cares about. linearFeet(job, [oneRun]) is the engine's own
- * footage, reached without any of that -- and without adding an export to
- * _shared/pricing, which would make price-job stale and drag a redeploy and
- * the parity fixtures into a letter.
+ * The figures come from price-job itself, called in dry_run mode with the
+ * caller's own token, and read off output.runs: gross_feet, gate_count and
+ * gate_feet per run. dry_run writes nothing.
+ *
+ * The first version of this function imported the shared pricing module
+ * directly to reach linearFeet(). tests/a94 refused the deploy, and it was
+ * right to: exactly ONE function may bundle the engine, because two copies
+ * can be deployed at different versions and then the office quotes a
+ * different number from the phone -- the precise bug this project keeps
+ * fighting. The figures still come from the one engine; they now arrive over
+ * HTTP from the one function that owns it.
+ *
+ * (That check is a substring scan of this file, so even naming the import
+ * path in a comment fails it, which is why this paragraph talks around it.)
+ *
+ * The wording lives in _shared/job-spec.ts, which is pure, imports nothing
+ * from the engine, and is tested under Node (tests/job-spec.test.mjs). This
+ * file is only the impure half: read, ask, send, stamp.
  */
 import { mailCaller } from "../_shared/mail/caller.ts";
 import { MESSAGES, toMailError } from "../_shared/mail/errors.ts";
-import { describeJob, hoaLetter } from "../_shared/job-spec.ts";
-import { fenceRunRowToInput, jobRowToInput } from "../_shared/pricing/load.ts";
-import { jobFromRow, runFromRow } from "../_shared/pricing/index.ts";
-import { linearFeet, teardownLinearFeet } from "../_shared/pricing/totals.ts";
+import { describeJob, hoaLetter, RunMeasurement } from "../_shared/job-spec.ts";
 
 const FN = "hoa-letter";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
 
-/** Exactly price-job's list, so the two read the same runs. */
+/**
+ * Only what the WORDS need. The measuring is price-job's job, so none of the
+ * geometry columns are read here -- no points, no gate encoding, no
+ * calibration. If this list and price-job's ever had to agree, that would be
+ * a sign the measuring had crept back in.
+ */
 const RUN_COLUMNS =
-  "sync_id, label, fence_type, color_or_finish, points_encoded, gates_encoded, " +
-  "closed_loop, manual_linear_feet, manual_corner_count, panel_width_ft, panel_height_ft, " +
-  "post_spacing_ft, concrete_bags_per_post, aluminum_style, wood_style, wood_rail_count, " +
-  "picket_width_in, picket_gap_in, fabric_height_ft, include_top_rail, include_tension_wire, " +
-  "include_barbed_wire_arms, include_privacy_slats, split_rail_count, suppressed_roles, " +
-  "is_teardown, sort_order, start_joint, end_joint";
+  "sync_id, label, fence_type, color_or_finish, panel_height_ft, " +
+  "post_spacing_ft, concrete_bags_per_post, is_teardown, sort_order";
 
 function senderWithName(name: string, address: string): string {
   const clean = String(name ?? "").replace(/[\r\n<>"]/g, "").trim().slice(0, 70);
@@ -121,32 +126,59 @@ Deno.serve(async (req) => {
     // The engine's own footage, one run at a time. The empty manufacturer set
     // is safe here because it only affects which MATERIALS a run would use,
     // and nothing below prices anything.
-    // runFromRow is STRICT: a run whose fence_type this build does not know
-    // throws rather than guessing, and so does jobFromRow on the job's own
-    // enums. That is right for pricing and it is right here too -- but it
-    // must not surface as "something went wrong", because the owner can
-    // neither find nor fix that. Such a job cannot be priced either, so the
-    // message says which side is unreadable and stops.
-    const feetBySyncId: Record<string, number> = {};
+    /* THE FIGURES COME FROM price-job, in dry_run, with the caller's own
+       token forwarded. dry_run writes nothing (see price-job's header).
+
+       The caller's token and not a service key: price-job then applies the
+       same pricing permission it always does, so somebody who may not see
+       pricing cannot get a specification out through this door instead. */
+    const supabaseUrl = Deno.env.get("SUPABASE_URL");
+    if (!supabaseUrl) return json({ error: "Server is not configured." }, 503);
+
+    let measured: Record<string, RunMeasurement> = {};
     try {
-      const engineJob = jobFromRow(jobRowToInput(job as never), new Set<string>());
-      runs.forEach((row, i) => {
-        const engineRun = runFromRow(fenceRunRowToInput(row as never), i);
-        feetBySyncId[String(row.sync_id)] = engineRun.isTeardown
-          ? teardownLinearFeet(engineJob, [engineRun])
-          : linearFeet(engineJob, [engineRun]);
+      const priced = await fetch(`${supabaseUrl}/functions/v1/price-job`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: req.headers.get("Authorization") ?? "",
+          apikey: Deno.env.get("SUPABASE_ANON_KEY") ?? "",
+        },
+        body: JSON.stringify({ job_sync_id: jobSyncId, mode: "dry_run" }),
+        signal: AbortSignal.timeout(25_000),
       });
+      const pricedBody = await priced.json().catch(() => ({}));
+      if (!priced.ok) {
+        // price-job's own sentence, passed through: it distinguishes "no
+        // permission to see pricing" from "this job's fence data is invalid",
+        // and both are things the owner can act on. A generic failure here
+        // would send them looking in the wrong place.
+        console.error(`${FN}: price-job refused`, priced.status, JSON.stringify(pricedBody).slice(0, 200));
+        return json({
+          error: pricedBody?.error ??
+            "The job could not be measured, so the letter was not sent.",
+          priced_status: priced.status,
+        }, priced.status === 403 ? 403 : 400);
+      }
+      const runsOut = Array.isArray(pricedBody?.output?.runs) ? pricedBody.output.runs : [];
+      if (runsOut.length === 0) {
+        // Measured nothing, so every length would print as 0 ft. Refused
+        // rather than sent as a specification full of zeroes.
+        return json({ error: "This job measured as nothing, so there is no specification to send." }, 400);
+      }
+      for (const r of runsOut) {
+        measured[String(r.run_sync_id)] = {
+          feet: Number(r.gross_feet) || 0,
+          gateCount: Number(r.gate_count) || 0,
+          gateFeet: Number(r.gate_feet) || 0,
+        };
+      }
     } catch (e) {
-      const why = e instanceof Error ? e.message : String(e);
-      console.error(`${FN}: job will not load into the engine`, jobSyncId, why);
-      return json({
-        error: "One of this job's sides cannot be read by this version, so its " +
-          "length cannot be stated. The same thing stops this job pricing.",
-        detail: why.slice(0, 200),
-      }, 400);
+      console.error(`${FN}: could not reach price-job`, String(e));
+      return json({ error: "Could not measure the job just now. Nothing was sent." }, 502);
     }
 
-    const spec = describeJob(job as never, runs as never, feetBySyncId);
+    const spec = describeJob(job as never, runs as never, measured);
     const { subject, text, html } = hoaLetter(spec, (company ?? {}) as never);
 
     const mailKey = Deno.env.get("MAIL_API_KEY");
@@ -214,7 +246,7 @@ Deno.serve(async (req) => {
       // Handy for the caller to show without a second round trip.
       total_feet: spec.totalFeet,
       sections: spec.sides.length,
-      gates: spec.gates.length,
+      gates: spec.gates.count,
       stamped: !stampError,
     });
   } catch (e) {

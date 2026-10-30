@@ -8,14 +8,22 @@
  * IT DOES NOT MEASURE ANYTHING. Every length here arrives as a parameter,
  * computed by the one pricing engine, because a second implementation of "how
  * long is this fence" is exactly how the office and the phone end up quoting
- * different jobs. The module describes; it does not calculate. The only thing
- * it decodes is the gate list, and it decodes it with the engine's own
- * decodeGates rather than a private parser.
+ * different jobs. The module describes; it does not calculate -- not the
+ * lengths, and not the gates either.
+ *
+ * IT IMPORTS NOTHING FROM THE ENGINE, and that is a rule rather than a
+ * preference. tests/a94 holds that exactly ONE edge function may bundle
+ * _shared/pricing, because two bundles can be deployed at different versions
+ * and then the office quotes a different number from the phone. An earlier
+ * version of this file imported the engine's gate decoder, which satisfied
+ * the letter of that check (it only scans each function's index.ts) while
+ * quietly putting a second copy of engine code in a second function. So the
+ * gates arrive as figures too: count and total opening, straight from the
+ * engine's own output.
  *
  * Pure, like follow-up-logic.ts and quote-deposit.ts: no Deno, no fetch, no
  * clock of its own, so tests/job-spec.test.mjs runs it under plain Node.
  */
-import { decodeGates } from "./pricing/geometry.ts";
 
 /** Only the fields the description needs. */
 export interface SpecJob {
@@ -34,7 +42,6 @@ export interface SpecRun {
   panel_height_ft?: number | null;
   post_spacing_ft?: number | null;
   concrete_bags_per_post?: number | null;
-  gates_encoded?: string | null;
   is_teardown?: boolean | null;
   sort_order?: number | null;
 }
@@ -48,10 +55,18 @@ export interface SpecCompany {
   email?: string | null;
 }
 
-export interface SpecGate {
-  widthFt: number;
-  mounting: string;
-  swing: string;
+/**
+ * Gates as the engine counts them: how many, and how much opening in total.
+ *
+ * NOT a list of individual widths. Those would mean decoding gates_encoded
+ * here, which is engine code -- see the header. For the common case (one gate
+ * on a side) count and total give the exact width anyway; for two or more the
+ * letter says "2 gates, 14 ft of opening", which is what an association needs
+ * and is a figure the engine itself produced.
+ */
+export interface SpecGates {
+  count: number;
+  feetTotal: number;
 }
 
 export interface SpecSide {
@@ -62,7 +77,7 @@ export interface SpecSide {
   feet: number;
   postSpacingFt: number;
   setInConcrete: boolean;
-  gates: SpecGate[];
+  gates: SpecGates;
 }
 
 export interface JobSpec {
@@ -74,7 +89,8 @@ export interface JobSpec {
   /** Feet of existing fence coming out, 0 when none. */
   teardownFeet: number;
   sides: SpecSide[];
-  gates: SpecGate[];
+  /** Every side's gates added together. */
+  gates: SpecGates;
   /** Distinct declared heights, ascending. A 4ft-and-6ft job lists both. */
   heights: number[];
 }
@@ -123,10 +139,17 @@ export function fenceTypeWords(raw: string): string {
     .join(" ");
 }
 
+/** What the engine measured for one run. */
+export interface RunMeasurement {
+  feet: number;
+  gateCount: number;
+  gateFeet: number;
+}
+
 /**
  * Describes the job.
  *
- * @param feetBySyncId measured feet per run, from the pricing engine --
+ * @param measured per run, from the pricing engine --
  *   `RunOutput.gross_feet`, keyed by `run_sync_id`. GROSS, not net: gross is
  *   the length of the fence line, which is what an association is approving,
  *   while net subtracts the gate openings and would quietly describe a
@@ -140,17 +163,18 @@ export function fenceTypeWords(raw: string): string {
 export function describeJob(
   job: SpecJob,
   runs: readonly SpecRun[],
-  feetBySyncId: Readonly<Record<string, number>>,
+  measured: Readonly<Record<string, RunMeasurement>>,
 ): JobSpec {
   const ordered = [...runs].sort((a, b) => num(a.sort_order) - num(b.sort_order));
 
   const sides: SpecSide[] = [];
-  const allGates: SpecGate[] = [];
+  const allGates: SpecGates = { count: 0, feetTotal: 0 };
   let totalFeet = 0;
   let teardownFeet = num(job.teardown_feet);
 
   for (const run of ordered) {
-    const runFeet = num(feetBySyncId[run.sync_id]);
+    const m = measured[run.sync_id];
+    const runFeet = num(m?.feet);
 
     // A teardown run is existing fence coming OUT. It is not part of what is
     // being built, so it must not be added to the total an HOA reads as the
@@ -160,12 +184,9 @@ export function describeJob(
       continue;
     }
 
-    const gates = decodeGates(clean(run.gates_encoded)).map((g) => ({
-      widthFt: num(g.widthFt),
-      mounting: String(g.mounting ?? ""),
-      swing: String(g.swing ?? ""),
-    }));
-    allGates.push(...gates);
+    const gates: SpecGates = { count: num(m?.gateCount), feetTotal: num(m?.gateFeet) };
+    allGates.count += gates.count;
+    allGates.feetTotal += gates.feetTotal;
 
     sides.push({
       label: clean(run.label) || `Side ${sides.length + 1}`,
@@ -198,13 +219,12 @@ export function describeJob(
 const esc = (s: string): string =>
   s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
-/** The gate sentence: "one 4 ft gate", "two gates (4 ft, 10 ft)". */
-function gateWords(gates: readonly SpecGate[]): string {
-  if (gates.length === 0) return "No gates.";
-  const widths = gates.map((g) => feet(g.widthFt)).join(", ");
-  return gates.length === 1
-    ? `One gate, ${widths}.`
-    : `${gates.length} gates (${widths}).`;
+/** "No gates.", "One gate, 4 ft.", "2 gates, 14 ft of opening." */
+function gateWords(gates: SpecGates): string {
+  if (gates.count <= 0) return "No gates.";
+  // One gate: the total IS that gate's width, so it reads exactly.
+  if (gates.count === 1) return `One gate, ${feet(gates.feetTotal)}.`;
+  return `${gates.count} gates, ${feet(gates.feetTotal)} of opening.`;
 }
 
 /**
@@ -255,7 +275,7 @@ export function hoaLetter(
       s.color ? `color/finish ${s.color}` : "",
       s.postSpacingFt > 0 ? `posts at ${feet(s.postSpacingFt)} on center` : "",
       s.setInConcrete ? "posts set in concrete" : "",
-      s.gates.length ? gateWords(s.gates).replace(/\.$/, "") : "",
+      s.gates.count > 0 ? gateWords(s.gates).replace(/\.$/, "") : "",
     ].filter(Boolean);
     lines.push("- " + bits.join(", ") + ".");
   }
