@@ -499,10 +499,10 @@ fun CrewJobScreen(
                     historyNote = historyNote,
                     // A running shift on a kept job still ends here; a new
                     // one does not start on a job this person is off.
-                    // A running shift on a kept job still ends here; a new
-                    // one does not start on a job this person is off -- and an
-                    // owner is not offered one at all unless he asked to be.
-                    allowClockIn = !kept && offerClock,
+                    allowClockIn = !kept,
+                    // Separate, because being off a job and not wanting the
+                    // button are different facts with different words.
+                    offerClockIn = offerClock,
                     editable = editable,
                     onClockIn = { viewModel.clockIn() },
                     onClockOut = { viewModel.clockOut() },
@@ -746,6 +746,20 @@ private fun TimeClockCard(
     /** False on a kept job: a running shift can still end, a new one cannot start. */
     allowClockIn: Boolean = true,
     /**
+     * False when this viewer has asked not to be offered the clock at all: an
+     * owner or manager with Settings -> Crew view -> Clock In switched off.
+     *
+     * A THIRD flag, and not one more condition on [allowClockIn], because that
+     * flag's false branch prints "you are no longer on this job" -- the very
+     * lie the comment below warns about. Folding the owner's choice into it
+     * told him he had been taken off his own job, on every job, by default,
+     * since the switch starts off. Nothing is shown instead, as in the demo:
+     * he turned the feature off, so there is nothing to explain.
+     *
+     * Crew are never passed false. Clocking in is their screen's whole point.
+     */
+    offerClockIn: Boolean = true,
+    /**
      * False in the guest demo: every button below is gone. Kept separate
      * from [allowClockIn], whose false branch prints a specific ("you're no
      * longer on this job") reason that would be a lie here -- the demo just
@@ -852,9 +866,9 @@ private fun TimeClockCard(
                         }
                     }
                 }
-            } else if (allowClockIn && editable) {
+            } else if (allowClockIn && editable && offerClockIn) {
                 Button(onClick = onClockIn, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.crew_clock_in)) }
-            } else if (!allowClockIn) {
+            } else if (!allowClockIn && offerClockIn) {
                 Text(
                     stringResource(R.string.crew_kept_no_clock_in),
                     style = MaterialTheme.typography.bodyMedium,
