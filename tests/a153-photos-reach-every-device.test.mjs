@@ -180,7 +180,12 @@ test("a153 a removed photo is not counted as work waiting to sync", () => {
 });
 
 test("a153 Room has a migration for the two new columns, and seeds the clock", () => {
-  assert.match(DB, /version = 57,/, "the database version was not raised");
+  // The VERSION NUMBER IS NOT THE POINT, and pinning it was a mistake: the
+  // next migration moved it to 58 and this check went red with the photo
+  // migration perfectly intact. What matters is that the migration exists and
+  // is in the list Room is handed.
+  const version = Number(/version = (\d+),/.exec(DB)?.[1]);
+  assert.ok(version >= 57, `the database version is ${version}, below the photo migration's 57`);
   assert.match(DB, /ADD COLUMN `deletedAt` INTEGER/, "no migration for deletedAt");
   assert.match(DB, /ADD COLUMN `updatedAt` INTEGER NOT NULL DEFAULT 0/, "no migration for updatedAt");
   // A photo taken before this build is not "changed in 1970": left at zero,
