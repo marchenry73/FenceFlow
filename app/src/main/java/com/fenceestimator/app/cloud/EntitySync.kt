@@ -4133,6 +4133,12 @@ object EntitySync {
         if (local.isEmpty()) return 0
 
         val cloudBySyncId = pagedList<CloudJobPhoto>("job_photos") {
+            // sees-tombstones: a photo removed on another device carries
+            // deleted_at, and this read is the push's comparison, not a pull.
+            // Hide those rows and the removal looks like "no cloud copy", so
+            // this phone's older live row goes straight back up and
+            // un-removes the photo. PullFiltersDeletedTest's marker, used for
+            // the same reason the fence_runs push uses it.
             eq("company_id", companyId)
         }.associateBy { it.syncId }
 
@@ -4156,6 +4162,13 @@ object EntitySync {
      */
     private suspend fun pullJobPhotos(repository: Repository, companyId: String): Int {
         val cloud = pagedList<CloudJobPhoto>("job_photos") {
+            // sees-tombstones: a removal IS what this pull has to learn. A
+            // photo is taken off a job by stamping deleted_at, not by
+            // deleting the row (Repository.deletePhoto), so filtering those
+            // out would leave every other device still showing a picture
+            // somebody removed. The create branch below refuses a row that
+            // arrives already stamped, which is what stops it being read as
+            // a new photo -- see a153.
             eq("company_id", companyId)
         }
         if (cloud.isEmpty()) return 0

@@ -3245,6 +3245,14 @@
           <option value="NOT_REQUIRED" data-t="jobOptNotRequired">Not required</option><option value="PENDING" data-t="jobOptPending">Pending</option>
           <option value="APPROVED" data-t="jobOptApproved">Approved</option></select></div>
       </div>
+      <div style="margin-top:10px">
+        <label style="display:flex;align-items:center;gap:8px;font-weight:400">
+          <input type="checkbox" id="j_locate_not_required" style="width:auto">
+          <span data-t="jobLabelNoLocate">This job needs no utility locate</span>
+        </label>
+        <div class="sub" data-t="jobLabelNoLocateHint">Tick this only when nothing goes in the ground. Until somebody answers,
+          a job scheduled in the next week is flagged as having no 811 call.</div>
+      </div>
       <div style="margin-top:12px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
         <button class="btn btn-sm" id="hoaSendBtn" data-t="hoaSendBtn">Email HOA details to the customer</button>
         <span class="sub" id="hoaSentNote"></span>
@@ -4540,7 +4548,7 @@ jobViewAll:'All', jobViewToday:'Today', jobViewWeek:'This week', jobViewUnschedu
     jobCoNotInTotal:'not in the agreed total',
     jobCoRaiseOnPhone:'Raise a change order on the phone, on the job screen \u2014 it needs the customer\u2019s signature.',
     jobSecReady:'Installation readiness', jobSecHoa:'HOA & Permits',
-    jobLabelHoaName:'HOA name', jobLabelHoaEmail:'HOA email', jobLabelHoaStatus:'HOA status',
+    jobLabelHoaName:'HOA name', jobLabelHoaEmail:'HOA email', jobLabelHoaStatus:'HOA status', jobLabelNoLocate:'This job needs no utility locate', jobLabelNoLocateHint:'Tick this only when nothing goes in the ground. Until somebody answers, a job scheduled in the next week is flagged as having no 811 call.',
     jobOptNotRequired:'Not required', jobOptPending:'Pending', jobOptApproved:'Approved',
     jobOptDenied:'Denied', jobLabelPermitNumber:'Permit number',
     jobLabelPermitStatus:'Permit status',
@@ -6400,7 +6408,7 @@ jobViewAll:'Todos', jobViewToday:'Hoy', jobViewWeek:'Esta semana', jobViewUnsche
     jobCoNotInTotal:'no incluida en el total acordado',
     jobCoRaiseOnPhone:'Cree una orden de cambio en el tel\u00e9fono, en la pantalla del trabajo \u2014 necesita la firma del cliente.',
     jobSecReady:'Preparación para la instalación', jobSecHoa:'HOA y permisos',
-    jobLabelHoaName:'Nombre de la HOA', jobLabelHoaEmail:'Correo de la HOA', jobLabelHoaStatus:'Estado de la HOA',
+    jobLabelHoaName:'Nombre de la HOA', jobLabelHoaEmail:'Correo de la HOA', jobLabelHoaStatus:'Estado de la HOA', jobLabelNoLocate:'Este trabajo no necesita localización de servicios', jobLabelNoLocateHint:'Marca esto solo cuando nada se entierra. Hasta que alguien responda, un trabajo programado para la próxima semana se marca como sin llamada al 811.',
     jobOptNotRequired:'No se requiere', jobOptPending:'Pendiente', jobOptApproved:'Aprobado',
     jobOptDenied:'Denegado', jobLabelPermitNumber:'Número de permiso',
     jobLabelPermitStatus:'Estado del permiso',
@@ -8230,7 +8238,7 @@ jobViewAll:'Tous', jobViewToday:'Aujourdhui', jobViewWeek:'Cette semaine', jobVi
     jobCoNotInTotal:'pas dans le total convenu',
     jobCoRaiseOnPhone:'Cr\u00e9ez un avenant sur le t\u00e9l\u00e9phone, sur l\u2019\u00e9cran du chantier \u2014 il faut la signature du client.',
     jobSecReady:'Préparation à l’installation', jobSecHoa:'Copropriété et permis',
-    jobLabelHoaName:'Nom de l’association', jobLabelHoaEmail:'Courriel de l’association', jobLabelHoaStatus:'Statut de l’association',
+    jobLabelHoaName:'Nom de l’association', jobLabelHoaEmail:'Courriel de l’association', jobLabelHoaStatus:'Statut de l’association', jobLabelNoLocate:'Ce chantier ne nécessite aucun repérage', jobLabelNoLocateHint:'À cocher seulement quand rien ne va dans le sol. Tant que personne ne répond, un chantier prévu dans la semaine est signalé comme sans appel au 811.',
     jobOptNotRequired:'Non requis', jobOptPending:'En attente', jobOptApproved:'Approuvé',
     jobOptDenied:'Refusé', jobLabelPermitNumber:'Numéro de permis',
     jobLabelPermitStatus:'Statut du permis',
@@ -12319,7 +12327,7 @@ const JOB_COLUMNS = [
   // out. The follow-up preview computes on these -- left off the select
   // they arrive undefined, which dueFollowUp reads as nothing due, so the
   // panel would show an empty list on the night the review emails send.
-  'completed_at','review_email_sent_at','hoa_letter_sent_at',
+  'completed_at','review_email_sent_at','hoa_letter_sent_at','locate_not_required',
   'id','sync_id','company_id','customer_id','local_id','customer_name',
   'address','phone','email','notes','status','referral_source',
   'scheduled_date','estimated_duration_hours','assigned_employee_id',
@@ -14152,6 +14160,12 @@ function renderDash(){
                    && d(j.scheduled_date) >= new Date(nowMs)
                    && d(j.scheduled_date) < new Date(nowMs + 7*864e5)
                    && !j.locate_called_at && !String(j.locate_ticket_no || '').trim()
+                   // r57: and nobody has said the job needs no locate.
+                   // Without this a job that genuinely needs no digging --
+                   // panels onto existing posts, say -- alerts every day it
+                   // stays on the schedule, and the only way out is muting
+                   // the alert for every job at once.
+                   && !j.locate_not_required
                    && j.status !== 'DECLINED')
     .forEach(j => items.push({ urgent:true, severity:'critical',
       text: tr('alertTxtLocateNeverRequested', d(j.scheduled_date).toLocaleDateString(), name(j)),
@@ -24704,6 +24718,14 @@ async function showJob(id){
   }
   const hoaBtn = $('hoaSendBtn');
   if (hoaBtn) hoaBtn.disabled = !canEdit();
+
+  // A safety answer, so it is a real edit: saved with the sheet, pushed to
+  // every device, and never written as a side effect of opening the job.
+  const noLocate = $('j_locate_not_required');
+  if (noLocate) {
+    noLocate.checked = !!openJob.locate_not_required;
+    noLocate.disabled = !canEdit();
+  }
   // A timestamp shown as a tick. The DATE is kept rather than replaced on
   // every save -- when somebody asked to stop being emailed is worth
   // knowing, and rewriting it each time the sheet is saved would lose it.
@@ -24919,6 +24941,13 @@ async function saveJob(){
   if(!openJob||!canEdit()) return;
   const patch={};
   J_TEXT.forEach(k=>{const el=$('j_'+k); if(el) patch[k]=el.value;});
+  // Booleans are not in J_TEXT/J_NUM/J_SEL, so this one is named. `=== true`
+  // rather than a bare .checked so a missing element saves false instead of
+  // undefined, which PostgREST would refuse on a NOT NULL column.
+  {
+    const noLocate = $('j_locate_not_required');
+    if (noLocate) patch.locate_not_required = noLocate.checked === true;
+  }
   // Ticked -> a timestamp, KEEPING the original if there already is one, so
   // the date he asked is not rewritten by an unrelated save. Unticked ->
   // null, which is what lets somebody be put back on the list.
