@@ -24,8 +24,22 @@ import com.fenceestimator.app.data.Job
 object LocateTicket {
 
     enum class State {
-        /** No ticket recorded. Not a judgement -- some jobs need no digging. */
+        /**
+         * No ticket, and nobody has said whether one is needed.
+         *
+         * This used to carry BOTH meanings -- not called yet, and not needed
+         * at all -- which is why neither could be chased. It is now only the
+         * first: something to answer.
+         */
         NONE,
+
+        /**
+         * Somebody has decided this job needs no locate, and said why.
+         *
+         * A gate rehung on existing posts, panels swapped, nothing going in
+         * the ground. Not an alert, because it is an answer.
+         */
+        NOT_REQUIRED,
 
         /** Called in, but the wait has not elapsed. Nobody may dig yet. */
         WAITING,
@@ -38,6 +52,15 @@ object LocateTicket {
     }
 
     fun stateOf(job: Job, now: Long = System.currentTimeMillis()): State = when {
+        // A TICKET ALWAYS WINS. If one was called in, the real dates decide
+        // whatever the no-locate box says -- somebody ringing 811 anyway is
+        // not a reason to stop reading the expiry.
+        job.locateTicketNo.isNotBlank() -> when {
+            job.locateExpiresAt?.let { it <= now } == true -> State.EXPIRED
+            job.locateDigAfter?.let { it > now } == true -> State.WAITING
+            else -> State.CLEAR
+        }
+        job.locateNotRequired -> State.NOT_REQUIRED
         job.locateTicketNo.isBlank() -> State.NONE
         job.locateExpiresAt?.let { it <= now } == true -> State.EXPIRED
         job.locateDigAfter?.let { it > now } == true -> State.WAITING
@@ -72,6 +95,7 @@ object LocateTicket {
     fun messageRes(job: Job, now: Long = System.currentTimeMillis()): Message =
         when (stateOf(job, now)) {
             State.NONE -> Message(R.string.eng2_locate_msg_none)
+            State.NOT_REQUIRED -> Message(R.string.eng2_locate_msg_not_required)
             State.WAITING -> Message(R.string.eng2_locate_msg_waiting)
             State.EXPIRED -> Message(R.string.eng2_locate_msg_expired)
             State.CLEAR -> {
@@ -97,6 +121,8 @@ object LocateTicket {
         return when (m.textRes) {
             R.string.eng2_locate_msg_none ->
                 "No utility locate on this job. Call 811 before anyone digs."
+            R.string.eng2_locate_msg_not_required ->
+                "Marked as needing no digging on this job, so no 811 call."
             R.string.eng2_locate_msg_waiting ->
                 "Locate called in, but the wait is not up yet. Nobody digs before the " +
                     "date below -- that wait is the law, not a guideline."
@@ -122,7 +148,14 @@ object LocateTicket {
      * using. It warns loudly and lets them decide.
      */
     fun shouldWarnBeforeDigging(job: Job, now: Long = System.currentTimeMillis()): Boolean =
-        stateOf(job, now) != State.CLEAR
+        // NOT_REQUIRED is an answer, not a gap: somebody has said nothing goes
+        // in the ground here. Warning anyway would make the box pointless --
+        // tick it and get warned regardless -- and a warning that cannot be
+        // satisfied is one people learn to ignore.
+        when (stateOf(job, now)) {
+            State.CLEAR, State.NOT_REQUIRED -> false
+            State.NONE, State.WAITING, State.EXPIRED -> true
+        }
 
     /** Below this many days remaining, say so before somebody is on site. */
     const val EXPIRY_WARNING_DAYS = 3

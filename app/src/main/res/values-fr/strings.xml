@@ -2334,4 +2334,10 @@
     <string name="jd_review_auto_sent_note">Envoyée automatiquement au client avec votre lien pour les avis. Rien de plus à faire ici.</string>
     <string name="jd_review_auto_hint">Si les demandes sont activées au bureau, elle part toute seule quelques jours après que le chantier est marqué termine.</string>
     <string name="jd_photo_on_its_way">En route</string>
+    <string name="jsec_locate_not_required">Aucun repérage nécessaire</string>
+    <string name="jsec_locate_not_needed_toggle">Ce chantier ne nécessite aucun repérage</string>
+    <string name="eng2_locate_msg_not_required">Quelqu’un a indiqué que ce chantier ne nécessite aucune excavation, donc pas d’appel au 811. Précisez pourquoi dans les notes, pour que la personne suivante sache que c’était une décision.</string>
+    <string name="set_crew_view">Vue de l’équipe</string>
+    <string name="set_owner_clock_in">M’afficher le pointage</string>
+    <string name="set_owner_clock_in_explain">Désactivé par défaut : l’équipe pointe elle-même ses entrées et sorties, le bouton ne vous encombre donc pas. Activez-le si vous pointez un membre de l’équipe depuis votre téléphone.</string>
 </resources>

@@ -374,6 +374,25 @@ class SettingsStore(private val context: Context) {
      */
     val snapIntroSeen: Flow<Boolean> = context.dataStore.data.map { it[Keys.SNAP_INTRO_SEEN] == true }
 
+    /**
+     * Whether an OWNER or MANAGER is offered the Clock In button on a job.
+     *
+     * Off by default, because the owner asked for it to be off: he does not
+     * clock himself in and the button was only ever in his way. It is a
+     * switch rather than a deletion because there is one shared clock slot
+     * per job, and that is what lets an owner or foreman with no crew record
+     * clock a crew member in from a shared phone (see CrewJobScreen). Anybody
+     * who works that way turns it back on.
+     *
+     * Crew are never affected: clocking in is their screen's whole point.
+     */
+    val ownerClockInEnabled: Flow<Boolean> =
+        context.dataStore.data.map { it[Keys.OWNER_CLOCK_IN] == true }
+
+    suspend fun setOwnerClockInEnabled(on: Boolean) {
+        context.dataStore.edit { it[Keys.OWNER_CLOCK_IN] = on }
+    }
+
     /** Same shape as [markTourSeen] -- one key, no full save, no stamp. */
     suspend fun markSnapIntroSeen() {
         context.dataStore.edit { it[Keys.SNAP_INTRO_SEEN] = true }
@@ -707,6 +726,7 @@ class SettingsStore(private val context: Context) {
         val SEEN_TOUR = androidx.datastore.preferences.core.booleanPreferencesKey("seen_tour")
         val PRICES_REVIEWED = androidx.datastore.preferences.core.booleanPreferencesKey("prices_reviewed")
         val SNAP_INTRO_SEEN = androidx.datastore.preferences.core.booleanPreferencesKey("snap_intro_seen")
+        val OWNER_CLOCK_IN = androidx.datastore.preferences.core.booleanPreferencesKey("owner_clock_in")
         val UPDATED_AT = androidx.datastore.preferences.core.longPreferencesKey("settings_updated_at")
         val TAX_RATE = doublePreferencesKey("tax_rate")
         val MARKUP = doublePreferencesKey("markup")

@@ -2334,4 +2334,10 @@
     <string name="jd_review_auto_sent_note">Enviada automáticamente al cliente con tu enlace de reseñas. No hay nada más que hacer aquí.</string>
     <string name="jd_review_auto_hint">Si las solicitudes de reseña están activadas en la oficina, esto se envía solo unos días después de marcar el trabajo como completado.</string>
     <string name="jd_photo_on_its_way">En camino</string>
+    <string name="jsec_locate_not_required">No se necesita localización</string>
+    <string name="jsec_locate_not_needed_toggle">Este trabajo no necesita localización</string>
+    <string name="eng2_locate_msg_not_required">Alguien marcó que este trabajo no requiere excavación, así que no hay llamada al 811. Explica por qué en las notas, para que el siguiente sepa que fue una decisión.</string>
+    <string name="set_crew_view">Vista de la cuadrilla</string>
+    <string name="set_owner_clock_in">Mostrarme el botón de entrada</string>
+    <string name="set_owner_clock_in_explain">Desactivado por defecto: la cuadrilla marca su propia entrada y salida, así que el botón no te estorba. Actívalo si marcas la entrada de un trabajador desde tu teléfono.</string>
 </resources>

@@ -128,6 +128,8 @@ data class CloudJob(
     @SerialName("signed_at") val signedAt: String? = null,
     /** RESIDENTIAL | COMMERCIAL | OTHER, or blank. A label; no rule reads it. */
     @SerialName("job_type") val jobType: String? = null,
+    /** Somebody said this job needs no locate. His own field; pushed. */
+    @SerialName("locate_not_required") val locateNotRequired: Boolean? = null,
     /**
      * When the job was first marked COMPLETED (r47's trigger), and when the
      * automatic review request went out (send-follow-ups). Read and never
@@ -1717,6 +1719,7 @@ private fun Job.toCloud(
     minimumJobCharge = minimumJobCharge,
     minimumLaborCharge = minimumLaborCharge,
     jobType = jobType,
+    locateNotRequired = locateNotRequired,
     wastePercent = wastePercent,
     blockedReason = blockedReason,
     overrunReason = overrunReason,
@@ -1892,6 +1895,10 @@ internal fun CloudJob.mergeOnto(local: Job, keepMoney: Boolean = false): Job = l
     // value stands when it does not -- the same shape as every other typed
     // field here, not the never-un-happens rule the cancellation needs.
     jobType = (jobType ?: "").ifBlank { local.jobType },
+    // A safety decision somebody made, so the cloud's answer stands when it
+    // has one and the local value stands when it does not -- the same shape
+    // as every other typed field here.
+    locateNotRequired = locateNotRequired ?: local.locateNotRequired,
     // Never-un-happens, like the cancellation below it: a row that arrives
     // without these keeps whatever the phone already knew, so an older
     // build's reply (or a partial select) cannot un-complete a finished job
@@ -2054,6 +2061,7 @@ internal fun CloudJob.toLocalJob(): Job = Job(
     refundedAt = CloudTime.parseMillis(refundedAt),
     signedAt = CloudTime.parseMillis(signedAt),
     jobType = jobType ?: "",
+    locateNotRequired = locateNotRequired ?: false,
     completedAt = CloudTime.parseMillis(completedAt),
     reviewEmailSentAt = CloudTime.parseMillis(reviewEmailSentAt),
     cancelledAt = CloudTime.parseMillis(cancelledAt),

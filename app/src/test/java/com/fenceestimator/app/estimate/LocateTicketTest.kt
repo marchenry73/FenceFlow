@@ -16,16 +16,83 @@ import org.junit.Test
  */
 class LocateTicketTest {
 
+    // ---- r57: "no locate needed" is something somebody SAID --------------
+    //
+    // NONE used to mean two things at once -- nobody has called 811 yet, and
+    // this job needs no digging -- so neither could be chased, and the
+    // office's locate alert could never be satisfied for the second kind. It
+    // fired every day such a job sat on the schedule, which is how a safety
+    // alert gets muted for every job at once.
+
+    @Test
+    fun `a job with nothing said is still NONE, not not-required`() {
+        assertEquals(LocateTicket.State.NONE, LocateTicket.stateOf(job(), now))
+    }
+
+    @Test
+    fun `saying the job needs no locate is its own state`() {
+        assertEquals(
+            LocateTicket.State.NOT_REQUIRED,
+            LocateTicket.stateOf(job(notRequired = true), now)
+        )
+    }
+
+    @Test
+    fun `a ticket always wins over the no-locate box`() {
+        // Somebody ringing 811 anyway is not a reason to stop reading the
+        // expiry. Every one of these has the box ticked.
+        assertEquals(
+            LocateTicket.State.CLEAR,
+            LocateTicket.stateOf(job(ticket = "A1", notRequired = true), now)
+        )
+        assertEquals(
+            LocateTicket.State.EXPIRED,
+            LocateTicket.stateOf(job(ticket = "A1", expires = now - day, notRequired = true), now)
+        )
+        assertEquals(
+            LocateTicket.State.WAITING,
+            LocateTicket.stateOf(job(ticket = "A1", digAfter = now + day, notRequired = true), now)
+        )
+    }
+
+    @Test
+    fun `a job that needs no digging does not warn before digging`() {
+        // The whole point of the box. A warning that stays on after somebody
+        // has answered it is one they learn to ignore -- and this is the
+        // warning that matters most when it is real.
+        assertFalse(LocateTicket.shouldWarnBeforeDigging(job(notRequired = true), now))
+        // CONTROL: the states that SHOULD warn still do, or the line above
+        // proves only that nothing warns any more.
+        assertTrue(LocateTicket.shouldWarnBeforeDigging(job(), now))
+        assertTrue(LocateTicket.shouldWarnBeforeDigging(job(ticket = "A1", expires = now - day), now))
+    }
+
+    @Test
+    fun `the no-locate message is its own, not the clear-to-dig fallback`() {
+        // message() ends in `else -> "Clear to dig."`, so a new state added
+        // without a branch would have told the crew a no-digging job was
+        // clear to dig.
+        assertEquals(
+            R.string.eng2_locate_msg_not_required,
+            LocateTicket.messageRes(job(notRequired = true), now).textRes
+        )
+        val text = LocateTicket.message(job(notRequired = true), now)
+        assertTrue("got: $text", text.contains("no digging"))
+        assertFalse("got: $text", text == "Clear to dig.")
+    }
+
     private val now = 1_700_000_000_000L
     private val day = 86_400_000L
 
     private fun job(
         ticket: String = "",
         digAfter: Long? = null,
-        expires: Long? = null
+        expires: Long? = null,
+        notRequired: Boolean = false
     ) = Job(
         customerName = "Test",
         locateTicketNo = ticket,
+        locateNotRequired = notRequired,
         locateDigAfter = digAfter,
         locateExpiresAt = expires
     )

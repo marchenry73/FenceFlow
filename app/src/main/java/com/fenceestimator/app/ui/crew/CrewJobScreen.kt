@@ -94,6 +94,17 @@ fun CrewJobScreen(
             snackbarHostState.showSnackbar(context.getString(it.textRes, *it.args.toTypedArray()))
         }
     }
+    /* WHO IS OFFERED THE CLOCK.
+       Crew always. An owner or manager only when they have asked for it in
+       Settings -- see SettingsStore.ownerClockInEnabled for why it is a
+       switch and not a deletion. Read here rather than in the view model
+       because it is a display decision, and clockIn() itself is unchanged:
+       anybody who reaches it may still use it. */
+    val ownerClockIn by app.settingsStore.ownerClockInEnabled.collectAsState(initial = false)
+    val sessionNow by app.session.state.collectAsState()
+    val viewerIsCrew = sessionNow.role == com.fenceestimator.app.cloud.UserRole.CREW
+    val offerClock = viewerIsCrew || ownerClockIn
+
     val job by viewModel.job.collectAsState()
     val runs by viewModel.runs.collectAsState()
     val steps by viewModel.steps.collectAsState()
@@ -488,7 +499,10 @@ fun CrewJobScreen(
                     historyNote = historyNote,
                     // A running shift on a kept job still ends here; a new
                     // one does not start on a job this person is off.
-                    allowClockIn = !kept,
+                    // A running shift on a kept job still ends here; a new
+                    // one does not start on a job this person is off -- and an
+                    // owner is not offered one at all unless he asked to be.
+                    allowClockIn = !kept && offerClock,
                     editable = editable,
                     onClockIn = { viewModel.clockIn() },
                     onClockOut = { viewModel.clockOut() },

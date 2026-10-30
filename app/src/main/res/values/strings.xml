@@ -2411,4 +2411,10 @@
     <string name="jd_review_auto_sent_note">Sent automatically to the customer with your review link. Nothing more to do here.</string>
     <string name="jd_review_auto_hint">When review requests are switched on in the office, this goes out on its own a few days after the job is marked complete.</string>
     <string name="jd_photo_on_its_way">On its way</string>
+    <string name="jsec_locate_not_required">No locate needed</string>
+    <string name="jsec_locate_not_needed_toggle">No locate needed on this job</string>
+    <string name="eng2_locate_msg_not_required">Somebody has marked this job as needing no digging, so no 811 call. Say why in the notes, so the next person knows it was a decision.</string>
+    <string name="set_crew_view">Crew view</string>
+    <string name="set_owner_clock_in">Show Clock In to me</string>
+    <string name="set_owner_clock_in_explain">Off by default: the crew clock themselves in and out, so the button is not in your way. Turn it on if you clock a crew member in from your own phone.</string>
 </resources>

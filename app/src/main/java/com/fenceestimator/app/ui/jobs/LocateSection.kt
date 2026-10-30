@@ -11,11 +11,13 @@ import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Event
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
@@ -56,6 +58,8 @@ fun LocateSection(job: Job, viewModel: JobDetailViewModel) {
         LocateTicket.State.EXPIRED -> MaterialTheme.colorScheme.errorContainer
         LocateTicket.State.WAITING -> MaterialTheme.colorScheme.tertiaryContainer
         LocateTicket.State.NONE -> MaterialTheme.colorScheme.surfaceVariant
+        // An answer, not an alert: the same quiet surface as "clear".
+        LocateTicket.State.NOT_REQUIRED -> MaterialTheme.colorScheme.surfaceVariant
         LocateTicket.State.CLEAR ->
             if (LocateTicket.expiringSoon(job)) MaterialTheme.colorScheme.tertiaryContainer
             else MaterialTheme.colorScheme.surfaceVariant
@@ -67,6 +71,7 @@ fun LocateSection(job: Job, viewModel: JobDetailViewModel) {
                 stringResource(
                     when (state) {
                         LocateTicket.State.NONE -> R.string.jsec_locate_none
+                        LocateTicket.State.NOT_REQUIRED -> R.string.jsec_locate_not_required
                         LocateTicket.State.WAITING -> R.string.jsec_locate_waiting
                         LocateTicket.State.EXPIRED -> R.string.jsec_locate_expired
                         LocateTicket.State.CLEAR -> R.string.jsec_locate_clear
@@ -90,6 +95,28 @@ fun LocateSection(job: Job, viewModel: JobDetailViewModel) {
                 ) {
                     androidx.compose.material3.Icon(Icons.Filled.Call, contentDescription = null)
                     Text("  " + stringResource(R.string.jsec_locate_call_811))
+                }
+            }
+
+            /* THE ANSWER, where the question is asked.
+               Only offered while there is no ticket: once one has been called
+               in, "no locate needed" is not a thing anybody should be ticking,
+               and stateOf ignores it anyway. */
+            if (job.locateTicketNo.isBlank()) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Checkbox(
+                        checked = job.locateNotRequired,
+                        onCheckedChange = { on ->
+                            viewModel.update { it.copy(locateNotRequired = on) }
+                        }
+                    )
+                    Text(
+                        stringResource(R.string.jsec_locate_not_needed_toggle),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
                 }
             }
 

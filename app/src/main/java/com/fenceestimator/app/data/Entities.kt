@@ -578,6 +578,19 @@ data class Job(
     /** After this the ticket is void and has to be called again. */
     val locateExpiresAt: Long? = null,
     val locateNotes: String = "",
+    /**
+     * Somebody has decided this job needs no utility locate.
+     *
+     * FALSE means "nobody has said", NOT "no locate needed" -- that is the
+     * whole point of the column. Without it, a job waiting on an 811 call and
+     * a job that needs no digging at all are the same state, so neither can
+     * be chased and the office alert can never be satisfied for the second
+     * kind. The reason goes in [locateNotes].
+     *
+     * A ticket number still wins: if one is recorded, the real dates decide,
+     * whatever this says.
+     */
+    val locateNotRequired: Boolean = false,
     val permitStatus: PermitStatus = PermitStatus.NOT_REQUIRED,
 
     // Crew

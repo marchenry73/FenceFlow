@@ -840,6 +840,46 @@ fun SettingsScreen(
                 }
             }
             item {
+                /* WHAT THE CREW VIEW OFFERS.
+                   The first of the on/off switches, and deliberately its own
+                   section: the next ones belong beside it rather than
+                   scattered through the screen.
+
+                   Stored in DataStore rather than in `local` (the settings
+                   object this screen saves as a whole) because it is a
+                   per-phone preference about what a screen shows, not part of
+                   the company's settings -- and because it has to be readable
+                   from the crew job screen without loading all of them. */
+                SectionCard(stringResource(R.string.set_crew_view), icon = Icons.Filled.Dashboard) {
+                    val ownerClockIn by app.settingsStore.ownerClockInEnabled
+                        .collectAsState(initial = false)
+                    Row(
+                        Modifier.fillMaxWidth().padding(vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                stringResource(R.string.set_owner_clock_in),
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Text(
+                                stringResource(R.string.set_owner_clock_in_explain),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        androidx.compose.material3.Switch(
+                            checked = ownerClockIn,
+                            onCheckedChange = { on ->
+                                coroutineScope.launch {
+                                    app.settingsStore.setOwnerClockInEnabled(on)
+                                }
+                            }
+                        )
+                    }
+                }
+            }
+            item {
                 // Which figures the home screen shows.
                 //
                 // A dashboard showing everything shows nothing -- the number
