@@ -123,9 +123,17 @@ data class BusinessProfile(
      * with materials charged on top. 0 is off, which is what every company that
      * has never set it reads as -- and off has to mean untouched arithmetic.
      *
-     * Defaults to 0 rather than 200 like the job floor above it: a default that
-     * put a floor under every job on every phone that updates is a price change
-     * nobody asked for.
+     * Defaults to 200, and the job-total floor above it to 0 -- the swap the
+     * field above describes. This paragraph used to argue the opposite ("0
+     * rather than 200 like the job floor above it") and was left behind by that
+     * swap, which is how the reader's own fallbacks stayed the old way round
+     * for weeks: the prose agreed with them.
+     *
+     * The worry it recorded is still the right worry -- a floor appearing under
+     * every job on every phone that updates is a price change nobody asked for
+     * -- and it does not apply here. A phone that has ever saved its settings
+     * has both numbers in its preferences and reads them, not these; these are
+     * only what a phone with nothing stored starts from.
      */
     /** "He charges a minimum for turning up to a job." Materials do not count toward it. */
     val defaultMinimumLaborCharge: Double = 200.0,
@@ -827,8 +835,16 @@ class SettingsStore(private val context: Context) {
             teardownHoursPerFoot = prefs[Keys.TEARDOWN_HOURS_FT] ?: 0.02,
             defaultPanelWidthFt = prefs[Keys.PANEL_WIDTH] ?: 6f,
             defaultPanelHeightFt = prefs[Keys.PANEL_HEIGHT] ?: 6f,
-            defaultMinimumJobCharge = prefs[Keys.MIN_JOB_CHARGE] ?: 200.0,
-            defaultMinimumLaborCharge = prefs[Keys.MIN_LABOR_CHARGE] ?: 0.0,
+            // THE SAME WAY ROUND AS BusinessProfile's own defaults, which these
+            // had drifted from: the job-total floor is off and the LABOUR floor
+            // is $200. These two numbers are what a phone reads before anything
+            // has ever been saved -- a fresh install, or an owner who has not
+            // opened Settings -- and createJob() copies both onto the new job,
+            // so a pair that disagrees with the data class prices the first
+            // jobs on a new phone by the rule the data class rejected.
+            // tests/a25-new-company-onboarding.test.mjs asserts they agree.
+            defaultMinimumJobCharge = prefs[Keys.MIN_JOB_CHARGE] ?: 0.0,
+            defaultMinimumLaborCharge = prefs[Keys.MIN_LABOR_CHARGE] ?: 200.0,
             defaultToolsListCsv = prefs[Keys.TOOLS_LIST]
                 ?: "Post hole digger,4' level,Drill/driver,Circular saw,Tape measure,Post level,Wheelbarrow,Safety glasses,Gloves,String line",
             preferredManufacturerId = prefs[Keys.PREFERRED_MANUFACTURER] ?: 0L,

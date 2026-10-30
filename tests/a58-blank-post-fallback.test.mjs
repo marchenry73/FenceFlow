@@ -407,10 +407,34 @@ test("THE GAP SIGNAL: a role that truly has nothing is still named, and the bill
   assert.deepEqual(unmatchedOf(quote("WALL", without(CATALOG, "GATE_POST"))), ["BLANK_POST"],
     "a wall gate's own two posts are a blank post and an end post, so GATE_POST should not be named here");
   assert.equal(entryQty(quote("WALL"), "GATE_POST"), 0, "control: a wall gate asks for a gate post again");
-  assert.deepEqual(unmatchedOf(quote("LINE", without(CATALOG, "GATE_POST"))), ["GATE_POST"],
-    "a LINE gate DOES ask for gate posts, and nothing falls back for them -- that gap is still open");
-  assert.equal(billedQty(quote("LINE", without(CATALOG, "GATE_POST")), "GATE_POST"), 0,
-    "a GATE_POST line was billed with no row to bill -- the fallback table grew an entry");
+  // RE-AIMED 30 Oct 2026. This asserted the opposite -- that a LINE gate with no
+  // GATE_POST row reports the gap and bills nothing for it. That gap was then
+  // deliberately CLOSED: PRICING_FALLBACK_ROLE gained GATE_POST -> END_POST on
+  // both engines, on the reasoning the table itself gives (a catalog with no
+  // gate-post row was silently dropping one post per gate). The old assertion
+  // forbade the fix, so it is replaced by the new behaviour, measured: the line
+  // IS billed, once, and it names the END POST row it actually used.
+  assert.deepEqual(unmatchedOf(quote("LINE", without(CATALOG, "GATE_POST"))), [],
+    "a LINE gate's gate post now borrows the end post row, so nothing should be reported unmatched");
+  assert.equal(billedQty(quote("LINE", without(CATALOG, "GATE_POST")), "GATE_POST"), 1,
+    "a LINE gate's gate post is not billed at all -- the GATE_POST -> END_POST fallback is not wired");
+  assert.equal(itemOf(quote("LINE", without(CATALOG, "GATE_POST")), "GATE_POST").description,
+    '5"x5" Co-Ex End Post, White',
+    "the billed gate-post line does not name the row it borrowed");
+  // THE GAP IS STILL REPORTED when there is genuinely nothing: strip the end post
+  // too and the role comes back under its own name. That is the tooth the old
+  // assertion carried, moved onto a catalog that really has no candidate.
+  const noPosts = without(without(CATALOG, "GATE_POST"), "END_POST");
+  assert.deepEqual(unmatchedOf(quote("LINE", noPosts)).filter((r) => /POST$/.test(r)),
+    ["END_POST", "GATE_POST"],
+    "with neither a gate post nor an end post the gap must be named, not borrowed from somewhere else");
+  assert.equal(billedQty(quote("LINE", noPosts), "GATE_POST"), 0,
+    "a GATE_POST line was billed with no row anywhere to bill it from");
+  // The fallback is ONE HOP, which is worth pinning rather than discovering: a
+  // WALL gate's BLANK_POST borrows a GATE_POST and does NOT chain on to an
+  // END_POST when there is no gate-post row either.
+  assert.deepEqual(unmatchedOf(quote("WALL", without(CATALOG, "GATE_POST"))), ["BLANK_POST"],
+    "the fallback chained two hops -- BLANK_POST reached END_POST through GATE_POST");
   // Other roles are unaffected: strip the latch and it is still reported.
   assert.deepEqual(unmatchedOf(quote("WALL", without(CATALOG, "LATCH"))), ["LATCH"],
     "the fallback is interfering with the gap list for other roles");
@@ -544,22 +568,55 @@ test("THE SWEEP, direction B: which roles the catalogs stock that the takeoff ne
 
 // ============================================== the two engines say the same thing ==
 
-test("BOTH SIDES: the fallback table and its call site exist in Kotlin as well, with the same single entry", () => {
+test("BOTH SIDES: the fallback table and its call site exist in Kotlin as well, with the same pairs", () => {
   const kt = read("app/src/main/java/com/fenceestimator/app/estimate/EstimateEngine.kt");
   const ts = read("supabase/functions/_shared/pricing/line-items.ts");
-  // the table, one entry, same roles
-  assert.match(kt, /private val PRICING_FALLBACK_ROLE: Map<MaterialRole, MaterialRole> = mapOf\(\s*MaterialRole\.BLANK_POST to MaterialRole\.GATE_POST\s*\)/,
-    "EstimateEngine.kt's fallback table is missing or holds something else");
-  assert.match(ts, /const PRICING_FALLBACK_ROLE: Partial<Record<MaterialRole, MaterialRole>> = \{\s*BLANK_POST: "GATE_POST",\s*\}/,
-    "line-items.ts's fallback table is missing or holds something else");
-  // exactly one entry each, so a role cannot be added to one side alone. Block comments are
-  // stripped first: the doc comment above the table NAMES the pair that is deliberately not
-  // wired (GATE_POST to END_POST), and counting that as code would make this assertion a lie.
-  const ktCode = kt.replace(/\/\*[\s\S]*?\*\//g, "");
-  assert.equal((ktCode.match(/MaterialRole\.[A-Z_]+ to MaterialRole\.[A-Z_]+/g) ?? []).length, 1,
-    "EstimateEngine.kt has more than one fallback pair -- the server side must match it");
-  const tsEntries = ts.match(/const PRICING_FALLBACK_ROLE[^}]*\}/)[0].match(/^\s+[A-Z_]+: "[A-Z_]+",$/gm) ?? [];
-  assert.equal(tsEntries.length, 1, "line-items.ts has more than one fallback pair -- the phone must match it");
+  // THE PAIRS, READ OUT AND COMPARED SIDE BY SIDE rather than each matched
+  // against a literal.
+  //
+  // RE-AIMED 30 Oct 2026. This pinned a one-entry table with two regexes that
+  // spelled the single pair out, so the day GATE_POST -> END_POST was added to
+  // BOTH engines -- the intended change -- the file reported that the table
+  // "is missing or holds something else". Reading the pairs out asks the
+  // question that actually matters (the two engines agree) and keeps the one
+  // that mattered before (a pair cannot be added to one side alone), without
+  // going red for a correct addition.
+  //
+  // Comments are stripped first, block AND line: the prose around these tables
+  // names roles and directions, and counting prose as code would turn this into
+  // a check on the comments.
+  const strip = (code) => code.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:"'])\/\/.*$/gm, "$1");
+  const ktPairsOf = (code) => {
+    const table = /private val PRICING_FALLBACK_ROLE: Map<MaterialRole, MaterialRole> = mapOf\(([\s\S]*?)\n    \)/.exec(strip(code));
+    assert.ok(table, "EstimateEngine.kt's fallback table was not found at all");
+    return [...table[1].matchAll(/MaterialRole\.([A-Z_]+) to MaterialRole\.([A-Z_]+)/g)]
+      .map((m) => m[1] + "->" + m[2]).sort();
+  };
+  const ktPairs = ktPairsOf(kt);
+  const tsTable = /const PRICING_FALLBACK_ROLE: Partial<Record<MaterialRole, MaterialRole>> = \{([\s\S]*?)\n\};/.exec(strip(ts));
+  assert.ok(tsTable, "line-items.ts's fallback table was not found at all");
+  const tsPairs = [...tsTable[1].matchAll(/([A-Z_]+):\s*"([A-Z_]+)"/g)]
+    .map((m) => m[1] + "->" + m[2]).sort();
+  assert.deepEqual(ktPairs, tsPairs,
+    "the phone and the server fall back DIFFERENTLY: one engine borrows a row the other does not");
+  // And they are the pairs that were decided, named here so a third entry has to
+  // be a deliberate change in this file as well as in both engines.
+  assert.deepEqual(ktPairs, ["BLANK_POST->GATE_POST", "GATE_POST->END_POST"],
+    "the fallback table gained or lost a pair -- if that was deliberate, say so here and in both engines");
+  // CANARY: a pair added to the phone alone must be caught, or the comparison
+  // above is comparing nothing.
+  // The anchor carries the code line's own indentation. The pair's text also
+  // appears in the doc comment ABOVE the table, and a string replace takes the
+  // first occurrence -- which planted the extra pair inside a comment, where
+  // strip() removed it again and the canary quietly compared nothing.
+  const CODE_LINE = "\n        MaterialRole.GATE_POST to MaterialRole.END_POST";
+  assert.equal(kt.split(CODE_LINE).length, 2,
+    "canary anchor is not unique in EstimateEngine.kt, so the plant may land in a comment");
+  const planted = ktPairsOf(kt.replace(CODE_LINE,
+    CODE_LINE + ",\n        MaterialRole.LATCH to MaterialRole.HINGE"));
+  assert.notDeepEqual(planted, tsPairs,
+    "canary: a pair added to the phone alone is invisible, so the two-sides comparison proves nothing");
+  assert.equal(planted.length, ktPairs.length + 1, "canary: the planted pair was not read at all");
   // the call site, in both, reading the table and falling through to unmatched
   assert.match(kt, /val fallbackRole = PRICING_FALLBACK_ROLE\[entry\.role\]\s*\n\s*if \(fallbackRole != null\) candidates = candidatesByRole\[fallbackRole\]\.orEmpty\(\)/,
     "EstimateEngine.kt's call site does not read the table the way line-items.ts does");

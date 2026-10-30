@@ -200,7 +200,17 @@ function freshDb(statements) {
  *   53  jobs.depositIsAuto -- whether the stored deposit is the app's own suggestion or a figure
  *       a person chose. One bit, and it is what lets the deposit follow the price without ever
  *       overwriting somebody's own number. Shipped in 1.734.
- * Bump this line, and nothing else here, when a 54 lands.
+ *   54  jobs.cancelledAt / cancelledBy / cancellationReason -- a job can be cancelled and the
+ *       phone has to know. No backfill: every job that exists stays live until somebody says so.
+ *   55  jobs.jobType -- residential, commercial or other; blank for "not said", because nobody
+ *       was asked about the jobs that already exist.
+ *   56  jobs.completedAt / reviewEmailSentAt -- when the job was finished and when the review
+ *       request went out. Both server-written and pull-only, both null for existing jobs.
+ *   57  job_photos.deletedAt / updatedAt -- photos sync as rows now, which needs a tombstone and
+ *       a clock. updatedAt is seeded from takenAt so an untouched caption is not "changed in 1970".
+ *   58  jobs.locateNotRequired -- this job needs no utility locate. Defaults to 0, "nobody has
+ *       said": the other direction would mark the whole back catalogue as needing no locate.
+ * Bump this line, and nothing else here, when a 59 lands.
  *
  * NOTE for whoever lands the owed DROP TABLE mentioned below: it was written expecting to be
  * SchemaV51. 51 went to the marker sizes and 52 to the marker mark, so that drop is now a 53.
@@ -214,7 +224,7 @@ function freshDb(statements) {
  * RunJoin::class leaves that list, THIS file is replaced by a59-join-storage-roundtrip.test.mjs -- do
  * not retire it before then.
  */
-const DB_VERSION = 53;
+const DB_VERSION = 58;
 
 /** Differences between the RunJoin entity and a SQLite built from the migration's statements, plus the wiring. Empty is good. */
 function schemaViolations(runJoinKt, appDatabaseKt) {

@@ -38,7 +38,11 @@ begin
   end if;
 
   execute format(
-      'create or replace view public.jobs_crew as select %s, locate_not_required '
+      -- with (security_barrier = true): a rebuild with no with-clause CLEARS
+      -- the view's options, which is how jobs_crew came to be the only crew
+      -- view without a barrier while its four siblings kept theirs.
+      'create or replace view public.jobs_crew with (security_barrier = true) '
+      'as select %s, locate_not_required '
       'from public.jobs where company_id = current_company_id() '
       'and not company_is_suspended() and not coalesce(is_test_fixture, false)',
       cols);
@@ -105,3 +109,22 @@ select 'crew view carries the locate answer' as check,
        exists (select 1 from information_schema.columns
                 where table_schema='public' and table_name='jobs_crew'
                   and column_name='locate_not_required') as pass;
+-- ---------------------------------------------------------------------------
+-- The barrier, re-asserted. Idempotent, and deliberately AFTER the rebuild
+-- above: CREATE OR REPLACE VIEW replaces a view's options with whatever the
+-- statement names, so a rebuild written without a with-clause silently clears
+-- it. jobs_crew spent weeks as the only crew view without one because three
+-- separate rebuilds each forgot. This line means the next one cannot.
+-- ---------------------------------------------------------------------------
+alter view public.jobs_crew set (security_barrier = true);
+
+do $$
+begin
+    if not exists (
+        select 1 from pg_class c
+         where c.oid = 'public.jobs_crew'::regclass
+           and 'security_barrier=true' = any(coalesce(c.reloptions, '{}'))
+    ) then
+        raise exception 'jobs_crew has no security_barrier after this file ran';
+    end if;
+end $$;

@@ -146,7 +146,13 @@ test("2. Room: MIGRATION_49_50 is declared AND registered, and the 4 -> declared
     "a statement was appended to the already-shipped SchemaV49 instead of going into SchemaV50");
 
   // TEETH: each probe above fails on the mutation built for it.
-  assert.doesNotMatch(SRC.appdb.replace("version = 50,", "version = 49,"), /version = 50,/);
+  // Anchored on the version the file DECLARES, not on 50. Pinned to "version = 50,"
+  // this mutation stopped changing anything the day 51 landed, so doesNotMatch
+  // passed on a string that was never there -- a teeth check with no teeth.
+  assert.doesNotMatch(
+    SRC.appdb.replace(`version = ${declared},`, `version = ${declared - 1},`),
+    new RegExp(`version = ${declared},`),
+    "the version probe's own mutation no longer changes the source");
   assert.ok(!/MIGRATION_49_50\)/.test(
     bodyOf(SRC.appdb.replace("MIGRATION_48_49, MIGRATION_49_50)", "MIGRATION_48_49)"), "fun getInstance(")),
     "the builder probe cannot see a migration left out of addMigrations");
@@ -462,13 +468,31 @@ test("7. there is ONE write path, and the retired joint table is not touched", (
   //   `= ""`                     ALLOWED anywhere -- clearing an end is the
   //                              safe direction; it bills a post MORE, never
   //                              one that is not in the ground.
-  //   `= run.startJoint/endJoint` ALLOWED anywhere -- carrying through what was
-  //                              already decided, not deciding it.
+  //   `= <x>.startJoint/endJoint` ALLOWED anywhere, for the SAME end -- carrying
+  //                              through what was already decided, not deciding it.
   //   an if/else over only those  ALLOWED, same reason.
   //   anything else              ONLY in Repository.setRunJointIds and the
   //                              sync's pull.
-  const CLEAR_OR_CARRY = /^(""|run\.(startJoint|endJoint))$/;
-  const decidesAJoint = (rhs) => {
+  //
+  // WIDENED 30 Oct 2026, and this is the second time this rule has gone red
+  // with nothing wrong. The receiver was pinned to the literal name `run`, so
+  // when the split moved into RunEditViewModel and carried the far end through
+  // as `fresh.endJoint` -- the same shape, a different local's name -- the probe
+  // named a third file and the message said a joint id was being DECIDED there.
+  // It was not: `fresh` is the run being cut and `fresh.endJoint` is that run's
+  // own far end. A guard pinned to a variable name reports a rename as a breach.
+  //
+  // The widening is same-END only, and that is load-bearing: `endJoint =` may
+  // carry an `endJoint`, never a `startJoint`. Adopting the OTHER end's id is
+  // the shape a real join has (two ends at one corner take one id), so it stays
+  // forbidden outside the two owners. The residual hole, stated rather than
+  // papered over: `a.endJoint = b.endJoint` for a DIFFERENT run b would read as
+  // a carry. No such line exists, the teeth below pin the shapes that matter,
+  // and closing it textually would mean tracking which local holds which run --
+  // which is what the Kotlin, not a regex, is for.
+  const carryOf = (field) => new RegExp('^(""|[A-Za-z_$][\\w$]*\\.' + field + ')$');
+  const decidesAJoint = (rhs, field = "(startJoint|endJoint)") => {
+    const CLEAR_OR_CARRY = carryOf(field);
     // Drop the conditions of any if/else chain and the keywords themselves;
     // what is left is the leaves actually assigned.
     const leaves = rhs
@@ -490,7 +514,7 @@ test("7. there is ONE write path, and the retired joint table is not touched", (
       // close-paren dropped.
       const after = m.index + m[0].length;
       const rhs = text.slice(after, text.indexOf("\n", after)).trim().replace(/[,)]\s*$/, "").trim();
-      if (decidesAJoint(rhs)) assigns.push(f);
+      if (decidesAJoint(rhs, m[1])) assigns.push(f);
     }
   }
   const owners = [...new Set(assigns)].sort();
@@ -504,18 +528,33 @@ test("7. there is ONE write path, and the retired joint table is not touched", (
   for (const m of planted.replace(/^\s*(\/\/|\*|\/\*).*$/gm, "").matchAll(/(startJoint|endJoint)\s*=/g)) {
     const after = m.index + m[0].length;
     const rhs = planted.slice(after, planted.indexOf("\n", after)).trim().replace(/[,)]\s*$/, "").trim();
-    if (decidesAJoint(rhs)) smuggled.push(m.index);
+    if (decidesAJoint(rhs, m[1])) smuggled.push(m.index);
   }
   assert.ok(smuggled.length > 0,
     "teeth: the one-write-path probe cannot see a joint id decided inside a view model");
 
   // ...and does NOT flag a clear or a carry-through, or the rule would forbid
   // the correct code above and get itself deleted the next time it went red.
-  assert.ok(!decidesAJoint('""'), "control: clearing an end reads as deciding a joint");
-  assert.ok(!decidesAJoint("run.endJoint"), "control: carrying an end through reads as deciding a joint");
-  assert.ok(!decidesAJoint('if (cutsTheEnd) "" else run.endJoint'),
+  assert.ok(!decidesAJoint('""', "endJoint"), "control: clearing an end reads as deciding a joint");
+  assert.ok(!decidesAJoint("run.endJoint", "endJoint"), "control: carrying an end through reads as deciding a joint");
+  assert.ok(!decidesAJoint('if (cutsTheEnd) "" else run.endJoint', "endJoint"),
     "control: an if/else over a clear and a carry reads as deciding a joint");
-  assert.ok(decidesAJoint("other.syncId"), "control: a real id does NOT read as deciding a joint");
+  assert.ok(decidesAJoint("other.syncId", "endJoint"), "control: a real id does NOT read as deciding a joint");
+
+  // The widening's own boundaries, since the receiver name is no longer pinned.
+  // The shape the split actually writes -- a different local, the same end:
+  assert.ok(!decidesAJoint("fresh.endJoint", "endJoint"),
+    "control: the split's own carry-through (a local that is not called `run`) reads as deciding a joint");
+  // ...and the shape a real join has: one id taken onto the OTHER end. Same-end
+  // only is what keeps this forbidden, so if it ever passes the widening has
+  // swallowed the rule.
+  assert.ok(decidesAJoint("other.endJoint", "startJoint"),
+    "teeth: adopting another end's id reads as a carry -- the same-end restriction is gone");
+  assert.ok(decidesAJoint("neighbour.startJoint", "endJoint"),
+    "teeth: adopting another end's id reads as a carry -- the same-end restriction is gone");
+  // A field that merely ENDS in the name is not that field.
+  assert.ok(decidesAJoint("r.theirEndJoint", "endJoint"),
+    "teeth: a different property whose name ends in the field's reads as a carry");
 
   // SurveyViewModel goes through the repository and nowhere near a dao or the retired table.
   const write = bodyOf(SRC.vm, "private suspend fun writeJointIds(");

@@ -999,6 +999,41 @@ end $shifts$;
 
 
 -- ============================================================
+-- THE BARRIER, RE-ASSERTED ON ALL FOUR DOORS.
+--
+-- The rebuilds above carry each view's live options forward, which is right:
+-- three of these doors also carry security_invoker=false and that must survive.
+-- But carrying forward an EMPTY set reproduces a gap instead of closing it, and
+-- there is one: jobs_crew lost its security_barrier. It was created with the
+-- option (supabase_p2_jobs_crew_view.sql) and rebuilt three times since by files
+-- that wrote `create or replace view ... as` with no with-clause --
+-- crew_view_stage, r52 and r58 -- and CREATE OR REPLACE VIEW replaces a view's
+-- options with the ones named, so each of those cleared it. Its four siblings
+-- kept theirs.
+--
+-- Without this the self-check immediately below raises "jobs_crew lost
+-- security_barrier" and rolls this entire file back, so the migration could
+-- never have been applied. ALTER VIEW SET adds the one option and leaves the
+-- others alone, and is idempotent.
+--
+-- Why the option matters here: these views exist to WITHHOLD rows. Without a
+-- barrier the planner may evaluate a caller's own expression against rows the
+-- view's WHERE would have removed. A PostgREST client cannot define a function,
+-- so this is a narrow hole rather than an open one -- but it is free to close,
+-- it is the state the other four doors are already in, and the self-check is
+-- right to insist on it.
+-- ============================================================
+do $barriers$
+declare v text;
+begin
+    foreach v in array array['jobs_crew', 'estimate_line_items_crew',
+                             'change_orders_crew', 'time_entries_crew'] loop
+        execute format('alter view public.%I set (security_barrier = true)', v);
+    end loop;
+end $barriers$;
+
+
+-- ============================================================
 -- Self-check. Everything above is idempotent and anchored, so the failure
 -- worth catching is a later file putting something back. This fails the
 -- run rather than leaving a phone to find out.

@@ -28,6 +28,7 @@ import { stripTypeScriptTypes } from "node:module";
 import * as quoteDeposit from "../supabase/functions/_shared/quote-deposit.ts";
 import * as jobPush from "../supabase/functions/_shared/job-push.ts";
 import * as pushRecipients from "../supabase/functions/_shared/push-recipients.ts";
+import * as paymentsReady from "../supabase/functions/_shared/payments-ready.ts";
 const { billableTotal, depositFigures } = quoteDeposit;
 
 const COMPANY = "c0000000-0000-4000-8000-000000000001";
@@ -134,6 +135,7 @@ const SHARED = {
   "../_shared/quote-deposit.ts": quoteDeposit,
   "../_shared/job-push.ts": jobPush,
   "../_shared/push-recipients.ts": pushRecipients,
+  "../_shared/payments-ready.ts": paymentsReady,
 };
 
 function load(path, { env = {}, db, fetchImpl = async () => new Response("{}", { status: 404 }) }) {

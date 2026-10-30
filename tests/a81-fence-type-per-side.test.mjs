@@ -693,9 +693,27 @@ ok("5k", "defaultSpacingFor is still the ONE spacing table, and RunTypeChange de
 ok("5l", "KNOWN GAP (asserted): the plan LEGEND has no fence-type entry at all",
   !/fenceType/.test(read(PLANVIEW)),
   "if this now fails, the legend learned the type -- update the report");
-ok("5m", "KNOWN GAP (asserted): the HOA letter still takes the FIRST run's type for the whole job",
-  /fenceType = firstRun\?\.fenceType/.test(jobDetail),
-  "if this now fails, the HOA letter was fixed -- update the report");
+// GAP CLOSED 30 Oct 2026, and this is the report being updated as the old line
+// asked. The letter took `firstRun?.fenceType` for the whole job -- three vinyl
+// sides and one wood side told the association vinyl, which is what comes back
+// as a violation. It now phrases every BUILDING side's type, and the same fill
+// does it for the heights and the finishes.
+ok("5m", "the HOA letter names EVERY building side's fence type, not the first run's",
+  /fenceType = TemplateFiller\.phrase\(\s*building\.map \{ context\.getString\(it\.fenceType\.labelRes\(\)\) \}/.test(jobDetail),
+  "the HOA letter's fence-type fill no longer reads each building run's own type");
+ok("5m2", "and it cannot have gone back to one run's type for the job",
+  !/fenceType = firstRun\?\.fenceType/.test(jobDetail),
+  "the HOA letter is taking the FIRST run's type for the whole job again");
+ok("5m3", "the sides it names are the ones being BUILT: teardown runs are left out, and a job of nothing but teardown still says something",
+  /val building = runs\.filter \{ !it\.isTeardown \}\.ifEmpty \{ runs \}/.test(jobDetail),
+  "the letter either includes teardown runs or empties itself on a teardown-only job");
+// TEETH: each probe above must fail on the shape it is there to reject.
+ok("5m-teeth", "CANARY: the per-side probe fails on the old first-run fill, and the regression probe fails on it too",
+  !/fenceType = TemplateFiller\.phrase\(\s*building\.map \{ context\.getString\(it\.fenceType\.labelRes\(\)\) \}/
+    .test(jobDetail.replace(/fenceType = TemplateFiller\.phrase\(/, "fenceType = firstRun?.fenceType.let(")) &&
+  /fenceType = firstRun\?\.fenceType/
+    .test(jobDetail.replace("fenceType = TemplateFiller.phrase(", "fenceType = firstRun?.fenceType.let(")),
+  "the HOA probes pass on a letter that takes one run's type, so they prove nothing");
 
 /* ===================================================================== *
  * 6. RE-APPROVAL. Against the LIVE function body, not the repo .sql.

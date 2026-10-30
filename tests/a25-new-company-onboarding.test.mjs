@@ -146,13 +146,20 @@ const OFFICE_EN = (() => {
 })();
 
 const num = (v) => { const n = parseFloat(v); return isNaN(n) ? 0 : n; };
+/** dashboard.html's own numOr, transcribed: empty takes the default, a number is used as typed. */
+const numOr = (v, dflt) => {
+  const t = String(v ?? "").trim();
+  if (t === "") return dflt;
+  const n = parseFloat(t);
+  return Number.isFinite(n) ? n : dflt;
+};
 
 /** Runs the office wizard's REAL "Next" on step 1 (wizSaveWho) against a stub page and
  *  a stub database, and returns the row it tried to insert. `dom` maps element ids to
  *  the value the field holds; `settings` is company_settings. */
 async function runWizSaveWho(fnSource, dom, settings = {}) {
   let inserted = null;
-  const build = new Function("$", "db", "companySetting", "profile", "wiz", "msg", "tr", "jobs", "num",
+  const build = new Function("$", "db", "companySetting", "profile", "wiz", "msg", "tr", "jobs", "num", "numOr",
     fnSource + "\nreturn wizSaveWho;");
   const fields = { wz_customer_name: "A. Homeowner", ...dom };
   const db = {
@@ -164,7 +171,7 @@ async function runWizSaveWho(fnSource, dom, settings = {}) {
     }),
   };
   const fn = build((id) => ({ value: fields[id] ?? "" }), db, async (k, fb) => (settings[k] ?? fb),
-    { company_id: "c-1" }, { job: null, revisit: false }, () => {}, (k) => k, [], num);
+    { company_id: "c-1" }, { job: null, revisit: false }, () => {}, (k) => k, [], num, numOr);
   const ok = await fn();
   return { ok, row: inserted };
 }
@@ -443,15 +450,37 @@ test("no category/role in the PHONE's starting list mixes taxed and untaxed rows
   assert.ok(kotlinSeed.length >= 90, "control: the phone's list was read (" + kotlinSeed.length + " rows)");
 });
 
-test("SHOULD (todo): no category/role in the OFFICE's starting list mixes taxed and untaxed rows", { todo: "website/dashboard.html's CATALOG_SEED still ships the three 6x6 vinyl panels and the PVC gate untaxed, while the 8 ft panel and every other gate beside them are taxed. SeedData.kt and the r20 SQL were both corrected on 1 Oct (87639fc); this copy was not. Fixing it makes this a real assertion." }, () => {
-  const groups = new Map();
-  for (const r of office.CATALOG_SEED) {
-    const k = r.category + "/" + r.role;
-    if (!groups.has(k)) groups.set(k, new Set());
-    groups.get(k).add(r.taxable);
-  }
-  const mixed = [...groups].filter(([, s]) => s.size > 1).map(([k]) => k);
-  assert.deepEqual(mixed, []);
+test("no category/role in the OFFICE's starting list mixes taxed and untaxed rows", () => {
+  // WAS A TODO, and the gap it named is closed: the three 6x6 vinyl panels and
+  // the PVC gate shipped untaxed while the 8 ft panel and every other gate
+  // beside them were taxed. SeedData.kt and the r20 SQL were corrected on 1 Oct
+  // (87639fc) and this copy has been corrected since.
+  //
+  // It is promoted rather than deleted because node --test RUNS a todo and
+  // reports it as a todo whatever happens, so this assertion has been holding
+  // for weeks while printing "# TODO" -- which reads as known outstanding work,
+  // not as a check that now passes. A todo whose reason has expired is a check
+  // nobody is reading.
+  const mixedIn = (rows, taxableOf) => {
+    const groups = new Map();
+    for (const r of rows) {
+      const k = r.category + "/" + r.role;
+      if (!groups.has(k)) groups.set(k, new Set());
+      groups.get(k).add(taxableOf(r));
+    }
+    return [...groups].filter(([, s]) => s.size > 1).map(([k]) => k).sort();
+  };
+  assert.ok(office.CATALOG_SEED.length > 50, `control: the office seed was read (${office.CATALOG_SEED.length} rows)`);
+  assert.deepEqual(mixedIn(office.CATALOG_SEED, (r) => r.taxable), [],
+    "a category/role in the office's starting catalog is taxed on some rows and not others");
+  // CANARY: flip one row and the sweep must name its group, or it is grouping
+  // nothing. Done on a copy; the real rows are untouched.
+  const planted = office.CATALOG_SEED.map((r, i) => (i === 0 ? { ...r, taxable: !r.taxable } : r));
+  const firstGroup = office.CATALOG_SEED[0].category + "/" + office.CATALOG_SEED[0].role;
+  assert.ok(office.CATALOG_SEED.filter((r) => r.category + "/" + r.role === firstGroup).length > 1,
+    "canary: the first row is alone in its group, so flipping it cannot make a mix -- pick another");
+  assert.deepEqual(mixedIn(planted, (r) => r.taxable), [firstGroup],
+    "canary: one flipped row is not reported, so this sweep cannot see a mix");
 });
 
 test("GAP (pinned): the phone's starter tiers carry the founder's rates and discounts; the office's are blank", () => {
@@ -553,60 +582,164 @@ test("GAP (pinned): the New client wizard's send step applies no unverified-pric
 // ============================================== 5. THE FOUNDER'S NUMBERS ==
 
 const WIZ_SRC = grabFn(DASH, "wizSaveWho");
-const WIZ_FIXED = WIZ_SRC
-  .replace("num($('s_tax').value)||7", "num($('s_tax').value)")
-  .replace("num($('s_markup').value)||15", "num($('s_markup').value)");
+/**
+ * The wizard as it WAS: every numOr(x, d) put back to the num(x)||d it replaced.
+ *
+ * It is the canary for the three checks below. They assert that a typed zero now
+ * survives, which is a claim about a distinction, and a check on a distinction is
+ * worth nothing unless the other side of it can be produced -- so each one runs
+ * this copy too and requires the old answer out of it. Built by rewriting the
+ * calls rather than by naming the five fields, so a sixth field added to the
+ * wizard is covered without anybody remembering to add it here.
+ */
+const WIZ_OLD = WIZ_SRC.replace(/numOr\((.+?),\s*(-?[0-9.]+)\)/g, "num($1)||$2");
 const chose = (o) => ({ s_tax: "", s_markup: "", s_labor: "", s_min: "", s_min_labor: "", ...o });
 
-test("harness: with the fallbacks removed, a company's zero survives the wizard (so the pin below can tell)", async () => {
-  assert.notEqual(WIZ_FIXED, WIZ_SRC, "the corrected copy is not different");
-  const r = await runWizSaveWho(WIZ_FIXED, chose({ s_tax: "0", s_markup: "0", s_labor: "9", s_min: "250" }));
-  assert.equal(r.row.tax_rate_percent, 0);
-  assert.equal(r.row.markup_percent, 0);
-  assert.equal(r.row.labor_rate_per_ft, 9);
+test("harness: the pre-fix copy of the wizard really does lose a company's zero (so the checks below can tell)", async () => {
+  assert.notEqual(WIZ_OLD, WIZ_SRC, "the pre-fix copy is identical -- numOr is not being used, or not in this shape");
+  assert.equal((WIZ_SRC.match(/numOr\(/g) ?? []).length, 7,
+    "the wizard's numOr call count moved: check the canary rewrite still covers every field");
+  // Comments stripped first. The wizard's own comment SAYS "numOr, not
+  // num(x)||dflt", and a probe that reads the prose it is quoted in reports the
+  // explanation of the fix as the bug.
+  const wizCode = WIZ_SRC.replace(/\/\*[\s\S]*?\*\//g, " ").replace(/(^|[^:"'])\/\/.*$/gm, "$1");
+  const NUM_OR_FALLBACK = /num\([^)]*\)\s*\|\|/;
+  // POSITIVE CONTROL: the strip takes the comments and leaves the code, so the
+  // probe can still see a real num(x)||default. Without this, a strip that ate
+  // the whole function would read as "no fallback anywhere" and pass.
+  assert.match(wizCode + "\n  x: num(y)||3,", NUM_OR_FALLBACK,
+    "the comment strip has eaten the code as well: the probe can no longer see a num(x)||default at all");
+  assert.doesNotMatch(wizCode, NUM_OR_FALLBACK,
+    "a num(x)||default is back in the wizard: a typed zero is being read as blank again");
+  assert.match(WIZ_SRC, /num\(x\)\|\|dflt/,
+    "canary: the comment that would fool the probe above is gone, so the strip is no longer under test -- re-check it");
+  const r = await runWizSaveWho(WIZ_OLD, chose({ s_tax: "0", s_markup: "0", s_labor: "9", s_min: "250" }));
+  assert.equal(r.row.tax_rate_percent, 7, "canary: the old copy should have given 7 for a typed 0");
+  assert.equal(r.row.markup_percent, 15, "canary: the old copy should have given 15 for a typed 0");
+  assert.equal(r.row.labor_rate_per_ft, 9, "canary: a real number passed through even then");
 });
 
-test("GAP (pinned): the office wizard replaces a company's zero tax and zero markup with 7 and 15, and a blank company gets the founder's five numbers", async (t) => {
+test("FIXED: the office wizard keeps a company's zero tax and zero markup, and a blank company still gets the founder's five numbers", async (t) => {
+  // WAS A PINNED GAP, fixed 30 Oct 2026. A company that decided on no tax was
+  // quoted at 7% and one that decided on no markup at 15%, because
+  // num(x)||dflt reads a typed "0" exactly as it reads an empty field. Both
+  // halves are asserted: the zero survives, AND an empty field still takes the
+  // default, which is the half a careless fix breaks.
   const zero = await runWizSaveWho(WIZ_SRC, chose({ s_tax: "0", s_markup: "0", s_labor: "9", s_min: "250" }));
-  assert.equal(zero.row.tax_rate_percent, 7, "a company that decided on no tax is given 7%");
-  assert.equal(zero.row.markup_percent, 15, "and one that decided on no markup is given 15%");
+  assert.equal(zero.row.tax_rate_percent, 0, "a company that decided on no tax is quoted at no tax");
+  assert.equal(zero.row.markup_percent, 0, "and one that decided on no markup gets no markup");
   assert.equal(zero.row.labor_rate_per_ft, 9, "control: a real number passes straight through");
   assert.equal(zero.row.minimum_job_charge, 250, "control: so does the minimum charge");
+  const zeroFloor = await runWizSaveWho(WIZ_SRC, chose({ s_tax: "6", s_markup: "10", s_labor: "0", s_min: "0" }));
+  assert.deepEqual([zeroFloor.row.labor_rate_per_ft, zeroFloor.row.minimum_job_charge], [0, 0],
+    "a zero labour rate and a zero minimum charge are answers too");
   const real = await runWizSaveWho(WIZ_SRC, chose({ s_tax: "6.5", s_markup: "22", s_labor: "9", s_min: "250" }));
   assert.deepEqual([real.row.tax_rate_percent, real.row.markup_percent], [6.5, 22], "control: 6.5 and 22 survive");
   const blank = await runWizSaveWho(WIZ_SRC, chose({}));
   assert.deepEqual(
     [blank.row.tax_rate_percent, blank.row.markup_percent, blank.row.labor_rate_per_ft, blank.row.minimum_job_charge, blank.row.gate_rate_per_ft],
     [7, 15, 8, 200, 20], "a company with nothing set is quoted at 7 / 15 / 8 / 200 / 20");
-  t.diagnostic("blank company -> tax 7, markup 15, labour $8/ft, minimum $200, gate $20/ft");
+  // Text in a number field is not a zero either: it takes the default, as it did before.
+  const junk = await runWizSaveWho(WIZ_SRC, chose({ s_tax: "about six", s_markup: "" }));
+  assert.deepEqual([junk.row.tax_rate_percent, junk.row.markup_percent], [7, 15],
+    "unreadable text in a rate field must take the default, not become 0");
+  t.diagnostic("blank company -> tax 7, markup 15, labour $8/ft, minimum $200, gate $20/ft; a typed 0 stays 0");
 });
 
-test("SHOULD (todo): a company that set tax 0 and markup 0 gets a job at tax 0 and markup 0", { todo: "wizSaveWho uses num(x)||7 and num(x)||15, so zero reads as unset" }, async () => {
-  const r = await runWizSaveWho(WIZ_SRC, chose({ s_tax: "0", s_markup: "0", s_labor: "9", s_min: "250" }));
-  assert.deepEqual([r.row.tax_rate_percent, r.row.markup_percent], [0, 0]);
+test("FIXED: a stored company setting of ZERO reaches the job as zero (gate rate and waste come off company_settings, not a field)", async () => {
+  // gate_rate and waste have no on-screen field, so they arrive from
+  // companySetting(key, fallback) -- which already answers the fallback for an
+  // absent or blank value. num(x)||dflt then threw away a stored 0 a second
+  // time, so a company that charges nothing extra for a gate was billed $20/ft.
+  const stored = await runWizSaveWho(WIZ_SRC, chose({}), { gate_rate: 0, waste: 0 });
+  assert.deepEqual([stored.row.gate_rate_per_ft, stored.row.waste_percent], [0, 0],
+    "a stored gate rate or waste of zero is being replaced by the default");
+  const old = await runWizSaveWho(WIZ_OLD, chose({}), { gate_rate: 0, waste: 0 });
+  assert.equal(old.row.gate_rate_per_ft, 20, "canary: the old copy should have given $20/ft for a stored 0");
+  const absent = await runWizSaveWho(WIZ_SRC, chose({}));
+  assert.deepEqual([absent.row.gate_rate_per_ft, absent.row.waste_percent], [20, 0],
+    "control: with nothing stored the fallback still applies");
 });
 
-test("GAP (pinned): the customer/job import applies the same fallback to every imported job", () => {
+test("FIXED: the customer/job import keeps a zero, and still applies the default to an empty field -- on every imported job", () => {
+  // WAS A PINNED GAP, fixed 30 Oct 2026 alongside the wizard. This row is
+  // copied onto EVERY imported job, so a zero misread here was misread on all
+  // of them at once.
   const iPrice = DASH.indexOf("if(kind==='pricelist'){");
   assert.ok(iPrice >= 0, "control: the import handler was found");
   const iBase = DASH.indexOf("const base={", iPrice);
   assert.ok(iBase > iPrice);
   const open = DASH.indexOf("{", iBase);
   const literal = DASH.slice(open, matchClose(DASH, open) + 1);
-  const at = (vals) => new Function("$", "num", "profile", "return (" + literal + ");")((id) => ({ value: vals[id] ?? "" }), num, { company_id: "c" });
+  const at = (vals, src = literal) =>
+    new Function("$", "num", "numOr", "profile", "return (" + src + ");")(
+      (id) => ({ value: vals[id] ?? "" }), num, numOr, { company_id: "c" });
   const zero = at({ s_tax: "0", s_markup: "0", s_labor: "9", s_min: "250" });
-  assert.equal(zero.tax_rate_percent, 7);
-  assert.equal(zero.markup_percent, 15);
+  assert.equal(zero.tax_rate_percent, 0, "an imported job is given 7% tax by a company that set none");
+  assert.equal(zero.markup_percent, 0, "and 15% markup by a company that set none");
   assert.equal(zero.labor_rate_per_ft, 9, "control: real numbers pass");
   assert.equal(zero.referral_source, "Imported", "control: this is the import's row");
+  const blank = at({});
+  assert.deepEqual([blank.tax_rate_percent, blank.markup_percent, blank.labor_rate_per_ft, blank.minimum_job_charge],
+    [7, 15, 8, 200], "control: an empty field still takes the default");
+  // CANARY: the same row with the old fallbacks must lose the zero.
+  const oldLiteral = literal.replace(/numOr\((.+?),\s*(-?[0-9.]+)\)/g, "num($1)||$2");
+  assert.notEqual(oldLiteral, literal, "canary: the pre-fix rewrite changed nothing");
+  const wasZero = at({ s_tax: "0", s_markup: "0", s_labor: "9", s_min: "250" }, oldLiteral);
+  assert.deepEqual([wasZero.tax_rate_percent, wasZero.markup_percent], [7, 15],
+    "canary: the old import row should have replaced both zeros");
 });
 
-test("GAP (pinned): the phone's defaults are literals -- 7% tax, 0 markup, $8/ft, $200 minimum, $20 gate -- and a new job takes them with no setup step", () => {
+test("GAP (pinned): the phone's defaults are literals -- 7% tax, 0 markup, $8/ft, no job floor, a $200 LABOUR floor, $20 gate -- and a new job takes them with no setup step", () => {
   const settings = stripKt(read("app/src/main/java/com/fenceestimator/app/data/SettingsStore.kt"));
   const cls = settings.slice(settings.indexOf("data class BusinessProfile("));
   const params = cls.slice(0, matchClose(cls, cls.indexOf("(")));
   const dflt = (name) => Number((params.match(new RegExp("val " + name + ":\\s*Double\\s*=\\s*([0-9.]+)")) || [])[1]);
-  assert.deepEqual([dflt("defaultTaxRatePercent"), dflt("defaultMarkupPercent"), dflt("defaultLaborRatePerFt"), dflt("defaultMinimumJobCharge")], [7, 0, 8, 200]);
+  // RE-AIMED 30 Oct 2026. This read [7, 0, 8, 200] with the 200 on
+  // defaultMinimumJobCharge. The floors were deliberately swapped -- no floor
+  // under the job total, $200 under the LABOUR, which is the rule the owner
+  // uses and which the field's own comment explains -- so the old pin held the
+  // pairing the code had rejected. Both floors are named now, so a swap back
+  // has to be deliberate here too.
+  assert.deepEqual(
+    [dflt("defaultTaxRatePercent"), dflt("defaultMarkupPercent"), dflt("defaultLaborRatePerFt"),
+     dflt("defaultMinimumJobCharge"), dflt("defaultMinimumLaborCharge")],
+    [7, 0, 8, 0, 200],
+    "the phone's default rates moved: tax, markup, labour rate, job-total floor, labour floor");
+  // AND THE READER AGREES WITH THEM.
+  //
+  // profileFrom(prefs) supplies a fallback for each of these, and that fallback
+  // is what a phone reads before anything has ever been saved to its
+  // preferences -- a fresh install, or an owner who has not opened Settings --
+  // after which JobsViewModel.createJob() copies the pair onto the new job.
+  // The swap above was made in the data class and NOT in the reader, so for
+  // weeks a new phone put a $200 floor under the job TOTAL (cancelling a
+  // discount on a small job) and no floor under labour: the exact pairing the
+  // data class calls backwards. Nothing compared the two, so nothing said so.
+  const fallback = (key) => {
+    const m = settings.match(new RegExp("prefs\\[Keys\\." + key + "\\]\\s*\\?:\\s*([0-9.]+)"));
+    assert.ok(m, `profileFrom has no fallback for Keys.${key}`);
+    return Number(m[1]);
+  };
+  assert.equal(fallback("MIN_JOB_CHARGE"), dflt("defaultMinimumJobCharge"),
+    "profileFrom's job-total floor disagrees with BusinessProfile's own default");
+  assert.equal(fallback("MIN_LABOR_CHARGE"), dflt("defaultMinimumLaborCharge"),
+    "profileFrom's labour floor disagrees with BusinessProfile's own default");
+  assert.equal(fallback("TAX_RATE"), dflt("defaultTaxRatePercent"));
+  assert.equal(fallback("MARKUP"), dflt("defaultMarkupPercent"));
+  assert.equal(fallback("LABOR_RATE"), dflt("defaultLaborRatePerFt"));
+  // CANARY: the comparison can fail. Swapping the two fallbacks in a copy of
+  // the source must be caught -- that copy is the bug as it actually stood.
+  {
+    const swapped = settings
+      .replace("prefs[Keys.MIN_JOB_CHARGE] ?: 0.0", "prefs[Keys.MIN_JOB_CHARGE] ?: 200.0")
+      .replace("prefs[Keys.MIN_LABOR_CHARGE] ?: 200.0", "prefs[Keys.MIN_LABOR_CHARGE] ?: 0.0");
+    assert.notEqual(swapped, settings, "canary: the swap changed nothing, so the fallbacks moved");
+    const swappedFallback = (key) =>
+      Number(swapped.match(new RegExp("prefs\\[Keys\\." + key + "\\]\\s*\\?:\\s*([0-9.]+)"))[1]);
+    assert.notEqual(swappedFallback("MIN_JOB_CHARGE"), dflt("defaultMinimumJobCharge"),
+      "canary: the reader/data-class comparison passes on the swapped pair, so it proves nothing");
+  }
   const entities = stripKt(read("app/src/main/java/com/fenceestimator/app/data/Entities.kt"));
   const job = entities.slice(entities.indexOf("data class Job("));
   assert.match(job.slice(0, matchClose(job, job.indexOf("("))), /val gateRatePerFt:\s*Double\s*=\s*20\.0/);

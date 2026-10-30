@@ -306,7 +306,26 @@ async function network(url, init = {}) {
   if (u === "https://oauth2.googleapis.com/token") return new Response(JSON.stringify({ access_token: "fake-fcm-bearer" }), { status: 200 });
   if (u === "https://fcm.googleapis.com/v1/projects/p-test/messages:send") {
     const m = JSON.parse(String(init.body)).message;
-    world.fcm.push({ token: m.token, title: m.notification.title, body: m.notification.body });
+    /* BOTH SHAPES, and which one it was.
+       An FCM message carries its words in `notification` or in `data`, and the
+       two behave differently on the phone: FenceFlowMessagingService's
+       onMessageReceived is reached for a DATA message even when the app is
+       backgrounded, which is when an alarm matters, and is not reached for a
+       notification one. quote-view sends `notification`; office-push.ts sends
+       `data` since 19406cd, deliberately.
+       This read `m.notification.title` unconditionally, so the new shape threw
+       inside the model -- and office-push catches per-phone failures, so the
+       throw was swallowed and eleven checks said the office had not been told. */
+    const words = m.notification ?? m.data;
+    assert.ok(words && typeof words.title === "string" && typeof words.body === "string",
+      `the FCM model was handed a message with neither notification nor data: ${init.body}`);
+    world.fcm.push({
+      token: m.token,
+      title: words.title,
+      body: words.body,
+      kind: m.notification ? "notification" : "data",
+      priority: m.android?.priority ?? null,
+    });
     return new Response("{}", { status: 200 });
   }
   if (u.endsWith("/functions/v1/quote-approval-email")) return await world.senderRoute(u, init);
@@ -356,6 +375,36 @@ const sentTo = (c) => c.body.to;
 const text = (c) => c.body.text;
 /** The failure notices this feature sends (quote-view's own "Quote approved" push is a different message, asserted separately). */
 const notices = () => world.fcm.filter((m) => /^Contract email/.test(m.title));
+
+/**
+ * THE OFFICE ALARM IS A DATA MESSAGE, with android.priority HIGH.
+ *
+ * Not decoration: FenceFlowMessagingService reaches onMessageReceived for a
+ * data message even when the app is backgrounded -- "so this runs even when the
+ * app is backgrounded and we control how it looks" -- and does NOT for a
+ * notification message, which the SDK then draws on a channel it invents. This
+ * alarm exists for the one failure the owner cannot miss, which means it has to
+ * arrive while he is not looking at the app. 19406cd fixed it; nothing was
+ * holding it fixed. Called by every check below that expects an office push.
+ */
+function assertOfficeAlarmShape(where = "") {
+  // CANARY, run on every call: the check rejects the shape it exists to reject.
+  // Cheap, and it cannot drift out of step with the assertions below it.
+  assert.throws(() => {
+    for (const m of [{ kind: "notification", priority: "HIGH", title: "Contract email NOT sent", body: "x" }]) {
+      assert.equal(m.kind, "data", "canary");
+      assert.equal(m.priority, "HIGH", "canary");
+    }
+  }, /canary/, "the office-alarm shape check cannot fail, so it is checking nothing");
+  const sent = notices();
+  assert.ok(sent.length > 0, `${where}: no office alarm to check the shape of`);
+  for (const m of sent) {
+    assert.equal(m.kind, "data",
+      `${where}: the office alarm is a '${m.kind}' message -- backgrounded, the app never sees it`);
+    assert.equal(m.priority, "HIGH",
+      `${where}: the office alarm was sent without android.priority HIGH`);
+  }
+}
 const tokensTold = () => notices().map((m) => m.token).sort();
 /** Waits for something that happens after an answer has gone out. */
 async function until(check, what, ms = 4000) {
@@ -633,6 +682,7 @@ test("NO ADDRESS on the job: nothing is sent, the row says so, and the office's 
     // Pushed: the owner, the manager and sales hold SEE_MONEY; the foreman, the crew and another company's owner do not.
     assert.deepEqual(tokensTold(), ["tok-manager", "tok-owner", "tok-sales"]);
     assert.ok(world.fcm.every((m) => m.title === "Contract email NOT sent"));
+    assertOfficeAlarmShape("no address on the job");
     assert.match(world.fcm[0].body, /^Pat Buyer approved the quote, but the contract email was not sent: there is no email address on the job\./);
     assert.match(world.fcm[0].body, /Send it yourself, or ask them to download a copy/);
     // The push carries no amount and no address.
@@ -651,6 +701,7 @@ test("a MALFORMED address is not repaired and not sent: two addresses, a space, 
     assert.equal(world.resend.length, 0, `something was sent to ${JSON.stringify(bad)}`);
     assert.equal(ledger()[0].reason_code, "bad_address");
     assert.equal(world.fcm.length, 3, `the office was not told about ${JSON.stringify(bad)}`);
+    assertOfficeAlarmShape(`malformed address ${JSON.stringify(bad)}`);
     wall();
   }
   // CONTROL: a plain address, and one with a plus tag and upper-case domain, go through as the SAME fixture.
@@ -785,6 +836,7 @@ test("a read that fails is a failure, never an empty answer: the email is not se
     assert.equal(world.resend.length, 0, `${table}: an email went out built from a failed read`);
     assert.equal(ledger()[0].state, "failed");
     assert.equal(world.fcm.length, 3, `${table}: the office was not told`);
+    assertOfficeAlarmShape(`unreadable ${table}`);
     wall();
   }
   // The one read that may fail quietly is the company's time zone: the date is written in the default zone, the email still goes.
@@ -1044,6 +1096,15 @@ test("APPROVE: the existing 'Quote approved' push is untouched by the email, and
   await approve(loadQuoteView());
   assert.ok(world.fcm.filter((m) => m.title === "Quote approved 🎉").every((m) => m.body === "Pat Buyer approved the quote for Pat Buyer."));
   assert.deepEqual([...new Set(world.fcm.filter((m) => /Contract email/.test(m.title)).map((m) => m.token))].sort(), ["tok-manager", "tok-owner", "tok-sales"]);
+  assertOfficeAlarmShape("a failed email after approval");
+  // And the approval push that quote-view sends is a NOTIFICATION message,
+  // recorded here as the current state rather than asserted as correct: by
+  // 19406cd's own reasoning a backgrounded phone does not reach
+  // onMessageReceived for it. quote-view is the seventh sender that commit
+  // counted and the one it did not change, so this line is a marker, not a
+  // verdict -- if it is changed deliberately, change this with it.
+  assert.ok(world.fcm.filter((m) => m.title === "Quote approved \u{1F389}").every((m) => m.kind === "notification"),
+    "quote-view's approval push changed shape -- see office-push.ts on why data messages reach a backgrounded app");
   wall();
 });
 

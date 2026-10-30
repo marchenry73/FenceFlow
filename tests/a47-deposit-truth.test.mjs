@@ -47,6 +47,7 @@ import { stripTypeScriptTypes } from "node:module";
 import * as quoteDeposit from "../supabase/functions/_shared/quote-deposit.ts";
 import * as jobPush from "../supabase/functions/_shared/job-push.ts";
 import * as pushRecipients from "../supabase/functions/_shared/push-recipients.ts";
+import * as paymentsReady from "../supabase/functions/_shared/payments-ready.ts";
 
 const { ruleDeposit, suggestedDeposit } = quoteDeposit;
 const read = (p) => readFileSync(new URL(`../${p}`, import.meta.url), "utf8");
@@ -68,6 +69,7 @@ const SHARED = {
   "../_shared/quote-deposit.ts": quoteDeposit,
   "../_shared/job-push.ts": jobPush,
   "../_shared/push-recipients.ts": pushRecipients,
+  "../_shared/payments-ready.ts": paymentsReady,
 };
 
 function load(db) {

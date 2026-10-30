@@ -357,15 +357,24 @@ console.log("\n2. PENDING -- the join arithmetic (fence-level sums; docs/JOINING
     run("M", { points_encoded: pts([600, 0], [720, 0]), sort_order: 1, panel_height_ft: 6, start_joint: joined ? J1 : "", end_joint: joined ? J2 : "" }),
     run("C", { points_encoded: pts([720, 0], [1200, 0]), sort_order: 2, panel_height_ft: 4, start_joint: joined ? J2 : "" }),
   ];
+  // RE-AIMED 30 Oct 2026, and the number CHANGED: 12, not the 11 this expected.
+  //
+  // Two joints here, and they are no longer the same kind of joint. A-M is 6 ft
+  // to 6 ft and shares a post, so that one is saved. M-C is 6 ft to 4 ft, and
+  // JOINING_RUNS 2.4 was superseded on 26 Oct by the owner's own answer -- "do
+  // the two posts" -- so the step keeps both, each at its own height off its own
+  // catalog row. 13 unjoined, one saved at the equal-height joint, none at the
+  // step: 12. Written as a baseline rather than a pending case, because this is
+  // what the engine does and must keep doing; the old line reported the correct
+  // behaviour as work still to do.
   const before = fence(price(mk(false))), out = price(mk(true)), f = fence(out);
-  pending("P10", "the 6-to-4 fence as three joined runs (30 ft of 6 ft, one ordinary 6 ft bay, 24 ft of 4 ft): 11 posts, not 13, and 10 ordinary panels",
-    before.total === 13 && f.total === 11 && roles(out, "PANEL") === 10 && roles(out, "TRANSITION_PANEL") === 0,
-    "13 -> 11 posts, 10 PANEL, 0 TRANSITION_PANEL",
-    `${before.total} -> ${f.total} posts, ${roles(out, "PANEL")} PANEL, ${roles(out, "TRANSITION_PANEL")} TRANSITION_PANEL`);
+  baseline("P10", "the 6-to-4 fence as three joined runs: 12 posts, not 13 -- the equal-height joint shares a post, the 6-to-4 step keeps both (owner, 26 Oct)",
+    before.total === 13 && f.total === 12 && roles(out, "PANEL") === 10 && roles(out, "TRANSITION_PANEL") === 0,
+    `expected 13 -> 12 posts, 10 PANEL, 0 TRANSITION_PANEL; got ${before.total} -> ${f.total} posts, ${roles(out, "PANEL")} PANEL, ${roles(out, "TRANSITION_PANEL")} TRANSITION_PANEL`);
 }
 
 // =============================================================================
-console.log("\n3. PENDING / POLICY -- which run is billed the shared post (docs/JOINING_RUNS.md section 2.4)");
+console.log("\n3. POLICY -- which run is billed the shared post, and where none is (docs/JOINING_RUNS.md section 2.4)");
 // =============================================================================
 // Fence-level counts above do not care. Per-run lines do: each run has its own
 // line items, so the post has to be billed to exactly one of them. These are
@@ -376,14 +385,27 @@ console.log("\n3. PENDING / POLICY -- which run is billed the shared post (docs/
     byId(out, "A").total === 6 && byId(out, "B").total === 3, "A 6, B 3", `A ${byId(out, "A").total}, B ${byId(out, "B").total}`);
 }
 {
-  // The taller run owns the post, even when it sorts later. B is 4 ft and first, A is 6 ft and second.
+  // NO SHARED POST WHERE THE HEIGHTS DIFFER, so there is nobody to bill it to.
+  // B is 4 ft and first, A is 6 ft and second.
+  //
+  // RE-AIMED 30 Oct 2026. This expected the taller run to be billed one shared
+  // post (A 6, B 3). The owner overturned that on 26 Oct -- "do the two posts"
+  // -- so each side keeps its own, A 6 and B 4, and `outranks`' height branch is
+  // unreachable by the time a winner is chosen. The policy for EQUAL heights is
+  // unchanged and still checked by D1 above; this case now pins the other half.
   const runs = [
     run("B", { points_encoded: B_STRAIGHT, sort_order: 0, panel_height_ft: 4, start_joint: J1 }),
     run("A", { points_encoded: A_PTS, sort_order: 1, panel_height_ft: 6, end_joint: J1 }),
   ];
   const out = price(runs);
-  pending("D2", "POLICY: the TALLER run is billed the shared post, even with the higher sort_order (6 ft A keeps 6 posts, 4 ft B drops 4 -> 3)",
-    byId(out, "A").total === 6 && byId(out, "B").total === 3, "A 6, B 3", `A ${byId(out, "A").total}, B ${byId(out, "B").total}`);
+  const a = byId(out, "A"), b = byId(out, "B");
+  baseline("D2", "POLICY: heights differ, so NO post is shared and nobody is billed one -- each side keeps its own (6 ft A 6 posts, 4 ft B 4) (owner, 26 Oct)",
+    a.total === 6 && b.total === 4,
+    `expected A 6, B 4; got A ${a.total} (${fmt(a)}), B ${b.total} (${fmt(b)})`);
+  // And the kept end is converted, not left an END post: that is what makes it a
+  // post of its own height off its own row rather than a plain run end.
+  baseline("D2b", "the 4 ft side's kept post at the step is a LINE or CORNER post, not an END post (it is a post in the ground at a corner)",
+    b.end < 2, `expected the 4 ft side to have fewer than 2 END posts; got ${fmt(b)}`);
 }
 {
   // Typed runs carry no drawing, so there is no angle: the join is a CORNER post (section 2.3).

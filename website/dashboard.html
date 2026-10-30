@@ -9569,6 +9569,20 @@ function ask({ title, body, confirmLabel = tr('askConfirmBtn'), danger = false }
 const money = n => new Intl.NumberFormat('en-US',{style:'currency',currency:'USD'}).format(n||0);
 const esc = s => (s||'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const num = v => { const n=parseFloat(v); return isNaN(n)?0:n; };
+/* A FIELD LEFT EMPTY takes the default; a field with a NUMBER in it is used as
+   typed, and 0 is a number.
+
+   num(v)||dflt cannot make that distinction, because num() answers 0 for an
+   empty field, for text and for a typed "0" alike. So a company that set its
+   tax to 0 was quoted at 7%, markup 0 at 15%, labour rate 0 at $8/ft, minimum
+   job charge 0 at $200 and gate rate 0 at $20/ft -- the default overriding the
+   owner's own answer, which is the one direction a default must never go. */
+const numOr = (v, dflt) => {
+  const t = String(v ?? '').trim();
+  if (t === '') return dflt;
+  const n = parseFloat(t);
+  return Number.isFinite(n) ? n : dflt;
+};
 /* Line icons for states and severities, drawn in currentColor so the chip or
    row around one decides its colour (.ico in the stylesheet). Emoji were used
    for this before -- a red no-entry sign, a green tick box, an hourglass --
@@ -25704,10 +25718,11 @@ async function wizSaveWho(){
     const waste = await companySetting('waste', 0);
     Object.assign(patch, {
       company_id: profile.company_id, status: 'DRAFT', wizard_step: 2,
-      tax_rate_percent: num($('s_tax').value)||7, markup_percent: num($('s_markup').value)||15,
-      labor_rate_per_ft: num($('s_labor').value)||8, minimum_job_charge: num($('s_min').value)||200,
-      minimum_labor_charge: num($('s_min_labor').value)||0,
-      gate_rate_per_ft: num(gateRate)||20, waste_percent: num(waste)||0,
+      // numOr, not num(x)||dflt: a typed 0 is an answer, not a blank. See numOr.
+      tax_rate_percent: numOr($('s_tax').value, 7), markup_percent: numOr($('s_markup').value, 15),
+      labor_rate_per_ft: numOr($('s_labor').value, 8), minimum_job_charge: numOr($('s_min').value, 200),
+      minimum_labor_charge: numOr($('s_min_labor').value, 0),
+      gate_rate_per_ft: numOr(gateRate, 20), waste_percent: numOr(waste, 0),
       calibration_pixels_per_foot: 20,
     });
     const {data,error} = await db.from('jobs').insert(patch).select().maybeSingle();
@@ -29094,9 +29109,11 @@ async function runImport(){
 
   const base={
     company_id:profile.company_id,
-    tax_rate_percent:num($('s_tax').value)||7, markup_percent:num($('s_markup').value)||15,
-    labor_rate_per_ft:num($('s_labor').value)||8, minimum_job_charge:num($('s_min').value)||200,
-    minimum_labor_charge:num($('s_min_labor').value)||0,
+    // numOr, not num(x)||dflt: see numOr. This row is copied onto EVERY
+    // imported job, so a zero misread here is misread on all of them at once.
+    tax_rate_percent:numOr($('s_tax').value, 7), markup_percent:numOr($('s_markup').value, 15),
+    labor_rate_per_ft:numOr($('s_labor').value, 8), minimum_job_charge:numOr($('s_min').value, 200),
+    minimum_labor_charge:numOr($('s_min_labor').value, 0),
     referral_source:'Imported'
   };
   // Ids are minted here rather than left to the database, so the opening

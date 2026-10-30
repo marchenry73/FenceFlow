@@ -110,14 +110,43 @@ function preFixSource(path, marker) {
     return null;
   }
 }
-/** Each file, with the marker this fix added to it. */
+/**
+ * Each file, with the marker this fix ADDED to it.
+ *
+ * "Added" is the whole requirement, and getting it wrong is silent. RunEditScreen
+ * was anchored on `DraftNumberField` -- text that predates the fix by months,
+ * because the twelve unguarded fields were calling it directly. `git log -1 -S`
+ * answers with the NEWEST commit that changed the count, so that marker resolved
+ * to a commit landed long after the fix, and the "pre-fix" copy it handed back
+ * was the FIXED file. Section 10 then reported its own probes as proving nothing
+ * and the canary counted 2 call sites where the old file had 12 -- three red
+ * lines, no product bug anywhere. `PositiveNumberField` is one of the two
+ * wrappers the fix introduced, so it cannot exist before it.
+ *
+ * All five markers must resolve to the SAME commit, because all five changes
+ * landed in one. That is asserted in section 10 (10a2) rather than assumed: a
+ * marker that drifts onto another commit is exactly the failure above, and it
+ * announces itself as a broken probe instead of a wrong anchor.
+ */
 const PRE_FIX_MARKER = {
   "app/src/main/java/com/fenceestimator/app/ui/survey/SurveyViewModel.kt": "resolveRunSelection",
   "app/src/main/java/com/fenceestimator/app/ui/survey/SurveyDrawScreen.kt": "resolveRunSelection",
-  "app/src/main/java/com/fenceestimator/app/ui/runs/RunEditScreen.kt": "DraftNumberField",
+  "app/src/main/java/com/fenceestimator/app/ui/runs/RunEditScreen.kt": "PositiveNumberField",
   "app/src/main/java/com/fenceestimator/app/MainActivity.kt": "runId",
   "app/src/main/java/com/fenceestimator/app/ui/nav/NavGraph.kt": "runId",
 };
+
+/** The commit a file's marker resolves to, or null. Used by 10a2 only. */
+function preFixCommit(path) {
+  const marker = PRE_FIX_MARKER[path];
+  if (!marker) return null;
+  try {
+    return execFileSync("git", ["log", "--format=%H", "-1", `-S${marker}`, "--", path],
+      { cwd: REPO, encoding: "utf8", maxBuffer: 64 * 1024 * 1024 }).trim() || null;
+  } catch {
+    return null;
+  }
+}
 function headSource(path) {
   const marker = PRE_FIX_MARKER[path];
   return marker ? preFixSource(path, marker) : null;
@@ -715,12 +744,13 @@ ok("9q", "DraftNumberField is called exactly twice in RunEditScreen: once inside
 ok("9q2", "and both of those two sites are inside the guarded wrappers",
   /fun\s+PositiveNumberField\([\s\S]{0,700}DraftNumberField\(/.test(CODE.runedit) &&
   /fun\s+NonNegativeNumberField\([\s\S]{0,700}DraftNumberField\(/.test(CODE.runedit));
-ok("9q3-canary", "CANARY: that count probe can fail -- HEAD's own copy of the file had many more",
+ok("9q3-canary", "CANARY: that count probe can fail -- the PRE-FIX copy of the file called it twelve times",
   (() => {
-    const headRunEdit = stripComments(headSource(RUNEDIT));
-    const n = (headRunEdit.match(/DraftNumberField\(/g) ?? []).length;
+    const old = headSource(RUNEDIT);
+    if (old === null) return false;
+    const n = (stripComments(old).match(/DraftNumberField\(/g) ?? []).length;
     return n > 2;
-  })(), "if this reads 2 the probe proves nothing");
+  })(), "if this reads 2 the probe proves nothing -- check PRE_FIX_MARKER for this file");
 ok("9r", "the zero-quote refusal reads the stored scale as well as the null case",
   /storedScaleUnusable/.test(stripComments(read("app/src/main/java/com/fenceestimator/app/ui/estimate/EstimateScreen.kt"))));
 ok("9s", "every refusal reason has a sentence, and they are real resources in all three locales",
@@ -747,6 +777,18 @@ const headReadable = Object.values(HEAD).every((s) => s !== null && s.length > 4
 ok("10a", "the pre-fix copies of all five files were retrievable from the last commit",
   headReadable,
   "without them nothing below can be trusted; this is a FAILURE, not a skip");
+
+// ONE FIX, ONE COMMIT. Each marker is resolved independently, so a marker that
+// is not actually new in that commit quietly points at a different -- usually
+// later -- tree, and every probe below it then compares the fix against itself.
+// That is precisely what "DraftNumberField" did here.
+const markerCommits = Object.fromEntries(
+  [VM, DRAW, RUNEDIT, MAIN, NAV].map((p) => [p.split("/").pop(), preFixCommit(p)]));
+const distinctCommits = [...new Set(Object.values(markerCommits))];
+ok("10a2", "all five markers resolve to the SAME commit -- the one fix that introduced them",
+  distinctCommits.length === 1 && distinctCommits[0] !== null,
+  "a marker is not new in the fix commit, so its 'pre-fix' copy is some other tree: " +
+    Object.entries(markerCommits).map(([f, c]) => `${f}=${(c ?? "none").slice(0, 8)}`).join(" "));
 
 const HEADCODE = headReadable
   ? Object.fromEntries(Object.entries(HEAD).map(([k, v]) => [k, stripComments(v)]))

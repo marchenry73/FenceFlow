@@ -25,6 +25,7 @@ import { stripTypeScriptTypes } from "node:module";
 import * as quoteDeposit from "../supabase/functions/_shared/quote-deposit.ts";
 import * as jobPush from "../supabase/functions/_shared/job-push.ts";
 import * as pushRecipients from "../supabase/functions/_shared/push-recipients.ts";
+import * as paymentsReady from "../supabase/functions/_shared/payments-ready.ts";
 
 const COMPANY = "c5000000-0000-4000-8000-000000000005";
 const JOB = "a5000000-0000-4000-8000-00000000000a"; // sync_id
@@ -42,6 +43,7 @@ const SHARED = {
   "../_shared/quote-deposit.ts": quoteDeposit,
   "../_shared/job-push.ts": jobPush,
   "../_shared/push-recipients.ts": pushRecipients,
+  "../_shared/payments-ready.ts": paymentsReady,
 };
 
 function load(path, { env = {}, db, fetchImpl = async () => new Response("{}", { status: 404 }) }) {

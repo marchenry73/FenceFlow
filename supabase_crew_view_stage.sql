@@ -5,7 +5,10 @@
 --
 -- The view is recreated from its own live definition with ONE column added.
 -- production_stage is a stage name, not money, so it belongs on the crew side.
-create or replace view public.jobs_crew as
+-- with (security_barrier = true): a rebuild with no with-clause CLEARS the
+-- view's options, and this view's whole job is to withhold rows. See the
+-- alter at the end of this file, which re-asserts it whatever happens here.
+create or replace view public.jobs_crew with (security_barrier = true) as
 SELECT id,
     company_id,
     customer_id,
@@ -71,3 +74,22 @@ SELECT id,
   WHERE company_id = current_company_id() AND NOT company_is_suspended();;
 
 select 'crew view carries the build stage' as done;
+-- ---------------------------------------------------------------------------
+-- The barrier, re-asserted. Idempotent, and deliberately AFTER the rebuild
+-- above: CREATE OR REPLACE VIEW replaces a view's options with whatever the
+-- statement names, so a rebuild written without a with-clause silently clears
+-- it. jobs_crew spent weeks as the only crew view without one because three
+-- separate rebuilds each forgot. This line means the next one cannot.
+-- ---------------------------------------------------------------------------
+alter view public.jobs_crew set (security_barrier = true);
+
+do $$
+begin
+    if not exists (
+        select 1 from pg_class c
+         where c.oid = 'public.jobs_crew'::regclass
+           and 'security_barrier=true' = any(coalesce(c.reloptions, '{}'))
+    ) then
+        raise exception 'jobs_crew has no security_barrier after this file ran';
+    end if;
+end $$;
