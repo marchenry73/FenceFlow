@@ -108,7 +108,16 @@ data class BusinessProfile(
     val defaultLaborRatePerFt: Double = 8.0,
     val defaultPanelWidthFt: Float = 6f,
     val defaultPanelHeightFt: Float = 6f,
-    val defaultMinimumJobCharge: Double = 200.0,
+    /**
+     * No job-total floor by default.
+     *
+     * It shipped at 200 with the LABOUR floor at 0, which is backwards: the
+     * owner's rule is "$200 of labour at least", and a job-total floor of the
+     * same size adds nothing except on a discounted small job, where it
+     * silently cancels the discount. Swapped, so a new company starts with the
+     * rule he actually uses.
+     */
+    val defaultMinimumJobCharge: Double = 0.0,
     /**
      * Least this company charges for LABOUR on a job, before markup and tax and
      * with materials charged on top. 0 is off, which is what every company that
@@ -118,7 +127,8 @@ data class BusinessProfile(
      * put a floor under every job on every phone that updates is a price change
      * nobody asked for.
      */
-    val defaultMinimumLaborCharge: Double = 0.0,
+    /** "He charges a minimum for turning up to a job." Materials do not count toward it. */
+    val defaultMinimumLaborCharge: Double = 200.0,
     val defaultToolsListCsv: String = "Post hole digger,4' level,Drill/driver,Circular saw,Tape measure,Post level,Wheelbarrow,Safety glasses,Gloves,String line",
 
     // ---- Overtime, as THIS company has it ----

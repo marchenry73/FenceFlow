@@ -2325,4 +2325,12 @@
     <string name="jd_cancel_banner_body">Cancelado el %1$s. Sigue aquí con su historial; no se ha eliminado nada.</string>
     <string name="jd_cancel_ask_body">Las cifras de arriba son lo que se retiene y lo que se devuelve. El trabajo sigue en la lista con su historial.</string>
     <string name="jd_cancel_done">Trabajo cancelado.</string>
+    <string name="jd_job_type">Tipo de trabajo</string>
+    <string name="jd_type_unset">Sin definir</string>
+    <string name="jd_type_residential">Residencial</string>
+    <string name="jd_type_commercial">Comercial</string>
+    <string name="jd_type_other">Otro</string>
+    <string name="jd_review_auto_sent">Solicitud de reseña enviada %1$s</string>
+    <string name="jd_review_auto_sent_note">Enviada automáticamente al cliente con tu enlace de reseñas. No hay nada más que hacer aquí.</string>
+    <string name="jd_review_auto_hint">Si las solicitudes de reseña están activadas en la oficina, esto se envía solo unos días después de marcar el trabajo como completado.</string>
 </resources>

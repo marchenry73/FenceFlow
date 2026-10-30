@@ -2325,4 +2325,12 @@
     <string name="jd_cancel_banner_body">Annulé le %1$s. Il reste ici avec son historique ; rien n\'a été supprimé.</string>
     <string name="jd_cancel_ask_body">Les montants ci-dessus sont ce qui est retenu et ce qui est rendu. Le chantier reste dans la liste avec son historique.</string>
     <string name="jd_cancel_done">Chantier annulé.</string>
+    <string name="jd_job_type">Type de chantier</string>
+    <string name="jd_type_unset">Non défini</string>
+    <string name="jd_type_residential">Résidentiel</string>
+    <string name="jd_type_commercial">Commercial</string>
+    <string name="jd_type_other">Autre</string>
+    <string name="jd_review_auto_sent">Avis: demande envoyée %1$s</string>
+    <string name="jd_review_auto_sent_note">Envoyée automatiquement au client avec votre lien pour les avis. Rien de plus à faire ici.</string>
+    <string name="jd_review_auto_hint">Si les demandes sont activées au bureau, elle part toute seule quelques jours après que le chantier est marqué termine.</string>
 </resources>

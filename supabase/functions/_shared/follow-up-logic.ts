@@ -13,14 +13,28 @@ export type FollowUpKind =
   | "new_lead_not_contacted"
   | "quote_sent_no_view"
   | "quote_viewed_not_approved"
-  | "approved_no_deposit";
+  | "approved_no_deposit"
+  | "job_done_review";
 
 export const FOLLOW_UP_KINDS: FollowUpKind[] = [
   "new_lead_not_contacted",
   "quote_sent_no_view",
   "quote_viewed_not_approved",
   "approved_no_deposit",
+  "job_done_review",
 ];
+
+/**
+ * How long after completion a review request may still go out.
+ *
+ * NOT a preference -- a blast guard. The setting is off by default, so the
+ * day it is switched on, every job finished since r47 shipped would be
+ * eligible at once and the night's run would ask all of them (up to the
+ * daily cap, then the rest tomorrow). A review request three weeks late is
+ * worth little anyway; one that arrives for a fence built four months ago
+ * reads as a mistake. Jobs older than this are never chased.
+ */
+export const REVIEW_MAX_AGE_DAYS = 30;
 
 export interface FollowUpSettings {
   enabled: boolean;
@@ -28,10 +42,14 @@ export interface FollowUpSettings {
   quote_sent_no_view_enabled: boolean;
   quote_viewed_not_approved_enabled: boolean;
   approved_no_deposit_enabled: boolean;
+  job_done_review_enabled: boolean;
   new_lead_not_contacted_hours: number;
   quote_sent_no_view_days: number;
   quote_viewed_not_approved_days: number;
   approved_no_deposit_days: number;
+  job_done_review_days: number;
+  /** Where the review is left. Blank means no request can be sent. */
+  review_url: string;
   quiet_hours_start: number; // 0-23, local
   quiet_hours_end: number; // 0-23, local
   timezone: string;
@@ -44,10 +62,13 @@ export const DEFAULT_SETTINGS: FollowUpSettings = {
   quote_sent_no_view_enabled: false,
   quote_viewed_not_approved_enabled: false,
   approved_no_deposit_enabled: false,
+  job_done_review_enabled: false,
   new_lead_not_contacted_hours: 4,
   quote_sent_no_view_days: 2,
   quote_viewed_not_approved_days: 3,
   approved_no_deposit_days: 2,
+  job_done_review_days: 3,
+  review_url: "",
   quiet_hours_start: 21,
   quiet_hours_end: 8,
   timezone: "America/New_York",
@@ -70,6 +91,13 @@ export interface FollowUpJob {
   is_test_fixture?: boolean | null;
   deleted_at?: string | null;
   quote_token?: string | null;
+  /** When the status first became COMPLETED (r47's trigger). Null on every
+   *  job finished before that shipped -- deliberately not backfilled. */
+  completed_at?: string | null;
+  /** When the review request went out. The marker on the job screen. */
+  review_email_sent_at?: string | null;
+  /** A cancelled job is not a job to ask for a review about. */
+  cancelled_at?: string | null;
 }
 
 export interface DueFollowUp {
@@ -104,6 +132,37 @@ export function dueFollowUp(job: FollowUpJob, settings: FollowUpSettings, now: D
   // furthest-along one that applies, so a quote that has been both sent
   // and approved-without-deposit only ever gets the deposit nudge, not
   // also a stale "quote sent" nudge for a quote that is no longer pending.
+
+  /* THE WORK IS FINISHED: ask for a review.
+     First, because completion is the furthest-along state there is. A
+     finished job that still shows an unpaid deposit therefore gets this
+     instead of the deposit nudge -- for one run only: the review is sent
+     once and then review_email_sent_at takes it out of the running, so the
+     money nudge resumes the next night. Reversing the two would be worse,
+     because the deposit nudge repeats forever and would postpone the review
+     indefinitely.
+     Three separate reasons this returns null, each of which has to be here:
+       - review_url blank: there is nothing to ask the customer to click, so
+         the letter would have a dead button. Checked here rather than left
+         to the sender, so the log row is never claimed for a send that
+         cannot happen.
+       - review_email_sent_at set: asked once already. The follow_up_log row
+         also blocks a resend for this stage_key, but this guard survives a
+         log cleanup and is what the job screen reads.
+       - cancelled_at set: a job can be completed and then cancelled. Asking
+         that customer to review us publicly is the last thing to do. */
+  if (
+    settings.job_done_review_enabled &&
+    (settings.review_url || "").trim() !== "" &&
+    job.completed_at &&
+    !job.review_email_sent_at &&
+    !job.cancelled_at &&
+    daysSince(job.completed_at, now) >= settings.job_done_review_days &&
+    daysSince(job.completed_at, now) <= REVIEW_MAX_AGE_DAYS
+  ) {
+    return { kind: "job_done_review", stageKey: job.completed_at };
+  }
+
   if (
     settings.approved_no_deposit_enabled &&
     job.quote_approved_at &&

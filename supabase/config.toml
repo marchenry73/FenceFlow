@@ -50,6 +50,16 @@ verify_jwt = true
 [functions.create-checkout-session]
 verify_jwt = true
 
+# The hourly scheduler. Triggered by .github/workflows/follow-ups.yml,
+# which sends BOTH the anon key as a bearer token and its own
+# x-fenceflow-trigger secret -- so verification stays ON and the secret is
+# the real guard behind it. Declared explicitly because it was not declared
+# at all: the value then came from whatever flag the last deploy happened to
+# carry, which is not a thing to leave to memory on a function that can send
+# email to customers.
+[functions.send-follow-ups]
+verify_jwt = true
+
 # Two doors now: the office (the function checks its own JWT inside) and a
 # homeowner holding a quote token, who has no JWT and never will. The gateway
 # must let both reach the function; the function is the bouncer for each.

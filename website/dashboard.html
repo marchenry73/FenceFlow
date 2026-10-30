@@ -1637,6 +1637,12 @@
           <div><label data-t="fuDailyCap">Daily cap (all kinds combined)</label>
             <input id="fu_daily_cap" type="number" min="1" step="1"></div>
         </div>
+        <div>
+          <label data-t="fuReviewUrl">Review link (for the review request)</label>
+          <input id="fu_review_url" type="url" placeholder="https://g.page/r/..." autocomplete="off">
+          <div class="sub" id="fuReviewUrlNote" data-t="fuReviewUrlHint">Where the review request sends the customer.
+            Without it, no review request can be sent.</div>
+        </div>
         <div style="margin-top:12px">
           <button class="btn btn-sm" id="fuSaveBtn" data-t="fuSaveBtn">Save</button>
         </div>
@@ -3010,9 +3016,19 @@
         <div><label data-t="jobLabelTaxRate">Tax rate (%)</label><input id="j_tax_rate_percent" type="number" step="0.1"></div>
         <div><label data-t="jobLabelMarkup">Markup (%)</label><input id="j_markup_percent" type="number" step="0.1"></div>
         <div><label data-t="jobLabelDiscount">Discount (%)</label><input id="j_discount_percent" type="number" step="0.1"></div>
+        <div><label data-t="jobLabelJobType">Job type</label><select id="j_job_type">
+          <option value="" data-t="jobTypeUnset">Not set</option>
+          <option value="RESIDENTIAL" data-t="jobTypeResidential">Residential</option>
+          <option value="COMMERCIAL" data-t="jobTypeCommercial">Commercial</option>
+          <option value="OTHER" data-t="jobTypeOther">Other</option></select></div>
         <div><label data-t="jobLabelLaborRate">Labor $/ft</label><input id="j_labor_rate_per_ft" type="number" step="0.1"></div>
         <div><label data-t="jobLabelLaborFlat">Labor flat fee ($)</label><input id="j_labor_flat_fee" type="number" step="1"></div>
-        <div><label data-t="jobLabelMinCharge">Minimum charge ($)</label><input id="j_minimum_job_charge" type="number" step="1"></div>
+        <!-- HIDDEN, NOT REMOVED. One floor is enough: the labour minimum below
+             does the work, and this one only ever fires on a discounted small
+             job, where it silently undoes the discount. The input stays in the
+             page so every script that reads or writes it keeps working -- J_NUM,
+             the audit field list and the save path all name it. -->
+        <div style="display:none"><label data-t="jobLabelMinCharge">Minimum charge ($)</label><input id="j_minimum_job_charge" type="number" step="1"></div>
         <div><label data-t="jobLabelMinLaborCharge">Minimum labor charge ($)</label><input id="j_minimum_labor_charge" type="number" step="1"></div>
       </div>
     </div>
@@ -4524,7 +4540,7 @@ jobViewAll:'All', jobViewToday:'Today', jobViewWeek:'This week', jobViewUnschedu
     jobOptDenied:'Denied', jobLabelPermitNumber:'Permit number',
     jobLabelPermitStatus:'Permit status',
     jobSecExpenses:'Expenses', jobSecPunch:'Punch List', jobSecOrders:'Change Orders',
-    jobSecTime:'Time Logged', jobDeleteBtn:'Delete', jobSaveBtn:'Save Changes', jobSecCancel:'Cancel this job', cancelWorkOut:'Work out what is kept', cancelReasonLabel:'Reason (optional)', cancelConfirmBtn:'Cancel this job', cancelMatOrdered:'Material, ordered', cancelMatNotOrdered:'Material, not ordered', cancelFee:'Work not done, %s ft at $1', cancelKept:'Kept in total', cancelPaid:'Paid so far', cancelRefund:'To refund', cancelNoMoney:'You cannot see this job\'s money, so the figures cannot be worked out.', cancelAlready:'Cancelled on %s.', cancelAskTitle:'Cancel the job for %s?', cancelAskBody:'The figures above are what is kept and what goes back. The job stays in the list with its history; it is not deleted.', cancelDone:'Job cancelled.',
+    jobSecTime:'Time Logged', jobLabelJobType:'Job type', jobTypeUnset:'Not set', jobTypeResidential:'Residential', jobTypeCommercial:'Commercial', jobTypeOther:'Other', jobDeleteBtn:'Delete', jobSaveBtn:'Save Changes', jobSecCancel:'Cancel this job', cancelWorkOut:'Work out what is kept', cancelReasonLabel:'Reason (optional)', cancelConfirmBtn:'Cancel this job', cancelMatOrdered:'Material, ordered', cancelMatNotOrdered:'Material, not ordered', cancelFee:'Work not done, %s ft at $1', cancelKept:'Kept in total', cancelPaid:'Paid so far', cancelRefund:'To refund', cancelNoMoney:'You cannot see this job\'s money, so the figures cannot be worked out.', cancelAlready:'Cancelled on %s.', cancelAskTitle:'Cancel the job for %s?', cancelAskBody:'The figures above are what is kept and what goes back. The job stays in the list with its history; it is not deleted.', cancelDone:'Job cancelled.',
     jobProgStep1:'Quote sent', jobProgStep2:'Quote approved', jobProgStep3:'Deposit collected in full',
     jobProgStep4:'HOA and permit cleared', jobProgStep5:'Installation scheduled',
     jobProgStep6:'Installation complete', jobProgStep7:'Final payment', jobProgNext:'Next',
@@ -5149,7 +5165,7 @@ jobViewAll:'All', jobViewToday:'Today', jobViewWeek:'This week', jobViewUnschedu
     fuKindApprovedNoDeposit:'Approved, no deposit',
     fuDelayHours:'after (hours)', fuDelayDays:'after (days)',
     fuQuietStart:'Quiet hours start (local)', fuQuietEnd:'Quiet hours end (local)',
-    fuTimezone:'Timezone', fuDailyCap:'Daily cap (all kinds combined)',
+    fuTimezone:'Timezone', fuDailyCap:'Daily cap (all kinds combined)', fuKindJobDoneReview:'Review request (after the job is done)', fuReviewUrl:'Review link (for the review request)', fuReviewUrlHint:'Where the review request sends the customer. Without it, no review request can be sent.', fuReviewNoLink:'Review requests are on, but there is no link -- nothing will be sent until you paste one here.',
     fuSaveBtn:'Save', fuSavedMsg:'Follow-up settings saved.',
     fuPreviewHead:'What would send right now',
     fuPreviewBody:'Read-only. Computed from the same rules the sending function uses, including quiet hours and the daily cap, so you can see the effect before switching anything on. This never sends an email by itself.',
@@ -6384,7 +6400,7 @@ jobViewAll:'Todos', jobViewToday:'Hoy', jobViewWeek:'Esta semana', jobViewUnsche
     jobOptDenied:'Denegado', jobLabelPermitNumber:'Número de permiso',
     jobLabelPermitStatus:'Estado del permiso',
     jobSecExpenses:'Gastos', jobSecPunch:'Lista de pendientes', jobSecOrders:'Órdenes de cambio',
-    jobSecTime:'Horas registradas', jobDeleteBtn:'Eliminar', jobSaveBtn:'Guardar cambios', jobSecCancel:'Cancelar este trabajo', cancelWorkOut:'Calcular lo que se retiene', cancelReasonLabel:'Motivo (opcional)', cancelConfirmBtn:'Cancelar este trabajo', cancelMatOrdered:'Material, pedido', cancelMatNotOrdered:'Material, no pedido', cancelFee:'Trabajo no realizado, %s pies a $1', cancelKept:'Retenido en total', cancelPaid:'Pagado hasta ahora', cancelRefund:'A devolver', cancelNoMoney:'No puedes ver el dinero de este trabajo, así que no se pueden calcular las cifras.', cancelAlready:'Cancelado el %s.', cancelAskTitle:'¿Cancelar el trabajo de %s?', cancelAskBody:'Las cifras de arriba son lo que se retiene y lo que se devuelve. El trabajo sigue en la lista con su historial; no se elimina.', cancelDone:'Trabajo cancelado.',
+    jobSecTime:'Horas registradas', jobLabelJobType:'Tipo de trabajo', jobTypeUnset:'Sin definir', jobTypeResidential:'Residencial', jobTypeCommercial:'Comercial', jobTypeOther:'Otro', jobDeleteBtn:'Eliminar', jobSaveBtn:'Guardar cambios', jobSecCancel:'Cancelar este trabajo', cancelWorkOut:'Calcular lo que se retiene', cancelReasonLabel:'Motivo (opcional)', cancelConfirmBtn:'Cancelar este trabajo', cancelMatOrdered:'Material, pedido', cancelMatNotOrdered:'Material, no pedido', cancelFee:'Trabajo no realizado, %s pies a $1', cancelKept:'Retenido en total', cancelPaid:'Pagado hasta ahora', cancelRefund:'A devolver', cancelNoMoney:'No puedes ver el dinero de este trabajo, así que no se pueden calcular las cifras.', cancelAlready:'Cancelado el %s.', cancelAskTitle:'¿Cancelar el trabajo de %s?', cancelAskBody:'Las cifras de arriba son lo que se retiene y lo que se devuelve. El trabajo sigue en la lista con su historial; no se elimina.', cancelDone:'Trabajo cancelado.',
     jobProgStep1:'Presupuesto enviado', jobProgStep2:'Presupuesto aprobado', jobProgStep3:'Depósito cobrado por completo',
     jobProgStep4:'HOA y permiso en orden', jobProgStep5:'Instalación programada',
     jobProgStep6:'Instalación terminada', jobProgStep7:'Pago final', jobProgNext:'Siguiente',
@@ -7009,7 +7025,7 @@ jobViewAll:'Todos', jobViewToday:'Hoy', jobViewWeek:'Esta semana', jobViewUnsche
     fuKindApprovedNoDeposit:'Aprobado, sin depósito',
     fuDelayHours:'después de (horas)', fuDelayDays:'después de (días)',
     fuQuietStart:'Inicio de horas silenciosas (local)', fuQuietEnd:'Fin de horas silenciosas (local)',
-    fuTimezone:'Zona horaria', fuDailyCap:'Tope diario (todos los tipos combinados)',
+    fuTimezone:'Zona horaria', fuDailyCap:'Tope diario (todos los tipos combinados)', fuKindJobDoneReview:'Solicitud de reseña (al terminar el trabajo)', fuReviewUrl:'Enlace de reseñas (para la solicitud)', fuReviewUrlHint:'A dónde se envía al cliente. Sin esto no se puede enviar ninguna solicitud.', fuReviewNoLink:'Las solicitudes de reseña están activadas, pero falta el enlace: no se enviará nada hasta que lo pegues aquí.',
     fuSaveBtn:'Guardar', fuSavedMsg:'Configuración de seguimiento guardada.',
     fuPreviewHead:'Qué se enviaría ahora mismo',
     fuPreviewBody:'Solo lectura. Calculado con las mismas reglas que usa la función de envío, incluyendo horas silenciosas y el tope diario, para ver el efecto antes de activar nada. Esto nunca envía un correo por sí mismo.',
@@ -8214,7 +8230,7 @@ jobViewAll:'Tous', jobViewToday:'Aujourdhui', jobViewWeek:'Cette semaine', jobVi
     jobOptDenied:'Refusé', jobLabelPermitNumber:'Numéro de permis',
     jobLabelPermitStatus:'Statut du permis',
     jobSecExpenses:'Dépenses', jobSecPunch:'Liste des correctifs', jobSecOrders:'Avenants',
-    jobSecTime:'Heures enregistrées', jobDeleteBtn:'Supprimer', jobSaveBtn:'Enregistrer les modifications', jobSecCancel:'Annuler ce chantier', cancelWorkOut:'Calculer ce qui est retenu', cancelReasonLabel:'Motif (facultatif)', cancelConfirmBtn:'Annuler ce chantier', cancelMatOrdered:'Matériel, commandé', cancelMatNotOrdered:'Matériel, non commandé', cancelFee:'Travail non fait, %s pieds à 1 $', cancelKept:'Retenu au total', cancelPaid:'Payé à ce jour', cancelRefund:'À rembourser', cancelNoMoney:'Vous ne pouvez pas voir l\'argent de ce chantier, les montants ne peuvent donc pas être calculés.', cancelAlready:'Annulé le %s.', cancelAskTitle:'Annuler le chantier de %s ?', cancelAskBody:'Les montants ci-dessus sont ce qui est retenu et ce qui est rendu. Le chantier reste dans la liste avec son historique ; il n\'est pas supprimé.', cancelDone:'Chantier annulé.',
+    jobSecTime:'Heures enregistrées', jobLabelJobType:'Type de chantier', jobTypeUnset:'Non défini', jobTypeResidential:'Résidentiel', jobTypeCommercial:'Commercial', jobTypeOther:'Autre', jobDeleteBtn:'Supprimer', jobSaveBtn:'Enregistrer les modifications', jobSecCancel:'Annuler ce chantier', cancelWorkOut:'Calculer ce qui est retenu', cancelReasonLabel:'Motif (facultatif)', cancelConfirmBtn:'Annuler ce chantier', cancelMatOrdered:'Matériel, commandé', cancelMatNotOrdered:'Matériel, non commandé', cancelFee:'Travail non fait, %s pieds à 1 $', cancelKept:'Retenu au total', cancelPaid:'Payé à ce jour', cancelRefund:'À rembourser', cancelNoMoney:'Vous ne pouvez pas voir l\'argent de ce chantier, les montants ne peuvent donc pas être calculés.', cancelAlready:'Annulé le %s.', cancelAskTitle:'Annuler le chantier de %s ?', cancelAskBody:'Les montants ci-dessus sont ce qui est retenu et ce qui est rendu. Le chantier reste dans la liste avec son historique ; il n\'est pas supprimé.', cancelDone:'Chantier annulé.',
     jobProgStep1:'Devis envoyé', jobProgStep2:'Devis approuvé', jobProgStep3:'Acompte encaissé en entier',
     jobProgStep4:'Association et permis réglés', jobProgStep5:'Installation planifiée',
     jobProgStep6:'Installation terminée', jobProgStep7:'Paiement final', jobProgNext:'Suivant',
@@ -8839,7 +8855,7 @@ jobViewAll:'Tous', jobViewToday:'Aujourdhui', jobViewWeek:'Cette semaine', jobVi
     fuKindApprovedNoDeposit:'Approuvé, sans acompte',
     fuDelayHours:'après (heures)', fuDelayDays:'après (jours)',
     fuQuietStart:'Début des heures de silence (local)', fuQuietEnd:'Fin des heures de silence (local)',
-    fuTimezone:'Fuseau horaire', fuDailyCap:'Plafond quotidien (tous types confondus)',
+    fuTimezone:'Fuseau horaire', fuDailyCap:'Plafond quotidien (tous types confondus)', fuKindJobDoneReview:'Avis client (après le chantier)', fuReviewUrl:'Lien pour les avis (pour la demande)', fuReviewUrlHint:'Où la demande envoie le client. Sans ce lien, aucune demande ne peut être envoyée.', fuReviewNoLink:'Les demandes sont activées, mais le lien manque : rien ne sera envoyé avant que vous le colliez ici.',
     fuSaveBtn:'Enregistrer', fuSavedMsg:'Paramètres de relance enregistrés.',
     fuPreviewHead:'Ce qui serait envoyé maintenant',
     fuPreviewBody:'Lecture seule. Calculé à partir des mêmes règles que la fonction d\'envoi, y compris les heures de silence et le plafond quotidien, pour voir l\'effet avant d\'activer quoi que ce soit. Ceci n\'envoie jamais de courriel par lui-même.',
@@ -10628,6 +10644,12 @@ const FOLLOW_UP_KIND_DEFS = [
   { key: 'approved_no_deposit', enabledField: 'approved_no_deposit_enabled',
     delayField: 'approved_no_deposit_days', delayUnit: 'days',
     labelKey: 'fuKindApprovedNoDeposit', delayLabelKey: 'fuDelayDays' },
+  /* The fifth is not a sales nudge -- it goes out AFTER the work is done --
+     but it rides the same scheduler, cap, quiet hours and log, so it belongs
+     in the same list rather than in a panel of its own. */
+  { key: 'job_done_review', enabledField: 'job_done_review_enabled',
+    delayField: 'job_done_review_days', delayUnit: 'days',
+    labelKey: 'fuKindJobDoneReview', delayLabelKey: 'fuDelayDays' },
 ];
 
 async function loadFollowUpSettings(){
@@ -10702,6 +10724,20 @@ function renderFollowUps(){
   const capInput = $('fu_daily_cap');
   if (capInput) { capInput.value = s.daily_cap; capInput.disabled = !editable; }
 
+  /* THE ONE COMBINATION THAT LOOKS ON AND SENDS NOTHING.
+     Review requests switched on with no link is not a half-configured
+     feature, it is a silent one: dueFollowUp refuses to raise the kind at
+     all, so the toggle reads yes, the preview stays empty, and nothing ever
+     explains why. Say it on the field itself. */
+  const urlInput = $('fu_review_url');
+  if (urlInput) { urlInput.value = s.review_url || ''; urlInput.disabled = !editable; }
+  const urlNote = $('fuReviewUrlNote');
+  if (urlNote) {
+    const missing = !!s.job_done_review_enabled && !String(s.review_url || '').trim();
+    urlNote.textContent = missing ? tr('fuReviewNoLink') : tr('fuReviewUrlHint');
+    urlNote.className = missing ? 'sub bad' : 'sub';
+  }
+
   // HOW MANY PEOPLE ARE BEHIND EACH CHECKBOX.
   //
   // Asked one rule at a time, with every other rule off, so each answer is
@@ -10720,9 +10756,10 @@ function renderFollowUps(){
   // make the number stick at its opening value for ever once a rule is on --
   // "3 waiting" that never falls as the three go out.
   //
-  // Keyed on job and kind, not on the stage: every stage key these four rules
-  // use is a fixed timestamp (quote_viewed_at, quote_approved_at, created_at),
-  // so a pairing that has been sent cannot come due again.
+  // Keyed on job and kind, not on the stage: every stage key these five rules
+  // use is a fixed timestamp (quote_viewed_at, quote_approved_at, created_at,
+  // and completed_at, which r47's trigger writes once and never moves), so a
+  // pairing that has been sent cannot come due again.
   //
   // followUpLog holds the most recent 100 rows, so on a company that has sent
   // more than that this can only ever OVER-count, never under -- which is the
@@ -10814,6 +10851,10 @@ async function saveFollowUpSettings(){
     quiet_hours_end: parseInt($('fu_quiet_end')?.value, 10),
     timezone: $('fu_timezone')?.value || s.timezone,
     daily_cap: parseInt($('fu_daily_cap')?.value, 10) || s.daily_cap,
+    // Sent as typed; the RPC normalises a missing scheme and refuses anything
+    // that is not a web address, so a typo cannot reach a customer's inbox as
+    // a dead button. An empty box is a real value: it turns sending off.
+    review_url: ($('fu_review_url')?.value ?? s.review_url ?? '').trim(),
   };
   FOLLOW_UP_KIND_DEFS.forEach(def => {
     const cb = document.querySelector(`[data-fu-enabled="${def.key}"]`);
@@ -12268,7 +12309,12 @@ const JOB_COLUMNS = [
   // select grant for authenticated, so a new column is readable the moment it
   // exists -- unlike companies, whose per-column grants once took the office
   // down for a day. Checked live before this line was written.
-  'cancelled_at','cancelled_by','cancellation_reason',
+  'cancelled_at','cancelled_by','cancellation_reason','job_type',
+  // r47/r48: when the job was finished, and when the review request went
+  // out. The follow-up preview computes on these -- left off the select
+  // they arrive undefined, which dueFollowUp reads as nothing due, so the
+  // panel would show an empty list on the night the review emails send.
+  'completed_at','review_email_sent_at',
   'id','sync_id','company_id','customer_id','local_id','customer_name',
   'address','phone','email','notes','status','referral_source',
   'scheduled_date','estimated_duration_hours','assigned_employee_id',
@@ -21710,7 +21756,7 @@ const J_TEXT=['customer_name','phone','address','email','referral_source','notes
 const J_NUM=['tax_rate_percent','markup_percent','discount_percent','minimum_job_charge',
              'labor_rate_per_ft','labor_flat_fee','minimum_labor_charge',
              'estimated_duration_hours','deposit_amount'];
-const J_SEL=['status','payment_status','hoa_approval_status','permit_status','materials_status'];
+const J_SEL=['status','payment_status','hoa_approval_status','permit_status','materials_status','job_type'];
 
 /**
  * The lead sources the office offers, as the exact text that gets stored.

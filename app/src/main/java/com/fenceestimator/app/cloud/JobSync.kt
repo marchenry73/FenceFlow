@@ -126,6 +126,17 @@ data class CloudJob(
     @SerialName("signature_storage_path") val signatureStoragePath: String? = null,
     @SerialName("final_sign_off_storage_path") val finalSignOffStoragePath: String? = null,
     @SerialName("signed_at") val signedAt: String? = null,
+    /** RESIDENTIAL | COMMERCIAL | OTHER, or blank. A label; no rule reads it. */
+    @SerialName("job_type") val jobType: String? = null,
+    /**
+     * When the job was first marked COMPLETED (r47's trigger), and when the
+     * automatic review request went out (send-follow-ups). Read and never
+     * written by the phone: both are server bookkeeping, and r48 keeps the
+     * review stamp out of jobs.updated_at so writing it cannot beat an
+     * offline edit of the same job.
+     */
+    @SerialName("completed_at") val completedAt: String? = null,
+    @SerialName("review_email_sent_at") val reviewEmailSentAt: String? = null,
     /**
      * Cancellation, read and never written by the phone. See [Job.cancelledAt]
      * for why these are columns rather than a status, and why toCloud omits
@@ -1705,6 +1716,7 @@ private fun Job.toCloud(
     laborFlatFee = laborFlatFee,
     minimumJobCharge = minimumJobCharge,
     minimumLaborCharge = minimumLaborCharge,
+    jobType = jobType,
     wastePercent = wastePercent,
     blockedReason = blockedReason,
     overrunReason = overrunReason,
@@ -1876,6 +1888,16 @@ internal fun CloudJob.mergeOnto(local: Job, keepMoney: Boolean = false): Job = l
     // once a date is here it stays, so a pull that answers null (an older
     // server, a narrowed select) cannot quietly bring a cancelled job back to
     // life on this phone.
+    // His own field, so the cloud's copy wins when it has one and the local
+    // value stands when it does not -- the same shape as every other typed
+    // field here, not the never-un-happens rule the cancellation needs.
+    jobType = (jobType ?: "").ifBlank { local.jobType },
+    // Never-un-happens, like the cancellation below it: a row that arrives
+    // without these keeps whatever the phone already knew, so an older
+    // build's reply (or a partial select) cannot un-complete a finished job
+    // or make a sent review request look unsent.
+    completedAt = CloudTime.parseMillis(completedAt) ?: local.completedAt,
+    reviewEmailSentAt = CloudTime.parseMillis(reviewEmailSentAt) ?: local.reviewEmailSentAt,
     cancelledAt = CloudTime.parseMillis(cancelledAt) ?: local.cancelledAt,
     cancelledBy = (cancelledBy ?: "").ifBlank { local.cancelledBy },
     cancellationReason = (cancellationReason ?: "").ifBlank { local.cancellationReason },
@@ -2031,6 +2053,9 @@ internal fun CloudJob.toLocalJob(): Job = Job(
     refundedAmount = refundedAmount,
     refundedAt = CloudTime.parseMillis(refundedAt),
     signedAt = CloudTime.parseMillis(signedAt),
+    jobType = jobType ?: "",
+    completedAt = CloudTime.parseMillis(completedAt),
+    reviewEmailSentAt = CloudTime.parseMillis(reviewEmailSentAt),
     cancelledAt = CloudTime.parseMillis(cancelledAt),
     cancelledBy = cancelledBy ?: "",
     cancellationReason = cancellationReason ?: "",

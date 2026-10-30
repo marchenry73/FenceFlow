@@ -2402,4 +2402,12 @@
     <string name="jd_cancel_banner_body">Cancelled on %1$s. It stays here with its history; nothing has been deleted.</string>
     <string name="jd_cancel_ask_body">The figures above are what is kept and what goes back. The job stays in the list with its history.</string>
     <string name="jd_cancel_done">Job cancelled.</string>
+    <string name="jd_job_type">Job type</string>
+    <string name="jd_type_unset">Not set</string>
+    <string name="jd_type_residential">Residential</string>
+    <string name="jd_type_commercial">Commercial</string>
+    <string name="jd_type_other">Other</string>
+    <string name="jd_review_auto_sent">Review request emailed %1$s</string>
+    <string name="jd_review_auto_sent_note">Sent automatically to the customer with your review link. Nothing more to do here.</string>
+    <string name="jd_review_auto_hint">When review requests are switched on in the office, this goes out on its own a few days after the job is marked complete.</string>
 </resources>

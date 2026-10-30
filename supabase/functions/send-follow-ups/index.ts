@@ -182,6 +182,7 @@ const SUBJECT: Record<string, string> = {
   quote_sent_no_view: "Your fence quote is ready",
   quote_viewed_not_approved: "Still thinking it over?",
   approved_no_deposit: "One more step to get your fence scheduled",
+  job_done_review: "How did we do?",
 };
 
 function buildEmail(
@@ -189,6 +190,13 @@ function buildEmail(
   job: { customer_name?: string | null },
   companyName: string,
   quoteUrl: string | null,
+  /**
+   * The company's review page, for the one kind that links there instead of
+   * to the quote. Null for every other kind, and for a company that has not
+   * set one -- though dueFollowUp() will not raise a review in that case, so
+   * reaching here with a blank URL means something upstream changed.
+   */
+  reviewUrl: string | null,
   /**
    * A signed https URL for the company's logo, or null. The HTML part gets it
    * as a letterhead; the plain-text part is untouched, so a text-only reader
@@ -219,15 +227,28 @@ function buildEmail(
       `Hi ${name}, thanks for approving your fence quote with ${company}! ` +
       `To get your job on the schedule, the next step is the deposit -- you ` +
       `can take care of that using the link below.`,
+    job_done_review:
+      `Hi ${name}, thanks for choosing ${company} -- your fence is finished, ` +
+      `and we hope you're happy with how it came out. If you have a minute, ` +
+      `a short review genuinely helps a small local business, and it is the ` +
+      `main way new neighbors find us.`,
   };
   const body = lines[kind] ?? lines.quote_sent_no_view;
 
-  const linkHtml = quoteUrl
-    ? `<p><a href="${escapeHtml(quoteUrl)}" style="display:inline-block;background:#FF5A1F;color:#fff;` +
-      `text-decoration:none;font-weight:700;padding:10px 18px;border-radius:8px">View your quote</a></p>` +
-      `<p style="font-size:12px;color:#8A93A0;word-break:break-all">Or paste this into your browser: ${escapeHtml(quoteUrl)}</p>`
+  /* WHERE THE BUTTON GOES, and what it says.
+     The review request must not carry "View your quote" to a customer whose
+     fence is already in the ground -- it points at the review page and says
+     so. Every other kind is unchanged. */
+  const link = kind === "job_done_review"
+    ? (reviewUrl ? { url: reviewUrl, label: "Leave a review" } : null)
+    : (quoteUrl ? { url: quoteUrl, label: "View your quote" } : null);
+
+  const linkHtml = link
+    ? `<p><a href="${escapeHtml(link.url)}" style="display:inline-block;background:#FF5A1F;color:#fff;` +
+      `text-decoration:none;font-weight:700;padding:10px 18px;border-radius:8px">${escapeHtml(link.label)}</a></p>` +
+      `<p style="font-size:12px;color:#8A93A0;word-break:break-all">Or paste this into your browser: ${escapeHtml(link.url)}</p>`
     : "";
-  const linkText = quoteUrl ? `\nView your quote: ${quoteUrl}\n` : "";
+  const linkText = link ? `\n${link.label}: ${link.url}\n` : "";
 
   const html =
     `<!doctype html><html><body style="margin:0;background:#F7F8FA;font-family:-apple-system,` +
@@ -434,7 +455,9 @@ Deno.serve(async (req) => {
         .select(
           "sync_id, status, customer_name, email, created_at, first_contact_at, " +
           "quote_sent_at, quote_viewed_at, quote_approved_at, deposit_amount, " +
-          "amount_paid, opted_out_at, is_test_fixture, deleted_at, quote_token",
+          "amount_paid, opted_out_at, is_test_fixture, deleted_at, quote_token, " +
+          // r47/r49: the review request reads these three.
+          "completed_at, review_email_sent_at, cancelled_at",
         )
         .eq("company_id", companyId)
         .eq("is_test_fixture", false)
@@ -476,7 +499,8 @@ Deno.serve(async (req) => {
         if (!claimed) continue; // 23505 = already sent for this stage
 
         const quoteUrl = j.quote_token ? `${siteUrl}/quote.html?t=${j.quote_token}` : null;
-        const { subject, html, text } = buildEmail(due.kind, j, company?.name ?? "", quoteUrl, companyLogoUrl);
+        const { subject, html, text } = buildEmail(
+          due.kind, j, company?.name ?? "", quoteUrl, settings.review_url || null, companyLogoUrl);
 
         const payload = JSON.stringify({
           from: senderWithName(company?.name ?? "", mailFrom),
@@ -530,6 +554,27 @@ Deno.serve(async (req) => {
             await db.from("follow_up_log").update({ message_id: String(sent.id) }).eq("id", claimed.id);
           }
           remaining -= 1;
+          /* THE MARKER HE ASKED FOR: "still leave something so I know the
+             email was sent for the review". The job screen reads this, and
+             dueFollowUp() reads it as the never-twice guard.
+             r48 added it to touch_updated_at's quiet list, so writing it
+             here cannot move jobs.updated_at and beat a phone's offline edit
+             of the same job on the next sync.
+             A failure here is logged, not escalated: the email HAS gone, and
+             the follow_up_log row already prevents a second one, so the only
+             casualty is the marker on the screen. Turning a sent email into
+             a 502 would make the whole run look unsent. */
+          if (due.kind === "job_done_review") {
+            const { error: stampErr } = await db
+              .from("jobs")
+              .update({ review_email_sent_at: new Date().toISOString() })
+              .eq("company_id", companyId)
+              .eq("sync_id", j.sync_id);
+            if (stampErr) {
+              console.error("send-follow-ups: review sent but not stamped",
+                j.sync_id, stampErr.message ?? String(stampErr));
+            }
+          }
           results.push({ company_id: companyId, job_sync_id: j.sync_id, kind: due.kind, sent: true });
         } catch (e) {
           // No answer at all, or none within SEND_TIMEOUT_MS: the claim stays

@@ -140,8 +140,23 @@ test("TEETH: removing either half turns its own checks red", () => {
   assert.notEqual(noOptIn, REFRESHER, "mutation 1 changed nothing");
   assert.ok(!/takeoffLines\.isEmpty\(\) && !priceUnpriced/.test(noOptIn));
 
-  const noWait = ESTIMATE.replace(/val landed = withTimeoutOrNull[\s\S]*?!= null\n/, "val landed = true\n");
-  assert.notEqual(noWait, ESTIMATE, "mutation 2 changed nothing");
+  /* MUTATE THE WAIT THAT THIS TEST IS ABOUT.
+     This mutation used to run over the whole file and replace the FIRST
+     `val landed = withTimeoutOrNull...` it found. There are now four of
+     them -- every write that re-prices waits for its own write to land --
+     so it was deleting a different method's wait and then asserting about
+     setWastePercent's, which was of course still there. The check went red
+     with nothing wrong, and a teeth test that cries wolf is worse than no
+     teeth test: the next person deletes it.
+     Anchored to the one method now, so it mutates what it measures. */
+  const wasteAt = ESTIMATE.indexOf("fun setWastePercent(");
+  assert.notEqual(wasteAt, -1, "setWastePercent is gone or renamed -- re-aim this test");
+  const wasteBody = ESTIMATE.slice(wasteAt, wasteAt + 1400);
+  assert.match(wasteBody, /job\.first \{ it\?\.wastePercent == percent \}/,
+    "the slice does not contain the wait, so mutating it proves nothing");
+
+  const noWait = wasteBody.replace(/val landed = withTimeoutOrNull[\s\S]*?!= null\n/, "val landed = true\n");
+  assert.notEqual(noWait, wasteBody, "mutation 2 changed nothing");
   assert.ok(!/job\.first \{ it\?\.wastePercent == percent \}/.test(noWait),
     "removing the wait should leave no wait to find");
 });

@@ -442,6 +442,23 @@ data class Job(
     val cancelledAt: Long? = null,
     val cancelledBy: String = "",
     val cancellationReason: String = "",
+    /**
+     * When this job was first marked COMPLETED, and when the automatic review
+     * request went out.
+     *
+     * BOTH ARE THE SERVER'S TO WRITE (r47, r48). The phone shows them and
+     * never sends them: completed_at is stamped by a trigger wherever the
+     * status changes, so all three surfaces agree without any of them
+     * remembering to, and review_email_sent_at is written by send-follow-ups
+     * at the moment the email leaves.
+     *
+     * Null in completedAt does NOT mean "not finished" for a job completed
+     * before 2026-10-29 -- r47 deliberately did not backfill, because
+     * inventing a completion date would have asked every past customer for a
+     * review at once. It means nobody recorded when.
+     */
+    val completedAt: Long? = null,
+    val reviewEmailSentAt: Long? = null,
     /** When the customer approved the quote page, and who typed their name. */
     val quoteApprovedAt: Long? = null,
     val quoteApprovedName: String = "",
@@ -523,6 +540,24 @@ data class Job(
     val referralSource: String = "",
     val hoaApprovalStatus: HoaApprovalStatus = HoaApprovalStatus.NOT_REQUIRED,
     val permitNumber: String = "",
+
+    /**
+     * RESIDENTIAL, COMMERCIAL, OTHER -- or blank, which means nobody said.
+     *
+     * A LABEL ONLY. No pricing rule reads it, by the owner's own choice when
+     * asked whether it should drive different rates: it shows on the pricing
+     * screen, in the office and on the quote, and changes no figure. The day
+     * it does drive a rate, that is a formula change in both engines with a
+     * version bump and the fixtures behind it.
+     *
+     * Blank rather than a default, because every job that existed before
+     * 2026-10-29 was quoted without the question being asked, and writing
+     * RESIDENTIAL across all of them would be the app inventing a fact about
+     * real jobs. A string rather than an enum for the reason r45 gives: an
+     * older build reads an unknown enum value as its fallback and pushes it
+     * back, while an unknown string is simply shown as it is.
+     */
+    val jobType: String = "",
 
     // ---- Utility locate ----------------------------------------------------
     //

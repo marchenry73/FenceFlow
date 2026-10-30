@@ -19,7 +19,11 @@ export const FOLLOW_UP_KINDS = [
   "quote_sent_no_view",
   "quote_viewed_not_approved",
   "approved_no_deposit",
+  "job_done_review",
 ];
+
+/** Must equal REVIEW_MAX_AGE_DAYS in the server copy. See it for why. */
+export const REVIEW_MAX_AGE_DAYS = 30;
 
 export const DEFAULT_SETTINGS = {
   enabled: false,
@@ -31,6 +35,9 @@ export const DEFAULT_SETTINGS = {
   quote_sent_no_view_days: 2,
   quote_viewed_not_approved_days: 3,
   approved_no_deposit_days: 2,
+  job_done_review_enabled: false,
+  job_done_review_days: 3,
+  review_url: "",
   quiet_hours_start: 21,
   quiet_hours_end: 8,
   timezone: "America/New_York",
@@ -53,6 +60,21 @@ export function dueFollowUp(job, settings, now) {
   if (job.is_test_fixture) return null;
   if (job.opted_out_at) return null;
   if (!job.email) return null;
+
+  /* The work is finished: ask for a review. First, because completion is
+     the furthest-along state. Kept character-for-character in step with
+     _shared/follow-up-logic.ts -- the test file asserts both agree. */
+  if (
+    settings.job_done_review_enabled &&
+    (settings.review_url || "").trim() !== "" &&
+    job.completed_at &&
+    !job.review_email_sent_at &&
+    !job.cancelled_at &&
+    daysSince(job.completed_at, now) >= settings.job_done_review_days &&
+    daysSince(job.completed_at, now) <= REVIEW_MAX_AGE_DAYS
+  ) {
+    return { kind: "job_done_review", stageKey: job.completed_at };
+  }
 
   if (
     settings.approved_no_deposit_enabled &&

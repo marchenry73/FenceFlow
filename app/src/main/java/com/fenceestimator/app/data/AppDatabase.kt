@@ -21,7 +21,7 @@ import kotlinx.coroutines.withContext
         PaymentRecord::class, BuildTemplate::class, JobPayShare::class, PendingResurrection::class,
         EnquiryCapture::class, EnquiryCapturePhoto::class, RunJoin::class
     ],
-    version = 54,
+    version = 56,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -809,13 +809,25 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_54_55 = object : Migration(54, 55) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                SchemaV55.MIGRATION_54_55_STATEMENTS.forEach { db.execSQL(it) }
+            }
+        }
+
+        private val MIGRATION_55_56 = object : Migration(55, 56) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                SchemaV56.MIGRATION_55_56_STATEMENTS.forEach { db.execSQL(it) }
+            }
+        }
+
         fun getInstance(context: Context, scope: CoroutineScope): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 INSTANCE ?: Room.databaseBuilder(
                     context.applicationContext,
                     AppDatabase::class.java,
                     DB_NAME
-                ).addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35, MIGRATION_35_36, MIGRATION_36_37, MIGRATION_37_38, MIGRATION_38_39, MIGRATION_39_40, MIGRATION_40_41, MIGRATION_41_42, MIGRATION_42_43, MIGRATION_43_44, MIGRATION_44_45, MIGRATION_45_46, MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49, MIGRATION_49_50, MIGRATION_50_51, MIGRATION_51_52, MIGRATION_52_53, MIGRATION_53_54)
+                ).addMigrations(MIGRATION_4_5, MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9, MIGRATION_9_10, MIGRATION_10_11, MIGRATION_11_12, MIGRATION_12_13, MIGRATION_13_14, MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27, MIGRATION_27_28, MIGRATION_28_29, MIGRATION_29_30, MIGRATION_30_31, MIGRATION_31_32, MIGRATION_32_33, MIGRATION_33_34, MIGRATION_34_35, MIGRATION_35_36, MIGRATION_36_37, MIGRATION_37_38, MIGRATION_38_39, MIGRATION_39_40, MIGRATION_40_41, MIGRATION_41_42, MIGRATION_42_43, MIGRATION_43_44, MIGRATION_44_45, MIGRATION_45_46, MIGRATION_46_47, MIGRATION_47_48, MIGRATION_48_49, MIGRATION_49_50, MIGRATION_50_51, MIGRATION_51_52, MIGRATION_52_53, MIGRATION_53_54, MIGRATION_54_55, MIGRATION_55_56)
                 // Destructive ONLY from the pre-release versions that predate the
                 // migration chain (it starts at 4). Blanket
                 // fallbackToDestructiveMigration() was a standing offer to wipe a
@@ -1102,6 +1114,32 @@ internal object SchemaV50 {
     val MIGRATION_49_50_STATEMENTS: List<String> = listOf(
         "ALTER TABLE `fence_runs` ADD COLUMN `startJoint` TEXT NOT NULL DEFAULT ''",
         "ALTER TABLE `fence_runs` ADD COLUMN `endJoint` TEXT NOT NULL DEFAULT ''"
+    )
+}
+
+internal object SchemaV56 {
+    /**
+     * Job.completedAt / Job.reviewEmailSentAt: when the job was finished and
+     * when the review request went out. Both server-written and pull-only.
+     *
+     * Nullable with no default: null is the honest answer for every job that
+     * already exists, and r47 did not backfill the cloud side either.
+     */
+    val MIGRATION_55_56_STATEMENTS: List<String> = listOf(
+        "ALTER TABLE `jobs` ADD COLUMN `completedAt` INTEGER",
+        "ALTER TABLE `jobs` ADD COLUMN `reviewEmailSentAt` INTEGER"
+    )
+}
+
+internal object SchemaV55 {
+    /**
+     * Job.jobType: residential, commercial or other, blank for not said.
+     *
+     * Blank is the default on purpose -- see the field's own comment. No
+     * backfill: nobody was asked about the jobs that already exist.
+     */
+    val MIGRATION_54_55_STATEMENTS: List<String> = listOf(
+        "ALTER TABLE `jobs` ADD COLUMN `jobType` TEXT NOT NULL DEFAULT ''"
     )
 }
 

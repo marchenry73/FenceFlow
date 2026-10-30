@@ -2158,11 +2158,55 @@ private fun CustomerFields(job: Job, editable: Boolean, showContact: Boolean, vi
  * figure here with nothing else in the app noticing. The numbers stay on
  * screen either way; only the boxes stop taking a keystroke.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun PricingFields(job: Job, editable: Boolean, viewModel: JobDetailViewModel) {
     // Markup and labor are rewritten when a pricing tier is applied, so these
     // must re-seed on a tier change or they'd display stale numbers.
     val tierKey = "${job.id}-${job.pricingTierName}"
+
+    /* WHAT KIND OF JOB THIS IS, first in the card, because it is the question
+       you answer before the numbers under it mean anything.
+
+       A label and nothing else: no rule reads it, by his own choice when asked
+       whether it should drive different rates. Blank is a real option and the
+       starting one -- "Not set" is the truth about every job quoted before the
+       question existed, and picking Residential for them would be the app
+       inventing a fact. */
+    var typeExpanded by remember { mutableStateOf(false) }
+    val typeLabels = listOf(
+        "" to stringResource(R.string.jd_type_unset),
+        "RESIDENTIAL" to stringResource(R.string.jd_type_residential),
+        "COMMERCIAL" to stringResource(R.string.jd_type_commercial),
+        "OTHER" to stringResource(R.string.jd_type_other),
+    )
+    ExposedDropdownMenuBox(
+        expanded = typeExpanded && editable,
+        onExpandedChange = { if (editable) typeExpanded = it },
+    ) {
+        OutlinedTextField(
+            // An unrecognised value is SHOWN, not swallowed: a row written by
+            // some future build should read as itself here rather than as
+            // "Not set", which would look like data loss.
+            value = typeLabels.firstOrNull { it.first == job.jobType }?.second ?: job.jobType,
+            onValueChange = {}, readOnly = true, enabled = editable,
+            label = { Text(stringResource(R.string.jd_job_type)) },
+            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = typeExpanded) },
+            modifier = Modifier.fillMaxWidth().menuAnchor()
+        )
+        DropdownMenu(expanded = typeExpanded && editable, onDismissRequest = { typeExpanded = false }) {
+            typeLabels.forEach { (value, label) ->
+                DropdownMenuItem(
+                    text = { Text(label) },
+                    onClick = {
+                        typeExpanded = false
+                        viewModel.update { j -> j.copy(jobType = value) }
+                    }
+                )
+            }
+        }
+    }
+    Spacer(Modifier.height(Space.sm))
     Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
         DraftNumberField(
             stableKey = job.id, label = stringResource(R.string.jd_tax_rate), initialValue = job.taxRatePercent.toFloat(),
@@ -2267,10 +2311,11 @@ private fun TierFields(job: Job, tiers: List<PricingTier>, editable: Boolean, vi
             stableKey = tierKey, label = stringResource(R.string.jd_discount_pct), initialValue = job.discountPercent.toFloat(),
             enabled = editable, modifier = Modifier.weight(1f)
         ) { viewModel.update { j -> j.copy(discountPercent = it.toDouble()) } }
-        DraftNumberField(
-            stableKey = job.id, label = stringResource(R.string.jd_min_job_charge), initialValue = job.minimumJobCharge.toFloat(),
-            enabled = editable, modifier = Modifier.weight(1f)
-        ) { viewModel.update { j -> j.copy(minimumJobCharge = it.toDouble()) } }
+        // The job minimum is deliberately not offered. One floor is enough:
+        // the labour minimum beside this does the work, and the job floor only
+        // ever fires on a discounted small job -- where it silently puts the
+        // total back and the discount does nothing. The field and the engine
+        // rule both remain for companies that have set one.
         DraftNumberField(
             stableKey = job.id, label = stringResource(R.string.jd_min_labor_charge), initialValue = job.minimumLaborCharge.toFloat(),
             enabled = editable, modifier = Modifier.weight(1f)
@@ -4324,9 +4369,41 @@ private fun ReviewRequestFields(job: Job, profile: BusinessProfile, viewModel: J
         )
     }
 
+    /* ALREADY ASKED. The server stamped review_email_sent_at when the
+       automatic request left, so this is the marker he asked to be left
+       behind -- and the whole composer below is skipped, because the one
+       thing worse than not asking for a review is asking the same customer
+       twice. */
+    val reviewSentAt = job.reviewEmailSentAt
+    if (reviewSentAt != null) {
+        val stamp = remember(reviewSentAt) {
+            SimpleDateFormat("MMM d, yyyy 'at' h:mm a", Locale.US)
+                .format(java.util.Date(reviewSentAt))
+        }
+        Text(
+            stringResource(R.string.jd_review_auto_sent, stamp),
+            style = MaterialTheme.typography.bodyMedium
+        )
+        Text(
+            stringResource(R.string.jd_review_auto_sent_note),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        return
+    }
+
     Text(
         stringResource(R.string.jd_review_send_when),
         style = MaterialTheme.typography.bodyMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+
+    /* Deliberately does NOT promise the automatic one will fire. The app
+       cannot see follow_up_settings, so it says where the switch lives
+       instead of guessing which way it is set. */
+    Text(
+        stringResource(R.string.jd_review_auto_hint),
+        style = MaterialTheme.typography.bodySmall,
         color = MaterialTheme.colorScheme.onSurfaceVariant
     )
 

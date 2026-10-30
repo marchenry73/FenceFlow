@@ -118,6 +118,64 @@ company's Resend dashboard, to see whether anything was actually sent --
 remember sending stays zero for every company until that company also flips
 its own `follow_up_settings.enabled` to `true`.
 
+## The review request (the fifth kind), added 2026-10-29
+
+The first four kinds chase a quote. The fifth goes out AFTER the work: a
+review request, two or three days after a job is marked COMPLETED.
+
+It rides this same scheduler on purpose -- the opt-out, the quiet hours, the
+daily cap, and the claim-a-log-row-before-sending that makes a double send
+impossible were all already here and already tested.
+
+**What had to exist first.** There was a COMPLETED status and nothing that
+recorded *when*, so "two days after the job is done" had nothing to count
+from. `jobs.completed_at` is now stamped by a trigger (r47) wherever the
+status changes -- the phone, the office and the crew flow all get the same
+answer without any of them remembering to write it.
+
+**Switching it on** (Office -> Follow-ups):
+
+1. Tick **Review request (after the job is done)** and set the days (2 or 3).
+2. Paste the **review link**. Without it nothing sends, by design: a review
+   request with no link is a letter with a dead button. The panel says so in
+   red when the toggle is on and the box is empty.
+
+**The guards, and why each exists:**
+
+| Guard | Without it |
+|---|---|
+| `review_url` must be set | the customer gets a dead button |
+| `review_email_sent_at` must be null | the same customer is asked twice |
+| `cancelled_at` must be null | a cancelled job's customer is asked to review the company |
+| at least `job_done_review_days` since completion | asked while the crew is still packing up |
+| at most `REVIEW_MAX_AGE_DAYS` (30) since completion | the night the switch is first turned on, EVERY job finished since r47 is eligible at once |
+| no backfill of `completed_at` | every past customer asked at once, months after the work |
+
+**Where the marker is.** `jobs.review_email_sent_at` is written the moment
+the email leaves, and the job screen in the app shows it in place of the
+hand-written review composer -- which is what "leave something so I know the
+email was sent" asked for. r48 keeps that write out of `jobs.updated_at`, so
+stamping it cannot beat a phone's offline edit of the same job.
+
+**Two things that would have failed silently** and are now patched:
+
+- `follow_up_log.kind` carried a CHECK listing only the four sales kinds. The
+  claim insert would have been refused with 23514, which the sender does not
+  treat as "already sent", so it logged to the console and moved on: no
+  email, HTTP 200, an empty results array, indistinguishable from a quiet
+  night. (r49)
+- `set_follow_up_settings()` -- the only path the office may write these
+  settings through -- named the four original rules column by column, so the
+  new toggle would have accepted a click and changed nothing. For the three
+  new fields an absent key now means *keep what is stored*, so a cached older
+  dashboard cannot switch review requests back off. (r50)
+
+**Drift.** `website/js/lib/follow-ups.mjs` is a hand-written copy of these
+rules used by the office preview. `tests/follow-ups.test.mjs` (a151) now runs
+both copies over the same jobs and fails if they disagree -- the dangerous
+direction being a preview that shows nothing due on the night five emails go
+out.
+
 ## Turning it off
 
 Two independent switches, either one stops all sending:
