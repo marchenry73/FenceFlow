@@ -185,6 +185,21 @@ are **stale tests, not bugs**. The product code is correct in both.
 
 ---
 
+## Where the repo is left
+
+`main` is at commit 837 and pushed. The office and the database are fully
+live; the app is one build behind.
+
+| | |
+|---|---|
+| **1.835** | published — photos across devices |
+| **Office** | deployed and verified on fenceflowapp.com: the HOA send button, the "no utility locate" box, the review-request settings, job type |
+| **Database** | r51–r58 applied, every one with a self-test and a canary |
+| **Committed, awaiting a build** | the locate box in the app, the Clock In switch. Compiled clean, `LocateTicketTest` 16/16, the tombstone guard 4/4 |
+
+Nothing is half-applied: the two app-side features work from the office today,
+so the next release only makes them reachable on the phone as well.
+
 ## Not touched, and why
 
 - **The drawing itself.** Every change needs a 30-minute build and a real look
