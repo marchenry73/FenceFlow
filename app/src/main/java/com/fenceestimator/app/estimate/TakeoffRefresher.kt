@@ -186,6 +186,23 @@ object TakeoffRefresher {
 
         val catalog = repository.getAllMaterialItems().filter { it.isActive }
         if (catalog.isEmpty()) return false
+        // NOT ONE PRICED ROW IN THE WHOLE CATALOG: this phone cannot price, and
+        // pricing anyway writes $0.00 over the job in silence.
+        //
+        // That is exactly what happened on 30 Oct 2026. One confident "you may
+        // not see money" from the server ran Repository.forgetMoney, whose
+        // scrubMoney() sets every catalog price to 0.00; EntitySync.pullCatalog
+        // could not put them back (its clock gate compares equal after a scrub),
+        // and the next drawing edit brought this function here, which re-priced
+        // five sides of an ACCEPTED job at nothing and said so to no one -- it
+        // throws BuiltItems.zeroPricedNames away, and has no screen to say it on.
+        //
+        // The same answer covers a company that has genuinely not priced its
+        // catalog yet: there is no number to write, so nothing is written. Their
+        // Suggest button still builds the takeoff and still reports "priced at
+        // $0: ..." for every line, which is this same fact said out loud instead
+        // of recorded as a quote.
+        if (catalog.none { it.unitPrice > 0.0 }) return false
 
         // The job's calibration, or the grid's fixed 20 px/ft -- the same
         // fallback price-job applies (load.ts buildPricingInput), so the

@@ -809,7 +809,28 @@ async function fcmNotify(
         body: JSON.stringify({
           message: {
             token: t.token,
-            notification: { title, body },
+            /* A DATA MESSAGE, and HIGH priority, for the reasons
+               quote-approval-email/office-push.ts sets out at length and
+               FenceFlowMessagingService states from the other side: a
+               notification message does NOT call onMessageReceived while the
+               app is backgrounded, so the app never draws it on the channel the
+               owner configured, never decides how it looks, and never calls
+               autoSync.requestSync() -- and with no
+               default_notification_channel_id in the manifest the SDK puts it
+               on a channel it invented.
+
+               This was the seventh and last sender in the repo still sending
+               the notification shape, and it is the one a CUSTOMER triggers:
+               somebody has just agreed to pay. A backgrounded phone -- which is
+               nearly every phone, nearly always -- is exactly the case it has to
+               work in.
+
+               priority HIGH because the five working senders all set it and this
+               never did: without it Doze can hold a data message until the phone
+               is next woken, which for an alert about a price being agreed is
+               indistinguishable from not sending it. */
+            data: { title, body },
+            android: { priority: "HIGH" },
           },
         }),
       }).catch(() => null)

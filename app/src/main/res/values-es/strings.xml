@@ -418,6 +418,8 @@
     <string name="set_contract_terms_needs_review">El aviso de cancelación sigue sin reemplazar</string>
     <string name="set_contract_terms_explain">Estas son las condiciones que se imprimen en el contrato que firma su cliente. Reemplácelas por las suyas: las que trae FenceFlow son un punto de partida, no asesoría legal, y aquí nada comprueba si sus condiciones son válidas donde usted trabaja.</string>
     <string name="set_contract_terms_field">Condiciones impresas en el contrato</string>
+    <string name="set_contract_terms_federal_offer">FenceFlow puede redactar el derecho federal de cancelación de tres días hábiles: la parte que es igual en todos los estados. No es asesoramiento legal, y su estado puede exigir palabras concretas, un tamaño de letra concreto o más de tres días. Su abogado puede añadir eso encima. Una vez puesto esto, el aviso de arriba desaparece.</string>
+    <string name="set_contract_terms_federal_use">Usar el aviso federal estándar</string>
     <string name="set_contract_terms_review_body">El bloque marcado para reemplazar sigue en el texto de abajo: busque SU DERECHO A CANCELAR. Pida a su abogado la redacción que exige su estado y péguela sobre ese párrafo. FenceFlow no sabe qué exige su estado y no lo comprueba.</string>
     <string name="set_contract_terms_placeholders">Se rellenan al generar el contrato: {COMPANY}, {ADDRESS}, {TOTAL}, {DEPOSIT}, {WARRANTY_PERIOD}. Todo lo demás se imprime tal como usted lo escriba.</string>
     <string name="set_contract_terms_cancellation_note">La sección CANCELACIÓN de abajo no tiene plazo de aviso ni tarifa que usted deba completar. Cobra solo lo que un trabajo cancelado le ha costado realmente: los materiales que no se pueden devolver, cualquier cargo de devolución que el proveedor cobre de verdad y el trabajo ya realizado. Cámbiela si su propia política es distinta.</string>
@@ -1522,6 +1524,7 @@
     <string name="home_good_evening">Buenas noches</string>
     <string name="home_good_evening_named">Buenas noches, %1$s</string>
     <string name="home_still_owed">Te deben</string>
+    <string name="home_figures_settling">Todavía cargando tus trabajos: esta cifra aún no es definitiva</string>
     <string name="home_collected_this_month">Cobrado este mes</string>
     <string name="home_vs_last_month">%1$s frente al mes pasado</string>
     <string name="home_booked_this_week">Agendados esta semana</string>
@@ -2318,6 +2321,7 @@
     <string name="jd_cancel_fee">Trabajo no realizado, %1$s pies a $1</string>
     <string name="jd_cancel_kept">Retenido en total</string>
     <string name="jd_cancel_paid">Pagado hasta ahora</string>
+    <string name="jd_cancel_cooling_off">No se retiene nada: este cliente todavía está dentro de los tres días hábiles para cancelar que le da su contrato, así que todos los pagos se devuelven íntegros. El dólar por pie y los materiales se cobran en una cancelación posterior.</string>
     <string name="jd_cancel_refund">A devolver</string>
     <string name="jd_cancel_no_money">No puedes ver el dinero de este trabajo, así que no se pueden calcular las cifras.</string>
     <string name="jd_cancel_failed">No se pudo contactar con la oficina para calcular las cifras. Inténtalo cuando tengas señal.</string>

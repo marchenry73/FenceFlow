@@ -389,6 +389,45 @@ fun SettingsScreen(
                                     style = MaterialTheme.typography.bodyMedium,
                                     color = MaterialTheme.colorScheme.onErrorContainer
                                 )
+                                // THE WAY OUT, beside the warning that sent him
+                                // here. The part of this clause that is the same
+                                // in every state is the federal three-day right,
+                                // and it is written out in
+                                // FEDERAL_RIGHT_TO_CANCEL_* ready to use. It is
+                                // OFFERED rather than shipped as the default:
+                                // legal wording nobody chose must not print on
+                                // every contractor's contracts, which is why the
+                                // marker is still in the shipped terms at all.
+                                //
+                                // What it is and what it is not is said above the
+                                // button, not after it. Accepting it is a
+                                // decision about a document a customer signs.
+                                Text(
+                                    stringResource(R.string.set_contract_terms_federal_offer),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onErrorContainer
+                                )
+                                Button(
+                                    onClick = {
+                                        // Applied to what is STORED, not to
+                                        // `shownTerms`: shownTerms substitutes
+                                        // the language default for display, and
+                                        // writing that back would silently
+                                        // change the language of his terms. The
+                                        // one case where they differ and it
+                                        // matters -- untouched defaults stored in
+                                        // English on a Spanish phone -- is
+                                        // exactly the case this would get wrong.
+                                        val base = local.contractTerms.ifBlank {
+                                            com.fenceestimator.app.data.defaultContractTermsFor(local.language)
+                                        }
+                                        local = local.copy(
+                                            contractTerms =
+                                                com.fenceestimator.app.data.withFederalRightToCancel(base)
+                                        )
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                ) { Text(stringResource(R.string.set_contract_terms_federal_use)) }
                             }
                         }
                     }

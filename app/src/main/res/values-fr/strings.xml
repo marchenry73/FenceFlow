@@ -418,6 +418,8 @@
     <string name="set_contract_terms_needs_review">L\'avis d\'annulation n\'est pas encore remplacé</string>
     <string name="set_contract_terms_explain">Ce sont les conditions imprimées sur le contrat que votre client signe. Remplacez-les par les vôtres : celles fournies avec FenceFlow sont un point de départ, pas un conseil juridique, et rien ici ne vérifie si vos conditions sont valables là où vous travaillez.</string>
     <string name="set_contract_terms_field">Conditions imprimées sur le contrat</string>
+    <string name="set_contract_terms_federal_offer">FenceFlow peut rédiger le droit fédéral d\'annulation de trois jours ouvrables — la partie qui est la même dans tous les États. Ce n\'est pas un conseil juridique, et votre État peut exiger des termes précis, une taille de caractères précise ou plus de trois jours. Votre avocat peut ajouter cela par-dessus. Une fois ceci en place, l\'avertissement ci-dessus disparaît.</string>
+    <string name="set_contract_terms_federal_use">Utiliser l\'avis fédéral standard</string>
     <string name="set_contract_terms_review_body">Le bloc à remplacer est toujours dans le texte ci-dessous : cherchez VOTRE DROIT D\'ANNULATION. Demandez à votre avocat la formulation exigée par votre État et collez-la à la place de ce paragraphe. FenceFlow ne sait pas ce qu\'exige votre État et ne le vérifie pas.</string>
     <string name="set_contract_terms_placeholders">Remplis à la production du contrat : {COMPANY}, {ADDRESS}, {TOTAL}, {DEPOSIT}, {WARRANTY_PERIOD}. Tout le reste est imprimé tel que vous le tapez.</string>
     <string name="set_contract_terms_cancellation_note">La section ANNULATION ci-dessous ne comporte ni préavis ni frais à compléter. Elle ne facture que ce qu\'un chantier annulé vous a réellement coûté : les matériaux qui ne peuvent pas être retournés, les frais de retour réellement facturés par le fournisseur et le travail déjà effectué. Modifiez-la si votre politique est différente.</string>
@@ -1522,6 +1524,7 @@
     <string name="home_good_evening">Bonsoir</string>
     <string name="home_good_evening_named">Bonsoir, %1$s</string>
     <string name="home_still_owed">On vous doit</string>
+    <string name="home_figures_settling">Chargement de vos chantiers — ce montant n’est pas encore définitif</string>
     <string name="home_collected_this_month">Encaissé ce mois-ci</string>
     <string name="home_vs_last_month">%1$s par rapport au mois dernier</string>
     <string name="home_booked_this_week">Prévus cette semaine</string>
@@ -2318,6 +2321,7 @@
     <string name="jd_cancel_fee">Travail non fait, %1$s pieds à 1 $</string>
     <string name="jd_cancel_kept">Retenu au total</string>
     <string name="jd_cancel_paid">Payé à ce jour</string>
+    <string name="jd_cancel_cooling_off">Rien n\'est retenu : ce client est encore dans les trois jours ouvrables d\'annulation que lui accorde votre contrat, donc tous les paiements sont intégralement remboursés. Le dollar par pied et les matériaux sont facturés sur une annulation ultérieure.</string>
     <string name="jd_cancel_refund">À rembourser</string>
     <string name="jd_cancel_no_money">Vous ne pouvez pas voir l\'argent de ce chantier, les montants ne peuvent donc pas être calculés.</string>
     <string name="jd_cancel_failed">Impossible de joindre le bureau pour calculer les montants. Réessayez quand vous aurez du réseau.</string>

@@ -2,7 +2,26 @@
 -- FenceFlow -- "use this phone" stops the other phone NOW, not when it is
 -- next picked up.
 --
--- UNAPPLIED. Nothing in this file has been run against the live database.
+-- APPLIED 30 OCTOBER 2026, with supabase_r60_device_lock_strict.sql. It had sat
+-- unapplied since 28 September, which is the whole of why "use this phone only"
+-- never stopped the other phone: the only non-internal triggers on
+-- public.profiles were profiles_queue_signup_email and protect_platform_admin,
+-- so nothing observed a claim. supabase/functions/notify-device-displaced was
+-- already deployed (23 Oct) and had been idle the entire time.
+--
+-- Verified after applying: the trigger is on profiles, device_tokens.device_id
+-- exists, the index is there, register_device_install takes both arguments, the
+-- old one-argument register_device_token is untouched, displaced_push_ok exists
+-- -- six checks true, and the canary row correctly false.
+--
+-- ONE THING TO KNOW: this file's own last query answered
+-- `phones_registered 6, addressable_now 0, waiting_for_an_app_start 6`. No
+-- handset has sent its install id yet, so until each phone has been opened once
+-- the nudge has nobody to address and a displaced phone still finds out on its
+-- next resume -- exactly today's behaviour, which is this file's designed
+-- failure mode. The shipped app already calls register_device_install
+-- (FenceFlowMessagingService), so this clears itself as phones are used.
+--
 -- Deploy supabase/functions/notify-device-displaced FIRST, or the first claim
 -- after this runs POSTs to a URL that is not there yet (it loses only the
 -- nudge; the claim itself is never affected -- see NEVER BREAKS A CLAIM below).

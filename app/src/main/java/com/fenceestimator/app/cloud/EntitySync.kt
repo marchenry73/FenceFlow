@@ -2930,6 +2930,36 @@ object EntitySync {
                         added++
                     }
                 }
+                // A PRICE THE MONEY DOOR WIPED COMES BACK THE MOMENT IT REOPENS,
+                // whatever the clock says. Nothing above can do it, and that is
+                // what put 41 of the 47 lines on one accepted job at $0.00.
+                //
+                // Repository.forgetMoney runs materialDao.scrubMoney() -- a bare
+                // `UPDATE material_items SET unitPrice = 0.0` that deliberately
+                // "does not touch lastUpdated". So after a scrub every row's clock
+                // still reads exactly where the last pull left it, the two branches
+                // above compare equal, and the branch that carries a price never
+                // runs again. The promotion pass in AutoSync pulls before it pushes
+                // precisely so "the real prices" land first; for the catalog they
+                // never did, and the zero was permanent -- surviving sign-out,
+                // sign-in, and every sync after.
+                //
+                // Only ever UPWARDS, and only through the owner door: a local 0
+                // against a real cloud price is not a disagreement about the price,
+                // it is this phone having been told not to know it. The reverse
+                // (cloud 0, local real) is left alone -- that IS a disagreement, and
+                // the clock above is the right judge of it.
+                //
+                // The clock is deliberately not consulted. A scrub is invisible to
+                // it by construction, so a rule that asked the clock would be the
+                // same broken rule again. The cost is an unpushed local price of
+                // exactly 0.00 typed on this phone, which this overwrites; a
+                // catalog price of zero is not a figure anybody quotes from, and
+                // the alternative is the whole catalog staying at zero for ever.
+                if (scope == MoneyScope.ALLOWED && existing.unitPrice <= 0.0 && row.unitPrice > 0.0) {
+                    repository.updateMaterialItemFromCloud(existing.copy(unitPrice = row.unitPrice))
+                    added++
+                }
                 return@forEach
             }
             // New to this phone by sync id -- but every phone seeds the same

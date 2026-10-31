@@ -1830,6 +1830,31 @@
       <div class="panel" id="deviceKeysPanel" style="margin-top:12px;display:none">
         <h2 style="margin:0 0 6px" data-t="dkHead">Product keys</h2>
         <p class="sub" style="margin-top:0" data-t="dkBody">A one-time product key that lets one more phone sign in to this company. Read it out once — whoever uses it first spends it.</p>
+
+        <!-- THE SWITCH THESE KEYS ARE FOR. require_device_key in
+             company_settings.settings is what claim_device reads (r8, tightened
+             by r60), and nothing has ever been able to set it: not this page,
+             not the app. It was NULL for every company, which coalesces to
+             false -- so "Use this phone only" has never been on for anybody,
+             and the keys below could be issued and were never needed.
+
+             Inside this panel on purpose. A lock with no way to issue keys is a
+             lockout, and this panel is the way back in; showing the two
+             together is also the honest answer to "what if I am refused on my
+             own phone". Owner-only to change, because this one decides who can
+             work at all -- a manager sees the real state, locked, and can still
+             issue keys. -->
+        <div style="border:1px solid var(--line);border-radius:10px;padding:12px;margin:0 0 14px">
+          <label style="display:flex;gap:10px;align-items:flex-start;cursor:pointer">
+            <input type="checkbox" id="dkRequireKey" disabled style="margin-top:3px">
+            <span>
+              <strong data-t="dkLockSwitch">Only one phone per login</strong><br>
+              <span class="sub" data-t="dkLockSwitchHint">Signing a login in on a second phone is refused unless whoever does it types a product key from this page. This applies to your own owner logins too, and only one owner phone is active across the business at a time.</span>
+            </span>
+          </label>
+          <div class="sub" id="dkLockOwnerOnly" style="display:none;margin-top:8px" data-t="dkLockOwnerOnly">Only the owner can turn this on or off. You can still issue and cancel product keys below.</div>
+          <div class="msg" id="dkLockMsg"></div>
+        </div>
         <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:12px">
           <div><label style="display:block;font-size:12px;color:var(--muted)" data-t="dkLabelLabel">Which phone is it for</label>
             <input id="dkLabelInput" type="text" style="width:200px" data-t="dkLabelPh"></div>
@@ -3274,6 +3299,7 @@
         <button class="btn btn-grey" id="cancelTerms" data-t="cancelWorkOut">Work out what is kept</button>
         <div id="cancelFigures" style="display:none;margin-top:10px">
           <table id="cancelLines" style="width:100%;margin-bottom:8px"></table>
+          <p class="sub" id="cancelCooling" style="display:none;margin:0 0 8px"></p>
           <label data-t="cancelReasonLabel">Reason (optional)</label>
           <input id="j_cancel_reason" type="text" maxlength="300">
           <button class="btn" id="confirmCancel" data-t="cancelConfirmBtn"
@@ -4553,7 +4579,7 @@ jobViewAll:'All', jobViewToday:'Today', jobViewWeek:'This week', jobViewUnschedu
     jobOptDenied:'Denied', jobLabelPermitNumber:'Permit number',
     jobLabelPermitStatus:'Permit status',
     jobSecExpenses:'Expenses', jobSecPunch:'Punch List', jobSecOrders:'Change Orders',
-    jobSecTime:'Time Logged', jobLabelJobType:'Job type', jobTypeUnset:'Not set', jobTypeResidential:'Residential', jobTypeCommercial:'Commercial', jobTypeOther:'Other', jobDeleteBtn:'Delete', jobSaveBtn:'Save Changes', jobSecCancel:'Cancel this job', cancelWorkOut:'Work out what is kept', cancelReasonLabel:'Reason (optional)', cancelConfirmBtn:'Cancel this job', cancelMatOrdered:'Material, ordered', cancelMatNotOrdered:'Material, not ordered', cancelFee:'Work not done, %s ft at $1', cancelKept:'Kept in total', cancelPaid:'Paid so far', cancelRefund:'To refund', cancelNoMoney:'You cannot see this job\'s money, so the figures cannot be worked out.', cancelAlready:'Cancelled on %s.', cancelAskTitle:'Cancel the job for %s?', cancelAskBody:'The figures above are what is kept and what goes back. The job stays in the list with its history; it is not deleted.', cancelDone:'Job cancelled.',
+    jobSecTime:'Time Logged', jobLabelJobType:'Job type', jobTypeUnset:'Not set', jobTypeResidential:'Residential', jobTypeCommercial:'Commercial', jobTypeOther:'Other', jobDeleteBtn:'Delete', jobSaveBtn:'Save Changes', jobSecCancel:'Cancel this job', cancelWorkOut:'Work out what is kept', cancelReasonLabel:'Reason (optional)', cancelConfirmBtn:'Cancel this job', cancelMatOrdered:'Material, ordered', cancelMatNotOrdered:'Material, not ordered', cancelFee:'Work not done, %s ft at $1', cancelKept:'Kept in total', cancelPaid:'Paid so far', cancelRefund:'To refund', cancelNoMoney:'You cannot see this job\'s money, so the figures cannot be worked out.', cancelAlready:'Cancelled on %s.', cancelAskTitle:'Cancel the job for %s?', cancelAskBody:'The figures above are what is kept and what goes back. The job stays in the list with its history; it is not deleted.', cancelDone:'Job cancelled.', cancelCoolingOff:'Nothing is kept: this customer is still inside the three business days to cancel that your contract gives them, so every payment goes back in full. The $1 a foot and the materials are charged on a cancellation after that.',
     jobProgStep1:'Quote sent', jobProgStep2:'Quote approved', jobProgStep3:'Deposit collected in full',
     jobProgStep4:'HOA and permit cleared', jobProgStep5:'Installation scheduled',
     jobProgStep6:'Installation complete', jobProgStep7:'Final payment', jobProgNext:'Next',
@@ -5111,6 +5137,14 @@ jobViewAll:'All', jobViewToday:'Today', jobViewWeek:'This week', jobViewUnschedu
     dkHead:'Product keys',
     dkBody:'A one-time product key that lets one more phone sign in to this company. Read it out once — whoever uses it first spends it.',
     dkLabelLabel:'Which phone is it for', dkLabelPh:'e.g. spare phone', dkLabelDays:'Days good for',
+    dkLockSwitch:'Only one phone per login',
+    dkLockSwitchHint:'Signing a login in on a second phone is refused unless whoever does it types a product key from this page. This applies to your own owner logins too, and only one owner phone is active across the business at a time.',
+    dkLockOwnerOnly:'Only the owner can turn this on or off. You can still issue and cancel product keys below.',
+    dkLockLoadFailed:'Could not read whether this is on, so the switch is locked rather than risk turning a real lock off. Reload the page and try again.',
+    dkLockSaveFailed:'Could not save that: %s',
+    dkLockSaveMismatch:'The change did not stick — what is stored is still the old setting. Nothing has changed; try again.',
+    dkLockNowOn:'On. Each login now works on one phone at a time, yours included, and only one owner phone is active across the business. Issue a product key for any phone that needs to move.',
+    dkLockNowOff:'Off. A login can be signed in on any phone again.',
     dkMintBtn:'Issue a product key',
     dkColLabel:'Which phone', dkColCode:'Product key', dkColStatus:'Status', dkColExpires:'Expires',
     dkEmptyMsg:'No product keys yet.', dkUnlabeled:'No label',
@@ -6413,7 +6447,7 @@ jobViewAll:'Todos', jobViewToday:'Hoy', jobViewWeek:'Esta semana', jobViewUnsche
     jobOptDenied:'Denegado', jobLabelPermitNumber:'Número de permiso',
     jobLabelPermitStatus:'Estado del permiso',
     jobSecExpenses:'Gastos', jobSecPunch:'Lista de pendientes', jobSecOrders:'Órdenes de cambio',
-    jobSecTime:'Horas registradas', jobLabelJobType:'Tipo de trabajo', jobTypeUnset:'Sin definir', jobTypeResidential:'Residencial', jobTypeCommercial:'Comercial', jobTypeOther:'Otro', jobDeleteBtn:'Eliminar', jobSaveBtn:'Guardar cambios', jobSecCancel:'Cancelar este trabajo', cancelWorkOut:'Calcular lo que se retiene', cancelReasonLabel:'Motivo (opcional)', cancelConfirmBtn:'Cancelar este trabajo', cancelMatOrdered:'Material, pedido', cancelMatNotOrdered:'Material, no pedido', cancelFee:'Trabajo no realizado, %s pies a $1', cancelKept:'Retenido en total', cancelPaid:'Pagado hasta ahora', cancelRefund:'A devolver', cancelNoMoney:'No puedes ver el dinero de este trabajo, así que no se pueden calcular las cifras.', cancelAlready:'Cancelado el %s.', cancelAskTitle:'¿Cancelar el trabajo de %s?', cancelAskBody:'Las cifras de arriba son lo que se retiene y lo que se devuelve. El trabajo sigue en la lista con su historial; no se elimina.', cancelDone:'Trabajo cancelado.',
+    jobSecTime:'Horas registradas', jobLabelJobType:'Tipo de trabajo', jobTypeUnset:'Sin definir', jobTypeResidential:'Residencial', jobTypeCommercial:'Comercial', jobTypeOther:'Otro', jobDeleteBtn:'Eliminar', jobSaveBtn:'Guardar cambios', jobSecCancel:'Cancelar este trabajo', cancelWorkOut:'Calcular lo que se retiene', cancelReasonLabel:'Motivo (opcional)', cancelConfirmBtn:'Cancelar este trabajo', cancelMatOrdered:'Material, pedido', cancelMatNotOrdered:'Material, no pedido', cancelFee:'Trabajo no realizado, %s pies a $1', cancelKept:'Retenido en total', cancelPaid:'Pagado hasta ahora', cancelRefund:'A devolver', cancelNoMoney:'No puedes ver el dinero de este trabajo, así que no se pueden calcular las cifras.', cancelAlready:'Cancelado el %s.', cancelAskTitle:'¿Cancelar el trabajo de %s?', cancelAskBody:'Las cifras de arriba son lo que se retiene y lo que se devuelve. El trabajo sigue en la lista con su historial; no se elimina.', cancelDone:'Trabajo cancelado.', cancelCoolingOff:'No se retiene nada: este cliente todavía está dentro de los tres días hábiles para cancelar que le da su contrato, así que todos los pagos se devuelven íntegros. El dólar por pie y los materiales se cobran en una cancelación posterior.',
     jobProgStep1:'Presupuesto enviado', jobProgStep2:'Presupuesto aprobado', jobProgStep3:'Depósito cobrado por completo',
     jobProgStep4:'HOA y permiso en orden', jobProgStep5:'Instalación programada',
     jobProgStep6:'Instalación terminada', jobProgStep7:'Pago final', jobProgNext:'Siguiente',
@@ -6971,6 +7005,14 @@ jobViewAll:'Todos', jobViewToday:'Hoy', jobViewWeek:'Esta semana', jobViewUnsche
     dkHead:'Claves de producto',
     dkBody:'Una clave de producto de un solo uso que permite que un teléfono más inicie sesión en esta empresa. Léala en voz alta una vez — quien la use primero la gasta.',
     dkLabelLabel:'Para qué teléfono es', dkLabelPh:'p. ej. teléfono de repuesto', dkLabelDays:'Días de validez',
+    dkLockSwitch:'Solo un teléfono por inicio de sesión',
+    dkLockSwitchHint:'Iniciar sesión con el mismo usuario en un segundo teléfono se rechaza a menos que se escriba una clave de producto de esta página. Esto también se aplica a sus propios inicios de sesión de propietario, y solo un teléfono de propietario está activo en toda la empresa a la vez.',
+    dkLockOwnerOnly:'Solo el propietario puede activarlo o desactivarlo. Usted todavía puede emitir y cancelar claves de producto más abajo.',
+    dkLockLoadFailed:'No se pudo leer si esto está activado, así que el interruptor queda bloqueado para no desactivar un bloqueo real. Recargue la página e inténtelo de nuevo.',
+    dkLockSaveFailed:'No se pudo guardar: %s',
+    dkLockSaveMismatch:'El cambio no se aplicó: lo guardado sigue siendo el ajuste anterior. Nada ha cambiado; inténtelo de nuevo.',
+    dkLockNowOn:'Activado. Cada inicio de sesión funciona ahora en un solo teléfono, incluido el suyo, y solo un teléfono de propietario está activo en toda la empresa. Emita una clave de producto para cualquier teléfono que deba cambiar.',
+    dkLockNowOff:'Desactivado. Un inicio de sesión puede usarse de nuevo en cualquier teléfono.',
     dkMintBtn:'Emitir una clave de producto',
     dkColLabel:'Qué teléfono', dkColCode:'Clave de producto', dkColStatus:'Estado', dkColExpires:'Vence',
     dkEmptyMsg:'Todavía no hay claves de producto.', dkUnlabeled:'Sin etiqueta',
@@ -8243,7 +8285,7 @@ jobViewAll:'Tous', jobViewToday:'Aujourdhui', jobViewWeek:'Cette semaine', jobVi
     jobOptDenied:'Refusé', jobLabelPermitNumber:'Numéro de permis',
     jobLabelPermitStatus:'Statut du permis',
     jobSecExpenses:'Dépenses', jobSecPunch:'Liste des correctifs', jobSecOrders:'Avenants',
-    jobSecTime:'Heures enregistrées', jobLabelJobType:'Type de chantier', jobTypeUnset:'Non défini', jobTypeResidential:'Résidentiel', jobTypeCommercial:'Commercial', jobTypeOther:'Autre', jobDeleteBtn:'Supprimer', jobSaveBtn:'Enregistrer les modifications', jobSecCancel:'Annuler ce chantier', cancelWorkOut:'Calculer ce qui est retenu', cancelReasonLabel:'Motif (facultatif)', cancelConfirmBtn:'Annuler ce chantier', cancelMatOrdered:'Matériel, commandé', cancelMatNotOrdered:'Matériel, non commandé', cancelFee:'Travail non fait, %s pieds à 1 $', cancelKept:'Retenu au total', cancelPaid:'Payé à ce jour', cancelRefund:'À rembourser', cancelNoMoney:'Vous ne pouvez pas voir l\'argent de ce chantier, les montants ne peuvent donc pas être calculés.', cancelAlready:'Annulé le %s.', cancelAskTitle:'Annuler le chantier de %s ?', cancelAskBody:'Les montants ci-dessus sont ce qui est retenu et ce qui est rendu. Le chantier reste dans la liste avec son historique ; il n\'est pas supprimé.', cancelDone:'Chantier annulé.',
+    jobSecTime:'Heures enregistrées', jobLabelJobType:'Type de chantier', jobTypeUnset:'Non défini', jobTypeResidential:'Résidentiel', jobTypeCommercial:'Commercial', jobTypeOther:'Autre', jobDeleteBtn:'Supprimer', jobSaveBtn:'Enregistrer les modifications', jobSecCancel:'Annuler ce chantier', cancelWorkOut:'Calculer ce qui est retenu', cancelReasonLabel:'Motif (facultatif)', cancelConfirmBtn:'Annuler ce chantier', cancelMatOrdered:'Matériel, commandé', cancelMatNotOrdered:'Matériel, non commandé', cancelFee:'Travail non fait, %s pieds à 1 $', cancelKept:'Retenu au total', cancelPaid:'Payé à ce jour', cancelRefund:'À rembourser', cancelNoMoney:'Vous ne pouvez pas voir l\'argent de ce chantier, les montants ne peuvent donc pas être calculés.', cancelAlready:'Annulé le %s.', cancelAskTitle:'Annuler le chantier de %s ?', cancelAskBody:'Les montants ci-dessus sont ce qui est retenu et ce qui est rendu. Le chantier reste dans la liste avec son historique ; il n\'est pas supprimé.', cancelDone:'Chantier annulé.', cancelCoolingOff:'Rien n’est retenu : ce client est encore dans les trois jours ouvrables d’annulation que lui accorde votre contrat, donc tous les paiements sont intégralement remboursés. Le dollar par pied et les matériaux sont facturés sur une annulation ultérieure.',
     jobProgStep1:'Devis envoyé', jobProgStep2:'Devis approuvé', jobProgStep3:'Acompte encaissé en entier',
     jobProgStep4:'Association et permis réglés', jobProgStep5:'Installation planifiée',
     jobProgStep6:'Installation terminée', jobProgStep7:'Paiement final', jobProgNext:'Suivant',
@@ -8801,6 +8843,14 @@ jobViewAll:'Tous', jobViewToday:'Aujourdhui', jobViewWeek:'Cette semaine', jobVi
     dkHead:'Clés de produit',
     dkBody:'Une clé de produit à usage unique qui permet à un téléphone de plus de se connecter à cette entreprise. Lisez-la à voix haute une seule fois — la première personne qui l\'utilise la consomme.',
     dkLabelLabel:'Pour quel téléphone', dkLabelPh:'p. ex. téléphone de secours', dkLabelDays:'Valable (jours)',
+    dkLockSwitch:'Un seul téléphone par identifiant',
+    dkLockSwitchHint:'La connexion d’un même identifiant sur un deuxième téléphone est refusée, sauf si la personne saisit une clé de produit issue de cette page. Cela vaut aussi pour vos propres identifiants de propriétaire, et un seul téléphone de propriétaire est actif dans toute l’entreprise à la fois.',
+    dkLockOwnerOnly:'Seul le propriétaire peut l’activer ou le désactiver. Vous pouvez toujours émettre et annuler des clés de produit ci-dessous.',
+    dkLockLoadFailed:'Impossible de lire si ceci est actif ; l’interrupteur est donc verrouillé pour ne pas désactiver un vrai verrou. Rechargez la page et réessayez.',
+    dkLockSaveFailed:'Enregistrement impossible : %s',
+    dkLockSaveMismatch:'La modification n’a pas été appliquée : le réglage enregistré est toujours l’ancien. Rien n’a changé ; réessayez.',
+    dkLockNowOn:'Activé. Chaque identifiant ne fonctionne plus que sur un seul téléphone, le vôtre compris, et un seul téléphone de propriétaire est actif dans toute l’entreprise. Émettez une clé de produit pour tout téléphone qui doit changer.',
+    dkLockNowOff:'Désactivé. Un identifiant peut à nouveau être utilisé sur n’importe quel téléphone.',
     dkMintBtn:'Émettre une clé de produit',
     dkColLabel:'Quel téléphone', dkColCode:'Clé de produit', dkColStatus:'Statut', dkColExpires:'Expire',
     dkEmptyMsg:'Pas encore de clé de produit.', dkUnlabeled:'Sans étiquette',
@@ -13461,6 +13511,72 @@ async function loadDeviceKeys(){
   panel.style.display = '';
   if (pointer) pointer.style.display = '';
   renderDeviceKeyRows(data || []);
+  // After the panel is shown, so a failed read reports into a visible box
+  // instead of a hidden one. Its own await: the lock's state is a separate
+  // read and must not be skipped just because the rows rendered.
+  await loadDeviceLock();
+}
+
+/* The lock itself, beside the keys that open it.
+
+   Same discipline as loadPaymentMethods: the box stays DISABLED until a read of
+   what is stored has SUCCEEDED. A checkbox that reads false after a failed load
+   would write "off" over a lock that is really on, and that mistake lets every
+   phone back in without a word on screen. */
+let dkLockLoaded = false;
+
+async function loadDeviceLock(){
+  const box = $('dkRequireKey');
+  if (!box) return;
+  const owner = !!profile && profile.role === 'OWNER';
+  dkLockLoaded = false;
+  box.disabled = true;
+  $('dkLockOwnerOnly').style.display = owner ? 'none' : '';
+  const { data, error } = await db.from('company_settings')
+    .select('require_device_key:settings->require_device_key')
+    .eq('company_id', profile.company_id).maybeSingle();
+  if (error) {
+    console.error('loadDeviceLock failed:', error);
+    box.checked = false;
+    return msg('dkLockMsg', tr('dkLockLoadFailed'), 'err');
+  }
+  /* Absent reads as off, which is exactly how claim_device reads it
+     (coalesce(..., false)), so the page agrees with the server rather than
+     inventing a default of its own. */
+  box.checked = data?.require_device_key === true;
+  $('dkLockMsg').className = 'msg';
+  dkLockLoaded = true;
+  box.disabled = !owner;
+}
+
+async function saveDeviceLock(){
+  if (!dkLockLoaded || !profile || profile.role !== 'OWNER') return;
+  const box = $('dkRequireKey');
+  const want = box.checked;
+  box.disabled = true;
+  try {
+    const { error } = await db.rpc('save_company_settings',
+      { new_settings: { require_device_key: want } });
+    if (error) throw error;
+    /* Read it back rather than announcing it. save_company_settings returns
+       nothing, so "saved" would be a claim about a request and not about what
+       is stored -- and this setting decides whether anybody can work. */
+    const back = await db.from('company_settings')
+      .select('require_device_key:settings->require_device_key')
+      .eq('company_id', profile.company_id).maybeSingle();
+    if (back.error) throw back.error;
+    const now = back.data?.require_device_key === true;
+    box.checked = now;
+    if (now !== want) return msg('dkLockMsg', tr('dkLockSaveMismatch'), 'err');
+    msg('dkLockMsg', now ? tr('dkLockNowOn') : tr('dkLockNowOff'), 'ok');
+  } catch (e) {
+    console.error('saveDeviceLock failed:', e);
+    /* Put the box back to what is really stored, not to what was clicked. */
+    await loadDeviceLock();
+    return msg('dkLockMsg', tr('dkLockSaveFailed', e.message || ''), 'err');
+  } finally {
+    box.disabled = !(profile && profile.role === 'OWNER');
+  }
 }
 
 const DK_STATE_CLASS = { ready:'ok', used:'na', expired:'warn', revoked:'no' };
@@ -25720,8 +25836,19 @@ async function wizSaveWho(){
       company_id: profile.company_id, status: 'DRAFT', wizard_step: 2,
       // numOr, not num(x)||dflt: a typed 0 is an answer, not a blank. See numOr.
       tax_rate_percent: numOr($('s_tax').value, 7), markup_percent: numOr($('s_markup').value, 15),
-      labor_rate_per_ft: numOr($('s_labor').value, 8), minimum_job_charge: numOr($('s_min').value, 200),
-      minimum_labor_charge: numOr($('s_min_labor').value, 0),
+      labor_rate_per_ft: numOr($('s_labor').value, 8),
+      // THE FLOOR IS ON LABOUR, NOT ON THE JOB -- and these were the
+      // wrong way round. The decided rule is a $200 labour floor, which is
+      // what the phone's BusinessProfile declares (defaultMinimumJobCharge
+      // 0.0, defaultMinimumLaborCharge 200.0). The office blanked them the
+      // other way, so a company set up from here got a $200 floor on the
+      // whole job and none on labour, on every job it ever quoted.
+      //
+      // The same inversion was found in SettingsStore.profileFrom on
+      // 30 Oct 2026 and fixed in ba6b37f; that fix could not reach this,
+      // because the office writes the row itself.
+      minimum_job_charge: numOr($('s_min').value, 0),
+      minimum_labor_charge: numOr($('s_min_labor').value, 200),
       gate_rate_per_ft: numOr(gateRate, 20), waste_percent: numOr(waste, 0),
       calibration_pixels_per_foot: 20,
     });
@@ -29112,8 +29239,13 @@ async function runImport(){
     // numOr, not num(x)||dflt: see numOr. This row is copied onto EVERY
     // imported job, so a zero misread here is misread on all of them at once.
     tax_rate_percent:numOr($('s_tax').value, 7), markup_percent:numOr($('s_markup').value, 15),
-    labor_rate_per_ft:numOr($('s_labor').value, 8), minimum_job_charge:numOr($('s_min').value, 200),
-    minimum_labor_charge:numOr($('s_min_labor').value, 0),
+    labor_rate_per_ft:numOr($('s_labor').value, 8),
+    // Same correction as the wizard above, and for the same reason: the
+    // floor is on LABOUR. This path copies the row onto every imported
+    // job, so leaving it would hold the old inversion for exactly the
+    // companies that arrive with work already on the books.
+    minimum_job_charge:numOr($('s_min').value, 0),
+    minimum_labor_charge:numOr($('s_min_labor').value, 200),
     referral_source:'Imported'
   };
   // Ids are minted here rather than left to the database, so the opening
@@ -29249,6 +29381,18 @@ async function loadCancellationTerms(){
   $('cancelLines').innerHTML = rows.map(([k,v],i)=>
     `<tr${i>=2?' style="font-weight:600"':''}><td>${esc(k)}</td><td style="text-align:right">${esc(v)}</td></tr>`
   ).join('');
+  // WHY IT IS ZERO. Inside the three business days the signed contract gives
+  // the customer, r61 retains nothing and refunds everything. Said out loud,
+  // because three rows of $0.00 with no reason reads as a broken panel -- and
+  // whoever reads it that way charges the fee the contract forbids.
+  //
+  // Absent rather than false on a database without r61 applied, so this stays
+  // silent there instead of claiming the window does not apply.
+  const cooling = $('cancelCooling');
+  if (cooling) {
+    cooling.textContent = t.within_cooling_off === true ? tr('cancelCoolingOff') : '';
+    cooling.style.display = t.within_cooling_off === true ? '' : 'none';
+  }
   $('cancelFigures').style.display='';
 }
 
@@ -33399,6 +33543,10 @@ $('impFile').addEventListener('change',async e=>{
 });
 $('newEmp').addEventListener('click',()=>showEmp(null));
 $('dkMintBtn').addEventListener('click', mintDeviceKey);
+// Wired beside the button it sits next to, so a switch that is drawn is a
+// switch that does something. A control that silently does nothing is the
+// whole defect being fixed here.
+$('dkRequireKey')?.addEventListener('change', () => saveDeviceLock());
 // Straight to the product-key panel. switchTab on its own lands at the top of
 // the Crew tab, where that panel is the fifth thing down -- which is the whole
 // reason the owner could not find it.

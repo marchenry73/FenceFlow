@@ -1408,6 +1408,20 @@ fun JobDetailScreen(
                                 CancelRow(stringResource(R.string.jd_cancel_kept), fmt.format(t.retained), strong = true)
                                 CancelRow(stringResource(R.string.jd_cancel_paid), fmt.format(t.paid))
                                 CancelRow(stringResource(R.string.jd_cancel_refund), fmt.format(t.refundDue), strong = true)
+                                // WHY IT IS ZERO. Inside the three business days
+                                // the signed contract gives the customer, nothing
+                                // is kept -- r61 does that server-side. Three rows
+                                // of $0.00 with no reason beside them reads as a
+                                // broken screen, and an owner who thinks the
+                                // figure is broken charges the fee anyway.
+                                if (t.withinCoolingOff) {
+                                    Spacer(Modifier.height(Space.xs))
+                                    Text(
+                                        stringResource(R.string.jd_cancel_cooling_off),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
                                 Spacer(Modifier.height(Space.sm))
                                 OutlinedTextField(
                                     value = cancelReason,

@@ -453,6 +453,8 @@
     <string name="set_contract_terms_needs_review">Cancellation notice still not replaced</string>
     <string name="set_contract_terms_explain">These are the terms printed on the contract your customer signs. Replace them with your own — the ones FenceFlow ships are a starting point, not legal advice, and nothing here checks whether your terms are lawful where you work.</string>
     <string name="set_contract_terms_field">Terms printed on the contract</string>
+    <string name="set_contract_terms_federal_offer">FenceFlow can write in the federal three-business-day right to cancel — the part that is the same in every state. It is not legal advice, and your state may want particular words, a particular type size, or longer than three days. Your attorney can add that on top. Once this is in, the warning above stops.</string>
+    <string name="set_contract_terms_federal_use">Use the standard federal notice</string>
     <string name="set_contract_terms_review_body">The block marked for replacement is still in the text below — look for YOUR RIGHT TO CANCEL. Ask your attorney for the wording your state requires and paste it over that paragraph. FenceFlow does not know what your state requires and does not check.</string>
     <string name="set_contract_terms_placeholders">Filled in when the contract is produced: {COMPANY}, {ADDRESS}, {TOTAL}, {DEPOSIT}, {WARRANTY_PERIOD}. Everything else prints exactly as you type it.</string>
     <string name="set_contract_terms_cancellation_note">The CANCELLATION section below has no notice period or fee for you to fill in. It charges only what a cancelled job has actually cost you: materials that cannot be returned, any return charge the supplier really bills, and work already done. Change it if your own policy is different.</string>
@@ -1578,6 +1580,7 @@
     <string name="home_good_evening">Good evening</string>
     <string name="home_good_evening_named">Good evening, %1$s</string>
     <string name="home_still_owed">Still owed to you</string>
+    <string name="home_figures_settling">Still loading your jobs — this figure is not final yet</string>
     <string name="home_collected_this_month">Collected this month</string>
     <string name="home_vs_last_month">%1$s vs last month</string>
     <string name="home_booked_this_week">Booked this week</string>
@@ -2395,6 +2398,7 @@
     <string name="jd_cancel_fee">Work not done, %1$s ft at $1</string>
     <string name="jd_cancel_kept">Kept in total</string>
     <string name="jd_cancel_paid">Paid so far</string>
+    <string name="jd_cancel_cooling_off">Nothing is kept: this customer is still inside the three business days to cancel that your contract gives them, so every payment goes back in full. The $1 a foot and the materials are charged on a cancellation after that.</string>
     <string name="jd_cancel_refund">To refund</string>
     <string name="jd_cancel_no_money">You cannot see this job\'s money, so the figures cannot be worked out.</string>
     <string name="jd_cancel_failed">Could not reach the office to work the figures out. Try again when you have signal.</string>

@@ -585,14 +585,39 @@ console.log(
 // ===========================================================================
 console.log("\n4. Crew must never see money -- time_entries and employees, live, with a real CREW account:");
 // ===========================================================================
-// Uses real fixtures rather than a synthetic no-permission account: company
-// CO now has a genuine CREW profile (Marc) with no permission_overrides,
-// which downstream-job-costing.test.mjs's own comment notes did NOT exist
-// as of its writing (every real account had been promoted to owner/manager).
-// It exists now -- confirmed live below, not assumed.
+// THE CALLER WITHOUT SEE_PAY IS MADE, NOT BORROWED -- and the reason is worth
+// reading before changing it back.
+//
+// This section used a real CREW account (Marc, profile 518fde2b) because
+// downstream-job-costing.test.mjs's comment notes that no such account existed
+// when IT was written. One did when this was written. On 30 Oct 2026 it stopped
+// existing again: that profile is now role OWNER with no overrides -- the owner
+// promoted his second account the same afternoon, which is consistent with
+// signing it in on a second handset to test the device lock. The file's own
+// first two checks caught it and refused to report a breach, which is the third
+// time this codebase has learned the same lesson.
+//
+// So the condition is now produced rather than found. The policy under test,
+// time_entries_pay_needs_see_pay, is "SEE_PAY, or your own shift": it keys on
+// the PERMISSION and never on the role -- which is a23-policy-permission-vs-role's
+// whole subject -- so "this caller lacks SEE_PAY" IS the thing worth testing,
+// and the role was only ever how this file got hold of it.
+//
+// permission_overrides = '-SEE_PAY-SEE_MONEY' is the product's own mechanism:
+// has_permission() tests the leading '-' ahead of every role branch, so it
+// denies both permissions even to an OWNER. It is set inside the transaction
+// the section already rolled back, before the role switch, so it is written as
+// postgres and never committed -- and check 2 of this file ("rollback actually
+// took") proves that for the whole run.
+//
+// The fixture checks below are kept and now mean something stronger: they
+// assert the override TOOK. If has_permission ever stops honouring '-', they
+// fail loudly instead of quietly handing a fully-privileged caller to the
+// assertions underneath, every one of which would then pass as a tautology.
 
 const marcRows = runSql(`
 begin;
+update profiles set permission_overrides = '-SEE_PAY-SEE_MONEY' where id = '${MARC}';
 ${asClaim(MARC)}
 set local role authenticated;
 select 'MARC_HAS_SEE_PAY' as who, (case when has_permission('SEE_PAY') then 1 else 0 end)::bigint as n
@@ -604,14 +629,34 @@ union all select 'MARC_SEES_COLLEAGUE_VIA_ROSTER', count(*) from crew_roster() w
 union all select 'MARC_TIME_ENTRIES_CREW_VIEW_ROWS', count(*) from time_entries_crew;
 rollback;
 `);
+
+// THE PAIR FOR THE OVERRIDE ITSELF. The same account, same impersonation, same
+// queries, WITHOUT the deny -- so the zeros above are shown to move with the
+// permission and with nothing else about this caller. Without this, an override
+// that silently did nothing would be indistinguishable from a gate that works.
+const marcNoOverrideRows = runSql(`
+begin;
+${asClaim(MARC)}
+set local role authenticated;
+select 'PLAIN_HAS_SEE_PAY' as who, (case when has_permission('SEE_PAY') then 1 else 0 end)::bigint as n
+union all select 'PLAIN_SEES_COLLEAGUE_SHIFTS', count(*) from time_entries where employee_sync_id = '${JOHN_EMP}';
+rollback;
+`);
+const mp = (who) => Number(marcNoOverrideRows.find(r => r.who === who)?.n ?? -1);
 const m = (who) => Number(marcRows.find(r => r.who === who)?.n ?? -1);
 
-ok("fixture check: Marc genuinely lacks SEE_PAY (positive control -- if this ever reads 1, " +
-   "Marc was promoted and every check below needs a different account, the same lesson " +
-   "downstream-job-costing.test.mjs already learned twice)",
+ok("fixture check: the deny override TOOK -- this caller lacks SEE_PAY (if this ever reads 1, " +
+   "has_permission has stopped honouring a leading '-' and every assertion below would pass " +
+   "as a tautology on a fully-privileged caller)",
   m("MARC_HAS_SEE_PAY") === 0, `got ${m("MARC_HAS_SEE_PAY")}`);
-ok("fixture check: Marc also lacks SEE_MONEY (CREW's only permission is RECORD_FIELD_WORK)",
+ok("fixture check: and lacks SEE_MONEY, the other half of the same override",
   m("MARC_HAS_SEE_MONEY") === 0, `got ${m("MARC_HAS_SEE_MONEY")}`);
+ok("PAIR FOR THE OVERRIDE: the SAME account WITHOUT the deny does hold SEE_PAY, so the zeros " +
+   "below move with the permission and not with anything else about this caller",
+  mp("PLAIN_HAS_SEE_PAY") === 1, `got ${mp("PLAIN_HAS_SEE_PAY")}`);
+ok("PAIR FOR THE OVERRIDE: and without the deny it DOES see the colleague's 8 shifts -- the " +
+   "gate below is the permission, not this account being unable to read the table at all",
+  mp("PLAIN_SEES_COLLEAGUE_SHIFTS") === 8, `got ${mp("PLAIN_SEES_COLLEAGUE_SHIFTS")}`);
 ok("Marc's OWN shift rows are visible to him (2 real rows) -- proves impersonation is really taking " +
    "effect and this is not a broken query that would read 0 for everything",
   m("MARC_OWN_SHIFT_ROWS") === 2, `got ${m("MARC_OWN_SHIFT_ROWS")}`);

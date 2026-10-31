@@ -372,6 +372,150 @@ fun defaultContractTermsFor(language: AppLanguage): String = when (language) {
 }
 
 /**
+ * THE STANDARD FEDERAL THREE-DAY NOTICE, written out, for the owner to accept.
+ *
+ * Not a shipped default. [DEFAULT_CONTRACT_TERMS] keeps its
+ * "[REPLACE THIS BLOCK BEFORE USING THIS CONTRACT]" marker and
+ * [contractTermsNeedLegalReview] keeps warning, because legal wording that
+ * nobody chose must not print on every contractor's contracts in every state.
+ * This is what the Settings screen offers beside that warning, applied to the
+ * owner's own terms only when he taps it.
+ *
+ * WHAT IT STATES. The three-business-day right in the Federal Trade
+ * Commission's Cooling-Off Rule, 16 C.F.R. Part 429, which covers sales of $25
+ * or more agreed anywhere other than the seller's own place of business -- so
+ * nearly every fence job, because they are signed at the customer's home.
+ * Florida's home-solicitation-sale sections (Fla. Stat. 501.021-501.055) give
+ * the same three business days. A state may require particular words, a
+ * particular type size, its own page, or longer than three days; the Settings
+ * screen says so where the owner can read it, and this app does not know and
+ * does not check.
+ *
+ * CUSTOMER-FACING ONLY. Not one sentence here is addressed to the contractor.
+ * The block it replaces carries four lines of instructions to the owner that
+ * print on the customer's copy, which is half of what makes it wrong.
+ *
+ * IT OVERRIDES THE CANCELLATION PARAGRAPH ABOVE IT, and says so. That paragraph
+ * charges the customer for non-returnable materials, and r45 charges $1 a foot
+ * for work that will not happen; inside three business days the federal rule
+ * gives every payment back. Both cannot be true, so the clause names which
+ * wins. NOTE that `job_cancellation_terms` does not know about the window and
+ * will still compute a retained figure for a cancellation on day one -- a money
+ * rule, and the owner's to change.
+ */
+const val FEDERAL_RIGHT_TO_CANCEL_EN: String = """YOUR RIGHT TO CANCEL
+You may cancel this agreement, for any reason, up to midnight of the THIRD
+BUSINESS DAY after the day you signed it. Saturdays count as business days;
+Sundays and federal holidays do not.
+
+To cancel, tell {COMPANY} in writing that you are cancelling. You can use the
+phone number or email address shown at the top of this agreement, or give or
+post {COMPANY} a signed and dated note. A posted note counts as on time if it is
+postmarked before midnight of that third business day -- it does not have to
+have arrived by then. You do not have to give a reason, and no particular form
+of words is needed.
+
+If you cancel within that time, {COMPANY} will return every payment you have
+made under this agreement within TEN BUSINESS DAYS of receiving your
+cancellation, and will cancel any payment or credit arrangement you signed. You
+owe nothing: no cancellation fee, no charge for work scheduled, and no charge
+for materials ordered. This paragraph overrides the CANCELLATION paragraph above
+for the three business days it covers. Any materials already delivered to your
+property stay available for {COMPANY} to collect, and {COMPANY} will collect
+them at its own cost."""
+
+/** Spanish. A plain, literal translation, not reviewed by a native speaker --
+ *  the same caveat [DEFAULT_CONTRACT_TERMS_ES] carries, and it matters more
+ *  here: this is the one clause whose absence can void the agreement. */
+const val FEDERAL_RIGHT_TO_CANCEL_ES: String = """SU DERECHO A CANCELAR
+Usted puede cancelar este acuerdo, por cualquier motivo, hasta la medianoche del
+TERCER DÍA HÁBIL después del día en que lo firmó. Los sábados cuentan como días
+hábiles; los domingos y los días festivos federales no.
+
+Para cancelar, comunique por escrito a {COMPANY} que está cancelando. Puede usar
+el teléfono o el correo electrónico que aparecen al principio de este acuerdo, o
+entregar o enviar por correo a {COMPANY} una nota firmada y fechada. Una nota
+enviada por correo cuenta como a tiempo si lleva matasellos anterior a la
+medianoche de ese tercer día hábil: no tiene que haber llegado para entonces. No
+tiene que dar ninguna razón ni usar ninguna fórmula concreta.
+
+Si cancela dentro de ese plazo, {COMPANY} le devolverá todos los pagos que haya
+hecho bajo este acuerdo en un plazo de DIEZ DÍAS HÁBILES desde que reciba su
+cancelación, y anulará cualquier acuerdo de pago o de crédito que usted haya
+firmado. Usted no debe nada: ninguna penalización por cancelar, ningún cargo por
+trabajo programado y ningún cargo por materiales pedidos. Este párrafo prevalece
+sobre el párrafo de CANCELACIÓN anterior durante los tres días hábiles que
+cubre. Los materiales ya entregados en su propiedad quedan a disposición de
+{COMPANY} para recogerlos, y {COMPANY} los recogerá a su propio costo."""
+
+/** French. Same caveat as [FEDERAL_RIGHT_TO_CANCEL_ES]. */
+const val FEDERAL_RIGHT_TO_CANCEL_FR: String = """VOTRE DROIT D'ANNULATION
+Vous pouvez annuler ce contrat, pour n'importe quelle raison, jusqu'à minuit du
+TROISIÈME JOUR OUVRABLE suivant le jour de votre signature. Les samedis comptent
+comme jours ouvrables ; les dimanches et les jours fériés fédéraux non.
+
+Pour annuler, informez {COMPANY} par écrit que vous annulez. Vous pouvez utiliser
+le numéro de téléphone ou l'adresse e-mail indiqués en haut de ce contrat, ou
+remettre ou poster à {COMPANY} une note signée et datée. Une note postée est
+considérée comme à temps si le cachet de la poste est antérieur à minuit de ce
+troisième jour ouvrable : elle n'a pas à être arrivée. Vous n'avez pas à donner
+de motif, et aucune formule particulière n'est exigée.
+
+Si vous annulez dans ce délai, {COMPANY} vous remboursera tous les paiements que
+vous avez effectués au titre de ce contrat dans les DIX JOURS OUVRABLES suivant
+la réception de votre annulation, et annulera tout accord de paiement ou de
+crédit que vous avez signé. Vous ne devez rien : aucun frais d'annulation, aucun
+frais pour les travaux planifiés et aucun frais pour les matériaux commandés. Ce
+paragraphe prévaut sur le paragraphe ANNULATION ci-dessus pendant les trois
+jours ouvrables qu'il couvre. Les matériaux déjà livrés chez vous restent à la
+disposition de {COMPANY}, qui viendra les reprendre à ses propres frais."""
+
+/**
+ * The replace-me markers, and the clause that belongs in place of each.
+ *
+ * Keyed by MARKER rather than by the owner's chosen language: the terms he
+ * holds are whatever language they were stored in, which is not necessarily
+ * the language the app is set to now, and writing an English clause into
+ * Spanish terms would be worse than leaving the block alone.
+ */
+private val RIGHT_TO_CANCEL_BY_MARKER: List<Pair<String, String>> = listOf(
+    "[REPLACE THIS BLOCK" to FEDERAL_RIGHT_TO_CANCEL_EN,
+    "[REEMPLACE ESTE BLOQUE" to FEDERAL_RIGHT_TO_CANCEL_ES,
+    "[REMPLACEZ CE BLOC" to FEDERAL_RIGHT_TO_CANCEL_FR,
+)
+
+/**
+ * [terms] with the unresolved right-to-cancel block replaced by the written
+ * federal notice, or [terms] unchanged when it carries no such block.
+ *
+ * Replaces the marker's whole PARAGRAPH -- from the start of the line the
+ * marker sits on to the next blank line -- because the block is a heading plus
+ * the instructions under it, and leaving those instructions behind would print
+ * them to the customer beside the clause that answers them.
+ *
+ * Unchanged when there is no marker, so this is safe to call on terms an owner
+ * has already written himself: it is not a reset, and it never touches a word
+ * he chose.
+ */
+fun withFederalRightToCancel(terms: String): String {
+    val (marker, clause) = RIGHT_TO_CANCEL_BY_MARKER.firstOrNull { (m, _) ->
+        terms.contains(m, ignoreCase = true)
+    } ?: return terms
+    val at = terms.indexOf(marker, ignoreCase = true)
+    if (at < 0) return terms
+    // The start of the marker's own line. A heading on the line above it is
+    // part of the block being replaced, and the clause brings its own.
+    val lineStart = terms.lastIndexOf('\n', at).let { if (it < 0) 0 else it + 1 }
+    // Paragraphs are separated by a blank line, whatever the line endings are.
+    val endOfPara = Regex("\\r?\\n[ \\t]*\\r?\\n").find(terms, at)?.range?.first ?: terms.length
+    // The heading immediately above the marker line goes too, when the marker
+    // is not already on it -- the shipped block has them on ONE line
+    // ("YOUR RIGHT TO CANCEL -- [REPLACE...]"), and this keeps working if that
+    // is ever split in two.
+    return terms.substring(0, lineStart) + clause + terms.substring(endOfPara)
+}
+
+/**
  * True when the terms still carry the unresolved right-to-cancel block.
  *
  * Stricter than [isDefaultContractTerms] on purpose: an owner who edited the

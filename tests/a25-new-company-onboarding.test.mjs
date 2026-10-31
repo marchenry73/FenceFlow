@@ -636,9 +636,17 @@ test("FIXED: the office wizard keeps a company's zero tax and zero markup, and a
   const real = await runWizSaveWho(WIZ_SRC, chose({ s_tax: "6.5", s_markup: "22", s_labor: "9", s_min: "250" }));
   assert.deepEqual([real.row.tax_rate_percent, real.row.markup_percent], [6.5, 22], "control: 6.5 and 22 survive");
   const blank = await runWizSaveWho(WIZ_SRC, chose({}));
+  // THE LABOUR FLOOR IS IN THIS LIST NOW, and that is the point of the change.
+  // This assertion listed tax, markup, labour rate, minimum JOB charge and gate
+  // rate, and never mentioned minimum LABOUR charge -- so when the office
+  // blanked the two floors the wrong way round ($200 under the job total, none
+  // under labour, the reverse of the rule and of the phone) the one wrong field
+  // was the one field not under test, and this passed for as long as it existed.
   assert.deepEqual(
-    [blank.row.tax_rate_percent, blank.row.markup_percent, blank.row.labor_rate_per_ft, blank.row.minimum_job_charge, blank.row.gate_rate_per_ft],
-    [7, 15, 8, 200, 20], "a company with nothing set is quoted at 7 / 15 / 8 / 200 / 20");
+    [blank.row.tax_rate_percent, blank.row.markup_percent, blank.row.labor_rate_per_ft,
+     blank.row.minimum_job_charge, blank.row.minimum_labor_charge, blank.row.gate_rate_per_ft],
+    [7, 15, 8, 0, 200, 20],
+    "a company with nothing set is quoted at 7 / 15 / 8 / no job floor / $200 labour floor / 20");
   // Text in a number field is not a zero either: it takes the default, as it did before.
   const junk = await runWizSaveWho(WIZ_SRC, chose({ s_tax: "about six", s_markup: "" }));
   assert.deepEqual([junk.row.tax_rate_percent, junk.row.markup_percent], [7, 15],
@@ -680,8 +688,12 @@ test("FIXED: the customer/job import keeps a zero, and still applies the default
   assert.equal(zero.labor_rate_per_ft, 9, "control: real numbers pass");
   assert.equal(zero.referral_source, "Imported", "control: this is the import's row");
   const blank = at({});
-  assert.deepEqual([blank.tax_rate_percent, blank.markup_percent, blank.labor_rate_per_ft, blank.minimum_job_charge],
-    [7, 15, 8, 200], "control: an empty field still takes the default");
+  // minimum_labor_charge included for the same reason as the wizard above: this
+  // row is copied onto EVERY imported job, so the inverted floors were applied
+  // to all of them at once and nothing here looked at the one that was wrong.
+  assert.deepEqual([blank.tax_rate_percent, blank.markup_percent, blank.labor_rate_per_ft,
+                    blank.minimum_job_charge, blank.minimum_labor_charge],
+    [7, 15, 8, 0, 200], "control: an empty field still takes the default");
   // CANARY: the same row with the old fallbacks must lose the zero.
   const oldLiteral = literal.replace(/numOr\((.+?),\s*(-?[0-9.]+)\)/g, "num($1)||$2");
   assert.notEqual(oldLiteral, literal, "canary: the pre-fix rewrite changed nothing");
@@ -728,6 +740,51 @@ test("GAP (pinned): the phone's defaults are literals -- 7% tax, 0 markup, $8/ft
   assert.equal(fallback("TAX_RATE"), dflt("defaultTaxRatePercent"));
   assert.equal(fallback("MARKUP"), dflt("defaultMarkupPercent"));
   assert.equal(fallback("LABOR_RATE"), dflt("defaultLaborRatePerFt"));
+
+  // AND THE OFFICE AGREES WITH THE PHONE ABOUT THE TWO FLOORS.
+  //
+  // This is the comparison whose absence let the bug live. The checks above
+  // compare the phone's data class to the phone's reader, and found a real
+  // swap. Nothing compared either to the OFFICE, which writes the same five
+  // numbers itself -- and the office had them the other way round: a $200 floor
+  // under the job total and none under labour, on every company set up from the
+  // web and on every job an import copied the row onto.
+  //
+  // Read out of the page's own source rather than from a list repeated here, so
+  // the two cannot be brought back into agreement by editing this test.
+  const officeFloor = (key) => {
+    const m = DASH.match(new RegExp(key + ":\\s*numOr\\(\\$\\('s_min(?:_labor)?'\\)\\.value,\\s*(-?[0-9.]+)\\)"));
+    assert.ok(m, `the office has no blank default for ${key}`);
+    return Number(m[1]);
+  };
+  assert.equal(officeFloor("minimum_job_charge"), dflt("defaultMinimumJobCharge"),
+    "the office's job-total floor disagrees with the phone's own default -- two writers, two answers, on every new company");
+  assert.equal(officeFloor("minimum_labor_charge"), dflt("defaultMinimumLaborCharge"),
+    "the office's labour floor disagrees with the phone's own default");
+  // CANARY: the comparison can fail. The office's floors as they actually stood
+  // must be caught by it.
+  {
+    const inverted = DASH
+      .replace("minimum_job_charge: numOr($('s_min').value, 0)", "minimum_job_charge: numOr($('s_min').value, 200)")
+      .replace("minimum_labor_charge: numOr($('s_min_labor').value, 200)", "minimum_labor_charge: numOr($('s_min_labor').value, 0)");
+    const bad = (key) => Number(inverted.match(
+      new RegExp(key + ":\\s*numOr\\(\\$\\('s_min(?:_labor)?'\\)\\.value,\\s*(-?[0-9.]+)\\)"))[1]);
+    assert.notEqual(bad("minimum_job_charge"), dflt("defaultMinimumJobCharge"),
+      "canary: the inverted office row was NOT caught, so the comparison above proves nothing");
+    assert.notEqual(bad("minimum_labor_charge"), dflt("defaultMinimumLaborCharge"),
+      "canary: the inverted labour floor was not caught either");
+  }
+
+  // MARKUP IS A KNOWN DISAGREEMENT, NOT A BUG -- named here rather than left to
+  // be rediscovered. The office blanks it to 15% and the phone to 0%. Both are
+  // defensible starting points for a company that typed nothing, and nothing in
+  // this repo records which the owner wants, so neither side is corrected to
+  // match the other. The day he decides, this is where it is written down.
+  const officeMarkup = Number(DASH.match(/markup_percent:\s*numOr\(\$\('s_markup'\)\.value,\s*(-?[0-9.]+)\)/)[1]);
+  assert.equal(officeMarkup, 15, "the office's blank markup moved -- if that was deliberate, settle it against the phone's 0 and delete this check");
+  assert.equal(dflt("defaultMarkupPercent"), 0, "the phone's blank markup moved -- same question, other side");
+  assert.notEqual(officeMarkup, dflt("defaultMarkupPercent"),
+    "the office and the phone now AGREE about markup -- good: say which answer won and replace these three lines with one equality");
   // CANARY: the comparison can fail. Swapping the two fallbacks in a copy of
   // the source must be caught -- that copy is the bug as it actually stood.
   {

@@ -86,7 +86,14 @@ fun HomeDashboard(
     payments: List<PaymentRecord>,
     pendingHours: Int,
     pendingPlanChanges: List<FieldChange>,
-    outstanding: Double,
+    /** Null until it has been worked out -- see [JobsViewModel.outstandingTotal]. */
+    outstanding: Double?,
+    /**
+     * True while the sync is still bringing this phone's work down, so a figure
+     * that is about to move is never presented as settled. Goes away on its own
+     * when the pass finishes.
+     */
+    figuresSettling: Boolean,
     cards: List<HomeCard>,
     showMoney: Boolean,
     /**
@@ -121,6 +128,7 @@ fun HomeDashboard(
         if (showMoney) {
             MoneyHero(
                 outstanding = outstanding,
+                settling = figuresSettling,
                 collectedThisMonth = collectedThisMonth,
                 collectedLastMonth = collectedLastMonth,
                 weekly = remember(payments) { weeklyCollected(payments, weeks = 8) },
@@ -197,7 +205,8 @@ private fun GreetingRow(ownerName: String) {
  */
 @Composable
 private fun MoneyHero(
-    outstanding: Double,
+    outstanding: Double?,
+    settling: Boolean,
     collectedThisMonth: Double,
     collectedLastMonth: Double,
     weekly: List<Double>,
@@ -219,13 +228,26 @@ private fun MoneyHero(
                 style = MaterialTheme.typography.labelMedium,
                 letterSpacing = 1.2.sp
             )
+            // A dash, not a zero, until there is an answer. The height is the
+            // line height of the real figure either way, so nothing below moves
+            // when the number lands.
             Text(
-                Money.format(outstanding),
-                color = Color.White,
+                if (outstanding == null) "--" else Money.format(outstanding),
+                color = if (outstanding == null) Color.White.copy(alpha = 0.5f) else Color.White,
                 fontSize = 38.sp,
                 fontWeight = FontWeight.Bold,
                 lineHeight = 44.sp
             )
+            // Said, not hidden. A first sync genuinely does not have the jobs
+            // yet, so the truthful thing is a figure that admits it is still
+            // moving rather than a faster wrong one.
+            if (settling) {
+                Text(
+                    stringResource(R.string.home_figures_settling),
+                    color = Color.White.copy(alpha = 0.7f),
+                    style = MaterialTheme.typography.labelMedium
+                )
+            }
             Spacer(Modifier.height(10.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Column(Modifier.weight(1f)) {
@@ -524,7 +546,8 @@ private fun StatTiles(
     showMoney: Boolean,
     workdayHours: Double,
     pendingHours: Int,
-    outstanding: Double,
+    /** Null until it has been worked out -- see [JobsViewModel.outstandingTotal]. */
+    outstanding: Double?,
     collectedThisMonth: Double,
     collectedLastMonth: Double,
     monthStart: Long,
@@ -545,7 +568,10 @@ private fun StatTiles(
         HomeCard.SCHEDULED_THIS_WEEK -> jobs.count { it.scheduledDate != null && it.scheduledDate in now..weekEnd }.toString()
         HomeCard.WON_THIS_MONTH -> wonThisMonth.toString()
         HomeCard.COLLECTED_THIS_MONTH -> Money.short(collectedThisMonth)
-        HomeCard.OUTSTANDING -> Money.short(outstanding)
+        // A dash, not a zero, when it has not been worked out yet -- the same
+        // rule as the hero above. A tile reading "$0" and a tile reading
+        // nothing-yet must not look identical.
+        HomeCard.OUTSTANDING -> if (outstanding == null) "--" else Money.short(outstanding)
         HomeCard.UNPAID_JOBS -> jobs.count { it.status.isWon && it.paymentStatus != PaymentStatus.PAID_IN_FULL }.toString()
         HomeCard.HOURS_TO_APPROVE -> pendingHours.toString()
         HomeCard.DRAFT_ESTIMATES -> jobs.count { it.status == JobStatus.DRAFT }.toString()

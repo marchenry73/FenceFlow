@@ -38,8 +38,20 @@ class JobsViewModel(
      * because the job row has no contract total on it -- and a home screen
      * figure that is approximately right about money is worse than no figure,
      * since nobody knows which way it is wrong.
+     *
+     * NULL UNTIL IT HAS BEEN COMPUTED, which is the sentence above applied to
+     * this flow's own starting value. It used to start at 0.0, so the home
+     * screen's first frame drew "$0.00" in 38sp -- a formatted, confident,
+     * wrong figure -- and then replaced it. On a first sign-in it was worse
+     * than a flicker: the jobs were still arriving over the sync, each arrival
+     * re-ran the sum, and a running subtotal was drawn as though it were the
+     * answer. Reported as "it showed a different number for the total and then
+     * it went up to the right number in a matter of seconds".
+     *
+     * A computed 0.00 -- every job paid -- is still 0.00. That is an answer.
+     * Null is the absence of one, and the two were indistinguishable before.
      */
-    val outstandingTotal: StateFlow<Double> = kotlinx.coroutines.flow.combine(
+    val outstandingTotal: StateFlow<Double?> = kotlinx.coroutines.flow.combine(
         repository.observeJobs(),
         repository.observeAllPayments()
     ) { allJobs, _ -> allJobs }
@@ -76,7 +88,11 @@ class JobsViewModel(
                 )
             }
         }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+        // null, NOT 0.0. The whole point of the type change above: a starting
+        // 0.0 is what drew "$0.00" in 38sp before anything had been computed.
+        // The `return@map 0.0` inside the block stays a real zero -- no won
+        // jobs genuinely means nothing is owed, and that IS an answer.
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
 
     /**
      * Every job's contract total, keyed by id, for the row that shows one

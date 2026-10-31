@@ -47,9 +47,20 @@ suspend fun askMoneyScope(): MoneyScope = foldPayAnswer(runCatching {
  * different door than [askMoneyScope]'s job money.
  *
  * `can_see_employee_pay()` answers with exactly
- * `coalesce(has_permission('SEE_EMPLOYEE_PAY'), false)`, the same shape as
- * `can_see_pay()`: a real true or false for anyone signed in, and a thrown
- * error only when the request itself could not be made. Folded the same way,
+ * `coalesce(has_permission('SEE_PAY'), false)` -- the same SHAPE as
+ * `can_see_pay()`, which asks `SEE_MONEY`: a real true or false for anyone
+ * signed in with a profile, and a thrown error when the request could not be
+ * made or when there is no identity to judge (r59).
+ *
+ * `SEE_PAY`, NOT `SEE_EMPLOYEE_PAY`. This doc said the latter for as long as
+ * the function has existed, and no role in `has_permission()` grants a
+ * permission by that name -- so a reader who trusts this line and rewrites the
+ * function from it takes payroll away from every owner, manager and accountant
+ * at once. That happened on 30 Oct 2026 while fixing r59, and
+ * tests/a16-payrate-permission-fix.test.mjs caught it in one line because its
+ * POSITIVE CONTROL asserts an ACCOUNTANT reads true. The authority for both
+ * doors is `supabase_can_see_pay_restored.sql`; read the live function, never
+ * the comment about it. Folded the same way,
  * for the same reason -- an empty answer here must read as "could not ask,"
  * not as "not allowed," or a dead spot on an owner's phone would scrub every
  * cached hourly rate exactly the way it once did for job money. See

@@ -865,6 +865,9 @@ fun JobsListScreen(
                     }
                 }
                 if (jobs.isNotEmpty()) item {
+                    // Collected inside this item, not borrowed from the crew item
+                    // above it -- that one is in a different scope.
+                    val homeSync by app.autoSync.state.collectAsState()
                     HomeDashboard(
                         ownerName = profile.ownerName,
                         jobs = jobs,
@@ -878,6 +881,11 @@ fun JobsListScreen(
                         pendingHours = if (session.canApproveTime && ent.timeAndCrew) pendingHours.size else 0,
                         pendingPlanChanges = pendingPlanChanges,
                         outstanding = outstanding,
+                        // The money figures are rebuilt from whatever jobs are
+                        // on the phone, so while a pass is still bringing them
+                        // down the hero says so instead of drawing a subtotal
+                        // as the answer.
+                        figuresSettling = homeSync.phase == com.fenceestimator.app.cloud.SyncPhase.SYNCING,
                         cards = com.fenceestimator.app.data.HomeCard.parse(profile.homeCardsCsv),
                         showMoney = session.canSeeMoney,
                         permissions = session.permissions,

@@ -46,6 +46,26 @@ object CancellationApi {
         val retained: Double = 0.0,
         val paid: Double = 0.0,
         @SerialName("refund_due") val refundDue: Double = 0.0,
+        /**
+         * True while the customer is still inside the three business days the
+         * contract gives them, in which case r61 has already set [retained] and
+         * [inconvenience] to zero and [refundDue] to the whole of [paid].
+         *
+         * Read ONLY to explain those figures on screen. The window is computed
+         * server-side (`cooling_off_deadline`), like every other number here --
+         * a phone that worked out its own three days would disagree with the
+         * office the first time a holiday fell in between.
+         *
+         * Defaulted false, so a server that has not had r61 applied decodes
+         * exactly as before and the dialog says nothing extra.
+         */
+        @SerialName("within_cooling_off") val withinCoolingOff: Boolean = false,
+        /**
+         * When that window shuts, as the server computed it. Null before r61,
+         * and null for a job with no signature on record -- there is nothing to
+         * be within three days OF.
+         */
+        @SerialName("cooling_off_ends_at") val coolingOffEndsAt: String? = null,
     )
 
     sealed interface TermsResult {
