@@ -3,6 +3,77 @@
 What I did while you were asleep, what needs you, and what I deliberately did
 not touch.
 
+The run is finished — six hours, stopped on time. **Nothing was applied to the
+database, nothing deployed, nothing published, and nothing pushed.** Seven
+commits are waiting on the branch. The suite is 271 files, all green.
+
+---
+
+## START HERE: the decisions, in the order of what it costs to get them wrong
+
+Everything here is explained further down; this is just the list, because the
+sections below are newest-first and that is not the same as most-important.
+
+**1. The deposit does not follow a re-price. It never has.** The function is
+live, its trigger was never created, so the money rule you decided on 24
+September has not fired once. Its own ten proofs pass against your live
+database inside a rolled-back transaction. One command, and it is the first
+thing I would run:
+
+```
+npx supabase db query --linked --project-ref newcrgafcptspmapacrx -f supabase_r8_deposit_follows_price.sql
+```
+
+**2. Two of the seven held commits change what a customer can be sent.** The
+first widens which prices count as unconfirmed; the second adds the box that
+confirms one from the office. (A third touches that page too, but only a
+comment — the four others are tests, a migration file and this log.) The office will
+now refuse to send some quotes it used to send — the ones carrying a price
+nobody has confirmed. That is the intended behaviour and it is stricter than
+yesterday, so it is yours to approve before it goes live. See the first section
+below.
+
+**3. Then push, build and publish — in that order, price-job FIRST.** Both
+sides carry 2026.09.3; if the office is newer the phone backs off, and if you
+ship the phone first it overwrites the office.
+
+**4. Two values print on contracts your customers sign** and both are wrong:
+the licence number is still `1234567890`, and the contract header prints
+`marchenry73@gmail.com` rather than `marc@fenceflowapp.com`. Minutes to fix,
+and they are on paper a customer keeps.
+
+**5. Turn the device lock on** (office → Settings → Product keys → "Only one
+phone per login"). Issue a key first or you will lock yourself out. This is
+what you asked for when you signed in on the second phone.
+
+**6. Open the app on the phone with the $0 sides**, let it sync, then re-price
+Marco's job. The four fixes are in 1.845; the phone still holds the scrubbed
+catalog until it pulls.
+
+**7. r42 / E2, the sandbox product key.** I found a real defect in it before it
+was applied — the flag would have been writable by the company it describes —
+fixed it in the file, and all twenty of its proof rows now read true rolled
+back. Still yours to apply.
+
+**8. Three more migrations were never applied:** `r20_seed_new_company_catalog`
+(which is why new companies have empty catalogs), `r53_more_than_one_crew_on_a_job`,
+and `crew_job_scope`. Each waiting on a decision, none urgent.
+
+**9. One formula question, and it is the only one I would not guess at.** The
+drawing measures by the grid's extent and the pricing measures by a flat 20.
+They agree at 400 ft and nowhere else. Nothing is wrong today because no job
+can reach the bad state, and that is now guarded and measured — but closing
+the split properly is a change to both sides of a parity contract that would
+reprice every uncalibrated job you have. Your call, not mine.
+
+**10. Two things I left alone on purpose:** the markup for a blank company
+(office 15%, phone 0%) because you told me not to pin it, and `anon` holding
+table-level INSERT/UPDATE on `companies` — harmless today only because RLS
+denies it, which is one layer rather than two. Narrowing a role's privileges is
+yours.
+
+---
+
 ---
 
 ## NEEDS YOUR WORD BEFORE IT GOES OUT: the office will now refuse to send
