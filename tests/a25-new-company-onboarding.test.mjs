@@ -546,16 +546,34 @@ test("SHOULD (todo): editing a starting-price row in the office editor clears it
   assert.equal(office.isSeededUnverifiedPrice(upsertMerge(existing, payload).source_doc), false);
 });
 
-test("GAP (pinned): a price imported on the phone, and a price imported on the web, are both treated as checked by the office's send gate", () => {
+test("FIXED: an imported price is unverified to the office too, not just to the phone", () => {
+  // WAS A PINNED GAP, closed 31 Oct 2026. The office tested only
+  // /^(Starting price|Placeholder)/ while the phone's isPlaceholderPrice counts
+  // four labels, the extra two being the IMPORT ones -- and both are written by
+  // FenceFlow's own importers, the web one by the price-list importer in
+  // dashboard.html itself. So an imported row was flagged by the phone and shown
+  // clean by the office, and unverifiedPricesOn -- which exists because "the
+  // office did not [refuse], so the same job could be sent from a desk with the
+  // guard skipped" -- left that same door open. One row on the live database
+  // carried the phone's label when this was found.
+  //
+  // The full comparison lives in tests/a86-unverified-price-one-rule.test.mjs,
+  // which reads BOTH files and checks every label and near miss. This keeps the
+  // record of what was wrong here, where it was pinned.
   const kt = Object.fromEntries([...seedKtCode.matchAll(/const val (\w+)\s*=\s*"([^"]*)"/g)].map((m) => [m[1], m[2]]));
   assert.ok(kt.SEEDED && kt.PLACEHOLDER && kt.IMPORTED_UNVERIFIED, "control: the phone's three labels were read");
   assert.match(seedKtCode, /fun isPlaceholderPrice\([^)]*\)[^=]*=\s*[^\n]*IMPORTED_UNVERIFIED/, "the phone flags its own imports");
   assert.equal(office.isSeededUnverifiedPrice(kt.SEEDED), true, "control: the office flags the shipped label");
-  assert.equal(office.isSeededUnverifiedPrice(kt.IMPORTED_UNVERIFIED), false, "but not the phone's import label");
+  assert.equal(office.isSeededUnverifiedPrice(kt.IMPORTED_UNVERIFIED), true, "the office now flags the phone's import label");
   const webImport = (DASH.match(/source_doc:'(Imported[^']*)'/) || [])[1];
-  assert.ok(webImport, "control: the office's import label was read");
-  assert.equal(office.isSeededUnverifiedPrice(webImport), false, "nor its own");
-  assert.ok(![kt.SEEDED, kt.PLACEHOLDER, kt.IMPORTED_UNVERIFIED].includes(webImport), "and the phone does not know it either");
+  assert.ok(webImport, "control: the office's own import label was read");
+  assert.equal(office.isSeededUnverifiedPrice(webImport), true, "and its own");
+  // CANARY: the rule the office USED to have must miss both, or these two
+  // assertions prove nothing about the change.
+  const old = (s) => /^(Starting price|Placeholder)/.test(String(s || ""));
+  assert.equal(old(kt.SEEDED), true, "canary: the old rule did flag the shipped label");
+  assert.equal(old(kt.IMPORTED_UNVERIFIED), false, "canary: the old rule already flagged the phone's import label, so nothing was fixed");
+  assert.equal(old(webImport), false, "canary: the old rule already flagged the web import label");
 });
 
 test("GAP (pinned): the New client wizard's send step applies no unverified-price gate; the job sheet's quote block does", () => {

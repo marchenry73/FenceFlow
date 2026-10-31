@@ -17308,11 +17308,41 @@ const CATALOG_SEED = [
     row and then refused to send the quote priced off it, with the table
     insisting nothing was wrong.
 
-    A row whose source_doc is anything else -- blank, an import note, a
-    company's own wording -- is the company's business and is left alone; only
-    the two strings FenceFlow itself writes count as unverified. */
+    A row whose source_doc is a company's own wording, or blank, is the
+    company's business and is left alone.
+
+    AN IMPORT NOTE IS NOT THAT, and saying so here was wrong for as long as this
+    comment has existed. "Imported {dash} verify before quoting" and
+    "Imported {dash} check this one" are written by FenceFlow's own importers --
+    the second one by the price-list importer in THIS file -- and
+    SeedData.isPlaceholderPrice counts both. This predicate tested only the two
+    seed labels, so for an imported row the phone warned and the office showed
+    it clean, and unverifiedPricesOn below -- which exists precisely because
+    "the office did not [refuse], so the same job could be sent from a desk with
+    the guard skipped" -- left that same door open. One row on this database
+    carries the first label today. All four labels are matched now, read out of
+    SeedData.kt rather than retyped. */
+/* SELF-CONTAINED ON PURPOSE. These four labels are what SeedData.kt writes,
+   and they sit INSIDE this function rather than in a const beside it:
+   several tests pull the function out of the page and run it alone
+   (a27-pricelist-lib, a45-pdf-*, a46-catalog-height-office-editor, a25), and
+   a free variable in its body makes every one of them throw
+   "UNVERIFIED_PRICE_LABELS is not defined" -- which is what my first version
+   of this fix did: five files red, no product bug.
+
+   They carry an em dash, so they are copied from the Kotlin rather than
+   retyped. tests/a86-unverified-price-one-rule.test.mjs re-reads BOTH files
+   and compares, so an edit to either side that breaks the agreement fails
+   instead of quietly reopening the send gate below. */
 function isSeededUnverifiedPrice(sourceDoc){
-  return /^(Starting price|Placeholder)/.test(String(sourceDoc || ''));
+  const s = String(sourceDoc || '');
+  // Equality for three and a PREFIX for the filing label -- exactly what
+  // SeedData.isPlaceholderPrice does, because that label is built by
+  // appending the item it could not file.
+  return s === "Starting price — verify with your supplier"
+      || s === "Placeholder — verify with your supplier"
+      || s === "Imported — verify before quoting"
+      || s.startsWith("Imported — check this one");
 }
 
 /** How many CATALOG_SEED rows carry each fence type -- the pin

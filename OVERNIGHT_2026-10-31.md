@@ -5,6 +5,56 @@ not touch.
 
 ---
 
+## NEEDS YOUR WORD BEFORE IT GOES OUT: the office will now refuse to send
+## some quotes it used to send
+
+Committed, NOT pushed. It makes a gate stricter, and a stricter gate while you
+are asleep could stop you sending a quote in the morning.
+
+Two predicates decide whether a catalog row still carries a price nobody here
+has checked:
+
+| source_doc | office, before | phone |
+|---|---|---|
+| `Starting price — verify with your supplier` | flagged | flagged |
+| `Placeholder — verify with your supplier` | flagged | flagged |
+| `Imported — verify before quoting` | **not flagged** | flagged |
+| `Imported — check this one` | **not flagged** | flagged |
+
+The office tested two labels; the phone tests four. Both of the missing ones are
+written by **FenceFlow's own importers** — the second by the price-list importer
+in `dashboard.html` itself.
+
+It matters because that predicate feeds the office's **send gate**, whose own
+comment is: *"The phone refuses to send a quote priced off catalog rows nobody
+has checked. The office did not, so the same job could be sent from a desk with
+the guard skipped — a gate on one door only."* So the gate written to close that
+door was still open for both import labels — and the catalog table showed such a
+row as clean while the phone warned about it.
+
+**One row on your database carries `Imported — verify before quoting` today.**
+
+The office's comment also claimed the two rules were the same ("so the phone and
+the office cannot disagree about which rows are checked") and justified the
+narrowness by calling anything else "a company's own wording". Both halves were
+untrue.
+
+Fixed to match the phone exactly, with the labels read out of `SeedData.kt`
+rather than retyped — they carry an em dash, and a hand-typed one matches
+nothing. `tests/a86-unverified-price-one-rule.test.mjs` re-reads both files and
+compares every label and near miss, with a canary proving the old rule
+disagreed. `a25` had already pinned this gap as known; that pin now records it
+as closed.
+
+**What to expect when you push it:** a job priced off an imported-unverified row
+will be refused at the office quote panel, as it already is on the phone. The fix
+is to tick the price as confirmed — which is the one genuine gap still open here:
+there is **no way to confirm a price from the web** (only the phone's Confirm
+box sets `source_doc = Confirmed`). That remains `a25`'s single honest todo. If
+you want, the next thing I build is that button.
+
+---
+
 ## FIRST, because it is money: the deposit does not follow a re-price
 
 `supabase_r8_deposit_follows_price.sql` is **half applied**. The function
