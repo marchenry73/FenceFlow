@@ -154,6 +154,36 @@ not something to slip into someone else's migration overnight.
 
 ---
 
+## Two things come OFF the suspect list, and the deposit finding got stronger
+
+Re-running the corrected audit changed the list I gave you:
+
+**`protect_customer_identity` is live after all.** This is the trigger that
+stops a crew phone's whole-row push from overwriting the office's corrected
+customer name, address and phone with a stale copy — it keeps the office's
+version of those columns rather than refusing the write, because crew genuinely
+need to write to jobs. It is applied, as `00_protect_customer_identity` on
+`public.jobs`, and nothing needs doing. I had it on my own list of
+"unexamined candidates that sound like guards"; it was my audit, not your
+database.
+
+**`supabase_r16_test_fixture_inventory.sql` is not a gap either.** Its three
+missing `%fixture%` functions are missing *by design*: the file's own header
+says `STATUS: NOT APPLIED`, its whole body is one transaction ending in
+`ROLLBACK`, and it states that which blocks to run "is the owner's decision".
+It is an inventory with proposals attached, not a migration that failed to
+land. Nothing to apply unless you want those containment functions.
+
+**The deposit trigger is still genuinely missing, and now I can say that
+without relying on a name.** Rather than trusting the spelling in the file, I
+asked the live database for every trigger whose name contains `deposit` or
+`zz`, under any name at all. The answer is none, while the function
+`deposit_follows_price()` is live. So the money rule you decided on 24
+September has still never fired once, and that finding survives the same
+scepticism that cleared the other two. It remains the first item on this list.
+
+---
+
 ## Three more migrations that were never applied
 
 I checked all **346** `supabase_*.sql` files in the repo against the live
@@ -422,6 +452,34 @@ not a result to forward.
 * Suite **264/264**.
 
 ## What I got wrong, and how it was caught
+
+* **My migration audit called a live guard missing.** The audit is the tool
+  that decides which of the 346 migration files get put in front of you as
+  "never applied", so an error in it is an error in everything it told you. It
+  compared the name in the file -- `create trigger protect_customer_identity`
+  -- against the live trigger list by exact match. The applied trigger is named
+  **`00_protect_customer_identity`**: triggers fire in alphabetical order, so
+  the guards were deliberately prefixed. The guard exists and does its job.
+
+  This matters more than one wrong line, because of *where* the blind spot sat.
+  Seventeen live triggers carry such a prefix, and they are almost all the
+  money and identity guards: `00_hold_line_item_prices`,
+  `00_protect_job_money`, `00_hold_quote_gate`, `00_hold_material_price`,
+  `00_hold_contract_columns`, `10_reapproval_resolve`,
+  `90_mark_change_orders_accepted`. An audit whose false alarms land exactly on
+  the guards spends your attention on nothing, and makes the next true finding
+  read like the last false one.
+
+  Fixed narrowly, and the narrowness is the point: a live name matches only
+  when stripping a leading digits-and-underscore run leaves the declared name
+  **exactly**. A loose suffix match would have let `push` count
+  `job-change-push` as present and *hidden* a real absence, which is far worse
+  than crying wolf. The script now refuses to report at all if the match ever
+  becomes loose enough to count `customer_identity` as live, and
+  `tests/a89-audit-reads-prefixed-triggers.test.mjs` runs the shipped code
+  against both cases — I watched the canary fire on the loose version before
+  trusting it on the correct one.
+
 
 * **r59 as I first applied it was wrong.** I wrote `can_see_employee_pay()` to
   check a permission called `SEE_EMPLOYEE_PAY`, taking the name from a doc

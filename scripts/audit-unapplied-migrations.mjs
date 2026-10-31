@@ -116,6 +116,38 @@ let rows;
 try { rows = JSON.parse(r.stdout); } catch { console.error(`unparseable: ${r.stdout.slice(0, 300)}`); process.exit(2); }
 rows = Array.isArray(rows) ? rows : rows.rows;
 const live = new Set(rows.map((x) => `${x.kind}:${x.name}`));
+// A TRIGGER'S APPLIED NAME CARRIES AN ORDERING PREFIX. Triggers fire in
+// alphabetical order, so the applied guards were deliberately named
+// 00_protect_customer_identity, 10_reapproval_resolve, 90_mark_change_orders_
+// accepted, while the repo file says `create trigger protect_customer_identity`.
+// An exact-name comparison therefore reported a LIVE guard as missing -- and
+// measured on 2026-10-31, SEVENTEEN live triggers carry such a prefix, nearly
+// all of them the money and identity guards (hold_line_item_prices,
+// protect_job_money, hold_quote_gate, hold_material_price). That is the worst
+// possible place for this audit to be blind: its false alarms land exactly on
+// the guards whose real absence would be an emergency, and a false alarm there
+// costs the owner's trust in every true one.
+//
+// The relaxation is deliberately NARROW: the live name with a leading
+// digits-underscore run removed must equal the declared name EXACTLY. A
+// suffix or substring match would make `trigger:push` match
+// `job-change-push`, which is how a real absence would get hidden -- and
+// hiding one is far worse than crying wolf. The canary below plants a name
+// that must STILL be reported absent.
+for (const x of rows) {
+  if (x.kind !== "trigger") continue;
+  const bare = String(x.name).replace(/^[0-9]+_/, "");
+  if (bare !== x.name) live.add(`trigger:${bare}`);
+}
+// CANARY, run every time: prove the normalisation did not become a loose
+// match. `customer_identity` shares a suffix with the live
+// 00_protect_customer_identity and must NOT be treated as present.
+for (const bogus of ["trigger:customer_identity", "trigger:identity", "trigger:push"]) {
+  if (live.has(bogus)) {
+    console.error(`canary: the trigger match is too loose -- ${bogus} counted as live, so a genuinely missing trigger would be hidden`);
+    process.exit(2);
+  }
+}
 if (live.size < 50) {
   console.error(`only ${live.size} live objects came back -- refusing to report, that reads as everything being unapplied`);
   process.exit(2);
