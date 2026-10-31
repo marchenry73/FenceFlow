@@ -1097,14 +1097,36 @@ test("APPROVE: the existing 'Quote approved' push is untouched by the email, and
   assert.ok(world.fcm.filter((m) => m.title === "Quote approved 🎉").every((m) => m.body === "Pat Buyer approved the quote for Pat Buyer."));
   assert.deepEqual([...new Set(world.fcm.filter((m) => /Contract email/.test(m.title)).map((m) => m.token))].sort(), ["tok-manager", "tok-owner", "tok-sales"]);
   assertOfficeAlarmShape("a failed email after approval");
-  // And the approval push that quote-view sends is a NOTIFICATION message,
-  // recorded here as the current state rather than asserted as correct: by
-  // 19406cd's own reasoning a backgrounded phone does not reach
-  // onMessageReceived for it. quote-view is the seventh sender that commit
-  // counted and the one it did not change, so this line is a marker, not a
-  // verdict -- if it is changed deliberately, change this with it.
-  assert.ok(world.fcm.filter((m) => m.title === "Quote approved \u{1F389}").every((m) => m.kind === "notification"),
-    "quote-view's approval push changed shape -- see office-push.ts on why data messages reach a backgrounded app");
+  // AND IT IS A DATA MESSAGE NOW. This was a MARKER, not a verdict: it recorded
+  // that quote-view's approval push was still a NOTIFICATION message -- the
+  // seventh of seven senders and the one 19406cd did not convert -- and it said
+  // that if the shape were ever changed deliberately, this would be changed
+  // with it. It was, on 30 Oct 2026 (quote-view v48), and this is that change.
+  //
+  // Why it matters more here than for any other sender: this is the push a
+  // CUSTOMER triggers. Somebody has just agreed to pay. Backgrounded -- which
+  // is nearly every phone, nearly always -- a notification message never
+  // reaches onMessageReceived, so the app cannot draw it on the channel the
+  // owner chose and never calls autoSync.requestSync(). HIGH priority for the
+  // reason the five working senders all set it: without it Doze can hold the
+  // message until the phone is next woken, which for an alert about a price
+  // being agreed is indistinguishable from not sending it.
+  const approved = world.fcm.filter((m) => m.title === "Quote approved \u{1F389}");
+  assert.ok(approved.length > 0, "control: there is no approval push to check the shape of");
+  for (const m of approved) {
+    assert.equal(m.kind, "data",
+      `the approval push is a '${m.kind}' message -- backgrounded, the app never sees it`);
+    assert.equal(m.priority, "HIGH",
+      "the approval push went without android.priority HIGH, so Doze can hold it");
+  }
+  // CANARY: the same two checks must reject the shape this used to send, or
+  // re-aiming them has produced a pair that cannot fail.
+  assert.throws(() => {
+    for (const m of [{ kind: "notification", priority: null }]) {
+      assert.equal(m.kind, "data", "canary");
+      assert.equal(m.priority, "HIGH", "canary");
+    }
+  }, /canary/, "the approval-push shape check cannot fail, so it is checking nothing");
   wall();
 });
 

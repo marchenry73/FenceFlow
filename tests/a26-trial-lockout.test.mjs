@@ -492,7 +492,7 @@ test("LIVE control: the reader sees the companies, the gate function and the tri
 });
 
 test("LIVE REPORT: the six real companies and why each is or is not allowed in (printed, not asserted; no email or address)", { skip: SKIP_LIVE }, (t) => {
-  const rows = runSql(`select c.name, c.subscription_status as status, c.subscription_plan as plan,
+  const rows = runSql(`select c.id, c.name, c.subscription_status as status, c.subscription_plan as plan,
       c.trial_ends_at::date as trial_end, (c.stripe_subscription_id is not null) as holds_sub,
       public.company_allowed(c.id) as allowed, c.suspended,
       (select count(*)::int from public.profiles p where p.company_id = c.id) as people,
@@ -501,7 +501,12 @@ test("LIVE REPORT: the six real companies and why each is or is not allowed in (
   for (const r of rows) t.diagnostic(`${r.name}: ${r.status}/${r.plan || "-"} trial_end ${r.trial_end ?? "-"} sub ${r.holds_sub} allowed ${r.allowed} people ${r.people} jobs ${r.jobs}`);
   const stuck = rows.filter((r) => r.status === "trialing" && r.holds_sub && r.trial_end && new Date(r.trial_end) < new Date());
   t.diagnostic("trialing + subscription + trial date passed: " + (stuck.map((r) => r.name).join("; ") || "none"));
-  assert.ok(rows.some((r) => r.name === "Fence solutions" && r.allowed === true), "control: the owner's own company is allowed");
+  // BY ID, not by name -- see r62: the owner settled the business name and
+  // this control went red with nothing wrong. The message still names the
+  // company, read out of the row rather than asserted as a literal.
+  const ownCo = rows.find((r) => r.id === "aba5b097-afc4-48dd-9851-b50200d5e8f4");
+  assert.ok(ownCo, "control: the owner's own company is missing from the report");
+  assert.equal(ownCo.allowed, true, `control: the owner's own company (${ownCo.name}) is allowed`);
 });
 
 test("LIVE: no company row carries a write that followed its trial end (Legacy, Marc) -- the handover event never landed", { skip: SKIP_LIVE }, (t) => {
@@ -567,7 +572,20 @@ test("LIVE DRY RUN (armed): exactly Legacy and Horizon change, Legacy stays 'tri
   assert.equal(H.status_before, "pending"); assert.equal(H.status_after, "trialing");
   assert.equal(H.allowed_before, false); assert.equal(H.allowed_after, true);
   assert.equal(Number(H.trial_after_days_from_now), 14);
-  for (const n of ["Marc", "Marco", "PeterLLC", "Fence solutions"]) assert.equal(by[n].allowed_before, by[n].allowed_after, `${n} untouched`);
+  // Every OTHER company, taken from `moved` above rather than from a list of
+  // names written here.
+  //
+  // This was `for (const n of ["Marc", "Marco", "PeterLLC", "Fence solutions"])`
+  // and went red the day the owner settled his business name (r62) -- a live
+  // fixture pinned to a label a person edits. `moved` is already computed from
+  // the run's own data and already asserted one line below it, so reusing it
+  // pins nothing: a rename cannot break this, and a NEW company on this
+  // database is covered without anyone remembering to add it.
+  const alsoMoved = new Set(moved);
+  const untouched = Object.keys(by).filter((n) => !alsoMoved.has(n));
+  assert.ok(untouched.length >= 3,
+    `control: only ${untouched.length} companies were left to check -- too few for this to mean anything`);
+  for (const n of untouched) assert.equal(by[n].allowed_before, by[n].allowed_after, `${n} untouched`);
 });
 
 test("LIVE: the gate after PART 1, every edge (synthetic companies, rolled back) -- grace for silence only, then the wall, with the true message", { skip: SKIP_LIVE }, () => {

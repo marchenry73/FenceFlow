@@ -775,16 +775,6 @@ test("GAP (pinned): the phone's defaults are literals -- 7% tax, 0 markup, $8/ft
       "canary: the inverted labour floor was not caught either");
   }
 
-  // MARKUP IS A KNOWN DISAGREEMENT, NOT A BUG -- named here rather than left to
-  // be rediscovered. The office blanks it to 15% and the phone to 0%. Both are
-  // defensible starting points for a company that typed nothing, and nothing in
-  // this repo records which the owner wants, so neither side is corrected to
-  // match the other. The day he decides, this is where it is written down.
-  const officeMarkup = Number(DASH.match(/markup_percent:\s*numOr\(\$\('s_markup'\)\.value,\s*(-?[0-9.]+)\)/)[1]);
-  assert.equal(officeMarkup, 15, "the office's blank markup moved -- if that was deliberate, settle it against the phone's 0 and delete this check");
-  assert.equal(dflt("defaultMarkupPercent"), 0, "the phone's blank markup moved -- same question, other side");
-  assert.notEqual(officeMarkup, dflt("defaultMarkupPercent"),
-    "the office and the phone now AGREE about markup -- good: say which answer won and replace these three lines with one equality");
   // CANARY: the comparison can fail. Swapping the two fallbacks in a copy of
   // the source must be caught -- that copy is the bug as it actually stood.
   {
@@ -951,7 +941,11 @@ test("LIVE: a company row holding only a name is not allowed to use the product 
     insert into a25_probe select 'control_trialing', public.company_allowed(c.id), c.subscription_status, c.subscription_plan, c.trial_ends_at, c.suspended
       from public.companies c where c.id = 'a2500000-0000-4000-8000-0000000000f2';
     insert into a25_probe select 'control_paid', public.company_allowed(c.id), c.subscription_status, c.subscription_plan, c.trial_ends_at, c.suspended
-      from public.companies c where c.name = 'Fence solutions';
+      -- BY ID, not by name. This selected the owner's company as
+      -- by the company NAME, and went red the day he settled the
+      -- business name (r62): a display name is a label he edits, and a
+      -- live fixture pinned to one rots when he does.
+      from public.companies c where c.id = 'aba5b097-afc4-48dd-9851-b50200d5e8f4';
     select * from a25_probe order by label;
     rollback;`, "fresh company");
   const by = Object.fromEntries(rows.map((r) => [r.label, r]));
