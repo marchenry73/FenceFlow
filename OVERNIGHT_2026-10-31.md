@@ -33,14 +33,26 @@ nobody has confirmed. That is the intended behaviour and it is stricter than
 yesterday, so it is yours to approve before it goes live. See the first section
 below.
 
-**3. Then push, build and publish — in that order, price-job FIRST.** Both
-sides carry 2026.09.3; if the office is newer the phone backs off, and if you
-ship the phone first it overwrites the office.
+**3. DONE, 31 Oct.** Pushed (8 commits, `a5fb267..bce3957`), the office
+deployed and verified byte-identical live, and **price-job deployed v32 → v33**
+with the parity gate green first and the live function downloaded back and
+diffed, 12 of 12 files identical. The APK built clean as **1.854** and was
+**not** published: not one file under `app/` changed between 1.845 and 854, so
+the only difference inside it is the version string. Phones already run every
+line of Kotlin that exists. The next publish is whenever something actually
+changes the app.
 
-**4. Two values print on contracts your customers sign** and both are wrong:
-the licence number is still `1234567890`, and the contract header prints
-`marchenry73@gmail.com` rather than `marc@fenceflowapp.com`. Minutes to fix,
-and they are on paper a customer keeps.
+**4. The licence number, and an address on the document the customer keeps.**
+The licence is still the placeholder `1234567890`, and it is yours to type —
+I will not invent a contractor licence number. Type it on the Settings tab,
+**not** in the setup wizard: Settings writes both stores, the wizard writes
+only the blob, and `companies.license_no` is empty for all twelve companies
+today, which is why **every HOA letter goes out with no licence line at all**
+(`job-spec.ts` skips the line when the column is blank).
+
+The email half was a real defect and is **fixed** — see the section below. My
+own note had it wrong twice: the document is the phone's PDF, not the contract
+email, and the office had no way to change the address it prints.
 
 **5. Turn the device lock on** (office → Settings → Product keys → "Only one
 phone per login"). Issue a key first or you will lock yourself out. This is
@@ -73,6 +85,66 @@ denies it, which is one layer rather than two. Narrowing a role's privileges is
 yours.
 
 ---
+
+---
+
+## The office could change your email everywhere except on the paper the
+## customer keeps
+
+**I had this wrong twice in my own note above, so start with the correction.**
+I wrote that "the contract header prints `marchenry73@gmail.com`" and that it
+"reads `company_settings -> email`". The second half is true; the first names
+the wrong document. The contract email does not print it: `quote-approval-email`
+reads `companies.email`, which is correct, and `quote-view` reads nothing from
+the settings blob but payment methods and the brand colour. The document that
+prints the personal address is **the phone's PDF** — `PdfExporter` draws
+`business.email` in its header, under the company name, and `SettingsSync`
+fills `BusinessProfile.email` from the blob's `email` key.
+
+**And the office could not change that key.** Three of the four customer-facing
+fields are written to BOTH stores by the Settings tab: `business_name`, `phone`
+and `license_number` go into the blob through the `SET` map, and `name`, `phone`
+and `license_no` go to the companies row in a second UPDATE. Email was the only
+one of the four that went to the companies row alone. So correcting the address
+on the Settings tab changed the quote page, crew invitations and payment links,
+and the PDF in the customer's hand kept the old one, with nothing on screen
+saying so. That is how your personal gmail stayed on printed quotes while
+`companies.email` had read `marc@fenceflowapp.com` for weeks.
+
+It is the same shape as "use this phone only": a setting whose switch reached
+only some of the things it was named after.
+
+**The fix, in `website/dashboard.html`:** the email box now writes the blob as
+well, under the same two rules the companies write already follows — blank
+means "I did not set this" rather than "store an empty address", and a
+malformed address is refused. The owner check is not redundant: the companies
+write is OWNER-only in the database, silently and as zero rows, while
+`save_company_settings` has no equivalent filter on this key, so without it a
+manager's save would have changed the address on every customer PDF and left
+the companies row alone — the same two stores disagreeing, the other way round.
+
+`tests/a92-one-email-both-stores.test.mjs`, 33 checks, runs the real
+`saveSettings()` lifted out of the page. It covers both stores on a valid
+address, three kinds of blank and four malformed addresses refused by both,
+manager and crew refused with an owner control beside them so the role checks
+cannot pass by writing nothing at all, and a canary that strips the fix and
+watches the main assertion go red. The last section reads the Kotlin live —
+that `CloudSettings.email` is still a plain field, so the blob key really is
+`email`; that `SettingsSync` still merges it; and that `PdfExporter` still
+draws it — with a negative control proving the pattern can tell a plain field
+from an annotated one. If the phone ever stops printing from this key, the
+test says so instead of leaving the office writing something nothing reads.
+
+I watched it fail first: 29 of 33 before the fix, 33 of 33 after.
+
+**Left open, deliberately.** The setup wizard (`swSaveBusiness`) writes name,
+phone, email and licence to the blob and to nothing else. A company that
+completes the wizard therefore has a blob email that may differ from
+`companies.email` from the moment it is set up. Widening the wizard means
+giving it its own owner gate, its own companies UPDATE and its own failure
+message, which is a bigger change than the one you asked for — and once the
+address is corrected on the Settings tab it is right in both stores anyway.
+Worth doing, not worth doing unannounced.
 
 ---
 

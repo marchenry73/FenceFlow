@@ -29922,6 +29922,34 @@ async function saveSettings(){
       payload[key]=raw;
     }
   });
+  /* The email box writes BOTH stores, like the three boxes above it.
+     business_name, phone and license_number each go into this blob AND into
+     the companies row further down. Email went to the companies row alone,
+     and the blob's `email` key is what the PHONE prints in a PDF header --
+     SettingsSync pulls it into BusinessProfile.email and PdfExporter draws it
+     under the company name. So correcting the address here changed the quote
+     page, crew invitations and payment links while the document the customer
+     keeps went on showing the old one, with nothing on screen saying so.
+     That is how a personal gmail stayed on printed quotes while
+     companies.email had read marc@fenceflowapp.com for weeks.
+
+     Same two rules as the companies.email write below, for the same reasons:
+     blank means "I did not set this" (a load that failed leaves every box
+     empty, and '' would satisfy the blob as happily as the NOT NULL column),
+     and a malformed address is refused rather than stored. isValidCompanyEmail
+     is declared below in this same function and hoists.
+
+     The role check is NOT redundant. companies_update's USING clause makes
+     that write OWNER-only in the database -- silently, as zero rows --
+     whereas save_company_settings carries no equivalent filter on this key,
+     so without this line a MANAGER's save would change the address on every
+     customer PDF while leaving the companies row untouched: the same two
+     stores disagreeing, in the opposite direction. tests/a92-one-email-both-
+     stores.test.mjs holds all of it, and reads the Kotlin to confirm the
+     phone still prints from this key rather than from the companies row. */
+  const blobEmail = profile.role === 'OWNER' ? ($('s_email')?.value.trim() ?? '') : '';
+  if (isValidCompanyEmail(blobEmail)) payload.email = blobEmail;
+
   const {error}=await db.rpc('save_company_settings',{new_settings:payload});
   if(error) return msg('setMsg',error.message,'err');
 
