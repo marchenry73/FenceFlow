@@ -321,12 +321,36 @@ versions), and A4 — on which I did a pass tonight: the "a typed zero reads as
 unset" class is now clean across every money field in the office and the server
 pricing engine.
 
-One finding from the publish gate worth your attention: **there is no overtime
-concept anywhere in the app.** `CrewPay` pays hours × rate with no weekly
-threshold, while the office's "estimated pay" card can show overtime. So pay is
-the one money figure without a single true answer across the two halves. The
-office card is labelled an estimate, so this may be deliberate — but payroll in
-the app would not be a two-line port.
+**CORRECTION — I told you something untrue earlier tonight.** I passed on a
+publish-gate finding that "there is no overtime concept anywhere in the app;
+`CrewPay` pays hours × rate with no weekly threshold". I relayed it without
+checking it. It is false, and checking took five minutes:
+
+| | threshold | multiplier | applied? |
+|---|---|---|---|
+| Phone (`CrewPay.kt`) | `AFTER_HOURS = 40.0` | `MULTIPLIER = 1.5` | yes — `regular * weightedRate + overtime * weightedRate * multiplier` |
+| Office (`dashboard.html`) | `OT_AFTER_HOURS = 40` | `OT_MULTIPLIER = 1.5` | yes |
+
+Both read the same `company_settings` keys (`ot_after_hours` /
+`ot_multiplier`) with the same disclosed federal default, and `CrewPay.kt`'s own
+header says it mirrors the office's constants. **The two halves agree.** Pay is
+not the odd one out.
+
+What is actually missing is a *field*: nothing on either screen edits those
+keys, so they only change if somebody writes the row directly.
+
+**Where the false claim came from**, which is the part worth keeping: a stale
+comment in `dashboard.html`, three lines above the constants, denied that
+overtime was a setting at all. The gate read the comment rather than the code
+twenty lines below it. The comment is corrected, and
+`tests/a88-overtime-one-rule.test.mjs` now holds the two halves to one rule —
+because the real risk was never the reported bug, it was that `40` and `1.5`
+are written down in two files and nothing compared them. That is the shape of
+both of the night's expensive bugs: the business name in two stores, and the
+unverified-price rule in two predicates.
+
+The lesson is mine, not the gate's: a finding handed to me is a claim to test,
+not a result to forward.
 
 ---
 

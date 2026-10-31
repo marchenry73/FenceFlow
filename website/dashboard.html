@@ -16787,10 +16787,22 @@ function renderTimesheet(ot){
    about a garnishment or a benefit deduction. Presenting this as pay would
    invite somebody to write a cheque from it.
 
-   Overtime is an assumption, not a setting, and the page says so on screen.
-   Over forty hours in a week at one and a half times is the federal default;
-   a company on a different rule needs a setting, which does not exist yet.
-   Guessing silently would be worse than guessing out loud. */
+   Overtime IS a setting -- company_settings' ot_after_hours / ot_multiplier,
+   read by getOtSettings() above and by the phone through SettingsSync into
+   BusinessProfile.overtimeAfterHours / overtimeMultiplier. What does not exist
+   is a FIELD to set it in: in practice the keys only change if somebody writes
+   the row directly. The numbers below are the DISCLOSED DEFAULT used when a
+   company has not set one -- over forty hours in a week at one and a half
+   times, the federal rule -- and the page says on screen that it is an
+   assumption. Guessing silently would be worse than guessing out loud.
+
+   An earlier version of this comment denied both of those facts. The cost was
+   not theoretical: the publish
+   gate read it and reported "there is no overtime concept anywhere in the app",
+   which was passed on to the owner as a finding before anyone checked
+   CrewPay.kt -- where lines 279-280 split the week and apply the multiplier.
+   The two halves agree, and tests/a88-overtime-one-rule.test.mjs now holds them
+   to it. */
 const OT_AFTER_HOURS = 40;
 const OT_MULTIPLIER  = 1.5;
 
