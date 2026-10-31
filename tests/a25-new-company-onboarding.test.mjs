@@ -813,16 +813,42 @@ test("GAP (pinned): gate_rate has no field on the Settings tab or the phone -- o
 
 // ============================================== 6. BEING TOLD ==
 
-test("GAP (pinned): the phone tells a new owner the catalog and rates 'came pre-filled', with automatic seeding off", () => {
+test("FIXED: the first card a new owner sees no longer claims the catalog came pre-filled, and tells him to ADD what is missing", () => {
+  // WAS A PINNED GAP PLUS A TODO, both closed 31 Oct 2026. The string said
+  // "The catalog and labor rates came pre-filled so you can estimate from day
+  // one -- but they are starting numbers, not your numbers. Check them before
+  // your first real quote." The card shows whenever !profile.pricesReviewed,
+  // with no reference to whether the catalog holds anything, and nothing in the
+  // app seeds one: shouldAutoSeedMaterialItems is `= false`, asserted below.
+  //
+  // So a company with an empty catalog was told its prices were already there
+  // and invited to "check them" -- and "check them" is the wrong instruction
+  // for a list with nothing in it. It then hunts for numbers that do not exist,
+  // or believes they do and quotes from them.
+  //
+  // The pair is merged into one assertion rather than left as a gap and a todo:
+  // fixing the product would have turned the gap red and left the todo passing
+  // while still printing "# TODO", which reads as outstanding work.
   const body = androidString("jobs_make_prices_yours_body");
-  assert.match(body, /pre-filled/);
-  assert.match(seedKtCode, /fun shouldAutoSeedMaterialItems\([^)]*\)\s*:\s*Boolean\s*=\s*false/, "the catalog arrives empty");
+  assert.match(seedKtCode, /fun shouldAutoSeedMaterialItems\([^)]*\)\s*:\s*Boolean\s*=\s*false/,
+    "the catalog no longer arrives empty -- re-read this test, its premise has moved");
+  assert.doesNotMatch(body, /pre-filled|came pre/i,
+    "the card claims the catalog arrived pre-filled, which it does not");
+  // THE HALF THAT WAS MISSING, and the reason the wording mattered: an owner
+  // with nothing in the catalog has to be told to put something in it.
+  assert.match(body, /add\b/i,
+    "the card still only says to CHECK the prices -- a company with an empty catalog has nothing to check and must be told to add");
+  // CANARY: the same two checks must reject the string as it actually stood, or
+  // re-aiming them has produced a pair that cannot fail.
+  const was = "The catalog and labor rates came pre-filled so you can estimate from day one \u2014 but they are starting numbers, not your numbers. Check them before your first real quote.";
+  assert.throws(() => {
+    assert.doesNotMatch(was, /pre-filled|came pre/i, "canary");
+  }, /canary/, "the pre-filled check cannot fail, so it is checking nothing");
+  assert.throws(() => {
+    assert.match(was, /add\b/i, "canary");
+  }, /canary/, "the add check cannot fail, so it is checking nothing");
   // The two buttons on the same card: "They're right" clears it for good and pushes the profile.
   assert.ok(androidString("jobs_prices_right").length > 0);
-});
-
-test("SHOULD (todo): nothing shown to a new owner says the catalog came pre-filled while automatic seeding is off", { todo: "jobs_make_prices_yours_body still says so" }, () => {
-  assert.doesNotMatch(androidString("jobs_make_prices_yours_body"), /pre-filled|came pre/i);
 });
 
 test("the phone's first-run tour and its empty-catalog message never name the copy button; only the Catalog screen's empty card does", () => {

@@ -388,7 +388,31 @@ class AutoSync(
                 .map { it.companyId }
                 .distinctUntilChanged()
                 .filterNotNull()
-                .collect { runSync() }
+                .collect {
+                    // A NEW SIGN-IN REFILLS THE RETRY BUDGET.
+                    //
+                    // askAgainShortly's bound is per ATTEMPT CONTEXT, and this
+                    // is where a new one begins: the company id arriving is the
+                    // trigger that fires the first pass after signing in. The
+                    // counters are otherwise reset only by a pass that got an
+                    // answer, so three failed attempts spent them for the rest
+                    // of the process -- and every later unanswerable pass then
+                    // waited for a heartbeat instead of retrying: 60s with the
+                    // app open, fifteen minutes in a pocket. That is the whole
+                    // of "signing in on another phone does not sync immediately
+                    // and keeps saying it has not reached the cloud".
+                    //
+                    // It matters more since r59. A fresh sign-in whose token has
+                    // not attached yet used to get a confident DENIED from
+                    // can_see_pay -- the pass ran, through the crew door, and
+                    // scrubbed this phone's money. It now correctly gets
+                    // UNKNOWN, so every first sign-in comes through this retry
+                    // path rather than through a wrong answer, and the path has
+                    // to recover more than once.
+                    scopeRetries.set(0)
+                    tokenRetries.set(0)
+                    runSync()
+                }
         }
 
         // Heartbeat, so another phone's edits land here even when nothing
