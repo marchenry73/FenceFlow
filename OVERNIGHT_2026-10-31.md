@@ -154,6 +154,85 @@ not something to slip into someone else's migration overnight.
 
 ---
 
+## A4 (audit every money calculation): the arithmetic is covered, two
+## guards were not
+
+A4 asks for every money calculation in the app and the office to be audited and
+proved. I went at it from the outside rather than re-reading the engines,
+because the night's expensive bugs were all one shape: a fact written down in
+two halves with nothing comparing them.
+
+**The shared numbers are clean, and already guarded.** I swept every numeric
+constant in all four halves — the phone's Kotlin, the office page, quote-view
+and quote.html — and matched them across halves. Four looked like drift and all
+four were my own matching being sloppy: the phone deliberately records
+quote-view's ceilings *beside* its own lower limits
+(`SERVER_MAX_WIRE_CHARS = 1500` against its own `MAX_WIRE_CHARS = 1000`), with
+the comment "Nothing here may exceed them". `a38` and `a68` already compare both
+against quote-view's real source, `a88` pins overtime, and the downstream
+suites pin deposit, balance, posts, concrete, waste, tax and job costing. So
+the arithmetic is not where the risk was.
+
+**Where it was: of the office's 49 money-bearing functions, ten are named by no
+test at all.** I read the four that touch money a customer pays.
+`repriceAtOffice` turned out safe to leave — it does no arithmetic, it asks the
+server's `price-job` and shows you the answer. But one of the ten charges a
+card.
+
+### `offerCardCharge` — the one place the office takes money with nobody present
+
+It is careful code. It refuses without `card_consent_at` and a card on file,
+refuses without `REQUEST_PAYMENT` *and* an OWNER/MANAGER role, mints an
+idempotency key per button press so a double-tap is one charge, and — the
+subtle one — returns "handled" after `charge_unrecorded` so the office does
+**not** answer a maybe-charged card by charging it again.
+
+Every one of those is a line someone could delete in a hurry with no test going
+red. `tests/a90-charge-a-saved-card.test.mjs` now runs the real function out of
+the page against stubs — not a grep of its source, because a comment mentioning
+consent and an `if` enforcing it look identical to grep. 47 checks: the
+refusals, the amount in cents to the cent, the word the customer sees matching
+what is collected, and a positive control proving an owner who may bill still
+can (without it, every refusal check would pass on a function that refuses
+everybody, which is how a money door gets quietly welded shut). Four canaries,
+each watched failing: delete the consent gate and a card with no agreement is
+charged; delete the permission gate and CREW reaches the charge; send dollars
+where cents are expected and $1,000 bills as $10; drop the
+`charge_unrecorded` branch and the customer gets asked twice.
+
+### A guard that had quietly stopped guarding
+
+`tests/a110-office-next-request.test.mjs` proves the office asks a customer for
+the same figure the phone would, across twelve shapes of job. It compares the
+office against a hand transcription of `JobMoney.kt` — **and it never opened
+JobMoney.kt.** So what it actually proved was "the office agrees with what the
+phone's rule said when somebody last typed it out here". Change
+`nextRequestAmount` on the phone and all thirty checks stay green while the two
+halves diverge.
+
+That figure is what `offerCardCharge` bills to a saved card, and this rule has
+already moved once: on 2 October the phone offered to bill $4,154.47 while the
+customer's own page asked for $2,500.00 — both deliberate, both tested, side by
+side on screen.
+
+Its four siblings all guard against exactly this (`a4-deposit`, `a47`, `a66`
+and `downstream-deposit-balance` each fingerprint `JobMoney.kt` so a change
+fails the test and forces a re-read). a110 was the only one that did not. It
+does now. Before pinning it I re-read all six transcribed helpers against the
+live Kotlin function by function — `netPaid`, `stillOwed`, `depositAsked`,
+`depositStillDue`, `nextRequestAmount`, `nextRequestLabel`, and the cents
+rounding against `EstimateEngine.roundToCents` — so what is pinned is a correct
+copy and not a stale one made permanent. Then I changed JobMoney.kt and watched
+the new guard fail before restoring it.
+
+**Still uncovered, and not urgent:** the other nine of those ten office
+functions (`addJobCost`, `jobBalanceMailCompose`, `renderCosting`,
+`tierNeedsRates`, `bizMoneyShort`, and four that only measure feet). None of
+them computes a figure a customer is charged; they display or compose. Worth
+tests eventually, not worth holding A4 open for.
+
+---
+
 ## Two things come OFF the suspect list, and the deposit finding got stronger
 
 Re-running the corrected audit changed the list I gave you:

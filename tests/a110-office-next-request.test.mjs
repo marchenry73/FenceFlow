@@ -16,6 +16,7 @@
 //
 // Run:  node tests/a110-office-next-request.test.mjs
 import { readFileSync } from "node:fs";
+import { createHash } from "node:crypto";
 
 const dashboardSrc = readFileSync("website/dashboard.html", "utf8");
 const grabFn = (src, name) => {
@@ -51,6 +52,48 @@ const office = new Function(
       " nextRequestAmountOf, nextRequestLabelOf };",
   ].join("\n"),
 )();
+
+// ---------------------------------------------------------------------------
+// THIS FILE COMPARED THE OFFICE AGAINST A FROZEN COPY OF THE APP.
+//
+// Everything below transcribes JobMoney.kt by hand, and until now this file
+// never read JobMoney.kt at all -- it opened dashboard.html and nothing else.
+// So the check it performs was "the office agrees with what the app's rule
+// said when somebody last typed it out here", which is not the same claim as
+// "the office agrees with the app". Change nextRequestAmount on the phone and
+// every assertion in this file stays green while the two halves diverge.
+//
+// That matters here more than almost anywhere: nextRequestAmountOf is the
+// figure offerCardCharge() bills to a customer's saved card, and
+// nextRequestLabelOf is the word the customer sees on the charge. The rule
+// also moved once already, on 2 Oct 2026 -- the phone offered to bill
+// $4,154.47 while the customer's own page asked for $2,500.00, both
+// deliberate and both tested at the time.
+//
+// Its four siblings all guard against this (a4-deposit, a47-deposit-truth,
+// a66-deposit-one-meaning, downstream-deposit-balance each fingerprint
+// JobMoney.kt); this file was the one that did not. The fingerprint is the
+// same convention and the same CR-stripped hash, so a Kotlin change fails
+// here loudly and asks for a re-read instead of passing quietly.
+//
+// Before setting it, all six transcribed helpers below were re-read against
+// the live Kotlin function by function -- netPaid, stillOwed, depositAsked,
+// depositStillDue, nextRequestAmount, nextRequestLabel, and cents against
+// EstimateEngine.roundToCents. They match, so what is pinned is a correct
+// copy and not a stale one made permanent.
+// ---------------------------------------------------------------------------
+const JOB_MONEY_FINGERPRINT = "43f6fa9bc04acede";
+const jobMoneyNow = createHash("sha256")
+  .update(readFileSync("app/src/main/java/com/fenceestimator/app/estimate/JobMoney.kt", "utf8")
+    .split(String.fromCharCode(13)).join(""))
+  .digest("hex").slice(0, 16);
+ok(
+  "JobMoney.kt is the version this file was transcribed from",
+  jobMoneyNow === JOB_MONEY_FINGERPRINT,
+  "JobMoney.kt changed (" + jobMoneyNow + "). Re-read it against the transcription below -- "
+    + "especially nextRequestAmount and nextRequestLabel, which decide what a saved card is "
+    + "charged and what the customer is told it is for -- then update JOB_MONEY_FINGERPRINT."
+);
 
 // JobMoney.kt's rule, written out independently of the office's wording.
 const cents = (v) => (Number.isFinite(v) ? Math.round(v * 100) / 100 : v);
