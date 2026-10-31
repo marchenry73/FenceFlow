@@ -38,11 +38,26 @@ while the database still had it. An empty string could wipe the company email.
 - **Satellite zoom** -- the other half of D1.
 - **Nobody has looked at the new grid on a screen.** Drawing code, verified only by
   compiling and reading. That needs HIS eyes before it ships.
-- **Office and phone measure an uncalibrated job differently** -- the office assumes
-  20 px/ft and never reads the grid size, so they agree only at 400 ft. Unreachable
-  today, but the new grid sizes raise the possible error from 5x to 25x.
-- **A false comment in PricingAdapters.kt** -- the same lie four deleted parity
-  cases were removed for.
+- **DONE (office half) -- verified 31-10.** The office no longer assumes 20 px/ft:
+  `jobDrawingScale()` reads `grid_extent_ft` and nothing on the page hardcodes 20.
+  The remaining split is between the extent-aware DRAWING rules (phone screen,
+  office page) and the flat-20 PRICING rules (phone engine's footageOf fallback,
+  load.ts) -- deliberate, and safe only because no job can have a non-default
+  extent with no calibration: setGridExtent always writes one, and the office never
+  writes grid_extent_ft at all. Measured (16x over at the 25ft grid, 1/25 under at
+  10000ft) and guarded by tests/a91-one-scale-for-pricing.test.mjs. Closing the
+  split is a both-sides formula change that would reprice every uncalibrated job:
+  needs March. Original wording:
+  ~~the office assumes 20 px/ft and never reads the grid size, so they agree only at
+  400 ft. Unreachable today, but the new grid sizes raise the possible error from 5x
+  to 25x.~~
+- **DONE -- verified 31-10.** The comment now says the opposite, at length:
+  "THIS HARNESS CANNOT REACH THAT CASE, and not by oversight ... do not read a green
+  fixture as covering it", and names where the coverage really lives (PhotoScaleTest.kt
+  and tests/a17-photo-uncalibrated-pricing.test.mjs). The four parity cases were
+  removed on 29-09, four days after this list was written. Original wording:
+  ~~A false comment in PricingAdapters.kt -- the same lie four deleted parity cases
+  were removed for.~~
 - C1 cancellation, E2 sandbox product key, F2 merged change feeds, G1 drawing
   versions. G2 he said to leave.
 - The guest demo: manufacturers, push-another-job, re-sign contract, crew change

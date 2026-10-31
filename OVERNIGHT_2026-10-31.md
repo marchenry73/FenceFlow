@@ -154,6 +154,96 @@ not something to slip into someone else's migration overnight.
 
 ---
 
+## The grid size and the price disagree, except at 400 ft
+
+Your list carries this one as still open: "Office and phone measure an
+uncalibrated job differently -- the office assumes 20 px/ft and never reads the
+grid size, so they agree only at 400 ft. Unreachable today, but the new grid
+sizes raise the possible error from 5x to 25x."
+
+**Half of it is already fixed.** The office page used to hardcode 20 in four
+places; `jobDrawingScale()` reads the grid extent now, and nothing on that page
+hardcodes 20 any more. The satellite tool was the reason it mattered — it does
+not merely display at a scale, it *writes* the points it saves in one, so a
+trace added to a job drawn at 100 ft was stored at a quarter of its real length
+and priced at a quarter.
+
+**The other half is real, deliberate, and now measured.** Four pieces of code
+resolve a drawing's scale, and they split two against two:
+
+| | rule |
+|---|---|
+| phone drawing screen (`DrawingScale.of`) | extent-aware: 8000 / extent |
+| office page (`jobDrawingScale`) | extent-aware: 8000 / extent |
+| phone engine (`footageOf`'s fallback) | flat 20 |
+| server pricing (`load.ts`) | flat `calibration ?? 20` |
+
+Points are stored in canvas units, so drawing at `8000/extent` and pricing at
+20 bills a fence at `real feet x 400 / extent`. Measured against the nine grid
+sizes you can actually pick:
+
+```
+   25 ft grid  ->  16x     a fence billed SIXTEEN TIMES its length
+  400 ft grid  ->   1x     the one size where the two rules coincide
+10000 ft grid  ->  1/25    billed at four per cent of its length
+```
+
+Your "5x to 25x" is exactly right, and it is the undercharging direction — the
+old top grid size of 2000 ft gave 1/5, and 10000 ft gives 1/25. What the note
+does not say is that the *other* direction is worse for you: the 25 ft grid
+overcharges by 16x, and an overcharged customer is a phone call you cannot
+win.
+
+**Why nothing is wrong today.** The split only bites a job with a non-default
+grid extent AND no stored calibration, and that job cannot exist. The phone's
+`setGridExtent` writes `calibrationPixelsPerFoot` whenever it changes the
+scale, and — the part that is invisible and easy to break — **the office never
+writes `grid_extent_ft` at all.** It reads the column and offers no control for
+it. So a non-default extent can only come from the phone, which always sets a
+calibration beside it.
+
+That is a guard made of an absence, which is the kind that disappears without
+anyone noticing. The day the office gains a grid-size picker, or `load.ts`
+starts reading the extent without the engine following, the server prices a
+fence at up to sixteen times its length with every existing test green.
+
+`tests/a91-one-scale-for-pricing.test.mjs` pins all of it: that the two engines
+still share one fallback, that 400 ft is the only size where the rules agree
+(derived from the constants, not typed in), the divergence factor at each of
+the nine sizes, that a calibrated job cannot diverge at all, that the office
+still does not write the extent, and that the satellite save still refuses when
+there is no scale. Every number is read out of `DrawingScale.kt`,
+`SurveyViewModel.kt` and `load.ts` rather than written into the test, so
+changing a constant moves the test with it. I planted a `grid_extent_ft` writer
+in the office page and watched the guard go red before putting it back.
+
+**I did not close the split**, and I would not without your word: making the
+engine extent-aware is a formula change on both sides of a parity contract,
+and it would reprice every uncalibrated job in the database. The guard plus the
+measurement is the honest position until you decide.
+
+---
+
+## Two entries on your list are already done
+
+While picking tonight's work I checked two of the "Still open" entries and both
+have been fixed since the list was written on 25 September:
+
+* **"Office and phone measure an uncalibrated job differently"** — the office
+  half is fixed, as above. The remaining split is now guarded and measured.
+* **"A false comment in PricingAdapters.kt -- the same lie four deleted parity
+  cases were removed for"** — fixed. That comment now says the opposite, in
+  detail: "THIS HARNESS CANNOT REACH THAT CASE, and not by oversight... do not
+  read a green fixture as covering it", and names where the coverage really
+  lives (`PhotoScaleTest.kt` and `tests/a17-photo-uncalibrated-pricing.test.mjs`).
+  The four cases were removed on 29 September, four days after your list.
+
+Both are struck from `OWNER_LIST_2026-09-25.md` with a note saying when and
+why, rather than deleted — a list that quietly loses entries is worse than one
+with stale ones.
+
+---
+
 ## A4 (audit every money calculation): the arithmetic is covered, two
 ## guards were not
 
