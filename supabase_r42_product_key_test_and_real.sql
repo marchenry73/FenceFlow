@@ -221,6 +221,78 @@ comment on column public.companies.is_sandbox is
 
 grant select (is_sandbox) on public.companies to authenticated;
 grant select (is_sandbox) on public.companies to anon;
+
+-- ------------------------------------------------------------------------
+-- AND IT MUST NOT BE WRITABLE. This file's own check below tests exactly
+-- that, and without what follows it reads FALSE.
+--
+-- public.companies carries TWO TABLE-LEVEL update grants -- to authenticated
+-- and to anon -- so every column added to it inherits INSERT and UPDATE
+-- immediately. Measured on the live database before this was written:
+--
+--     total columns                34
+--     updatable by authenticated   34
+--     table-level update grants     2
+--
+-- So `add column is_sandbox` hands the flag to any signed-in caller for its own
+-- row. The whole point of the column is a sandbox a company cannot declare for
+-- itself, and PART 2's header says the flag is inert precisely so that nobody
+-- believes in a containment that is not there -- a writable flag is worse than
+-- that: it is a containment that can be switched on by the company it is meant
+-- to describe, the moment anything starts reading it.
+--
+-- The same asymmetry bit this project once before in the other direction:
+-- SELECT on companies is per-column, and a new column arriving ungranted took
+-- every company email down. UPDATE being table-level is the mirror of that bug.
+-- After this, both behave the same way.
+--
+-- GENERATED FROM THE CATALOG, not listed by hand. Thirty-three column names
+-- typed into a migration is a list that will be missing one, and the failure
+-- mode is the office silently unable to save a field nobody tests.
+--
+-- anon's privileges are left exactly as they are. That anon holds INSERT and
+-- UPDATE on companies at all is a fair question, and it belongs to the owner,
+-- not to a rewrite inside this file.
+do $sandbox_grants$
+declare
+    cols text;
+    role_name text;
+begin
+    select string_agg(quote_ident(column_name), ', ' order by ordinal_position)
+      into cols
+      from information_schema.columns
+     where table_schema = 'public'
+       and table_name = 'companies'
+       and column_name <> 'is_sandbox';
+    if cols is null then
+        raise exception 'r42: could not read companies'' columns, so the grants were left alone';
+    end if;
+
+    foreach role_name in array array['authenticated', 'anon'] loop
+        -- The table-level grant is what reaches a new column, so it has to go
+        -- before the per-column grants are put back.
+        execute format('revoke insert, update on public.companies from %I', role_name);
+        execute format('grant insert (%s) on public.companies to %I', cols, role_name);
+        execute format('grant update (%s) on public.companies to %I', cols, role_name);
+    end loop;
+
+    -- Proven here as well as in the checks below, because this is the statement
+    -- whose silent failure would leave the office unable to save a company.
+    if exists (select 1 from information_schema.role_column_grants
+                where table_schema = 'public' and table_name = 'companies'
+                  and column_name = 'is_sandbox'
+                  and privilege_type in ('INSERT', 'UPDATE')
+                  and grantee in ('authenticated', 'anon')) then
+        raise exception 'r42: is_sandbox is still writable by a client after the re-grant';
+    end if;
+    if not exists (select 1 from information_schema.role_column_grants
+                    where table_schema = 'public' and table_name = 'companies'
+                      and column_name = 'name'
+                      and privilege_type = 'UPDATE'
+                      and grantee = 'authenticated') then
+        raise exception 'r42: the re-grant did not put UPDATE back on companies.name -- the office cannot save a company';
+    end if;
+end $sandbox_grants$;
 grant select (is_sandbox) on public.companies to service_role;
 
 

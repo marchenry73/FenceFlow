@@ -100,6 +100,60 @@ npx supabase db query --linked --project-ref newcrgafcptspmapacrx -f supabase_r8
 
 ---
 
+## r42 (item E2) had a real defect, found before you applied it
+
+I ran the whole file against the live database inside a **rolled-back**
+transaction and read its own twenty proof rows. Nineteen were as intended. The
+twentieth was not, and it is the one that matters:
+
+```
+is_sandbox is NOT writable by a client, which is the point of it   ->  false
+```
+
+**Why.** `public.companies` has 34 columns and **two table-level UPDATE
+grants**, to `authenticated` and to `anon`:
+
+```
+total columns                34
+updatable by authenticated   34
+table-level update grants     2
+```
+
+A table-level grant extends to every column added later, so
+`add column is_sandbox` would have handed write access to it immediately.
+
+**Who could actually have written it.** Not `anon` — RLS denies them, because
+both UPDATE policies need an identity (`is_platform_admin()`, or
+`id = current_company_id() AND current_user_role() = 'OWNER'`). But that second
+policy lets an **owner update their own company row** — so a live company could
+have declared *itself* a sandbox. For a flag whose entire purpose is a sandbox a
+company cannot set for itself, that is the hole, and r42's own check caught it.
+
+Nothing reads the flag yet — r42 says so, deliberately, "rather than implying a
+containment that is not there" — so there was no live exposure. It would have
+become one the first time anything read it to suppress real mail or payments.
+
+**Fixed in the file, not applied.** The table-level INSERT/UPDATE are replaced
+by per-column grants over every column except `is_sandbox`, generated from the
+catalog rather than typed out — a hand-written list of 33 column names is a list
+that will be missing one, and the failure mode is the office silently unable to
+save a field. The re-grant asserts both halves itself: `is_sandbox` unwritable,
+and `companies.name` still updatable so the office can still save. **All twenty
+proof rows now read true**, re-run against live and rolled back.
+
+This also exposed an asymmetry worth knowing: `SELECT` on `companies` is
+per-column, `UPDATE` was table-level. The per-column SELECT already bit this
+project once in the other direction — a new column arrived ungranted and took
+every company email down. After this, both behave the same way.
+
+**One thing I deliberately did not change:** `anon` keeps exactly the
+privileges it has now. That `anon` holds INSERT/UPDATE on `companies` at all is
+a fair question — it is harmless today only because RLS denies it, which is one
+layer rather than two — but narrowing a role's privileges is yours to decide,
+not something to slip into someone else's migration overnight.
+
+---
+
 ## Three more migrations that were never applied
 
 I checked all **346** `supabase_*.sql` files in the repo against the live
