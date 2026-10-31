@@ -5,6 +5,62 @@ not touch.
 
 ---
 
+## FIRST, because it is money: the deposit does not follow a re-price
+
+`supabase_r8_deposit_follows_price.sql` is **half applied**. The function
+`deposit_follows_price()` is live. **Its trigger on `public.jobs` is not** — so
+nothing calls it, and the rule you decided on 24 September ("deposit must
+follow re-price everywhere") has never been in effect. Re-price a draft and the
+deposit silently stays at the old figure.
+
+The file's own ten proofs all pass against the live database inside a
+rolled-back transaction, canary included: a plain draft follows, an approved or
+signed job is frozen, a withdrawn approval follows again, money paid freezes it,
+a deposit typed in the same statement is never re-scaled, and the scaled figure
+is capped at the price — your $3,963-deposit-on-a-$3,620-job case.
+
+I did not apply it, because it changes money behaviour and the call is yours:
+
+```
+npx supabase db query --linked --project-ref newcrgafcptspmapacrx -f supabase_r8_deposit_follows_price.sql
+```
+
+---
+
+## Three more migrations that were never applied
+
+I checked all **346** `supabase_*.sql` files in the repo against the live
+database — extract every table, view, function and trigger each one creates,
+then ask the database which of them exist. 16 came back fully absent (most are
+throwaway `pg_temp` probe files) and 11 partly. These are the real ones:
+
+**`supabase_r42_product_key_test_and_real.sql` — this is item E2, already
+solved.** Written 24 October, never run. It works the problem out properly:
+TEST vs REAL is a property of the **company**, not of the code, so it reuses
+`company_setup_codes` and the phone needs no change at all. It adds
+`admin_mint_setup_code`, because the admin portal currently cannot issue a key
+for a company that already exists — it can only copy the one shown at creation
+— plus a deliberately inert company-level sandbox flag. It also records why your
+four `ZZ TEST` companies are unreachable: **zero setup codes and zero profiles
+each**, so nobody can sign in to see the test data they hold.
+
+I had told you earlier in the night that E2 needed you to define what the
+sandbox was. That was wrong. I should have looked for a migration before
+concluding — which is precisely the check that found r9 unapplied earlier the
+same evening.
+
+**`supabase_r20_seed_new_company_catalog.sql`** — `seed_starting_catalog` and
+its trigger. This is *why* `shouldAutoSeedMaterialItems` is `= false` and why a
+new company's catalog is empty, which is the same fact behind the prices card I
+reworded tonight.
+
+**`supabase_r53_more_than_one_crew_on_a_job.sql`** — the `job_assignments`
+table. The other half of the multi-crew feature whose companion
+(`supabase_crew_job_scope.sql`) is still waiting on your decision, and which I
+proved runnable earlier tonight.
+
+---
+
 ## The two things that need you — both one-off, both a minute
 
 **1. Turn the device lock on.** Office → Settings → Product keys → **"Only one

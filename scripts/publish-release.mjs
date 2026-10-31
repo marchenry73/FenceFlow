@@ -52,13 +52,23 @@
  * own login rather than a key stored anywhere.
  */
 import { execFileSync, spawnSync } from "node:child_process";
-import { writeFileSync, rmSync, existsSync, readdirSync, copyFileSync, statSync, mkdirSync, renameSync, createReadStream, createWriteStream } from "node:fs";
+// readFileSync: the duplicate-name branch reads the built APK back to compare
+// it with what is already in the bucket.
+import { writeFileSync, readFileSync, rmSync, existsSync, readdirSync, copyFileSync, statSync, mkdirSync, renameSync, createReadStream, createWriteStream } from "node:fs";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
 import { createGzip } from "node:zlib";
 import { pipeline } from "node:stream/promises";
 
 const PROJECT_REF = "newcrgafcptspmapacrx";
+// The Supabase CLI this publish runs on, PINNED. Unpinned, npx follows the
+// latest release, so a publish can break because of a version nobody here
+// chose. That is not hypothetical: on 31 Oct 2026 the upload failed twice with
+// "Error: spawn UNKNOWN" thrown from inside the freshly-fetched 2.122.0, after
+// the gate had passed 9 of 9 -- and the same `storage cp` run by hand on
+// 2.115.0 succeeded immediately. Every other Supabase call in this repo, tests
+// included, pins this same version.
+const SUPABASE_CLI = "supabase@2.115.0";
 const REPO_ROOT = resolve(import.meta.dirname, "..");
 
 const args = process.argv.slice(2);
@@ -597,7 +607,15 @@ function uploadApk(code) {
     execFileSync(
       "npx.cmd",
       [
-        "-y", "supabase", "storage", "cp", "--experimental",
+        // PINNED. This said "-y", "supabase", which resolves to whatever the
+        // latest release happens to be -- and on 31 Oct 2026 npx fetched
+        // 2.122.0, whose own binary threw "Error: spawn UNKNOWN" from inside
+        // the CLI. The gate passed 9 of 9 and the upload then failed twice,
+        // while every other Supabase call in this repo -- all pinned to
+        // 2.115.0 -- worked fine, including this exact `storage cp` by hand.
+        // A publish must not change behaviour because somebody else shipped a
+        // release: the version moves when we move it.
+        "-y", SUPABASE_CLI, "storage", "cp", "--experimental",
         LINK_APK_REL,
         `"ss:///releases/${remote}"`,
         "--linked", "--project-ref", PROJECT_REF
@@ -629,8 +647,55 @@ function uploadApk(code) {
     // A duplicate name is worth calling out by itself, because the cause is
     // almost always the same one and the CLI's wording does not say it.
     if (/KeyAlreadyExists|Duplicate|already exists/i.test(detail)) {
+      // A TAKEN NAME HAS TWO CAUSES, AND ONLY ONE OF THEM IS A MISTAKE.
+      //
+      // The usual one is below: nothing was committed, so the hash in the
+      // filename did not move. The other is a RETRY after an upload that
+      // failed partway, or after one that succeeded and then something later
+      // in this script died -- and on 31 Oct 2026 that happened twice in a row
+      // when an unpinned CLI threw "spawn UNKNOWN", leaving the bucket object
+      // in place with no release row behind it. Refusing that retry leaves the
+      // publish permanently stuck: the name can never be freed, because the
+      // CLI's `storage rm` answers {"deleted":[]} and removes nothing.
+      //
+      // So ask which it is instead of assuming. Fetch what is actually in the
+      // bucket and compare it, byte for byte, with the APK that was just
+      // checked. Identical means the upload is already done and this is a
+      // retry -- carry on. Different means a DIFFERENT build is sitting under
+      // this name, which is the dangerous case and still refuses.
+      //
+      // Read through the apk-proxy because that is the URL phones are given,
+      // so this also proves the bytes a phone would receive, not just the ones
+      // storage claims to hold.
+      const url = `https://${PROJECT_REF}.supabase.co/functions/v1/apk-proxy?f=${remote}`;
+      const same = (() => {
+        try {
+          const got = execFileSync("curl", ["-sL", "--max-time", "300", url], {
+            encoding: "buffer", maxBuffer: 256 * 1024 * 1024,
+          });
+          const mine = readFileSync(join(REPO_ROOT, LINK_APK_REL));
+          return got.length === mine.length && got.equals(mine);
+        } catch (err) {
+          console.error("  could not read back what is in the bucket: " + String(err.message || err).slice(0, 200));
+          return false;   // Cannot tell -> treat as the dangerous case.
+        }
+      })();
+      if (same) {
+        console.error(
+          "\nThat name is already taken, and what is in the bucket is THIS " +
+          "build, byte for byte.\nTreating the upload as already done and " +
+          "carrying on -- this is a retry, not a stale name."
+        );
+        keepASpareCopy(remote);
+        return url;
+      }
       console.error(
-        "\nThat name is already taken in the bucket, which means the commit " +
+        "\nThat name is already taken in the bucket AND what is there is a " +
+        "DIFFERENT build.\nThat is the dangerous case: a phone told to update " +
+        "would receive those other bytes.\n"
+      );
+      console.error(
+        "That usually means the commit " +
         "hash has not moved.\nCommit this work first: the version number and " +
         "the file name both come from the commit count."
       );
@@ -761,7 +826,8 @@ writeFileSync(file, sql);
 try {
   const out = execFileSync(
     "npx.cmd",
-    ["-y", "supabase", "db", "query", "--linked", "--project-ref", PROJECT_REF, "-f", `"${file}"`],
+    // Pinned for the same reason as the upload above.
+    ["-y", SUPABASE_CLI, "db", "query", "--linked", "--project-ref", PROJECT_REF, "-f", `"${file}"`],
     { encoding: "utf8", shell: true }
   );
   if (/"error"/.test(out)) {
