@@ -539,11 +539,34 @@ test("GAP (pinned): the office catalog editor cannot mark a starting price as ch
   assert.ok(office.unverifiedPricesOn(job).length >= 5, "and the job is still blocked on it");
 });
 
-test("SHOULD (todo): editing a starting-price row in the office editor clears its unverified flag", { todo: "there is no way to confirm a price on the web; only the phone's Confirm box (source_doc = Confirmed) does" }, () => {
+test("FIXED: a starting-price row can be confirmed from the office editor, with the box ticked", () => {
+  // WAS A TODO, closed 31 Oct 2026: catalogItemPayload never named source_doc,
+  // so the only way to clear the flag was the phone's Confirm switch. It became
+  // the blocking half of the same night's a86 change, which made the office
+  // REFUSE to send a quote priced off a flagged row -- a stricter refusal whose
+  // remedy lived on another device.
+  //
+  // The rule is the phone's, ported: ticking the box stamps CONFIRMED, leaving
+  // it alone keeps the flag (so editing a name does not confirm a price), and a
+  // row carrying a real invoice reference keeps it while its price is unchanged.
+  // tests/a87-confirm-a-price-from-the-web.test.mjs runs both rules branch by
+  // branch; this records that the gap pinned here is gone.
+  //
+  // The box is only OFFERED for a flagged row, so this passes
+  // price_confirmed: true explicitly -- which is what the dialog sends when the
+  // owner ticks it.
   const existing = { ...office.CATALOG_SEED.find((r) => r.role === "PANEL"), sync_id: "s" };
-  const payload = office.catalogItemPayload(existing, { name: existing.name, fence_type: existing.fence_type, category: existing.category, role: existing.role,
-    color_or_finish: "", unit: existing.unit, unit_price: 61.5, covers_ft: existing.covers_ft, taxable: true, is_active: true, manufacturer_sync_id: "" }, "x");
-  assert.equal(office.isSeededUnverifiedPrice(upsertMerge(existing, payload).source_doc), false);
+  const form = { name: existing.name, fence_type: existing.fence_type, category: existing.category, role: existing.role,
+    color_or_finish: "", unit: existing.unit, unit_price: 61.5, covers_ft: existing.covers_ft, taxable: true, is_active: true, manufacturer_sync_id: "" };
+  const confirmed = office.catalogItemPayload(existing, { ...form, price_confirmed: true }, "x");
+  assert.equal(office.isSeededUnverifiedPrice(upsertMerge(existing, confirmed).source_doc), false,
+    "ticking the box on a starting-price row did not clear its unverified flag");
+  // CANARY: without the box -- which is how every caller before this change
+  // behaved -- the flag must still be there, or the assertion above would pass
+  // whatever the dialog sent.
+  const untouched = office.catalogItemPayload(existing, form, "x");
+  assert.equal(office.isSeededUnverifiedPrice(upsertMerge(existing, untouched).source_doc), true,
+    "canary: the flag cleared with no box offered, so ticking it proves nothing");
 });
 
 test("FIXED: an imported price is unverified to the office too, not just to the phone", () => {

@@ -3577,6 +3577,18 @@
       <label style="display:flex;align-items:center;gap:6px;margin-top:8px">
         <input type="checkbox" id="ci_active" style="width:auto"> <span data-t="catColActive">Active</span>
       </label>
+      <!-- Shown ONLY for a row that is currently flagged, which is the only
+           state where ticking it does anything: the phone's switch starts ON
+           for a verified row and there is no way back to unverified. A box that
+           cannot change anything is a box that teaches people to ignore
+           boxes. -->
+      <div id="ci_confirmed_wrap" style="display:none;margin-top:8px">
+        <label style="display:flex;align-items:center;gap:6px">
+          <input type="checkbox" id="ci_confirmed" style="width:auto">
+          <span data-t="ciConfirmedLabel">Price confirmed</span>
+        </label>
+        <div class="sub" style="margin-top:4px" data-t="ciConfirmedHint">This price is still one FenceFlow or an import put here, not one you checked. Tick this once it is your number — a quote priced off an unchecked row cannot be sent.</div>
+      </div>
     </div>
   </div>
   <div class="sheet-foot">
@@ -5332,6 +5344,8 @@ jobViewAll:'All', jobViewToday:'Today', jobViewWeek:'This week', jobViewUnschedu
     catColHeightFt:'Height ft', catHeightNotSetTitle:'No height set. For a run whose height another panel of the same width does state, that panel is chosen over this one.',
     ciLabelSupplierPrice:'Supplier price ($)', ciLabelSupplier:'Supplier', ciNotSetOption:'Not set',
     ciLabelSku:'Supplier SKU / part #', ciSkuPh:'Whatever the yard\'s own system calls it',
+    ciConfirmedLabel:'Price confirmed',
+    ciConfirmedHint:'This price is still one FenceFlow or an import put here, not one you checked. Tick this once it is your number — a quote priced off an unchecked row cannot be sent.',
     ciTaxableLabel:'Taxable', ciSaveBtn:'Save',
     ciEditTitle:'Edit catalog item', ciNewTitle:'New catalog item',
     ciNameRequiredMsg:'Give this item a name.',
@@ -7200,6 +7214,8 @@ jobViewAll:'Todos', jobViewToday:'Hoy', jobViewWeek:'Esta semana', jobViewUnsche
     catColHeightFt:'Alto pies', catHeightNotSetTitle:'Sin alto definido. Para un tramo cuyo alto otro panel del mismo ancho sí indica, se elige ese panel en lugar de este.',
     ciLabelSupplierPrice:'Precio del proveedor ($)', ciLabelSupplier:'Proveedor', ciNotSetOption:'Sin definir',
     ciLabelSku:'SKU / número de parte del proveedor', ciSkuPh:'Como sea que lo llame el sistema del propio proveedor',
+    ciConfirmedLabel:'Precio confirmado',
+    ciConfirmedHint:'Este precio sigue siendo uno que puso FenceFlow o una importación, no uno que usted haya comprobado. Marque esto cuando sea su cifra: un presupuesto basado en una fila sin comprobar no se puede enviar.',
     ciTaxableLabel:'Gravable', ciSaveBtn:'Guardar',
     ciEditTitle:'Editar artículo del catálogo', ciNewTitle:'Nuevo artículo del catálogo',
     ciNameRequiredMsg:'Ponga un nombre a este artículo.',
@@ -9038,6 +9054,8 @@ jobViewAll:'Tous', jobViewToday:'Aujourdhui', jobViewWeek:'Cette semaine', jobVi
     catColHeightFt:'Hauteur (pi)', catHeightNotSetTitle:'Hauteur non définie. Pour une section dont la hauteur est indiquée par un autre panneau de même largeur, c’est ce panneau qui est retenu à la place de celui-ci.',
     ciLabelSupplierPrice:'Prix fournisseur ($)', ciLabelSupplier:'Fournisseur', ciNotSetOption:'Non défini',
     ciLabelSku:'UGS / numéro de pièce du fournisseur', ciSkuPh:'Peu importe comment le système du fournisseur l\'appelle',
+    ciConfirmedLabel:'Prix confirmé',
+    ciConfirmedHint:'Ce prix est encore celui mis par FenceFlow ou par un import, pas un prix que vous avez vérifié. Cochez ceci quand c’est votre chiffre : un devis basé sur une ligne non vérifiée ne peut pas être envoyé.',
     ciTaxableLabel:'Taxable', ciSaveBtn:'Enregistrer',
     ciEditTitle:'Modifier l\'article du catalogue', ciNewTitle:'Nouvel article du catalogue',
     ciNameRequiredMsg:'Donnez un nom à cet article.',
@@ -17453,6 +17471,43 @@ function catalogItemPayload(existing, form, newSyncId){
     // error.
     manufacturer_sync_id: form.manufacturer_sync_id || null,
   };
+  /* THE UNVERIFIED FLAG, by the phone's rule rather than a second one.
+     CatalogScreen.currentEdits is the original; this is a port of it, and the
+     branches are its branches:
+
+       startedUnverified  the row was flagged when the dialog OPENED, so ticking
+                          the box is the only thing that clears it -- editing a
+                          name does not quietly confirm a price;
+       keepsSource        a row carrying a real source (an invoice reference)
+                          keeps it while its price is unchanged, because that
+                          reference is the only record of where the price came
+                          from and "Confirmed" would destroy it;
+       otherwise          a changed price no longer matches that reference, and a
+                          blank source has nothing to protect, so both are
+                          stamped.
+
+     Unticking the box on an already-verified row does NOT un-confirm it: the
+     phone has no way back to unverified and the office must not invent one.
+
+     form.price_confirmed === undefined means the caller is not offering the box
+     at all, and then source_doc is left off the payload entirely -- a
+     merge-style write keeps whatever the row holds, which is what every caller
+     before this one relied on. */
+  if(form.price_confirmed !== undefined){
+    const was = existing ? String(existing.source_doc || '') : '';
+    const startedUnverified = isSeededUnverifiedPrice(was);
+    const priceUnchanged = !!existing && Number(form.unit_price) === Number(existing.unit_price);
+    const keepsSource = !startedUnverified && was.trim() !== '' && priceUnchanged;
+    // SeedData.CONFIRMED, inline. A top-level const here is NOT reachable:
+    // the test harnesses that exercise this function load the page's
+    // FUNCTIONS into a scope of their own and not its consts, so a25 threw
+    // "CONFIRMED_SOURCE_DOC is not defined" -- the same trap that put a
+    // module-level labels const inside isSeededUnverifiedPrice and turned
+    // five files red an hour earlier. tests/a87 asserts this literal still
+    // equals the Kotlin's.
+    if(form.price_confirmed && !keepsSource) row.source_doc = "Confirmed";
+    else if(existing) row.source_doc = was;
+  }
   // height_ft is in the payload ONLY when the caller put it on the form. undefined
   // means "do not touch the column": the box is hidden (a role the engines read no
   // height on), the column does not exist on this deployment, or an existing row's box
@@ -18022,6 +18077,12 @@ function openCatItemDialog(existing, forcedType){
   catHeightLoaded = $('ci_height').value;
   $('ci_taxable').checked = existing ? existing.taxable !== false : true;
   $('ci_active').checked = existing ? existing.is_active !== false : true;
+  // Only for a row that is flagged right now. Unticked when shown, exactly as
+  // the phone's switch starts for such a row -- so saving a name change leaves
+  // the flag alone and only a deliberate tick clears it.
+  const flagged = !!existing && isSeededUnverifiedPrice(existing.source_doc);
+  $('ci_confirmed_wrap').style.display = flagged ? '' : 'none';
+  $('ci_confirmed').checked = false;
   const hasSupplierPrice = catalogHasSupplierPrice();
   $('ci_supplier_wrap').style.display = hasSupplierPrice ? '' : 'none';
   if(hasSupplierPrice) $('ci_supplier').value = existing?.supplier_unit_price ?? '';
@@ -18056,6 +18117,9 @@ async function saveCatItemDialog(){
     taxable: $('ci_taxable').checked,
     is_active: $('ci_active').checked,
     manufacturer_sync_id: $('ci_manufacturer').value,
+    // The box only exists for a row that has one to clear, so on a new item or
+    // an already-confirmed row this is undefined and source_doc is left alone.
+    price_confirmed: $('ci_confirmed_wrap').style.display === 'none' ? undefined : $('ci_confirmed').checked,
   };
   if(!form.name){ msg('catItemDialogMsg', tr('ciNameRequiredMsg'), 'err'); return; }
   // Height is written only where the engines read it (a panel or gate panel), only once the

@@ -46,12 +46,35 @@ compares every label and near miss, with a canary proving the old rule
 disagreed. `a25` had already pinned this gap as known; that pin now records it
 as closed.
 
-**What to expect when you push it:** a job priced off an imported-unverified row
-will be refused at the office quote panel, as it already is on the phone. The fix
-is to tick the price as confirmed — which is the one genuine gap still open here:
-there is **no way to confirm a price from the web** (only the phone's Confirm
-box sets `source_doc = Confirmed`). That remains `a25`'s single honest todo. If
-you want, the next thing I build is that button.
+**And the remedy is built, in the same commit batch.** There is now a
+**"Price confirmed"** box in the office catalog editor, so a flagged row can be
+cleared from the web instead of only from the phone. That was `a25`'s last
+honest todo, and it was the blocking half of the change above: a stricter
+refusal whose only remedy lived on another device is half a fix.
+
+The rule is the phone's, ported rather than reinvented — which matters more here
+than usual, because the bug above *was* these two halves disagreeing about this
+exact column:
+
+* ticking the box stamps `Confirmed`;
+* leaving it alone keeps the flag, so editing a name does **not** quietly
+  confirm a price;
+* a row carrying a real invoice reference (`FloriFence Invoice 36499…`) keeps it
+  while its price is unchanged — that reference is the only record of where the
+  price came from, and "Confirmed" would destroy it;
+* a **changed** price no longer matches that reference, so it is stamped;
+* unticking does not un-confirm. The phone has no way back to unverified and the
+  office does not invent one.
+* the box only appears for a row that is flagged now, because that is the only
+  state where ticking it does anything.
+
+`tests/a87-confirm-a-price-from-the-web.test.mjs` runs both rules over every
+branch and fails if they diverge, with three plausible wrong rules as canaries
+(stamp-on-every-save, stamp-over-an-invoice-reference, let-unticking-revert) —
+each of which must disagree with the phone, or the comparison proves nothing.
+Removing the feature from the page turns the file red; I checked.
+
+**a25 now has zero todos**, down from two at the start of the night.
 
 ---
 
