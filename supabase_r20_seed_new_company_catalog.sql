@@ -456,8 +456,9 @@ security definer
 set search_path = public, pg_temp
 as $function$
 declare
-    why text;
-    st  text;
+    why    text;
+    st     text;
+    logged bigint;
 begin
     begin
         perform public.seed_starting_catalog(new.id);
@@ -467,7 +468,35 @@ begin
         begin
             insert into public.app_errors (company_id, message, where_at, stack, fatal)
             values (new.id, 'Starting catalog was not seeded: ' || why,
-                    'companies_seed_starting_catalog', 'SQLSTATE ' || st, false);
+                    'companies_seed_starting_catalog', 'SQLSTATE ' || st, false)
+            returning id into logged;
+            -- WHY THE COMPANY IS PUT BACK, measured 2026-11-05 and not assumed.
+            -- app_errors carries a BEFORE INSERT trigger, 00_stamp_app_error_owner,
+            -- which for any writer that is not the backend overwrites company_id
+            -- with public.current_company_id() -- the CALLER's company, because a
+            -- crash report filed by a signed-in person is not allowed to name
+            -- somebody else's business. It corrects rather than refuses, so the
+            -- insert reports success either way.
+            --
+            -- During a sign-up that is fatal to this row. This trigger is AFTER
+            -- INSERT on companies, and it runs BEFORE create_company_with_owner
+            -- has written the owner's profiles row, so current_company_id() is
+            -- NULL and the row lands with company_id NULL: logged, and invisible
+            -- in every per-company view, which is the same as not logged at all.
+            -- That is exactly what this file's own check caught -- "the failure
+            -- was written to app_errors, naming the company" read 0, while the
+            -- orphaned row sat there with a NULL company.
+            --
+            -- The row is this trigger's own, so it corrects it. The stamp trigger
+            -- is INSERT-only, so an UPDATE sticks; and `is distinct from` means
+            -- the statement is a no-op on every path where the stamp left the
+            -- company alone.
+            if logged is not null then
+                update public.app_errors
+                   set company_id = new.id
+                 where id = logged
+                   and company_id is distinct from new.id;
+            end if;
         exception when others then
             raise warning 'Starting catalog was not seeded for company % (% / %), and that could not be logged (%)',
                 new.id, st, why, sqlerrm;
@@ -814,8 +843,9 @@ security definer
 set search_path = public, pg_temp
 as $function$
 declare
-    why text;
-    st  text;
+    why    text;
+    st     text;
+    logged bigint;
 begin
     begin
         perform public.seed_starting_catalog(new.id);
@@ -825,7 +855,35 @@ begin
         begin
             insert into public.app_errors (company_id, message, where_at, stack, fatal)
             values (new.id, 'Starting catalog was not seeded: ' || why,
-                    'companies_seed_starting_catalog', 'SQLSTATE ' || st, false);
+                    'companies_seed_starting_catalog', 'SQLSTATE ' || st, false)
+            returning id into logged;
+            -- WHY THE COMPANY IS PUT BACK, measured 2026-11-05 and not assumed.
+            -- app_errors carries a BEFORE INSERT trigger, 00_stamp_app_error_owner,
+            -- which for any writer that is not the backend overwrites company_id
+            -- with public.current_company_id() -- the CALLER's company, because a
+            -- crash report filed by a signed-in person is not allowed to name
+            -- somebody else's business. It corrects rather than refuses, so the
+            -- insert reports success either way.
+            --
+            -- During a sign-up that is fatal to this row. This trigger is AFTER
+            -- INSERT on companies, and it runs BEFORE create_company_with_owner
+            -- has written the owner's profiles row, so current_company_id() is
+            -- NULL and the row lands with company_id NULL: logged, and invisible
+            -- in every per-company view, which is the same as not logged at all.
+            -- That is exactly what this file's own check caught -- "the failure
+            -- was written to app_errors, naming the company" read 0, while the
+            -- orphaned row sat there with a NULL company.
+            --
+            -- The row is this trigger's own, so it corrects it. The stamp trigger
+            -- is INSERT-only, so an UPDATE sticks; and `is distinct from` means
+            -- the statement is a no-op on every path where the stamp left the
+            -- company alone.
+            if logged is not null then
+                update public.app_errors
+                   set company_id = new.id
+                 where id = logged
+                   and company_id is distinct from new.id;
+            end if;
         exception when others then
             raise warning 'Starting catalog was not seeded for company % (% / %), and that could not be logged (%)',
                 new.id, st, why, sqlerrm;
