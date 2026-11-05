@@ -236,3 +236,17 @@ supabase_mail.sql
 # correctly sees no jobs. Proof: supabase_crew_job_scope_probe.sql (rolled
 # back) and tests/crew-job-scope.test.mjs.
 supabase_crew_job_scope.sql
+
+# ---- applied 5 November 2026, by hand, before the ledger existed -------------
+# Each was verified after applying and is recorded in public.schema_migrations
+# with origin='applied'. They are listed here so apply-order.txt is the whole
+# sequence again, not a list with four live migrations missing from it.
+#
+# r20 is the exception worth reading: only PART 2 (the trigger) and PART 4 (the
+# backfill of 11 companies) were run. PART 1 is a dry run that ends in ROLLBACK
+# and PART 3 is commented out, so running this file whole applies nothing.
+supabase_r8_deposit_follows_price.sql
+supabase_r42_product_key_test_and_real.sql
+supabase_r20_seed_new_company_catalog.sql
+# The ledger itself. Last, because every line above predates it.
+supabase_r63_migration_ledger.sql
