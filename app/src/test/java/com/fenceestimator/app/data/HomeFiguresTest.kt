@@ -41,10 +41,15 @@ class HomeFiguresTest {
     }
 
     @Test
-    fun `no pass has ever finished, so there is nothing to trust yet`() {
-        assertTrue(HomeFigures.incomplete(true, SyncPhase.IDLE, null, null))
-        assertTrue(HomeFigures.incomplete(true, SyncPhase.FAILED, null, null))
-        assertTrue(HomeFigures.incomplete(true, SyncPhase.WAITING_FOR_SIGNAL, null, null))
+    fun `a phone that cannot finish a sync still shows its figure`() {
+        // THE 1.871 AND 1.873 BUG, now pinned the right way round. This used
+        // to assert the opposite. lastSyncedAt is in memory and null on every
+        // cold start until a pass FINISHES, so "no pass has finished" is true
+        // for ever on any phone that cannot complete one -- and the figure was
+        // blank for ever. Stale is not short.
+        assertFalse(HomeFigures.incomplete(true, SyncPhase.IDLE, null, null))
+        assertFalse(HomeFigures.incomplete(true, SyncPhase.FAILED, null, null))
+        assertFalse(HomeFigures.incomplete(true, SyncPhase.WAITING_FOR_SIGNAL, null, null))
     }
 
     // ---- and the states that must NOT ------------------------------------
@@ -136,8 +141,8 @@ class HomeFiguresTest {
         // The control for the test above: the SAME inputs, signed in, must
         // still read incomplete -- otherwise that test would pass on a
         // function that always answered false.
-        assertTrue(HomeFigures.incomplete(true, SyncPhase.IDLE, null, null))
-        assertTrue(HomeFigures.incomplete(true, SyncPhase.WAITING_FOR_SIGNAL, null, null))
+        // Only the two states that genuinely mean the copy is short.
         assertTrue(HomeFigures.incomplete(true, SyncPhase.SYNCING, null, null))
+        assertTrue(HomeFigures.incomplete(true, SyncPhase.OK, null, UnsyncedReason.ACCESS_NOT_CONFIRMED))
     }
 }

@@ -87,9 +87,19 @@ object HomeFigures {
             // and prices DID NOT RUN. That is the reported bug.
             SyncPhase.OK -> reason == UnsyncedReason.ACCESS_NOT_CONFIRMED
 
-            // Idle, failed, or waiting for a signal. Trustworthy only once a
-            // pass has actually finished at least once; before that the copy is
-            // whatever a part-finished sign-in left behind.
-            else -> lastSyncedAt == null
+            // EVERYTHING ELSE SHOWS THE NUMBER. Idle, failed, waiting for a
+            // signal: the local copy may be STALE, but stale is not short, and
+            // the sync banner already says when it last saved.
+            //
+            // This read `lastSyncedAt == null` for two releases and was wrong
+            // both times, because lastSyncedAt lives in memory and is null on
+            // every cold start until a pass FINISHES -- so any phone that
+            // cannot complete one showed "--" for ever. 1.871 hid it behind a
+            // phase test, 1.873 behind a signedIn test, and signedIn only
+            // means "an email is held", not that the session still works. The
+            // two states that genuinely mean the data is short are both above:
+            // SYNCING while rows arrive, and ACCESS_NOT_CONFIRMED when the job
+            // half of the pass did not run at all.
+            else -> false
         }
 }
