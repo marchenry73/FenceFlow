@@ -872,7 +872,10 @@ fun JobsListScreen(
                     // note, so the two can never disagree about whether the
                     // local copy is complete.
                     val figuresIncomplete = com.fenceestimator.app.data.HomeFigures.incomplete(
-                        homeSync.phase, homeSync.lastSyncedAt, homeSync.unsyncedReason
+                        signedIn = session.signedIn,
+                        phase = homeSync.phase,
+                        lastSyncedAt = homeSync.lastSyncedAt,
+                        reason = homeSync.unsyncedReason
                     )
                     HomeDashboard(
                         ownerName = profile.ownerName,

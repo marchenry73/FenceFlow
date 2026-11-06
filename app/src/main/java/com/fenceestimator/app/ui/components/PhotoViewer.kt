@@ -94,7 +94,14 @@ fun PhotoViewer(
                     // The drag is consumed per gesture, with a threshold, so a
                     // shaky thumb on a work glove does not count as a swipe and
                     // a single drag cannot skip several photos.
-                    .pointerInput(photos.size) {
+                    // KEYED ON `at` AS WELL AS THE COUNT. Without `at` the
+                    // gesture lambda keeps the index it captured when it was
+                    // first set up, so the FIRST swipe works and every one
+                    // after it re-sets the same photo -- found on the owner's
+                    // phone: 2 of 4, swipe, 3 of 4, swipe, still 3 of 4. The
+                    // arrows were fine throughout because they recompose,
+                    // which is what made it easy to miss.
+                    .pointerInput(photos.size, at) {
                         var travelled = 0f
                         detectHorizontalDragGestures(
                             onDragStart = { travelled = 0f },

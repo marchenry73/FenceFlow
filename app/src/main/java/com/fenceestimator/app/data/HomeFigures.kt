@@ -45,7 +45,32 @@ object HomeFigures {
      *   copy(), so reading it elsewhere would be a stale reason wearing a
      *   current banner. This reads it on OK and nowhere else.
      */
-    fun incomplete(phase: SyncPhase, lastSyncedAt: Long?, reason: UnsyncedReason?): Boolean =
+    fun incomplete(
+        signedIn: Boolean,
+        phase: SyncPhase,
+        lastSyncedAt: Long?,
+        reason: UnsyncedReason?
+    ): Boolean {
+        // NOT SIGNED IN MEANS NOTHING IS MISSING. This phone's local copy is
+        // the whole business; there is no server copy for it to be short of.
+        //
+        // This is first because the phase alone is not enough to tell, and
+        // getting that wrong shipped in 1.871: the exemption named
+        // OFFLINE_ONLY and SIGNED_OUT, but a signed-out phone can sit in IDLE
+        // or WAITING_FOR_SIGNAL, which fell through to the lastSyncedAt test
+        // below -- and a phone that is not signed in never completes a sync,
+        // so lastSyncedAt is null for ever and the figure read "--" for ever.
+        // It was hiding a correct number, which is the exact failure the
+        // exemption existed to prevent.
+        if (!signedIn) return false
+        return incompleteWhileSignedIn(phase, lastSyncedAt, reason)
+    }
+
+    private fun incompleteWhileSignedIn(
+        phase: SyncPhase,
+        lastSyncedAt: Long?,
+        reason: UnsyncedReason?
+    ): Boolean =
         when (phase) {
             // WORKING ALONE IS NOT INCOMPLETE. A phone that is signed out, or
             // has never been signed in, holds all there is to hold: its local

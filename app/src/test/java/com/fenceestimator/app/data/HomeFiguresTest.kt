@@ -24,10 +24,10 @@ class HomeFiguresTest {
 
     @Test
     fun `a pass in flight is incomplete`() {
-        assertTrue(HomeFigures.incomplete(SyncPhase.SYNCING, SYNCED, null))
+        assertTrue(HomeFigures.incomplete(true, SyncPhase.SYNCING, SYNCED, null))
         // ...even when a pass has finished before: more rows are arriving as
         // the figure is being read.
-        assertTrue(HomeFigures.incomplete(SyncPhase.SYNCING, SYNCED, UnsyncedReason.JOBS_HELD_BACK))
+        assertTrue(HomeFigures.incomplete(true, SyncPhase.SYNCING, SYNCED, UnsyncedReason.JOBS_HELD_BACK))
     }
 
     @Test
@@ -36,15 +36,15 @@ class HomeFiguresTest {
         // all, so jobs, the catalog and the line items are all skipped -- and
         // the phase is OK, which is what made it look final.
         assertTrue(
-            HomeFigures.incomplete(SyncPhase.OK, SYNCED, UnsyncedReason.ACCESS_NOT_CONFIRMED)
+            HomeFigures.incomplete(true, SyncPhase.OK, SYNCED, UnsyncedReason.ACCESS_NOT_CONFIRMED)
         )
     }
 
     @Test
     fun `no pass has ever finished, so there is nothing to trust yet`() {
-        assertTrue(HomeFigures.incomplete(SyncPhase.IDLE, null, null))
-        assertTrue(HomeFigures.incomplete(SyncPhase.FAILED, null, null))
-        assertTrue(HomeFigures.incomplete(SyncPhase.WAITING_FOR_SIGNAL, null, null))
+        assertTrue(HomeFigures.incomplete(true, SyncPhase.IDLE, null, null))
+        assertTrue(HomeFigures.incomplete(true, SyncPhase.FAILED, null, null))
+        assertTrue(HomeFigures.incomplete(true, SyncPhase.WAITING_FOR_SIGNAL, null, null))
     }
 
     // ---- and the states that must NOT ------------------------------------
@@ -54,13 +54,13 @@ class HomeFiguresTest {
         // JOBS_HELD_BACK and RECORDS_HELD_BACK are about the PUSH: this phone
         // has work the cloud has not taken. The pull happened, so the total is
         // complete and blanking it would hide a correct number.
-        assertFalse(HomeFigures.incomplete(SyncPhase.OK, SYNCED, UnsyncedReason.JOBS_HELD_BACK))
-        assertFalse(HomeFigures.incomplete(SyncPhase.OK, SYNCED, UnsyncedReason.RECORDS_HELD_BACK))
+        assertFalse(HomeFigures.incomplete(true, SyncPhase.OK, SYNCED, UnsyncedReason.JOBS_HELD_BACK))
+        assertFalse(HomeFigures.incomplete(true, SyncPhase.OK, SYNCED, UnsyncedReason.RECORDS_HELD_BACK))
     }
 
     @Test
     fun `a clean finished pass is complete`() {
-        assertFalse(HomeFigures.incomplete(SyncPhase.OK, SYNCED, null))
+        assertFalse(HomeFigures.incomplete(true, SyncPhase.OK, SYNCED, null))
     }
 
     @Test
@@ -68,10 +68,10 @@ class HomeFiguresTest {
         // The state every phone is in before anybody signs up: the local copy
         // IS the business. This is the half a careless fix breaks -- it would
         // put "--" over the one figure a solo contractor has.
-        assertFalse(HomeFigures.incomplete(SyncPhase.OFFLINE_ONLY, null, null))
-        assertFalse(HomeFigures.incomplete(SyncPhase.SIGNED_OUT, null, null))
+        assertFalse(HomeFigures.incomplete(true, SyncPhase.OFFLINE_ONLY, null, null))
+        assertFalse(HomeFigures.incomplete(true, SyncPhase.SIGNED_OUT, null, null))
         assertFalse(
-            HomeFigures.incomplete(SyncPhase.OFFLINE_ONLY, null, UnsyncedReason.ACCESS_NOT_CONFIRMED)
+            HomeFigures.incomplete(true, SyncPhase.OFFLINE_ONLY, null, UnsyncedReason.ACCESS_NOT_CONFIRMED)
         )
     }
 
@@ -79,7 +79,7 @@ class HomeFiguresTest {
     fun `a phase that has synced before is trusted again once idle`() {
         // Idle AFTER a finished pass is the ordinary resting state. If this
         // read as incomplete the figure would be "--" most of the time.
-        assertFalse(HomeFigures.incomplete(SyncPhase.IDLE, SYNCED, null))
+        assertFalse(HomeFigures.incomplete(true, SyncPhase.IDLE, SYNCED, null))
     }
 
     // ---- the reason is read on OK and nowhere else ------------------------
@@ -91,7 +91,7 @@ class HomeFiguresTest {
         // be a stale reason wearing a current banner, and would leave "--" on
         // the screen long after the pass that caused it.
         assertFalse(
-            HomeFigures.incomplete(SyncPhase.IDLE, SYNCED, UnsyncedReason.ACCESS_NOT_CONFIRMED)
+            HomeFigures.incomplete(true, SyncPhase.IDLE, SYNCED, UnsyncedReason.ACCESS_NOT_CONFIRMED)
         )
     }
 
@@ -102,9 +102,42 @@ class HomeFiguresTest {
         for (phase in SyncPhase.entries) {
             // Called for its total absence of exceptions, and so that adding a
             // phase to the enum makes somebody look at this file.
-            HomeFigures.incomplete(phase, SYNCED, null)
-            HomeFigures.incomplete(phase, null, UnsyncedReason.ACCESS_NOT_CONFIRMED)
+            HomeFigures.incomplete(true, phase, SYNCED, null)
+            HomeFigures.incomplete(true, phase, null, UnsyncedReason.ACCESS_NOT_CONFIRMED)
         }
         assertTrue(SyncPhase.entries.size >= 7)
+    }
+
+    // ---- the regression that shipped in 1.871 ----------------------------
+
+    @Test
+    fun `a phone that is NOT signed in is never incomplete, whatever the phase`() {
+        // SHIPPED BROKEN IN 1.871 and found on the owner's own phone: the
+        // figure read "--" and stayed there. The exemption named OFFLINE_ONLY
+        // and SIGNED_OUT, but a signed-out phone can sit in IDLE or
+        // WAITING_FOR_SIGNAL, which fell through to the lastSyncedAt test --
+        // and a phone that is not signed in never completes a sync, so
+        // lastSyncedAt is null for ever. It hid a correct number for ever,
+        // which is the exact failure the exemption existed to prevent.
+        for (phase in SyncPhase.entries) {
+            assertFalse(
+                "a signed-out phone reads as incomplete on phase " + phase,
+                HomeFigures.incomplete(false, phase, null, null)
+            )
+            assertFalse(
+                "a signed-out phone reads as incomplete on phase " + phase + " with a reason",
+                HomeFigures.incomplete(false, phase, null, UnsyncedReason.ACCESS_NOT_CONFIRMED)
+            )
+        }
+    }
+
+    @Test
+    fun `being signed in is what makes the other states mean anything`() {
+        // The control for the test above: the SAME inputs, signed in, must
+        // still read incomplete -- otherwise that test would pass on a
+        // function that always answered false.
+        assertTrue(HomeFigures.incomplete(true, SyncPhase.IDLE, null, null))
+        assertTrue(HomeFigures.incomplete(true, SyncPhase.WAITING_FOR_SIGNAL, null, null))
+        assertTrue(HomeFigures.incomplete(true, SyncPhase.SYNCING, null, null))
     }
 }
