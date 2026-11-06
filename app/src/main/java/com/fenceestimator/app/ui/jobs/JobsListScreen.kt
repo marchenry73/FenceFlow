@@ -898,7 +898,15 @@ fun JobsListScreen(
                         // looking like an answer. See HomeFigures.incomplete
                         // for the three states, and for why a phone working
                         // alone is deliberately not one of them.
-                        outstanding = if (figuresIncomplete) null else outstanding,
+                        // THE FIGURE IS SHOWN, WITH THE CAPTION. Blanking it
+                        // was my over-correction and it made the app look
+                        // broken: a full pass is long, so the phone is in
+                        // SYNCING most of the time, and "--" was what the owner
+                        // saw almost always. The caption below already says the
+                        // figure is not final -- a warning you can read beats a
+                        // blank you cannot, and the stale number is still the
+                        // best answer available.
+                        outstanding = outstanding,
                         figuresSettling = figuresIncomplete,
                         cards = com.fenceestimator.app.data.HomeCard.parse(profile.homeCardsCsv),
                         showMoney = session.canSeeMoney,
