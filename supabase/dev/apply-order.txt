@@ -260,3 +260,4 @@ supabase_r66_both_minimum_floors.sql
 supabase_r67_deposit_follows_the_materials.sql
 supabase_r68_can_clock_in_per_person.sql
 supabase_r69_license_follows_the_identity.sql
+supabase_r70_first_settings_save_mirrors_too.sql

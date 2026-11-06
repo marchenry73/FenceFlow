@@ -229,10 +229,20 @@ test("5. email is NOT mirrored, and the mirror says so", () => {
   const code = body.replace(/^\s*--.*$/gm, "");
   assert.doesNotMatch(code, /'email'/,
     "the mirror now copies email -- companies.email is the customer-facing address and the settings copy is a separate field (F3); mirroring them replaces one with the other");
-  assert.doesNotMatch(code, /license_number/,
-    "the mirror now touches license_number, which exists only in the settings blob -- there is no column to keep it in step with");
-  // And the two it SHOULD carry are both there, or check 3 is passing on a
-  // mirror that only handles one of them.
+  // RE-AIMED 6 Nov 2026. This used to forbid license_number as well, on the
+  // grounds that it "exists only in the settings blob -- there is no column
+  // to keep it in step with". That was r62's stated reason and it was never
+  // true: companies.license_no is declared in supabase_schema.sql on the same
+  // line as name and phone. The licence was the one identity field the mirror
+  // dropped, and the only one with customer-facing readers outside the phone
+  // (hoa-letter and _shared/job-spec both select it), so it was blank on all
+  // 12 companies while 2 held a licence in the blob. r69 mirrors it; this
+  // check now REQUIRES what it used to forbid. Email stays excluded above --
+  // that exclusion is real (F3), and it is the half this test is named for.
+  assert.match(code, /license_no/,
+    "the mirror no longer carries the licence: a licence typed into Settings reaches the blob and stops there, and the HOA letter goes out blank");
+  // And the three it SHOULD carry are all there, or check 3 is passing on a
+  // mirror that only handles some of them.
   assert.match(code, /business_name/, "the mirror no longer carries the business name");
   assert.match(code, /phone/, "the mirror no longer carries the phone");
 });
