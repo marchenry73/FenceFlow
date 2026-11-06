@@ -47,6 +47,37 @@ object ClockInIdentity {
     }
 
     /**
+     * MAY THE SIGNED-IN PERSON CLOCK IN AT ALL?
+     *
+     * A different question from [resolve], which answers WHOSE shift it is.
+     * This one is the permission, and it is per person: March, 6 Nov 2026,
+     * asked for the clock to be offered to everyone rather than split by role,
+     * with a switch deciding who may use it, and chose "person" over a
+     * company-wide rule.
+     *
+     * NO CREW RECORD MEANS YES. An owner with no record of their own is the
+     * state every single-person business is in, and refusing them on a missing
+     * row would take the clock away from exactly the people it was just opened
+     * for. The record is a place to say NO, not a licence to say yes.
+     *
+     * Matched the same two ways as [resolve] -- the profile link first, then
+     * the email -- so one person cannot be identified by one rule and
+     * permitted by the other. The job's assignee is deliberately NOT consulted:
+     * whether somebody may clock in is about them, not about the job they are
+     * standing on.
+     */
+    fun canClockIn(
+        employees: List<Employee>,
+        signedInProfileId: String?,
+        signedInEmail: String?
+    ): Boolean {
+        val self = employees.firstOrNull {
+            it.profileId.isNotBlank() && signedInProfileId != null && it.profileId == signedInProfileId
+        } ?: employees.firstOrNull { OwnWork.isSamePerson(it, signedInEmail) }
+        return self?.canClockIn ?: true
+    }
+
+    /**
      * @param employees the company roster, active and inactive alike.
      * @param assignedEmployeeId the job's own assignment, used only as a fallback.
      * @param signedInProfileId the signed-in account's id, matched against

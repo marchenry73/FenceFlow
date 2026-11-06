@@ -1524,6 +1524,23 @@ data class Employee(
     val hourlyRate: Double = 0.0,
     /** Paid per linear foot installed, used when [payType] is PER_FOOT. */
     val perFootRate: Double = 0.0,
+    /**
+     * Whether this person may clock in.
+     *
+     * TRUE BY DEFAULT, and that is the answer to what March asked for on
+     * 6 Nov 2026: "everyone should be able to clock in". The few who should not
+     * are switched off one at a time, rather than the many who should being
+     * switched on.
+     *
+     * It replaces two things that both decided this badly: a crew/not-crew
+     * ROLE split, and SettingsStore.ownerClockInEnabled -- a DataStore switch,
+     * so per PHONE rather than per person, which says nothing about who may
+     * clock in on a shared handset.
+     *
+     * A real edit by a real person, so it moves the row's clock like any other
+     * field (see supabase_r68_can_clock_in_per_person.sql).
+     */
+    val canClockIn: Boolean = true,
     val phone: String = "",
     val email: String = "",
     val notes: String = "",

@@ -890,32 +890,17 @@ fun SettingsScreen(
                    the company's settings -- and because it has to be readable
                    from the crew job screen without loading all of them. */
                 SectionCard(stringResource(R.string.set_crew_view), icon = Icons.Filled.Dashboard) {
-                    val ownerClockIn by app.settingsStore.ownerClockInEnabled
-                        .collectAsState(initial = false)
-                    Row(
-                        Modifier.fillMaxWidth().padding(vertical = 2.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(Modifier.weight(1f)) {
-                            Text(
-                                stringResource(R.string.set_owner_clock_in),
-                                style = MaterialTheme.typography.bodyMedium
-                            )
-                            Text(
-                                stringResource(R.string.set_owner_clock_in_explain),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                        androidx.compose.material3.Switch(
-                            checked = ownerClockIn,
-                            onCheckedChange = { on ->
-                                coroutineScope.launch {
-                                    app.settingsStore.setOwnerClockInEnabled(on)
-                                }
-                            }
-                        )
-                    }
+                    // THE SWITCH THAT USED TO BE HERE IS GONE, and that is the
+                    // whole change: who may clock in is decided per PERSON now
+                    // (Employee.canClockIn, supabase_r68), not per phone and not
+                    // by role. Leaving the old control on screen would have left
+                    // a switch that looks live and changes nothing -- somebody
+                    // toggles it, sees no difference, and concludes the clock is
+                    // broken. So it says where the real one is instead.
+                    Text(
+                        stringResource(R.string.set_clock_in_moved),
+                        style = MaterialTheme.typography.bodyMedium
+                    )
                 }
             }
             item {

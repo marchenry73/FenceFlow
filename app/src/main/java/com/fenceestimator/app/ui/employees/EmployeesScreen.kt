@@ -305,6 +305,7 @@ private fun EditEmployeeDialog(
     var hourlyRate by remember { mutableStateOf(if (employee.hourlyRate > 0) employee.hourlyRate.toString() else "") }
     var perFootRate by remember { mutableStateOf(if (employee.perFootRate > 0) employee.perFootRate.toString() else "") }
     var payType by remember { mutableStateOf(employee.payType) }
+    var canClockIn by remember { mutableStateOf(employee.canClockIn) }
     var phone by remember { mutableStateOf(employee.phone) }
     var email by remember { mutableStateOf(employee.email) }
     var notes by remember { mutableStateOf(employee.notes) }
@@ -355,6 +356,31 @@ private fun EditEmployeeDialog(
                     )
                 }
                 Spacer(Modifier.height(Space.sm))
+                // WHO MAY CLOCK IN, beside how they are paid, because those are
+                // the two questions somebody opens this dialog to answer about
+                // a person. On by default for everybody (Employee.canClockIn).
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    // Fully qualified: this file does not import
+                    // androidx.compose.material3.Switch, and SettingsScreen
+                    // writes it this way for the same reason.
+                    androidx.compose.material3.Switch(
+                        checked = canClockIn,
+                        onCheckedChange = { on -> canClockIn = on }
+                    )
+                    Spacer(Modifier.width(Space.sm))
+                    Column {
+                        Text(stringResource(R.string.emp_can_clock_in))
+                        Text(
+                            stringResource(R.string.emp_can_clock_in_note),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                Spacer(Modifier.height(Space.sm))
                 OutlinedTextField(value = phone, onValueChange = { phone = it }, label = { Text(stringResource(R.string.field_phone)) }, modifier = Modifier.fillMaxWidth())
                 Spacer(Modifier.height(Space.sm))
                 OutlinedTextField(value = email, onValueChange = { email = it }, label = { Text(stringResource(R.string.field_email)) }, modifier = Modifier.fillMaxWidth())
@@ -369,7 +395,8 @@ private fun EditEmployeeDialog(
                         name = name, role = role, phone = phone, email = email, notes = notes,
                         payType = payType,
                         hourlyRate = hourlyRate.replace(',', '.').toDoubleOrNull() ?: 0.0,
-                        perFootRate = perFootRate.replace(',', '.').toDoubleOrNull() ?: 0.0
+                        perFootRate = perFootRate.replace(',', '.').toDoubleOrNull() ?: 0.0,
+                        canClockIn = canClockIn
                     )
                 )
             }) {

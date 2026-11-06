@@ -91,10 +91,34 @@ Deno.serve(async (req) => {
     }
     if (!job) return json({ error: "That job is not in this company." }, 404);
 
-    const to = String(job.email ?? "").trim();
+    // WHO THE PACKET GOES TO. Default unchanged: the CUSTOMER, for them to
+    // forward, which is the whole reason this function exists -- an
+    // architectural-review request has to come from the homeowner who owns the
+    // lot, and a board will not act on one sent by the contractor.
+    //
+    // "hoa" is the second option March asked for on 6 Nov 2026: "The HOA
+    // should be sent as an email and they should be able to reply and I
+    // receive it on the device." Some associations do accept the specification
+    // direct from the installer, and when they do, this sends the SAME packet
+    // to the address on the job instead of to the customer. Nothing else about
+    // the letter changes -- same body, same PDF, same letterhead -- so there is
+    // no second version of it to drift.
+    //
+    // Anything that is not exactly "hoa" is the customer. A typo must not
+    // silently redirect a customer's letter to an association, or the other way
+    // about.
+    const recipient = String((body as Record<string, unknown>)?.recipient ?? "customer").trim();
+    const toHoa = recipient === "hoa";
+    const to = String((toHoa ? job.hoa_email : job.email) ?? "").trim();
     if (!to) {
-      // Said plainly, because the fix is on the job and nowhere else.
-      return json({ error: "This job has no customer email address to send to." }, 400);
+      // Said plainly, because the fix is on the job and nowhere else -- and it
+      // names WHICH address is missing, because the two live in different
+      // places on the job sheet.
+      return json({
+        error: toHoa
+          ? "This job has no HOA email address to send to. Add it under HOA & Permits."
+          : "This job has no customer email address to send to.",
+      }, 400);
     }
 
     const { data: runRows, error: runError } = await caller.userClient
@@ -278,6 +302,12 @@ Deno.serve(async (req) => {
     return json({
       sent: true,
       to,
+      // WHICH of the two it was, said back explicitly rather than left for the
+      // caller to infer from the address. The phone shows "Sent to <address>"
+      // on the strength of this, and a caller that guessed would eventually
+      // tell somebody their letter went to the association when it went to the
+      // customer.
+      recipient: toHoa ? "hoa" : "customer",
       message_id: sent?.id ? String(sent.id) : null,
       // Handy for the caller to show without a second round trip.
       total_feet: spec.totalFeet,

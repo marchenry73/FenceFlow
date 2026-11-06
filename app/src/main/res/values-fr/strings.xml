@@ -724,6 +724,7 @@
     <string name="jd_paid_so_far">Payé à ce jour</string>
     <string name="jd_you_owe_customer">Vous devez au client</string>
     <string name="jd_still_owed">Reste dû</string>
+    <string name="jd_collect_in_cash_app">Encaisser %1$s dans Cash App</string>
     <string name="jd_overpaid_by">Le client a payé %1$s de plus que le montant du chantier. Enregistrez un remboursement ci-dessous une fois l\'argent renvoyé.</string>
     <string name="jd_paid_in_full">Payé en totalité.</string>
     <string name="jd_card_payments_auto">Les paiements par carte s\'affichent ici automatiquement une fois encaissés.</string>
@@ -2344,4 +2345,17 @@
     <string name="set_crew_view">Vue de l’équipe</string>
     <string name="set_owner_clock_in">M’afficher le pointage</string>
     <string name="set_owner_clock_in_explain">Désactivé par défaut : l’équipe pointe elle-même ses entrées et sorties, le bouton ne vous encombre donc pas. Activez-le si vous pointez un membre de l’équipe depuis votre téléphone.</string>
+    <string name="photo_viewer_position">%1$d sur %2$d</string>
+    <string name="photo_viewer_close">Fermer</string>
+    <string name="photo_viewer_previous">Photo précédente</string>
+    <string name="photo_viewer_next">Photo suivante</string>
+    <string name="jd_open_hoa_in_email_app">Ouvrir dans mon application de messagerie</string>
+    <string name="jd_send_hoa_from_fenceflow">L’envoyer pour moi, depuis FenceFlow</string>
+    <string name="jd_hoa_sending">Envoi…</string>
+    <string name="jd_hoa_goes_to">Envoyé à %1$s</string>
+    <string name="jd_hoa_sent_to">Envoyé à %1$s. La réponse arrive dans la boîte de votre entreprise.</string>
+    <string name="emp_can_clock_in">Peut pointer</string>
+    <string name="emp_can_clock_in_note">Désactivé signifie que cette personne ne peut démarrer aucun poste sur aucun téléphone.</string>
+    <string name="set_clock_in_moved">Qui peut pointer se règle par personne : Équipe, touchez quelqu’un, « Peut pointer ».</string>
+    <string name="crew_clock_in_switched_off">Le pointage est désactivé pour vous. Demandez au bureau si c’est une erreur.</string>
 </resources>

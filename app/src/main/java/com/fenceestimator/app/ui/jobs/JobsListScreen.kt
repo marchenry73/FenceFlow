@@ -868,6 +868,12 @@ fun JobsListScreen(
                     // Collected inside this item, not borrowed from the crew item
                     // above it -- that one is in a different scope.
                     val homeSync by app.autoSync.state.collectAsState()
+                    // Asked ONCE, here, and used for both the figure and the
+                    // note, so the two can never disagree about whether the
+                    // local copy is complete.
+                    val figuresIncomplete = com.fenceestimator.app.data.HomeFigures.incomplete(
+                        homeSync.phase, homeSync.lastSyncedAt, homeSync.unsyncedReason
+                    )
                     HomeDashboard(
                         ownerName = profile.ownerName,
                         jobs = jobs,
@@ -880,12 +886,17 @@ fun JobsListScreen(
                         // they could not approve anything.
                         pendingHours = if (session.canApproveTime && ent.timeAndCrew) pendingHours.size else 0,
                         pendingPlanChanges = pendingPlanChanges,
-                        outstanding = outstanding,
-                        // The money figures are rebuilt from whatever jobs are
-                        // on the phone, so while a pass is still bringing them
-                        // down the hero says so instead of drawing a subtotal
-                        // as the answer.
-                        figuresSettling = homeSync.phase == com.fenceestimator.app.cloud.SyncPhase.SYNCING,
+                        // NULL, not the subtotal, whenever the local copy is
+                        // known to be short -- the hero and the tile both draw
+                        // "--" for a null. This used to pass the number AND the
+                        // "not final yet" note together, so a second phone in
+                        // the same company showed 8,000, then 35,000, then
+                        // 80,000 against the owner's 105,000, every one of them
+                        // looking like an answer. See HomeFigures.incomplete
+                        // for the three states, and for why a phone working
+                        // alone is deliberately not one of them.
+                        outstanding = if (figuresIncomplete) null else outstanding,
+                        figuresSettling = figuresIncomplete,
                         cards = com.fenceestimator.app.data.HomeCard.parse(profile.homeCardsCsv),
                         showMoney = session.canSeeMoney,
                         permissions = session.permissions,

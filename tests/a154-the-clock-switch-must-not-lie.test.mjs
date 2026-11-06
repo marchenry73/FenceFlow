@@ -74,15 +74,49 @@ test("a154 the two facts are two flags, at the call site", () => {
   );
 });
 
-test("a154 crew are never the ones refused the clock", () => {
-  // The switch is the owner's. The only way crew lose the button is losing
-  // the job, which is allowClockIn's business and says so out loud.
+test("a154 the offer is per person, and nobody is refused in silence", () => {
+  // RE-AIMED 6 Nov 2026. This pinned `val offerClock = viewerIsCrew ||
+  // ownerClockIn` and failed if crew could ever be refused the clock. The
+  // owner replaced that policy himself: "everyone should be able to clock in,
+  // it should also be in setting to be able to decide who is clock in", and
+  // when asked whether the switch should be per person or company-wide with
+  // exceptions, "person". A per-person switch that cannot be applied to a crew
+  // member is not a per-person switch.
+  //
+  // So the ROLE test is gone and the record decides. What this file is actually
+  // about is unchanged and is pinned harder below: a person who is refused
+  // must be told something TRUE, and the two facts must not share one flag.
   assert.match(
     CODE,
-    /val offerClock = viewerIsCrew \|\| ownerClockIn/,
-    "the offer no longer starts from 'is this person crew' -- crew may now be refused the clock",
+    /val offerClock = meClockIn/,
+    "the offer no longer comes from the person's own record",
   );
-  assert.match(CODE, /UserRole\.CREW/, "the role the switch must never apply to is not named");
+  assert.match(
+    CODE,
+    /ClockInIdentity\.canClockIn\(/,
+    "the per-person permission is not being asked for",
+  );
+  assert.doesNotMatch(
+    CODE,
+    /viewerIsCrew/,
+    "the offer still turns on whether somebody is crew, which is the split the owner asked to remove",
+  );
+
+  // THE GAP THIS RE-AIMING FOUND. With offerClock false, neither of the two
+  // branches runs -- so somebody whose switch is off saw no button and no
+  // reason whatsoever. Silence is not one of the honest answers; it is the
+  // third way to mislead, after the wrong words and the right words in the
+  // wrong case.
+  assert.match(
+    CODE,
+    /!offerClockIn/,
+    "nothing says anything to the person whose clock is switched off",
+  );
+  assert.match(
+    STRINGS,
+    /name="crew_clock_in_switched_off"/,
+    "there is no wording for a clock that is switched off for this person",
+  );
 });
 
 test("a154 a running shift can always be ended", () => {

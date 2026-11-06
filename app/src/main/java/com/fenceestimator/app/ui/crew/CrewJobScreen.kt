@@ -94,16 +94,33 @@ fun CrewJobScreen(
             snackbarHostState.showSnackbar(context.getString(it.textRes, *it.args.toTypedArray()))
         }
     }
-    /* WHO IS OFFERED THE CLOCK.
-       Crew always. An owner or manager only when they have asked for it in
-       Settings -- see SettingsStore.ownerClockInEnabled for why it is a
-       switch and not a deletion. Read here rather than in the view model
-       because it is a display decision, and clockIn() itself is unchanged:
-       anybody who reaches it may still use it. */
-    val ownerClockIn by app.settingsStore.ownerClockInEnabled.collectAsState(initial = false)
+    /* Superseded 6 Nov 2026 -- see the block below, which now reads the
+       person's own crew record. This comment described the crew/not-crew role
+       split and the per-phone Settings switch, and is kept only so a reader of
+       the git history can see what it replaced. */
     val sessionNow by app.session.state.collectAsState()
-    val viewerIsCrew = sessionNow.role == com.fenceestimator.app.cloud.UserRole.CREW
-    val offerClock = viewerIsCrew || ownerClockIn
+    /* WHO IS OFFERED THE CLOCK, as of 6 Nov 2026: whoever their own crew
+       record says may, and everyone when there is no record to say otherwise.
+       March: "The Clock in part should be for everyone, never mind just the
+       owner", and then, asked whether the switch should be per person or
+       company-wide: "person".
+       What this replaces: `viewerIsCrew || ownerClockIn`. The first half split
+       the crew from everybody else by ROLE -- the thing he said he did not
+       want -- and the second was a DataStore switch, so per PHONE rather than
+       per person, which says nothing about who may clock in on a shared
+       handset.
+       NO RECORD MEANS YES, not no. An owner with no crew record is the state
+       every single-person business is in, and refusing them the clock on a
+       missing row would take the feature away from exactly the people it was
+       just opened for. The identity question is separate and already answered
+       elsewhere: ClockInIdentity.resolve decides WHOSE shift it is, and says
+       on screen when it had to fall back to the job's assigned employee. */
+    val meClockIn = com.fenceestimator.app.cloud.ClockInIdentity.canClockIn(
+        employees = viewModel.employees.value,
+        signedInProfileId = com.fenceestimator.app.cloud.SupabaseModule.currentUserId(),
+        signedInEmail = sessionNow.email
+    )
+    val offerClock = meClockIn
 
     val job by viewModel.job.collectAsState()
     val runs by viewModel.runs.collectAsState()
@@ -868,6 +885,21 @@ private fun TimeClockCard(
                 }
             } else if (allowClockIn && editable && offerClockIn) {
                 Button(onClick = onClockIn, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.crew_clock_in)) }
+            } else if (!offerClockIn) {
+                // SWITCHED OFF FOR THIS PERSON (Employee.canClockIn).
+                //
+                // Before this branch existed, offerClock=false drew NOTHING --
+                // no button and no reason -- so somebody whose clock had been
+                // turned off had no way to tell that from a broken app. It is
+                // deliberately NOT allowClockIn's sentence: "you are no longer
+                // on this job" is false about somebody who is on the job and
+                // simply may not clock in, and keeping those two apart is what
+                // a154 exists to enforce.
+                Text(
+                    stringResource(R.string.crew_clock_in_switched_off),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             } else if (!allowClockIn && offerClockIn) {
                 Text(
                     stringResource(R.string.crew_kept_no_clock_in),

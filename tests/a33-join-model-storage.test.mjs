@@ -210,7 +210,10 @@ function freshDb(statements) {
  *       a clock. updatedAt is seeded from takenAt so an untouched caption is not "changed in 1970".
  *   58  jobs.locateNotRequired -- this job needs no utility locate. Defaults to 0, "nobody has
  *       said": the other direction would mark the whole back catalogue as needing no locate.
- * Bump this line, and nothing else here, when a 59 lands.
+ *   59  employees.canClockIn -- whether this person may clock in. Defaults to 1, EVERYONE can,
+ *       which is what the owner asked for; defaulting to 0 would have taken the clock away from
+ *       every crew member already using it, on the release meant to widen access.
+ * Bump this line, and nothing else here, when a 60 lands.
  *
  * NOTE for whoever lands the owed DROP TABLE mentioned below: it was written expecting to be
  * SchemaV51. 51 went to the marker sizes and 52 to the marker mark, so that drop is now a 53.
@@ -224,7 +227,7 @@ function freshDb(statements) {
  * RunJoin::class leaves that list, THIS file is replaced by a59-join-storage-roundtrip.test.mjs -- do
  * not retire it before then.
  */
-const DB_VERSION = 58;
+const DB_VERSION = 59;
 
 /** Differences between the RunJoin entity and a SQLite built from the migration's statements, plus the wiring. Empty is good. */
 function schemaViolations(runJoinKt, appDatabaseKt) {

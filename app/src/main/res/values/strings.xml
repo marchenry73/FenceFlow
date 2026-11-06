@@ -761,6 +761,7 @@
     <string name="jd_paid_so_far">Paid so far</string>
     <string name="jd_you_owe_customer">You owe the customer</string>
     <string name="jd_still_owed">Still owed</string>
+    <string name="jd_collect_in_cash_app">Collect %1$s in Cash App</string>
     <string name="jd_overpaid_by">They have paid %1$s more than the job comes to. Record a refund below once you have sent it back.</string>
     <string name="jd_paid_in_full">Paid in full.</string>
     <string name="jd_card_payments_auto">Card payments post here automatically once they clear.</string>
@@ -2421,4 +2422,17 @@
     <string name="set_crew_view">Crew view</string>
     <string name="set_owner_clock_in">Show Clock In to me</string>
     <string name="set_owner_clock_in_explain">Off by default: the crew clock themselves in and out, so the button is not in your way. Turn it on if you clock a crew member in from your own phone.</string>
+    <string name="photo_viewer_position">%1$d of %2$d</string>
+    <string name="photo_viewer_close">Close</string>
+    <string name="photo_viewer_previous">Previous photo</string>
+    <string name="photo_viewer_next">Next photo</string>
+    <string name="jd_open_hoa_in_email_app">Open in my email app</string>
+    <string name="jd_send_hoa_from_fenceflow">Send it for me, from FenceFlow</string>
+    <string name="jd_hoa_sending">Sending…</string>
+    <string name="jd_hoa_goes_to">Goes to %1$s</string>
+    <string name="jd_hoa_sent_to">Sent to %1$s. A reply comes back to your business inbox.</string>
+    <string name="emp_can_clock_in">Can clock in</string>
+    <string name="emp_can_clock_in_note">Off means this person cannot start a shift on any phone.</string>
+    <string name="set_clock_in_moved">Who can clock in is set per person now: Crew, tap somebody, "Can clock in".</string>
+    <string name="crew_clock_in_switched_off">Clock-in is switched off for you. Ask the office if that is wrong.</string>
 </resources>

@@ -3006,7 +3006,69 @@ private fun HoaFields(job: Job, runs: List<FenceRun>, profile: BusinessProfile, 
         enabled = job.hoaEmail.isNotBlank(),
         modifier = Modifier.fillMaxWidth()
     ) {
-        Text(stringResource(R.string.jd_send_hoa_request))
+        Text(stringResource(R.string.jd_open_hoa_in_email_app))
+    }
+
+    // THE OTHER CHOICE: FenceFlow sends it.
+    //
+    // March, 6 Nov 2026: "when I do the HOA, it pulls up my gmail... Also I
+    // want to have the choice to either open the app or send the email, just
+    // incase customer already have their own email they want to send it with."
+    //
+    // The button above hands the letter to whatever mail app the phone has, so
+    // it leaves a personal address and the association's reply lands there.
+    // This one asks the server to send the same packet from the company's own
+    // address with reply-to the company inbox, so the reply comes back
+    // somewhere the business can see it. Both are kept, because a customer who
+    // wants to send it themselves is the case he named.
+    //
+    // THE ADDRESS IS SHOWN BEFORE AND AFTER. Before, under the buttons, so
+    // nobody sends a letter to an address they have not read; after, from what
+    // the SERVER reports it used, never from what this screen assumed.
+    var hoaSending by remember { mutableStateOf(false) }
+    var hoaResult by remember { mutableStateOf<String?>(null) }
+    // Fully qualified, as the other two scopes in this file are: the file does
+    // not import androidx.compose.runtime.rememberCoroutineScope.
+    val hoaScope = androidx.compose.runtime.rememberCoroutineScope()
+    OutlinedButton(
+        onClick = {
+            hoaResult = null
+            hoaSending = true
+            hoaScope.launch {
+                val r = com.fenceestimator.app.cloud.HoaLetterApi.send(
+                    jobSyncId = job.syncId,
+                    recipient = com.fenceestimator.app.cloud.HoaLetterApi.Recipient.HOA
+                )
+                hoaSending = false
+                hoaResult = when (r) {
+                    is com.fenceestimator.app.cloud.HoaLetterApi.Result.Sent -> {
+                        viewModel.update { j ->
+                            if (j.hoaApprovalStatus == HoaApprovalStatus.NOT_REQUIRED)
+                                j.copy(hoaApprovalStatus = HoaApprovalStatus.PENDING) else j
+                        }
+                        context.getString(R.string.jd_hoa_sent_to, r.to)
+                    }
+                    is com.fenceestimator.app.cloud.HoaLetterApi.Result.Failed -> r.message
+                }
+            }
+        },
+        enabled = job.hoaEmail.isNotBlank() && !hoaSending,
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Text(
+            if (hoaSending) stringResource(R.string.jd_hoa_sending)
+            else stringResource(R.string.jd_send_hoa_from_fenceflow)
+        )
+    }
+    if (job.hoaEmail.isNotBlank()) {
+        Text(
+            stringResource(R.string.jd_hoa_goes_to, job.hoaEmail),
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
+    hoaResult?.let { said ->
+        Text(said, style = MaterialTheme.typography.bodySmall)
     }
 
     androidx.compose.foundation.layout.Spacer(Modifier.height(4.dp))
@@ -3334,6 +3396,55 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
                     MoneyLine(stringResource(R.string.jd_you_owe_customer), -balance, bold = true)
                 } else {
                     MoneyLine(stringResource(R.string.jd_still_owed), balance.coerceAtLeast(0.0), bold = true)
+                }
+
+                // COLLECT IN CASH APP, with the balance already in the link.
+                //
+                // March, 6 Nov 2026: "I want for it to automatically pull up
+                // the Cash App with the amount already on there", then "Yes add
+                // it to my phone too" -- the customer's side of this has been
+                // live on the quote page for a while (quote.html's cashAppLink,
+                // built from dueNow()). This is the same URL, built by the same
+                // rule, for the person standing in the garden.
+                //
+                // Shown only when Cash App is switched ON, the tag is one a URL
+                // can be built from, and there is actually money owed. A button
+                // that opened Cash App asking for nothing, or opened a stranger's
+                // Cash App, is worse than no button -- see CashApp.link.
+                //
+                // It does NOT mark anything paid. Cash App tells us nothing
+                // about whether the money moved, so the payment is still
+                // recorded by hand; a tap that settled the job would read as
+                // paid while nothing arrived.
+                run {
+                    val cashAppContext = LocalContext.current
+                    val cache by paymentApp.settingsStore.paymentMethods
+                        .collectAsState(initial = com.fenceestimator.app.data.PaymentMethodsCache())
+                    val methods = remember(cache.methodsJson) {
+                        com.fenceestimator.app.data.PaymentMethodRules.canon(
+                            com.fenceestimator.app.data.PaymentMethodRules.parseOrNull(cache.methodsJson)
+                        )
+                    }
+                    val owed = balance.coerceAtLeast(0.0)
+                    val link = remember(methods.cashAppOn, methods.cashAppTag, owed) {
+                        if (methods.cashAppOn) com.fenceestimator.app.data.CashApp.link(methods.cashAppTag, owed)
+                        else null
+                    }
+                    if (link != null && owed > 0.005) {
+                        OutlinedButton(
+                            onClick = {
+                                cashAppContext.startActivity(
+                                    android.content.Intent(
+                                        android.content.Intent.ACTION_VIEW,
+                                        android.net.Uri.parse(link)
+                                    )
+                                )
+                            },
+                            modifier = Modifier.fillMaxWidth().padding(top = 8.dp)
+                        ) {
+                            Text(stringResource(R.string.jd_collect_in_cash_app, Money.format(owed)))
+                        }
+                    }
                 }
                 if (job.amountPaid > 0.0) {
                     Text(
@@ -4495,6 +4606,24 @@ private fun PhotosSection(photos: List<JobPhoto>, canDelete: Boolean, editable: 
     val context = LocalContext.current
     var pendingKind by remember { mutableStateOf(PhotoKind.BEFORE) }
     var pendingTarget by remember { mutableStateOf<NewPhotoTarget?>(null) }
+    // Which photo is open full screen, or null. Held as the PHOTO and not an
+    // index: an index into the grouped strips is not an index into the viewer's
+    // own order, and PhotoViewerOrder.indexOf is what reconciles the two.
+    var viewing by remember { mutableStateOf<JobPhoto?>(null) }
+
+    // Declared here rather than at the end of the section: a Dialog renders in
+    // its own window, so where it sits in the composition does not decide where
+    // it appears, and keeping it beside the state it reads is easier to follow.
+    viewing?.let { open ->
+        val ordered = remember(photos) {
+            com.fenceestimator.app.ui.components.PhotoViewerOrder.sorted(photos)
+        }
+        com.fenceestimator.app.ui.components.PhotoViewer(
+            photos = ordered,
+            startAt = com.fenceestimator.app.ui.components.PhotoViewerOrder.indexOf(photos, open),
+            onClose = { viewing = null }
+        )
+    }
     // The remove target on a photo was just enlarged to 44dp for a gloved
     // hand, which makes it easier to hit BY ACCIDENT too, so it is still
     // asked first.
@@ -4579,7 +4708,14 @@ private fun PhotosSection(photos: List<JobPhoto>, canDelete: Boolean, editable: 
                                 model = photo.filePath,
                                 contentDescription = null,
                                 contentScale = ContentScale.Crop,
-                                modifier = Modifier.size(90.dp).clip(RoundedCornerShape(8.dp))
+                                // TAP TO OPEN IT. A 90dp thumbnail is no use
+                                // for the thing these are for -- standing with
+                                // a customer and showing the before against the
+                                // after.
+                                modifier = Modifier
+                                    .size(90.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .clickable { viewing = photo }
                             )
                         }
                         if (canDelete) {

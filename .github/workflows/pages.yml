@@ -187,7 +187,12 @@ jobs:
       # cost to land.
       - name: Gate - the dev branch's pages parse
         if: steps.devsrc.outcome == 'success'
-        run: node .devsrc/tests/dashboard-syntax.test.mjs
+        # The path is relative to working-directory, NOT to the repo root.
+        # Giving both the prefix and the working-directory resolved to
+        # .devsrc/.devsrc/tests/... and failed every deploy -- including the
+        # LIVE one -- from the commit that added this step until it was fixed.
+        # The cwd matters: the test reads website/... relative to it.
+        run: node tests/dashboard-syntax.test.mjs
         working-directory: .devsrc
 
       - name: Build the site, with the dev office at /dev/ from the dev branch

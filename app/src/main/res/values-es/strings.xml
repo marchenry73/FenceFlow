@@ -724,6 +724,7 @@
     <string name="jd_paid_so_far">Pagado hasta ahora</string>
     <string name="jd_you_owe_customer">Le debes al cliente</string>
     <string name="jd_still_owed">Pendiente</string>
+    <string name="jd_collect_in_cash_app">Cobrar %1$s en Cash App</string>
     <string name="jd_overpaid_by">Han pagado %1$s más de lo que cuesta el trabajo. Registra un reembolso abajo cuando lo hayas devuelto.</string>
     <string name="jd_paid_in_full">Pagado por completo.</string>
     <string name="jd_card_payments_auto">Los pagos con tarjeta aparecen aquí automáticamente al acreditarse.</string>
@@ -2344,4 +2345,17 @@
     <string name="set_crew_view">Vista de la cuadrilla</string>
     <string name="set_owner_clock_in">Mostrarme el botón de entrada</string>
     <string name="set_owner_clock_in_explain">Desactivado por defecto: la cuadrilla marca su propia entrada y salida, así que el botón no te estorba. Actívalo si marcas la entrada de un trabajador desde tu teléfono.</string>
+    <string name="photo_viewer_position">%1$d de %2$d</string>
+    <string name="photo_viewer_close">Cerrar</string>
+    <string name="photo_viewer_previous">Foto anterior</string>
+    <string name="photo_viewer_next">Foto siguiente</string>
+    <string name="jd_open_hoa_in_email_app">Abrir en mi aplicación de correo</string>
+    <string name="jd_send_hoa_from_fenceflow">Enviarlo por mí, desde FenceFlow</string>
+    <string name="jd_hoa_sending">Enviando…</string>
+    <string name="jd_hoa_goes_to">Se envía a %1$s</string>
+    <string name="jd_hoa_sent_to">Enviado a %1$s. La respuesta llega al buzón de su empresa.</string>
+    <string name="emp_can_clock_in">Puede registrar entrada</string>
+    <string name="emp_can_clock_in_note">Desactivado significa que esta persona no puede iniciar un turno en ningún teléfono.</string>
+    <string name="set_clock_in_moved">Quién puede registrar entrada se define por persona: Cuadrilla, toque a alguien, "Puede registrar entrada".</string>
+    <string name="crew_clock_in_switched_off">El registro de entrada está desactivado para usted. Consulte a la oficina si es un error.</string>
 </resources>
