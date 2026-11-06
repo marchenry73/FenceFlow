@@ -78,7 +78,7 @@ for (const [i, name] of functions.entries()) {
     // matter where the script was invoked from.
     execFileSync(
       "npx.cmd",
-      ["-y", "supabase", "functions", "deploy", name,
+      ["-y", "supabase@2.115.0", "functions", "deploy", name,
        "--project-ref", ref, "--workdir", `"${REPO_ROOT}"`],
       { encoding: "utf8", maxBuffer: 32 * 1024 * 1024, shell: true, stdio: ["ignore", "pipe", "pipe"] }
     );

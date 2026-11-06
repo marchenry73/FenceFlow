@@ -65,7 +65,7 @@ function query(sql) {
     // directly (EINVAL). The file path is quoted since it comes from tmpdir().
     const raw = execFileSync(
       "npx.cmd",
-      ["-y", "supabase", "db", "query", "--linked", "--project-ref", PROJECT_REF, "-f", `"${file}"`],
+      ["-y", "supabase@2.115.0", "db", "query", "--linked", "--project-ref", PROJECT_REF, "-f", `"${file}"`],
       { encoding: "utf8", maxBuffer: 256 * 1024 * 1024, shell: true }
     );
     // The CLI prints a banner line before the JSON payload.

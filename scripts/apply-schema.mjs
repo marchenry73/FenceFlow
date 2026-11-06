@@ -64,7 +64,7 @@ function apply(file) {
     // exec one directly.
     execFileSync(
       "npx.cmd",
-      ["-y", "supabase", "db", "query", "--linked", "--project-ref", ref, "-f", `"${path}"`],
+      ["-y", "supabase@2.115.0", "db", "query", "--linked", "--project-ref", ref, "-f", `"${path}"`],
       { encoding: "utf8", maxBuffer: 64 * 1024 * 1024, shell: true, stdio: ["ignore", "pipe", "pipe"] }
     );
     return null;

@@ -136,7 +136,7 @@ try {
   // directly (EINVAL).
   raw = execFileSync(
     "npx.cmd",
-    ["-y", "supabase", "db", "query", "--linked", "--project-ref", ref, "-f", `"${sqlFile}"`],
+    ["-y", "supabase@2.115.0", "db", "query", "--linked", "--project-ref", ref, "-f", `"${sqlFile}"`],
     { encoding: "utf8", maxBuffer: 256 * 1024 * 1024, shell: true, stdio: ["ignore", "pipe", "pipe"] }
   );
 } finally {

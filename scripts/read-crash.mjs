@@ -69,7 +69,7 @@ if (errorId !== null) {
   try {
     out = execFileSync(
       "npx.cmd",
-      ["-y", "supabase", "db", "query", "--linked", "--project-ref", PROJECT_REF, "-f", `"${f}"`, "--output", "json"],
+      ["-y", "supabase@2.115.0", "db", "query", "--linked", "--project-ref", PROJECT_REF, "-f", `"${f}"`, "--output", "json"],
       { encoding: "utf8", shell: true });
   } finally {
     rmSync(f, { force: true });

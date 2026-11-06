@@ -37,7 +37,7 @@ function query(sql) {
   try {
     const raw = execFileSync(
       "npx.cmd",
-      ["-y", "supabase", "db", "query", "--linked", "--project-ref", PROJECT_REF, "-f", `"${file}"`],
+      ["-y", "supabase@2.115.0", "db", "query", "--linked", "--project-ref", PROJECT_REF, "-f", `"${file}"`],
       { encoding: "utf8", maxBuffer: 64 * 1024 * 1024, shell: true }
     );
     const start = raw.indexOf("{");
