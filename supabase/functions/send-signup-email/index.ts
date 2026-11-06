@@ -44,6 +44,7 @@
 // itself, with replies going to support. No address is written to the logs.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 import { buildSignupEmail } from "../_shared/signup-email.ts";
+import { isSandbox } from "../_shared/sandbox.ts";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -103,7 +104,7 @@ Deno.serve(async (req) => {
 
     const { data: company, error: coErr } = await admin
       .from("companies")
-      .select("id, name, details_completed_at, signup_sent_at")
+      .select("id, name, details_completed_at, signup_sent_at, is_sandbox")
       .eq("id", companyId)
       .maybeSingle();
     if (coErr) {
@@ -112,6 +113,10 @@ Deno.serve(async (req) => {
     }
     if (!company) { log("skipped", { reason: "no such company" }); return json({ skipped: "no such company" }); }
     if (company.signup_sent_at) { log("skipped", { reason: "already sent" }); return json({ skipped: "already sent" }); }
+    if (isSandbox(company, "the signup email")) {
+      log("skipped", { reason: "sandbox company" });
+      return json({ skipped: "sandbox company" });
+    }
     // The whole point of the skip: they are past this email already, and the
     // welcome one says everything this would have said and more.
     if (company.details_completed_at) {

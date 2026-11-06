@@ -53,6 +53,7 @@ import {
 } from "../_shared/payment-receipt.ts";
 import { composeBody } from "../_shared/mail/mime-build.ts";
 import { customerReplyTo } from "../_shared/mail/customer-reply.ts";
+import { isSandbox } from "../_shared/sandbox.ts";
 
 const FN = "payment-receipt";
 const SEND_TIMEOUT_MS = 20_000;
@@ -144,7 +145,7 @@ Deno.serve(async (req) => {
       .eq("sync_id", payment.job_sync_id)
       .maybeSingle(),
     db.from("companies")
-      .select("name, phone, email, suspended, logo_path")
+      .select("name, phone, email, suspended, logo_path, is_sandbox")
       .eq("id", payment.company_id)
       .maybeSingle(),
   ]);
@@ -156,6 +157,10 @@ Deno.serve(async (req) => {
   // send-welcome-email and quote-approval-email all draw this same line.
   if (job.is_test_fixture === true) return json({ state: "skipped", reason: "test fixture" });
   if (company?.suspended === true) return json({ state: "skipped", reason: "suspended" });
+  // A sandbox company's job may carry a real person's address, reused -- the
+  // same reason the fixture check above exists. This one is a flag rather than
+  // a name, so renaming the company cannot switch it off.
+  if (isSandbox(company, "the receipt")) return json({ state: "skipped", reason: "sandbox company" });
 
   const live = payment.livemode === true;
   const companyEmail = String(company?.email ?? "").trim();

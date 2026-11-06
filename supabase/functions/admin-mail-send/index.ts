@@ -219,7 +219,51 @@ Deno.serve(async (req) => {
   if (recErr) {
     return json({ error_code: "lookup_failed", message: "could not read the client list" }, 500);
   }
-  const list = (recipients ?? []) as Array<{ company_id: string; name: string; to_email: string }>;
+  let list = (recipients ?? []) as Array<{ company_id: string; name: string; to_email: string }>;
+
+  // SANDBOX COMPANIES ARE DROPPED HERE, and reported rather than dropped
+  // quietly. admin_email_recipients does not carry is_sandbox, so one batch
+  // read answers for the whole send instead of a query per recipient -- and a
+  // failed read refuses the send rather than guessing, because every address
+  // in this list belongs to a paying client.
+  const sandboxSkipped: Array<{ company_id: string; name: string }> = [];
+  if (list.length) {
+    const { data: flags, error: flagErr } = await asCaller
+      .from("companies")
+      .select("id, is_sandbox")
+      .in("id", list.map((r) => r.company_id));
+    if (flagErr) {
+      return json({
+        error_code: "lookup_failed",
+        message: "could not tell which of these companies are sandboxes, so nothing was sent",
+      }, 500);
+    }
+    const flagById = new Map(
+      (flags ?? []).map((f: { id: string; is_sandbox?: boolean | null }) => [f.id, f.is_sandbox === true]),
+    );
+    // Read as the CALLER, so row-level security could in principle return
+    // fewer rows than were asked for. Dropping the ones it did not answer for
+    // would mail nobody and report a success; treating them as live would mail
+    // a sandbox. Neither is acceptable, so an incomplete answer refuses the
+    // whole send and says which company it could not judge.
+    const unanswered = list.filter((r) => !flagById.has(r.company_id));
+    if (unanswered.length) {
+      return json({
+        error_code: "lookup_failed",
+        message:
+          `could not read the sandbox flag for ${unanswered.length} of ${list.length} ` +
+          `companies, so nothing was sent`,
+        unreadable_company_ids: unanswered.map((r) => r.company_id),
+      }, 500);
+    }
+    list = list.filter((r) => {
+      if (flagById.get(r.company_id) === true) {
+        sandboxSkipped.push({ company_id: r.company_id, name: r.name });
+        return false;
+      }
+      return true;
+    });
+  }
 
   // Which chosen companies have no address, are removed, or are test
   // companies. Reported rather than silently dropped.
@@ -379,6 +423,18 @@ Deno.serve(async (req) => {
     failed,
     skipped: skipped.length,
     skipped_company_ids: skipped,
-    results,
+    // Named separately from `skipped`, which means "no address, removed, or a
+    // test company". A sandbox was deliberately not mailed, and the office
+    // should be able to say which.
+    sandbox_skipped: sandboxSkipped.length,
+    sandbox_skipped_companies: sandboxSkipped,
+    results: results.concat(
+      sandboxSkipped.map((c) => ({
+        company_id: c.company_id,
+        name: c.name,
+        state: "skipped",
+        message: "this is a sandbox company, so nothing was sent to it",
+      })),
+    ),
   });
 });

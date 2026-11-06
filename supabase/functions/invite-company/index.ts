@@ -22,6 +22,7 @@
 // cannot be verified goes to spam, and an invitation in a spam folder is a
 // customer who never arrives.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
+import { refuseIfSandboxId, SandboxRefusal } from "../_shared/sandbox.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -173,6 +174,16 @@ Deno.serve(async (req) => {
 
     const { companyId, email, companyName } = await req.json();
     if (!companyId || !email) return json({ error: "Need a company and an email address." }, 400);
+
+    // Only an id is in hand here, so the flag is read rather than carried. A
+    // failed read refuses: this path has not already depended on the company
+    // row loading, so there is nothing to fall back on but a guess.
+    try {
+      await refuseIfSandboxId(admin, String(companyId), "the invitation");
+    } catch (e) {
+      if (e instanceof SandboxRefusal) return json({ error: e.message }, 403);
+      throw e;
+    }
 
     const site = Deno.env.get("SITE_URL") ?? "https://fenceflowapp.com";
     const redirectTo = `${site}/welcome.html`;

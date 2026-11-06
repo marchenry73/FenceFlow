@@ -36,6 +36,7 @@ import { readFileSync } from "node:fs";
 import { stripTypeScriptTypes } from "node:module";
 import * as inviteEmail from "../supabase/functions/_shared/invite-crew-email.ts";
 import * as mimeBuild from "../supabase/functions/_shared/mail/mime-build.ts";
+import * as sandboxGuard from "../supabase/functions/_shared/sandbox.ts";
 
 const FN_PATH = new URL("../supabase/functions/invite-crew/index.ts", import.meta.url);
 const SRC = readFileSync(FN_PATH, "utf8");
@@ -74,6 +75,8 @@ function load({ db, fetchImpl }) {
         ? inviteEmail
         : from === "../_shared/mail/mime-build.ts"
         ? mimeBuild
+        : from === "../_shared/sandbox.ts"
+        ? sandboxGuard
         : assert.fail(`an import the harness does not supply: ${from}`);
       for (const n of names) { assert.ok(n in mod, `no ${n} in ${from}`); shared[n] = mod[n]; }
     }

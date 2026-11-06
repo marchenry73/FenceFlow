@@ -44,6 +44,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { stripTypeScriptTypes } from "node:module";
+import * as sandboxGuard from "../supabase/functions/_shared/sandbox.ts";
 
 const FN_PATH = new URL("../supabase/functions/invite-company/index.ts", import.meta.url);
 const SRC = readFileSync(FN_PATH, "utf8");
@@ -85,8 +86,8 @@ function world({ caller, aal = "aal1", verifiedFactor = true, markFails = null }
     [CREW_ID]: { email: "crew@example.com", is_platform_admin: false, company_id: OTHER_COMPANY },
   };
   const companies = {
-    [COMPANY]: { id: COMPANY, email: "contact@acme.test", invited_at: null, invited_email: null },
-    [OTHER_COMPANY]: { id: OTHER_COMPANY, email: "owner@other.test", invited_at: null, invited_email: null },
+    [COMPANY]: { id: COMPANY, email: "contact@acme.test", invited_at: null, invited_email: null, is_sandbox: false },
+    [OTHER_COMPANY]: { id: OTHER_COMPANY, email: "owner@other.test", invited_at: null, invited_email: null, is_sandbox: false },
   };
   return { accounts, companies, caller, aal, verifiedFactor, markFails, marks: [], mail: [], stamped: [] };
 }
@@ -178,6 +179,15 @@ function makeCreateClient(w) {
             if (!a) return { data: null, error: { message: "no row" } };
             return { data: { is_platform_admin: a.is_platform_admin, company_id: a.company_id }, error: null };
           }
+          // The read refuseIfSandboxId makes. It returns only the one column the
+          // guard asks for, so a function that started depending on anything
+          // else here would fail rather than be handed a convenient whole row.
+          if (table === "companies") {
+            const c = w.companies[this._v];
+            if (!c) return { data: null, error: null };
+            if (w.sandboxReadFails) return { data: null, error: { message: w.sandboxReadFails } };
+            return { data: { is_sandbox: c.is_sandbox === true }, error: null };
+          }
           throw new Error("unexpected table: " + table);
         },
       };
@@ -231,6 +241,10 @@ function load(w) {
   const importRe = /^import\s*\{([\s\S]*?)\}\s*from\s*"([^"]+)";?[ \t]*$/gm;
   for (const [, list, from] of js.matchAll(importRe)) {
     const names = list.split(",").map((n) => n.trim()).filter(Boolean);
+    if (from === "../_shared/sandbox.ts") {
+      for (const n of names) assert.ok(n in sandboxGuard, `no ${n} in ${from}`);
+      continue;
+    }
     assert.match(from, /supabase-js/, `an import the harness does not supply: ${from}`);
     assert.deepEqual(names, ["createClient"]);
   }
@@ -248,8 +262,10 @@ function load(w) {
   };
   // Silence the function's own JSON logging.
   const console_ = { log: () => {} };
-  new Function("Deno", "createClient", "fetch", "console", js)(
+  new Function("Deno", "createClient", "fetch", "console",
+    "refuseIfSandboxId", "SandboxRefusal", js)(
     Deno, makeCreateClient(w), fetchImpl, console_,
+    sandboxGuard.refuseIfSandboxId, sandboxGuard.SandboxRefusal,
   );
   assert.equal(typeof handler, "function", "Deno.serve was never called");
   return handler;
@@ -275,6 +291,32 @@ test("POSITIVE CONTROL -- the owner, aal2, is let through and the invitation rea
   assert.equal(w.mail.length, 1, "the mail provider must have been called exactly once");
   assert.equal(w.mail[0].body.to[0], "new@acme.test");
   assert.equal(w.companies[COMPANY].invited_at, "now", "the invitation must be recorded");
+});
+
+test("a sandbox company is not invited, and no mail is handed to the provider", async () => {
+  const w = world({ caller: OWNER_ID, aal: "aal2" });
+  w.companies[COMPANY].is_sandbox = true;
+  const r = await invite(w);
+  assert.equal(r.status, 403, JSON.stringify(r.body));
+  assert.match(String(r.body.error), /sandbox company/i);
+  assert.equal(w.mail.length, 0, "nothing may be handed to the mail provider for a sandbox");
+  assert.equal(w.companies[COMPANY].invited_at, null, "and nothing may be recorded as invited");
+});
+
+test("CANARY: the same world with is_sandbox false DOES invite, so the check above is not refusing everything", async () => {
+  const w = world({ caller: OWNER_ID, aal: "aal2" });
+  w.companies[COMPANY].is_sandbox = false;
+  const r = await invite(w);
+  assert.equal(r.status, 200, JSON.stringify(r.body));
+  assert.equal(w.mail.length, 1);
+});
+
+test("if the sandbox flag cannot be read, the invitation is refused rather than guessed", async () => {
+  const w = world({ caller: OWNER_ID, aal: "aal2" });
+  w.sandboxReadFails = "connection reset";
+  const r = await invite(w);
+  assert.notEqual(r.status, 200, "an unreadable flag must not send");
+  assert.equal(w.mail.length, 0);
 });
 
 test("THE DEFECT -- the owner with the flag and the right address but NO fresh second factor is refused", async () => {

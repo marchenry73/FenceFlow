@@ -47,6 +47,7 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { stripTypeScriptTypes } from "node:module";
+import * as sandboxGuard from "../supabase/functions/_shared/sandbox.ts";
 import * as followUpLogic from "../supabase/functions/_shared/follow-up-logic.ts";
 import * as customerReply from "../supabase/functions/_shared/mail/customer-reply.ts";
 
@@ -88,6 +89,8 @@ function load({ db, fetchImpl, expose = [] } = {}) {
       }
     } else if (from === "../_shared/mail/customer-reply.ts") {
       for (const n of names) { assert.ok(n in customerReply, `no ${n} in customer-reply.ts`); shared[n] = customerReply[n]; }
+    } else if (from === "../_shared/sandbox.ts") {
+      for (const n of names) { assert.ok(n in sandboxGuard, `no ${n} in ${from}`); shared[n] = sandboxGuard[n]; }
     } else assert.fail(`an import the harness does not supply: ${from}`);
   }
   js = js.replace(importRe, "").replace(/^export /gm, "");
@@ -214,7 +217,12 @@ const SETTINGS = (over = {}) => ({
   ...over,
 });
 
-const COMPANY_ROW = { id: COMPANY, name: "Acme Fence", email: "office@acmefence.test", logo_path: null };
+const COMPANY_ROW = { id: COMPANY, name: "Acme Fence", email: "office@acmefence.test", logo_path: null,
+  // is_sandbox is part of the row because the function now selects it: the
+  // sandbox guard throws on a row that lacks the column rather than reading
+  // the absence as "not a sandbox" and sending. A fixture without it was how
+  // this test first failed, which is the protection working.
+  is_sandbox: false };
 
 const tenDaysAgo = () => new Date(Date.now() - 10 * 86400_000).toISOString();
 

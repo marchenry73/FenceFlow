@@ -345,13 +345,32 @@ test("no bypass role, no e-mail but @probe.invalid, and every role switch is aut
   assert.ok(![...("x set local role postgres".matchAll(/set local role (\w+)/gi))].every((m) => ["anon", "authenticated"].includes(m[1])));
 });
 
-test("the change itself writes nothing but the list: no delete, update, drop, truncate or alter, and no write to any table but material_items and app_errors", () => {
+test("the change itself writes nothing but the list: no delete, drop, truncate or alter, one update and it is the log row it just wrote, and no write to any table but material_items and app_errors", () => {
   const change = executable(changeBlocks(SQL)[0]);
-  assert.ok(!/\b(delete|update|truncate|alter|drop)\b/i.test(change), "a destructive or altering statement in the change");
+  assert.ok(!/\b(delete|truncate|alter|drop)\b/i.test(change), "a destructive or altering statement in the change");
+
+  // UPDATE is allowed in exactly one shape, added 2026-11-05. app_errors carries
+  // a BEFORE INSERT trigger, 00_stamp_app_error_owner, which rewrites company_id
+  // to the CALLER's company for any writer that is not the backend. During a
+  // sign-up the owner's profiles row does not exist yet, so the log row landed
+  // with a NULL company: logged, and invisible in every per-company view. The
+  // trigger now corrects the row it just wrote. Narrow on purpose -- any other
+  // update here is still a failure, because a tolerant check hides the absence
+  // it was written to catch.
+  const updates = [...change.matchAll(/\bupdate\s+(public\.\w+)/gi)].map((m) => m[1].toLowerCase());
+  assert.deepEqual(updates, ["public.app_errors"], "the only update may be the log row's own company");
+  assert.match(change, /update\s+public\.app_errors\s+set\s+company_id\s*=\s*new\.id/i);
+  assert.match(change, /where\s+id\s*=\s*logged/i, "it must address the one row it just inserted, by id");
+
   const inserts = [...change.matchAll(/insert\s+into\s+(public\.\w+)/gi)].map((m) => m[1].toLowerCase()).sort();
   assert.deepEqual(inserts, ["public.app_errors", "public.material_items"]);
+
   // TEETH
   assert.ok(/\bdelete\b/i.test(executable("delete from public.material_items;")));
+  // ...and teeth for the NARROWED rule: an update to another table must still read as one.
+  const planted = [...executable("update public.companies set x = 1;").matchAll(/\bupdate\s+(public\.\w+)/gi)]
+    .map((m) => m[1].toLowerCase());
+  assert.deepEqual(planted, ["public.companies"], "the update matcher cannot see a statement it must reject");
 });
 
 test("the whole file has exactly the statements the header promises that touch data: probe deletes are crew attempts, and nothing else", () => {

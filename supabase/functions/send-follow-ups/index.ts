@@ -52,6 +52,7 @@ import {
   isQuietHour,
 } from "../_shared/follow-up-logic.ts";
 import { customerReplyTo } from "../_shared/mail/customer-reply.ts";
+import { isSandbox } from "../_shared/sandbox.ts";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -393,7 +394,15 @@ Deno.serve(async (req) => {
       }
 
       const { data: company } = await db
-        .from("companies").select("name, email, logo_path").eq("id", companyId).maybeSingle();
+        .from("companies").select("name, email, logo_path, is_sandbox").eq("id", companyId).maybeSingle();
+
+      // A sandbox company is skipped rather than ending the sweep: this runs
+      // for every company on a schedule, and one sandbox must not stop the
+      // live companies behind it from being followed up.
+      if (isSandbox(company, "the follow-up")) {
+        console.log(`${FN}: skipping sandbox company ${companyId}`);
+        continue;
+      }
 
       // WHERE A CUSTOMER'S REPLY TO THIS NUDGE GOES, settled once per company
       // per run and before anything is claimed or sent.

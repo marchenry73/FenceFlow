@@ -148,6 +148,7 @@ import { fenceflowReplyTo, newMessageId, replyThreading } from "../_shared/mail/
 import { isUnconfirmed, sendMessage, SmtpClient } from "../_shared/mail/smtp-client.ts";
 import { connectTls } from "../_shared/mail/tls-transport.ts";
 import type { ConnectOptions, MailTransport } from "../_shared/mail/tls-transport.ts";
+import { isSandbox, sandboxMessage } from "../_shared/sandbox.ts";
 
 type Row = Record<string, unknown>;
 
@@ -1577,8 +1578,12 @@ async function sendOneScheduled(
   if (allowed !== true) throw new ScheduledRefusal("This company's FenceFlow account is not active.");
 
   const { data: company, error: companyError } = await admin
-    .from("companies").select("name, email, logo_path").eq("id", companyId).maybeSingle();
+    .from("companies").select("name, email, logo_path, is_sandbox").eq("id", companyId).maybeSingle();
   if (companyError || !company) throw new ScheduledRefusal("The company could not be read.");
+  // Belt and braces: a sandbox cannot hold a mail_accounts row since r64, so it
+  // should never reach here at all. Said out loud anyway, because "it cannot
+  // happen" is how the half-applied guard goes unnoticed.
+  if (isSandbox(company, "the message")) throw new ScheduledRefusal(sandboxMessage("the message"));
 
   const email = String(company.email ?? "").trim();
   const caller: MailCaller = {

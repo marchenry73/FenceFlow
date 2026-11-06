@@ -41,6 +41,7 @@
 // itself, with replies going to support. No address is written to the logs.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 import { buildWelcomeEmail } from "../_shared/welcome-email.ts";
+import { isSandbox } from "../_shared/sandbox.ts";
 
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), { status, headers: { "Content-Type": "application/json" } });
@@ -117,7 +118,7 @@ Deno.serve(async (req) => {
 
     const { data: company, error: coErr } = await admin
       .from("companies")
-      .select("id, name, details_completed_at, welcome_sent_at, subscription_plan, subscription_status, stripe_subscription_id, trial_ends_at")
+      .select("id, name, details_completed_at, welcome_sent_at, subscription_plan, subscription_status, stripe_subscription_id, trial_ends_at, is_sandbox")
       .eq("id", companyId)
       .maybeSingle();
     if (coErr) {
@@ -130,6 +131,14 @@ Deno.serve(async (req) => {
     if (/^\s*zz test/i.test(String(company.name ?? ""))) {
       log("skipped", { reason: "test company" });
       return json({ skipped: "test company" });
+    }
+    // The check above is pinned to a NAME, so renaming the company switches it
+    // off silently. is_sandbox is the same intent as a flag, and it is the one
+    // the database enforces elsewhere. Both are kept: the name check still
+    // covers a test company nobody has flagged yet.
+    if (isSandbox(company, "the welcome email")) {
+      log("skipped", { reason: "sandbox company" });
+      return json({ skipped: "sandbox company" });
     }
 
     // The owner who signed up -- the first OWNER on the company -- at the

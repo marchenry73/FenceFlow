@@ -52,6 +52,7 @@ import * as inviteEmail from "../supabase/functions/_shared/invite-crew-email.ts
 // invite-crew composes its From line from these two, the same way
 // fenceflowFrom() does, so the business name reaches the reader (a145).
 import * as mimeBuild from "../supabase/functions/_shared/mail/mime-build.ts";
+import * as sandboxGuard from "../supabase/functions/_shared/sandbox.ts";
 
 const PROJECT = "newcrgafcptspmapacrx";
 const LIVE = process.env.A26_LIVE === "1";
@@ -267,6 +268,7 @@ function load({ plant = [], client, fetchImpl, env, logs }) {
     if (/supabase-js/.test(from)) assert.deepEqual(names, ["createClient"]);
     else if (from === "../_shared/invite-crew-email.ts") assert.deepEqual(names, ["buildInviteCrewEmail"]);
     else if (from === "../_shared/mail/mime-build.ts") assert.deepEqual(names, ["bareAddressOf", "cleanDisplayName"]);
+    else if (from === "../_shared/sandbox.ts") assert.deepEqual(names, ["isSandbox", "sandboxMessage"]);
     else assert.fail(`an import the harness does not supply: ${from}`);
   }
   js = js.replace(importRe, "");
@@ -274,8 +276,10 @@ function load({ plant = [], client, fetchImpl, env, logs }) {
   let handler = null;
   const Deno = { env: { get: (k) => env[k] }, serve: (h) => { handler = h; } };
   const consoleFake = { log: (...a) => logs.push(a.join(" ")), error: (...a) => logs.push(a.join(" ")) };
-  new Function("Deno", "createClient", "buildInviteCrewEmail", "bareAddressOf", "cleanDisplayName", "fetch", "console", js)(
-    Deno, client, inviteEmail.buildInviteCrewEmail, mimeBuild.bareAddressOf, mimeBuild.cleanDisplayName, fetchImpl, consoleFake);
+  new Function("Deno", "createClient", "buildInviteCrewEmail", "bareAddressOf", "cleanDisplayName", "fetch", "console",
+    "isSandbox", "sandboxMessage", js)(
+    Deno, client, inviteEmail.buildInviteCrewEmail, mimeBuild.bareAddressOf, mimeBuild.cleanDisplayName, fetchImpl, consoleFake,
+    sandboxGuard.isSandbox, sandboxGuard.sandboxMessage);
   assert.equal(typeof handler, "function", "Deno.serve was never called");
   return handler;
 }
@@ -295,7 +299,11 @@ async function invite({
   };
   const tables = {
     profiles: profile,
-    companies: { name: "Acme Fencing", phone: "561-555-0142", email: "office@acme.example" },
+    // is_sandbox is in the row because invite-crew now selects it. The guard
+    // throws on a row without the column rather than reading its absence as
+    // "not a sandbox", so a fixture missing it fails loudly -- which is how
+    // this test first went red.
+    companies: { name: "Acme Fencing", phone: "561-555-0142", email: "office@acme.example", is_sandbox: false },
     app_releases: { version_name: "1.301", download_url: "https://dl.example/fenceflow.apk" },
   };
   const rpcs = {

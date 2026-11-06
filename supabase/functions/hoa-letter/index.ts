@@ -36,6 +36,7 @@ import { mailCaller } from "../_shared/mail/caller.ts";
 import { MESSAGES, toMailError } from "../_shared/mail/errors.ts";
 import { describeJob, hoaLetter, RunMeasurement, scopeOfWorkLines } from "../_shared/job-spec.ts";
 import { pdfFromText, toBase64 } from "../_shared/pdf-text.ts";
+import { isSandbox, sandboxMessage } from "../_shared/sandbox.ts";
 
 const FN = "hoa-letter";
 
@@ -117,11 +118,15 @@ Deno.serve(async (req) => {
     // companies carries PER-COLUMN grants -- these four were confirmed
     // readable by authenticated before this line was written.
     const { data: company, error: companyError } = await caller.userClient
-      .from("companies").select("name, license_no, phone, email")
+      .from("companies").select("name, license_no, phone, email, is_sandbox")
       .eq("id", caller.companyId).maybeSingle();
     if (companyError) {
       console.error(`${FN}: read company`, companyError.message ?? String(companyError));
       return json({ error: "Could not read your company details." }, 500);
+    }
+    // An HOA letter goes to a real association on the company's letterhead.
+    if (isSandbox(company, "the HOA letter")) {
+      return json({ error: sandboxMessage("the HOA letter") }, 403);
     }
 
     // The engine's own footage, one run at a time. The empty manufacturer set

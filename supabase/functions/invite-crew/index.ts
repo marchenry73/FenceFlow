@@ -68,6 +68,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 import { buildInviteCrewEmail } from "../_shared/invite-crew-email.ts";
 import { bareAddressOf, cleanDisplayName } from "../_shared/mail/mime-build.ts";
+import { isSandbox, sandboxMessage } from "../_shared/sandbox.ts";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -142,10 +143,14 @@ Deno.serve(async (req) => {
     const companyId = String(profile.company_id);
 
     const { data: company, error: companyError } = await supabase
-      .from("companies").select("name, phone, email").eq("id", companyId).maybeSingle();
+      .from("companies").select("name, phone, email, is_sandbox").eq("id", companyId).maybeSingle();
     if (companyError) {
       console.error("invite-crew: load company", companyError.message);
       return json({ error: "Could not load your company." }, 500);
+    }
+    // An invitation carries a join code to a real person's inbox.
+    if (isSandbox(company, "the crew invitation")) {
+      return json({ error: sandboxMessage("the crew invitation") }, 403);
     }
 
     // The team code -- not the company id. Fetched as the caller. A missing

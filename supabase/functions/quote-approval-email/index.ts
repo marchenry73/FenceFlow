@@ -91,6 +91,7 @@ import {
 } from "../_shared/mail/limits.ts";
 import { addressText, capUtf8, counterpartEmails, snippetOf } from "../_shared/mail/message-meta.ts";
 import { paymentsReadyFrom } from "../_shared/payments-ready.ts";
+import { refuseIfSandbox } from "../_shared/sandbox.ts";
 import type { MailAddress } from "../_shared/mail/message-meta.ts";
 import {
   buildResendEmail,
@@ -349,7 +350,12 @@ async function loadFacts(db: Db, deps: Deps, job: Row): Promise<Loaded> {
     // subscription_plan joins this read because the card line is gated on the
     // plan: create-payment-link answers 403 to a Solo company, so promising a
     // card button to one is a control that cannot work.
-    db.from("companies").select("name, phone, email, suspended, logo_path, subscription_plan").eq("id", job.company_id).maybeSingle(),
+    // is_sandbox joins this read for refuseIfSandbox below. It is selected here
+    // rather than fetched separately so the guard adds no call and no failure
+    // mode of its own -- and refuseIfSandbox throws by name if the column ever
+    // goes missing, because an absent column would otherwise read as "not a
+    // sandbox" and send the letter.
+    db.from("companies").select("name, phone, email, suspended, logo_path, subscription_plan, is_sandbox").eq("id", job.company_id).maybeSingle(),
     db.from("fence_runs")
       .select("label, fence_type, color_or_finish, points_encoded, gates_encoded, closed_loop, panel_height_ft, " +
         "manual_linear_feet, fabric_height_ft, is_teardown")
@@ -370,6 +376,8 @@ async function loadFacts(db: Db, deps: Deps, job: Row): Promise<Loaded> {
   ]);
   const co = must(company, "company");
   if (!co) throw new Error("company: not found");
+  // A sandbox company must not send a customer the letter they sign.
+  refuseIfSandbox(co, "the approval email");
   /* The plan the card line is gated on. must() has already refused a FAILED
      read, so reaching here means the row was read -- and a blank plan is a
      real company that predates plans, which the predicate allows. Only a
