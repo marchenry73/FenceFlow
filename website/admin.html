@@ -796,6 +796,11 @@
        it. Hidden entirely when the list carried no owner email, so nothing here
        ever guesses at one. -->
   <div id="e_ownerRow" style="display:none;font-size:13px;margin:0 0 10px"></div>
+  <!-- Read-only on purpose. is_sandbox is what refuse_sandbox_real_world()
+       keys off, so a checkbox here would be a way to make a test company
+       start mailing real people by misclick. -->
+  <div id="e_sandboxRow" style="display:none;font-size:13px;font-weight:600;margin:0 0 10px;
+       padding:8px 10px;border-radius:6px;background:#4a3c00;color:#ffdf7e"></div>
   <div class="row2">
     <div><label data-t="editPlanLabel">Plan</label>
       <select id="e_plan">
@@ -1167,6 +1172,7 @@ const TL = {
     makeCustomerBtn:'Make customer', chasePaymentBtn:'Chase payment',
     suspendBtn:'Suspend', unsuspendBtn:'Un-suspend',
     inviteBtn:'Invite', reinviteBtn:'Re-invite', manageBtn:'Manage',
+    editSandboxLine:'SANDBOX COMPANY — marked for testing. It cannot hold a mailbox or a card connection, and no quote, receipt, invitation or follow-up from it reaches a real customer.',
     grantOpenAccessBtn:'Grant open access', copySetupCodeBtn:'Copy setup code',
 
     confirmStartTrialTitle:'Start the trial?',
@@ -1495,6 +1501,7 @@ const TL = {
     makeCustomerBtn:'Convertir en cliente', chasePaymentBtn:'Reclamar pago',
     suspendBtn:'Suspender', unsuspendBtn:'Levantar suspensión',
     inviteBtn:'Invitar', reinviteBtn:'Reenviar invitación', manageBtn:'Gestionar',
+    editSandboxLine:'EMPRESA DE PRUEBAS — marcada para pruebas. No puede tener un buzón ni una conexión de tarjeta, y ningún presupuesto, recibo, invitación o seguimiento suyo llega a un cliente real.',
     grantOpenAccessBtn:'Otorgar acceso abierto', copySetupCodeBtn:'Copiar código de configuración',
 
     confirmStartTrialTitle:'¿Iniciar la prueba?',
@@ -1823,6 +1830,7 @@ const TL = {
     makeCustomerBtn:'Convertir en client', chasePaymentBtn:'Relancer le paiement',
     suspendBtn:'Suspendre', unsuspendBtn:'Lever la suspension',
     inviteBtn:'Inviter', reinviteBtn:'Réinviter', manageBtn:'Gérer',
+    editSandboxLine:'ENTREPRISE DE TEST — marquée pour les tests. Elle ne peut pas avoir de boîte aux lettres ni de connexion de carte, et aucun devis, reçu, invitation ou relance ne parvient à un vrai client.',
     grantOpenAccessBtn:'Accorder un accès ouvert', copySetupCodeBtn:'Copier le code de configuration',
 
     confirmStartTrialTitle:'Démarrer l\'essai ?',
@@ -2884,6 +2892,43 @@ async function loadAll() {
   clients = data || [];
   $('msg').textContent = '';
 
+  // is_sandbox is not a column admin_companies() returns, and the badge on
+  // each row needs it. A platform admin may SELECT every companies row
+  // (companies_platform_admin_read) and the column is granted to
+  // authenticated (supabase_r42_product_key_test_and_real.sql), so this is a
+  // plain read rather than another RPC to deploy.
+  //
+  // Asked by id, in batches, NOT as one bare select: an unpaged read of a
+  // table stops at a thousand rows and reports no error, which would leave
+  // every company past the first thousand quietly unbadged.
+  //
+  // A failure leaves the flag UNDEFINED on every row rather than false. The
+  // badge then does not appear and the console says why; false would print a
+  // sandbox company as an ordinary one, which is the exact mistake the badge
+  // exists to prevent.
+  try {
+    const ids = clients.map(c => c.id).filter(Boolean);
+    const flags = new Map();
+    let flagsComplete = true;
+    for (let i = 0; i < ids.length; i += 200) {
+      const sb = await db.from('companies').select('id, is_sandbox').in('id', ids.slice(i, i + 200));
+      if (sb.error) { flagsComplete = false; console.warn('sandbox flags unread', sb.error); break; }
+      for (const r of (sb.data || [])) flags.set(r.id, r.is_sandbox === true);
+    }
+    // Fewer flags than companies asked for means the POLICY withheld rows,
+    // not that the read failed: companies_platform_admin_read is
+    // is_platform_admin(), which includes admin_second_factor_ok(), and a
+    // stale second factor makes it return an empty array with NO error. So
+    // without this line "my second factor expired" and "there are no sandbox
+    // companies" look exactly the same on screen -- no badges either way.
+    if (flagsComplete && flags.size < ids.length) {
+      console.warn('sandbox flags: ' + flags.size + ' of ' + ids.length +
+        ' companies answered; the rest stay unknown and unbadged' +
+        ' (is the admin second factor still fresh?)');
+    }
+    if (flagsComplete) for (const c of clients) if (flags.has(c.id)) c.is_sandbox = flags.get(c.id);
+  } catch (e) { console.warn('sandbox flags unread', e); }
+
   // admin_companies_count answers the question admin_companies cannot: is
   // this really every company, or just the first thousand rows the API will
   // hand back in one call? A failure here (older database, RPC not deployed
@@ -3596,6 +3641,11 @@ function renderCompaniesTable() {
           <span style="display:inline-block;margin-left:6px;padding:2px 6px;border-radius:4px;
                        font-size:11px;font-weight:700;letter-spacing:.4px;
                        background:#4c1d24;color:#ffb3c4;border:1px solid #ffb3c4">YOUR COMPANY</span>` : ''}
+          ${c.is_sandbox === true ? `
+          <span title="Marked for testing. It cannot hold a mailbox or a card connection, and nothing it sends reaches a real customer."
+                style="display:inline-block;margin-left:6px;padding:2px 6px;border-radius:4px;
+                       font-size:11px;font-weight:700;letter-spacing:.4px;
+                       background:#4a3c00;color:#ffdf7e;border:1px solid #ffdf7e">SANDBOX</span>` : ''}
           ${identityLines(c)}${isMine(c) ? `
           <br><span style="color:#ffb3c4;font-size:12px">This is the company your own login is in.</span>` : ''}
           <div class="sub-line">${onboardingTrack(c)}</div></td>
@@ -4593,12 +4643,21 @@ function openEdit(id) {
   $('e_email').value = editing.billing_email || editing.email || '';
   $('e_grace').value = editing.grace_ends_at ? editing.grace_ends_at.slice(0, 10) : '';
   $('e_notes').value = editing.admin_notes || '';
-  // admin_companies() does not return this column; read it on its own.
+  // admin_companies() returns neither of these columns; read them on their own.
   $('e_passfee').checked = false; $('e_passfee').disabled = true;
-  db.from('companies').select('pass_card_fee').eq('id', editing.id).single().then(({ data, error }) => {
+  $('e_sandboxRow').style.display = 'none';
+  $('e_sandboxRow').textContent = '';
+  db.from('companies').select('pass_card_fee, is_sandbox').eq('id', editing.id).single().then(({ data, error }) => {
     if (error) { $('editMsg').textContent = error.message; return; }
     editing.pass_card_fee = data?.pass_card_fee === true;
     $('e_passfee').checked = editing.pass_card_fee; $('e_passfee').disabled = false;
+    // Shown only when the answer is exactly true. The error above returns, so
+    // this line never claims "not a sandbox" about a company it could not read.
+    editing.is_sandbox = data?.is_sandbox === true;
+    if (editing.is_sandbox) {
+      $('e_sandboxRow').style.display = '';
+      $('e_sandboxRow').textContent = tr('editSandboxLine');
+    }
   });
   $('e_suspend').textContent = editing.suspended ? tr('unsuspendBtn') : tr('suspendBtn');
   $('editMsg').textContent = '';

@@ -1238,6 +1238,17 @@
   </div>
 </header>
 
+<!-- A SANDBOX COMPANY SAYS SO, IN EITHER OFFICE.
+     is_sandbox is what stops a test company reaching a real person: it cannot
+     hold a mailbox or a card connection (supabase_r64_sandbox_company.sql) and
+     the twelve transactional mail functions refuse it. Until this strip, none
+     of that was visible -- same screen, same data, nothing saying which
+     company you were standing in.
+     Its own element rather than the role strip below: a crew member in a
+     sandbox has to be told both things, and one slot holds one message. -->
+<div id="sandboxStrip" style="display:none;padding:10px 14px;font-size:13px;line-height:1.4;
+     border-bottom:1px solid #8a6d00;background:#fff3cd;color:#5a4500;text-align:center"></div>
+
 <!-- WHY YOU CANNOT EDIT, said once, across the whole width.
      The header has always shown `email - ROLE`, and under the Settings tab
      there was a grey note about crew-level access. Both were missed: on
@@ -4152,6 +4163,7 @@ jobViewAll:'All', jobViewToday:'Today', jobViewWeek:'This week', jobViewUnschedu
     roleStripReadOnly:'Read-only. You are signed in as %s, and that role cannot change anything here. Sign in as the owner to make changes.',
     roleStripLoadFailed:'Your account could not be read, so nothing on this page can be saved: %s',
     roleStripSignOut:'Sign out',
+    sandboxStripNote:'SANDBOX COMPANY. This company is marked for testing: it cannot hold a mailbox or a card connection, and no quote, receipt, invitation or follow-up sent from it reaches a real customer.',
     errDuplicate:'That already exists, so it was not added again.',
     errLinked:'Other records still depend on this, so it cannot be changed that way.',
     errInvalid:'One of the values is not valid. Check the fields and try again.',
@@ -6022,6 +6034,7 @@ jobViewAll:'Todos', jobViewToday:'Hoy', jobViewWeek:'Esta semana', jobViewUnsche
     roleStripReadOnly:'Solo lectura. Ha iniciado sesión como %s, y ese rol no puede cambiar nada aquí. Inicie sesión como propietario para hacer cambios.',
     roleStripLoadFailed:'No se pudo leer su cuenta, así que nada en esta página se puede guardar: %s',
     roleStripSignOut:'Cerrar sesión',
+    sandboxStripNote:'EMPRESA DE PRUEBAS. Esta empresa está marcada para pruebas: no puede tener un buzón ni una conexión de tarjeta, y ningún presupuesto, recibo, invitación o seguimiento enviado desde ella llega a un cliente real.',
     errDuplicate:'Eso ya existe, así que no se agregó de nuevo.',
     errLinked:'Otros registros todavía dependen de esto, así que no se puede cambiar de esa forma.',
     errInvalid:'Uno de los valores no es válido. Revise los campos e inténtelo de nuevo.',
@@ -7862,6 +7875,7 @@ jobViewAll:'Tous', jobViewToday:'Aujourdhui', jobViewWeek:'Cette semaine', jobVi
     roleStripReadOnly:'Lecture seule. Vous êtes connecté en tant que %s, et ce rôle ne peut rien modifier ici. Connectez-vous comme propriétaire pour faire des modifications.',
     roleStripLoadFailed:'Votre compte n’a pas pu être lu, donc rien sur cette page ne peut être enregistré : %s',
     roleStripSignOut:'Se déconnecter',
+    sandboxStripNote:'ENTREPRISE DE TEST. Cette entreprise est marquée pour les tests : elle ne peut pas avoir de boîte aux lettres ni de connexion de carte, et aucun devis, reçu, invitation ou relance envoyé depuis elle n’atteint un vrai client.',
     errDuplicate:'Cet élément existe déjà, il n’a donc pas été ajouté une seconde fois.',
     errLinked:'D’autres enregistrements en dépendent encore, cela ne peut donc pas être modifié ainsi.',
     errInvalid:'Une des valeurs n’est pas valide. Vérifiez les champs et réessayez.',
@@ -11069,6 +11083,21 @@ function showRoleStrip(kind, text){
   el.appendChild(out);
 }
 
+/* Is the signed-in company marked for testing?
+   null is "not read yet, or the read failed" -- could not tell -- which shows
+   nothing rather than guessing either way. true and false are answers. */
+let sandboxCompany = null;
+
+/* The strip that says this company is a sandbox. No sign-out button, unlike
+   the role strip: this is not a refusal, it is a label on a company somebody
+   meant to be in. */
+function showSandboxStrip(){
+  const el = $('sandboxStrip');
+  if (!el) return;
+  el.style.display = '';
+  el.textContent = tr('sandboxStripNote');
+}
+
 function hideRoleStrip(){
   const el = $('roleStrip');
   if (el) { el.style.display = 'none'; el.textContent = ''; }
@@ -11496,7 +11525,29 @@ async function boot(){
       console.error('dev office refused a non-sandbox company', sbErr || '');
       return;
     }
+    // Past the refusal, so the flag was read and was exactly true. Recorded
+    // rather than read a second time by the strip below.
+    sandboxCompany = true;
   }
+
+  // AND IN EITHER OFFICE, SAY SO WHEN IT IS A SANDBOX.
+  //
+  // The refusal above runs only under REQUIRE_SANDBOX, so on the live office
+  // the flag was invisible. supabase_r42_product_key_test_and_real.sql said of
+  // it: "a label only until the mail path, the Stripe path and the office
+  // filter read it". The first two are closed. This is the label.
+  //
+  // It is NOT a gate, and must never become one: a read that fails here shows
+  // no strip and logs, because a blip must not tell a real business it is a
+  // test one, nor tell a test one it is real. Failing closed belongs to
+  // REQUIRE_SANDBOX, which did it above.
+  if(sandboxCompany === null && profile && profile.company_id){
+    const {data:sbLabel, error:sbLabelErr}=await db.from('companies')
+      .select('is_sandbox').eq('id', profile.company_id).maybeSingle();
+    if(sbLabelErr) console.warn('could not tell whether this company is a sandbox', sbLabelErr);
+    else sandboxCompany = !!sbLabel && sbLabel.is_sandbox===true;
+  }
+  if(sandboxCompany === true) showSandboxStrip();
 
   if(!profile||!profile.company_id){
     // An invited owner belongs on welcome.html, not here.
