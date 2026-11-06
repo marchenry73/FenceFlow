@@ -2588,7 +2588,12 @@ async function loadEmailClients() {
   tb.innerHTML = '';
   all.forEach(c => {
     const canMail = byId.has(c.id);
-    const tr = document.createElement('tr');
+    // `row`, NOT `tr`: tr() is the translation function, and a const named tr
+    // here shadowed it for the whole block. tdTo below asks for
+    // tr('emNoAddress') -- which got the <tr> element and threw, inside a
+    // forEach, so the roster stopped at the FIRST company with no address.
+    // 4 of 12 companies rendered; the other 8 could not be emailed at all.
+    const row = document.createElement('tr');
     const tdPick = document.createElement('td');
     const box = document.createElement('input');
     box.type = 'checkbox';
@@ -2605,8 +2610,8 @@ async function loadEmailClients() {
     const tdTo = document.createElement('td');
     tdTo.textContent = canMail ? byId.get(c.id) : tr('emNoAddress');
     if (!canMail) tdTo.className = 'muted';
-    tr.append(tdPick, tdName, tdTo);
-    tb.appendChild(tr);
+    row.append(tdPick, tdName, tdTo);
+    tb.appendChild(row);
   });
   emUpdateCount();
   await loadEmailLog();
@@ -2690,7 +2695,10 @@ function emRenderResults(data) {
   const tb = $('emResultRows');
   tb.innerHTML = '';
   rows.forEach(r => {
-    const tr = document.createElement('tr');
+    // Renamed with the other two although nothing in this block calls tr()
+    // today: the shadow is the defect, and the next label added here would
+    // break exactly as the other two did.
+    const row = document.createElement('tr');
     const name = document.createElement('td');
     name.textContent = r.name || '';
     const out = document.createElement('td');
@@ -2700,19 +2708,22 @@ function emRenderResults(data) {
     // same email gets sent twice.
     out.className = r.state === 'sent' ? 'ok'
       : r.state === 'failed' ? 'err' : 'muted';
-    tr.append(name, out);
-    tb.appendChild(tr);
+    row.append(name, out);
+    tb.appendChild(row);
   });
   // Which ticked companies were never mailable at all.
   const skipped = Number(data && data.skipped) || 0;
   if (skipped > 0) {
-    const tr = document.createElement('tr');
+    const row = document.createElement('tr');
     const td = document.createElement('td');
     td.colSpan = 2;
     td.className = 'muted';
+    // Was tr('emSkippedNote', ...) under a `const tr` element of the same
+    // name: the note that says how many were skipped threw instead of saying
+    // it, so a send that skipped companies reported nothing about them.
     td.textContent = tr('emSkippedNote', String(skipped));
-    tr.appendChild(td);
-    tb.appendChild(tr);
+    row.appendChild(td);
+    tb.appendChild(row);
   }
   $('emResults').style.display = rows.length || skipped ? '' : 'none';
 }
