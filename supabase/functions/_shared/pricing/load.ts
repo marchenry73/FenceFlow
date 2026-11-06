@@ -452,6 +452,19 @@ export interface CommitPlan {
      * statement and that statement must not move the sync clock.
      */
     labor_cost: number;
+    /**
+     * Materials still to be bought on this job, WITH the sales tax on them --
+     * the same figure JobMoney.materialsToBuy builds on the phone. Read by
+     * deposit_follows_price() so the deposit rule (materials rounded up to the
+     * next $100, plus $100) can be applied without the engine's arithmetic
+     * being repeated in SQL.
+     *
+     * On touch_updated_at()'s quiet list
+     * (supabase_r67_deposit_follows_the_materials.sql), like every other column
+     * in this patch, because it is written in the same statement and that
+     * statement must not move the sync clock.
+     */
+    materials_to_buy: number;
     priced_by: "OFFICE";
     priced_at: string;
     pricing_engine_version: string;
@@ -674,6 +687,21 @@ export function buildCommitPlan(args: {
       // here. Read off the same output grand_total came from, so the two can
       // never describe different pricing runs.
       labor_cost: output.totals.labor_cost,
+      // THE MATERIALS THE DEPOSIT RULE NEEDS -- materials plus the sales tax on
+      // them, which is exactly what JobMoney.materialsToBuy adds up on the
+      // phone (tax here is the tax on the taxable MATERIAL lines and nothing
+      // else; labour and gates are not in its base).
+      //
+      // Written here, in the same statement as contract_total, for two
+      // reasons. First, so the engine keeps the one definition of what
+      // materials cost and deposit_follows_price() does not have to repeat that
+      // arithmetic in SQL -- it only applies the rounding rule to this number
+      // (plus a plain SUM of change-order material_cost). Second, so the write
+      // stays QUIET: materials_to_buy is on touch_updated_at()'s quiet list
+      // (r67), like labor_cost before it, and a non-quiet column in this
+      // statement would bump updated_at and make a phone's unsynced offline
+      // edits look older than the server's row.
+      materials_to_buy: output.totals.materials_subtotal + output.totals.tax,
       priced_by: "OFFICE",
       priced_at: nowIso,
       // The module's own version, read off the output priceJob just
