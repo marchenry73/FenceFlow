@@ -304,6 +304,51 @@ ${NO_MONEY_SETUP}
 create temp table probe3(case_name text, ok_result boolean, detail text) on commit drop;
 grant all on probe3 to authenticated;
 
+-- Capture the LIVE definition before anything plants over it. The restore
+-- further down used to be a hand-written copy of supabase_production_stages.sql;
+-- supabase_crew_job_scope.sql inserts a crew_job_guard call into
+-- this function, so from 6 Nov 2026 that copy put back a body with NO crew
+-- guard and every check below it tested code that does not ship. Replaying
+-- what was captured cannot go stale.
+create temp table saved_def(name text primary key, def text) on commit drop;
+insert into saved_def values ('set_production_stage',
+  pg_get_functiondef('public.set_production_stage(text, text)'::regprocedure));
+
+-- The crew subject needs a crew record and a job, because set_production_stage
+-- now asks public.crew_job_guard() and a CREW login with neither sees no jobs
+-- at all. These checks are about the production-stage rules, so the scoping is
+-- satisfied here deliberately rather than tripped over.
+do $crewfix$
+declare
+    co uuid;
+    emp uuid := gen_random_uuid();
+    n int;
+begin
+    select company_id into co from public.profiles
+     where id = '99999999-0000-4000-8000-0000000000aa';
+    if co is null then raise exception 'FIXTURE: the probe crew has no company'; end if;
+
+    insert into public.employees (company_id, name, profile_id, sync_id)
+    values (co, 'ZZ PROBE crew record', '99999999-0000-4000-8000-0000000000aa', emp);
+
+    -- Both fixture jobs, so the DRAFT case is refused by the APPROVAL gate and
+    -- not by the scope gate that sits in front of it.
+    update public.jobs set assigned_employee_sync_id = emp::text
+     where company_id = co
+       and sync_id in ('44444444-0000-4000-8000-000000000001',
+                       '44444444-0000-4000-8000-000000000002');
+
+    -- ASSERTED, not assumed: a fixture that silently failed to apply would
+    -- make every check below report on the wrong thing.
+    select count(*) into n from public.jobs
+     where assigned_employee_sync_id = emp::text
+       and sync_id in ('44444444-0000-4000-8000-000000000001',
+                       '44444444-0000-4000-8000-000000000002');
+    if n <> 2 then
+        raise exception 'FIXTURE: the probe crew leads % of the 2 fixture jobs', n;
+    end if;
+end $crewfix$;
+
 -- ---- PLANTED FAILURE: remove the "must be approved" gate and show a DRAFT
 -- job (never sold) wrongly starts production.
 create or replace function public.set_production_stage(job_sid text, next_stage text)
@@ -341,45 +386,18 @@ begin
   end;
 end $inner$;
 reset role;
--- undo the plant: restore the real function (supabase_production_stages.sql)
-create or replace function public.set_production_stage(job_sid text, next_stage text)
-returns boolean language plpgsql security definer set search_path to 'public' as $inner$
-declare
-    co uuid := public.current_company_id();
-    current_stage production_stage;
-    wanted production_stage;
-    job_status text;
+-- undo the plant by REPLAYING the definition captured above, so this can
+-- never drift from the live function the way the hand copy did.
+do $restore$
+declare d text;
 begin
-    if co is null then
-        raise exception 'Sign in first.' using errcode = '42501';
+    select def into d from saved_def where name = 'set_production_stage';
+    if d is null then raise exception 'the live definition was never captured'; end if;
+    execute d;
+    if pg_get_functiondef('public.set_production_stage(text, text)'::regprocedure) <> d then
+        raise exception 'the restore did not reproduce the captured definition';
     end if;
-    if not (coalesce(public.has_permission('RECORD_FIELD_WORK'), false)
-            or coalesce(public.has_permission('SCHEDULE_AND_ASSIGN'), false)) then
-        raise exception 'You cannot move jobs through the build.' using errcode = '42501';
-    end if;
-    begin
-        wanted := next_stage::production_stage;
-    exception when others then
-        raise exception 'There is no build stage called %.', next_stage using errcode = '22023';
-    end;
-    select j.production_stage, j.status::text into current_stage, job_status
-      from jobs j where j.company_id = co and j.sync_id::text = job_sid and j.deleted_at is null;
-    if job_status is null then
-        raise exception 'That job is not on this company.' using errcode = '23503';
-    end if;
-    if job_status not in ('ACCEPTED', 'COMPLETED') then
-        raise exception 'This job has not been approved yet, so the build cannot start.'
-            using errcode = '23514';
-    end if;
-    if current_stage is not distinct from wanted then
-        return false;
-    end if;
-    update jobs set production_stage = wanted where company_id = co and sync_id::text = job_sid;
-    insert into job_stage_events (company_id, job_sync_id, stage, entered_by, left_stage)
-    values (co, job_sid::uuid, wanted, auth.uid(), current_stage);
-    return true;
-end;
-$inner$;
+end $restore$;
 
 -- ---- REAL rule ----
 ${asClaim(NO_MONEY)}
@@ -410,14 +428,19 @@ begin
     perform set_production_stage('${DRAFT_JOB}', 'MATERIALS');
     insert into probe3 values ('an unapproved (DRAFT) job raises', false, 'wrongly succeeded, no exception');
   exception when others then
-    insert into probe3 values ('an unapproved (DRAFT) job raises', true, sqlerrm);
+    -- The REASON matters: with the scope gate now in front of the approval
+    -- gate, "not assigned to you" would satisfy a bare "it raised" check and
+    -- the approval rule would stop being tested at all.
+    insert into probe3 values ('an unapproved (DRAFT) job raises',
+      sqlerrm ilike '%approved%', sqlerrm);
   end;
 
   begin
     perform set_production_stage('${COMPLETED_JOB}', 'NOT_A_REAL_STAGE');
     insert into probe3 values ('an unknown stage name raises', false, 'wrongly succeeded, no exception');
   exception when others then
-    insert into probe3 values ('an unknown stage name raises', true, sqlerrm);
+    insert into probe3 values ('an unknown stage name raises',
+      sqlerrm not ilike '%assigned to you%', sqlerrm);
   end;
 end $inner$;
 reset role;
