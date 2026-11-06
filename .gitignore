@@ -90,3 +90,6 @@ build-archive/
 # deploy time. Committing it would be a second copy of the whole site,
 # and it would drift from the live one the first time only one changed.
 dist/
+
+# The dev branch checkout the Pages workflow makes for the /dev/ staging build.
+.devsrc/

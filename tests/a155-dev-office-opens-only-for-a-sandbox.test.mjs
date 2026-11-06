@@ -14,7 +14,7 @@
 //      exactly true, and fails CLOSED on an error or a missing row.
 //
 //   node tests/a155-dev-office-opens-only-for-a-sandbox.test.mjs
-import { readFileSync, existsSync, rmSync } from "node:fs";
+import { readFileSync, existsSync, rmSync, cpSync, mkdirSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { join, dirname } from "node:path";
 import { tmpdir } from "node:os";
@@ -101,6 +101,77 @@ function build(extraArgs) {
     /REQUIRE_SANDBOX:\s*true/.test(dev));
 
   for (const suffix of ["-p", "-s", "-sep"]) rmSync(BUILD + suffix, { recursive: true, force: true });
+}
+
+// ---------------------------------------------------------------------------
+// 1c. STAGING: /dev/ built from the dev BRANCH, live from main.
+//
+// Both copies used to come from one commit, so a change reached the live
+// office and the dev office in the same second -- which made /dev/ a place to
+// use test data, not a place to try code before it went live. --dev-from
+// builds the /dev/ copy from a second tree, which in CI is a checkout of the
+// dev branch.
+//
+// The thing that must hold however far the two trees drift: the dev config is
+// still generated from the LIVE url and key with REQUIRE_SANDBOX, so nothing
+// committed to the dev branch can repoint the dev office at another project or
+// lift the sandbox restriction.
+// ---------------------------------------------------------------------------
+{
+  const TREE = join(tmpdir(), `ff-a155-devtree-${process.pid}`);
+  const OUT = join(tmpdir(), `ff-a155-staged-${process.pid}`);
+  rmSync(TREE, { recursive: true, force: true });
+  rmSync(OUT, { recursive: true, force: true });
+
+  // A dev tree is the live tree plus one marked change.
+  cpSync(join(ROOT, "website"), join(TREE, "website"), { recursive: true });
+  const MARK = "ZZ-STAGED-ONLY-" + process.pid;
+  writeFileSync(join(TREE, "website", "index.html"),
+    readFileSync(join(TREE, "website", "index.html"), "utf8") + `\n<!-- ${MARK} -->\n`, "utf8");
+
+  const staged = build(["--out", OUT, "--dev-from", TREE]);
+  ok("a dev tree builds, and says it is staging", staged.ok && /staging from/.test(staged.out),
+    staged.out.slice(0, 200));
+
+  const devIndex = existsSync(join(OUT, "dev", "index.html"))
+    ? readFileSync(join(OUT, "dev", "index.html"), "utf8") : "";
+  const liveIndex = existsSync(join(OUT, "index.html"))
+    ? readFileSync(join(OUT, "index.html"), "utf8") : "";
+  ok("THE STAGED CHANGE IS IN /dev/", devIndex.includes(MARK));
+  ok("...and NOT on the live site, which is the whole point",
+    !liveIndex.includes(MARK));
+
+  const stagedCfg = existsSync(join(OUT, "dev", "config.js"))
+    ? readFileSync(join(OUT, "dev", "config.js"), "utf8") : "";
+  ok("the staged dev config STILL sets REQUIRE_SANDBOX",
+    /REQUIRE_SANDBOX:\s*true/.test(stagedCfg));
+  ok("...and still points at the live project, not somewhere the dev branch chose",
+    stagedCfg.includes((live.match(/SUPABASE_URL:\s*'([^']+)'/) || [])[1]));
+
+  // CANARY: the same build with no --dev-from must NOT carry the mark, or the
+  // two checks above would pass for a build that staged nothing.
+  const plain = build(["--out", OUT + "-plain"]);
+  const plainDev = existsSync(join(OUT + "-plain", "dev", "index.html"))
+    ? readFileSync(join(OUT + "-plain", "dev", "index.html"), "utf8") : "";
+  ok("CANARY: without --dev-from the mark is absent, so staging really did something",
+    plain.ok && !plainDev.includes(MARK));
+
+  // It must refuse rather than quietly fall back to the live tree: a /dev/
+  // that silently became a copy of live is a staging site that tests nothing.
+  const empty = join(tmpdir(), `ff-a155-empty-${process.pid}`);
+  rmSync(empty, { recursive: true, force: true });
+  mkdirSync(empty, { recursive: true });
+  const missing = build(["--out", OUT + "-m", "--dev-from", empty]);
+  ok("a --dev-from with no website/ in it is REFUSED, not silently ignored",
+    !missing.ok && /no website\/dashboard\.html/.test(missing.out), missing.out.slice(0, 160));
+
+  const sameTree = build(["--out", OUT + "-s", "--dev-from", ROOT]);
+  ok("--dev-from pointing at this same tree is refused, because it stages nothing",
+    !sameTree.ok && /stages nothing/.test(sameTree.out), sameTree.out.slice(0, 160));
+
+  for (const d of [TREE, OUT, OUT + "-plain", OUT + "-m", OUT + "-s", empty]) {
+    rmSync(d, { recursive: true, force: true });
+  }
 }
 
 // ---------------------------------------------------------------------------

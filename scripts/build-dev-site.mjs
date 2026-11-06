@@ -36,6 +36,23 @@
  *       real-shaped data. It cannot stage a schema change (one database) or an
  *       edge function (one project).
  *
+ * STAGING: --dev-from <dir>
+ *   With no --dev-from, /dev/ is built from THIS tree and differs from live by
+ *   config.js alone -- the original behaviour, still asserted.
+ *
+ *   With --dev-from <dir>, the /dev/ copy is built from <dir>/website instead,
+ *   which in CI is a checkout of the `dev` branch while live stays `main`. The
+ *   two trees are then MEANT to differ: that difference is the change being
+ *   staged, so the one-difference assertion is replaced by a report of what
+ *   differs. Everything else is unchanged.
+ *
+ *   What --dev-from deliberately does NOT take from the dev tree is the
+ *   backend: /dev/'s config.js is still generated from the LIVE config's URL
+ *   and key, with ENV dev and REQUIRE_SANDBOX. So nothing committed to the dev
+ *   branch can repoint the dev office at another project or lift the sandbox
+ *   restriction -- the one thing a staging site must not be able to do to
+ *   itself.
+ *
  * WHY IT BUILDS INTO dist/ AND NOT website/dev/
  *   The earlier version of this script wrote into website/dev/. That puts a
  *   second dashboard.html inside the source tree, and every repo-wide scan
@@ -59,12 +76,17 @@ const ROOT = join(dirname(fileURLToPath(import.meta.url)), "..");
 const SITE = join(ROOT, "website");
 
 const args = process.argv.slice(2);
+const devFromAt = args.indexOf("--dev-from");
+const DEV_FROM = devFromAt >= 0 && args[devFromAt + 1]
+  ? resolve(args[devFromAt + 1]) : null;
 const outAt = args.indexOf("--out");
 const OUT = resolve(outAt >= 0 && args[outAt + 1] ? args[outAt + 1] : join(ROOT, "dist"));
 // outAt is -1 when --out is absent, and -1 + 1 is 0, which silently dropped
 // the first positional argument. Only skip the value when the flag is there.
 const positional = args.filter((a, i) =>
-  !a.startsWith("--") && !(outAt >= 0 && i === outAt + 1));
+  !a.startsWith("--")
+  && !(outAt >= 0 && i === outAt + 1)
+  && !(devFromAt >= 0 && i === devFromAt + 1));
 const [devUrl, devKey] = positional;
 
 if (OUT === SITE || OUT.startsWith(SITE + "\\") || OUT.startsWith(SITE + "/")) {
@@ -74,6 +96,19 @@ if (OUT === SITE || OUT.startsWith(SITE + "\\") || OUT.startsWith(SITE + "/")) {
 }
 if (!existsSync(join(SITE, "config.js"))) {
   console.error("website/config.js is missing; this script builds from it.");
+  process.exit(2);
+}
+// The staging tree, when there is one. Refused loudly rather than silently
+// falling back to this tree: a /dev/ that quietly became a copy of live is
+// exactly the thing that makes a staging site worthless.
+const DEV_SITE = DEV_FROM ? join(DEV_FROM, "website") : SITE;
+if (DEV_FROM && !existsSync(join(DEV_SITE, "dashboard.html"))) {
+  console.error(`--dev-from ${DEV_FROM} has no website/dashboard.html in it.`);
+  console.error("Expected a checkout of the dev branch. Refusing to build /dev/ from the live tree instead.");
+  process.exit(2);
+}
+if (DEV_FROM && resolve(DEV_SITE) === resolve(SITE)) {
+  console.error("--dev-from points at this same tree, which stages nothing.");
   process.exit(2);
 }
 
@@ -143,31 +178,65 @@ function walk(dir, acc = []) {
 }
 
 const files = walk(SITE);
+const devFiles = DEV_FROM ? walk(DEV_SITE) : files;
 rmSync(OUT, { recursive: true, force: true });
 mkdirSync(OUT, { recursive: true });
 
 for (const src of files) {
-  const rel = relative(SITE, src);
-  for (const dest of [join(OUT, rel), join(OUT, "dev", rel)]) {
-    mkdirSync(dirname(dest), { recursive: true });
-    writeFileSync(dest, readFileSync(src));
-  }
+  const dest = join(OUT, relative(SITE, src));
+  mkdirSync(dirname(dest), { recursive: true });
+  writeFileSync(dest, readFileSync(src));
+}
+for (const src of devFiles) {
+  const dest = join(OUT, "dev", relative(DEV_SITE, src));
+  mkdirSync(dirname(dest), { recursive: true });
+  writeFileSync(dest, readFileSync(src));
 }
 writeFileSync(join(OUT, "dev", "config.js"), devConfig, "utf8");
 
-// Proven, not assumed.
+// What differs between the two copies.
 const differing = [];
 for (const src of files) {
   const rel = relative(SITE, src);
-  if (!readFileSync(join(OUT, rel)).equals(readFileSync(join(OUT, "dev", rel)))) differing.push(rel);
+  const devCopy = join(OUT, "dev", rel);
+  if (!existsSync(devCopy) || !readFileSync(join(OUT, rel)).equals(readFileSync(devCopy))) {
+    differing.push(rel);
+  }
 }
-if (differing.length !== 1 || differing[0] !== "config.js") {
-  console.error(`Expected exactly one difference (config.js), got: ${differing.join(", ") || "none"}`);
-  process.exit(1);
+const onlyInDev = devFiles
+  .map((f) => relative(DEV_SITE, f))
+  .filter((rel) => !files.some((f) => relative(SITE, f) === rel));
+
+if (!DEV_FROM) {
+  // ONE TREE: the copies must be identical but for config.js. A second
+  // difference means a generated page has drifted from the live one, and a dev
+  // office that no longer matches live tests nothing.
+  if (differing.length !== 1 || differing[0] !== "config.js") {
+    console.error(`Expected exactly one difference (config.js), got: ${differing.join(", ") || "none"}`);
+    process.exit(1);
+  }
+} else {
+  // TWO TREES: the differences ARE the change being staged, so they are
+  // reported rather than refused. config.js must still be among them, because
+  // it is what makes /dev/ a sandbox-only office; its absence would mean the
+  // dev copy is running the live config.
+  if (!differing.includes("config.js")) {
+    console.error("The dev copy's config.js matches live, so /dev/ would not be sandbox-restricted.");
+    process.exit(1);
+  }
+  console.log(`staging from ${DEV_FROM}`);
+  console.log(`  ${differing.length} file(s) differ from live: ${differing.slice(0, 12).join(", ")}${differing.length > 12 ? ", ..." : ""}`);
+  if (onlyInDev.length) console.log(`  ${onlyInDev.length} file(s) exist only on dev: ${onlyInDev.slice(0, 8).join(", ")}`);
 }
 
-console.log(`built ${files.length} page(s) into ${relative(ROOT, OUT) || OUT}/ and the same again under /dev/,`);
-console.log(`differing in config.js alone.`);
+console.log(`built ${files.length} page(s) into ${relative(ROOT, OUT) || OUT}/ and ${devFiles.length} under /dev/`);
+if (!DEV_FROM) console.log(`differing in config.js alone.`);
 console.log(separate
   ? `/dev/ points at the separate dev project ${url}.`
-  : `/dev/ points at the LIVE database ${url} with REQUIRE_SANDBOX, so the office refuses\nany company that is not a sandbox. This is the fallback mode: it cannot stage a\nschema change or an edge function.`);
+  : `/dev/ points at the LIVE database ${url} with REQUIRE_SANDBOX, so the office refuses\nany company that is not a sandbox.`);
+// Said accurately for each shape. The one message used to call the staging
+// build "the fallback mode: it cannot stage a schema change", which is only
+// half true of it -- it CAN stage office and site code.
+console.log(DEV_FROM
+  ? `It stages the dev branch's office and site CODE. It still cannot stage a schema\nchange or an edge function: one database, one project.`
+  : `/dev/ is a copy of live here -- no dev branch was given, so this stages nothing.\nPush to the dev branch, or pass --dev-from, to stage a change.`);

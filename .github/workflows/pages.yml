@@ -14,9 +14,13 @@
 # costs seconds and never touches the Pages deployment at all.
 name: Deploy website
 
+# A push to EITHER branch republishes the site: main is the live office, dev is
+# the staging office at /dev/. The live copy is always built from main whichever
+# branch was pushed -- see the explicit `ref: main` below -- so a push to dev
+# can never put dev code on the live site.
 on:
   push:
-    branches: [main]
+    branches: [main, dev]
   workflow_dispatch:
 
 permissions:
@@ -36,7 +40,21 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-latest
     steps:
+      # ref: main, ALWAYS. Without it a push to dev would check out dev and
+      # deploy it to the live office -- the exact accident this split exists to
+      # prevent.
       - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      # The staging tree. continue-on-error so the live office still deploys
+      # when there is no dev branch yet, or when it has been deleted.
+      - id: devsrc
+        continue-on-error: true
+        uses: actions/checkout@v4
+        with:
+          ref: dev
+          path: .devsrc
 
       # 24 because that is what these run on locally and what the repo's other
       # .mjs tooling assumes; both files are plain node with no dependencies,
@@ -163,7 +181,22 @@ jobs:
       # no longer matches the live one tests nothing. This makes it from the
       # same files, differing by config.js alone, and fails the build if a
       # second difference appears.
-      - name: Build the site, with the dev office at /dev/
+      # The dev branch's own pages are gated too, with ITS copy of the gate.
+      # A broken staging office is useless for staging; failing here means
+      # fixing or reverting the dev branch, which is the right place for that
+      # cost to land.
+      - name: Gate - the dev branch's pages parse
+        if: steps.devsrc.outcome == 'success'
+        run: node .devsrc/tests/dashboard-syntax.test.mjs
+        working-directory: .devsrc
+
+      - name: Build the site, with the dev office at /dev/ from the dev branch
+        if: steps.devsrc.outcome == 'success'
+        run: node scripts/build-dev-site.mjs --out dist --dev-from .devsrc
+
+      # No dev branch: /dev/ is a copy of live, as it was before the split.
+      - name: Build the site, with /dev/ copied from live (no dev branch)
+        if: steps.devsrc.outcome != 'success'
         run: node scripts/build-dev-site.mjs --out dist
 
       - uses: actions/configure-pages@v5
