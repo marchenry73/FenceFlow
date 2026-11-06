@@ -72,7 +72,15 @@ test("a missing GRANT is not reported as the account's fault", () => {
 
 test("a row-level refusal names the login it refused", () => {
   const r = region("const TECH_ERRORS = [", "];");
-  assert.match(r, /'errPermission',\s*\(\)\s*=>\s*\[whoAmI\(\)\]/, "errPermission no longer passes the account");
+  // RE-AIMED 6 Nov 2026. One error shape now resolves to TWO sentences: a
+  // genuine permission refusal when the session is alive, and an expired
+  // sign-in when it is not -- because every policy here resolves the caller
+  // through auth.uid(), which is NULL on a dead token, so Postgres answers
+  // "row-level security" for a problem that has nothing to do with the
+  // account. The account is still named in the case where it is the answer.
+  assert.match(r, /hasLiveSession\(\)\s*\?\s*'errPermission'\s*:\s*'errSession'/,
+    "a dead session is reported as a permission problem again, which is what sent the owner to check permissions that were never the cause");
+  assert.match(r, /\(\)\s*=>\s*\[whoAmI\(\)\]/, "errPermission no longer passes the account");
   assert.match(src, /errPermission:'Your account is not allowed to make this change\. You are signed in as %s/,
     "the English wording no longer says who is signed in");
 });
@@ -87,7 +95,15 @@ test("every new string exists in all three languages", () => {
 test("plainError can actually substitute the argument", () => {
   const r = region("const hit = TECH_ERRORS.find", "}");
   assert.match(r, /hit\[2\]\s*\?\s*hit\[2\]\(/, "the third element is never called, so %s would print literally");
-  assert.match(r, /tr\(hit\[1\],\s*\.\.\.args\)/, "the arguments are not passed to tr()");
+  // tr(key, ...) rather than tr(hit[1], ...): the key may now be a function
+  // that is asked at the moment the message is shown.
+  assert.match(r, /tr\(key,\s*\.\.\.args\)/, "the arguments are not passed to tr()");
+  assert.match(r, /typeof hit\[1\]\)?\s*===?\s*'function'/,
+    "a function key is never resolved, so the two-sentence entry would print as [object Function]");
+  // errSession's sentence carries no %s, so passing one would print the
+  // placeholder at the person.
+  assert.match(r, /key === 'errSession' \? tr\(key\)/,
+    "errSession is handed arguments its wording has no placeholder for");
 });
 
 test("a sentence our own SQL raised is not replaced by a sentence about the account", () => {
@@ -103,8 +119,10 @@ test("a sentence our own SQL raised is not replaced by a sentence about the acco
     "the error CODE is matched again, so every deliberate message raised with it is replaced by a line about the account");
   assert.doesNotMatch(r, /42501/,
     "the bare 42501 is matched again -- that is the code our own functions raise with");
-  assert.match(r, /\[\/row-level security\/i, 'errPermission'/,
+  assert.match(r, /\[\/row-level security\/i,/,
     "the canonical row-level wording is no longer matched, so the one message no human can read now reaches the screen raw");
+  assert.match(r, /'errPermission'/,
+    "a live-session row-level refusal no longer reads as a permission problem");
 });
 
 test("the two phrasings that SHOULD be rewritten still are", () => {

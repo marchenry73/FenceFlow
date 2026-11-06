@@ -258,3 +258,5 @@ supabase_r64_sandbox_company.sql
 supabase_r65_deposit_trigger_respects_typed.sql
 supabase_r66_both_minimum_floors.sql
 supabase_r67_deposit_follows_the_materials.sql
+supabase_r68_can_clock_in_per_person.sql
+supabase_r69_license_follows_the_identity.sql

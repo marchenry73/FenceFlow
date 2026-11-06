@@ -57,8 +57,25 @@
 -- the contract header a customer reads -- is reported to the owner rather than
 -- decided here.
 --
--- license_number is NOT mirrored either: it exists only in the settings blob,
--- companies has no such column, so there is nothing to keep in step.
+-- license_number is NOT mirrored either.
+--
+-- CORRECTED 6 Nov 2026 (supabase_r69_license_follows_the_identity.sql). The
+-- reason given here was "it exists only in the settings blob, companies has no
+-- such column, so there is nothing to keep in step". THAT WAS NEVER TRUE.
+-- companies.license_no is declared in supabase_schema.sql on the same line as
+-- name and phone (`text not null default ''`), the Settings panel has written
+-- to it since 29 September, r19's per-column grant lists it, and
+-- hoa-letter/index.ts and _shared/job-spec.ts both READ it. So the one field
+-- of the three that this mirror dropped was also the one with customer-facing
+-- readers, and the licence an office typed in reached the blob and stopped.
+-- Measured on 6 Nov: companies.license_no was blank for all 12 companies while
+-- 2 held a licence in the blob. r69 mirrors it both ways, adds license_no to
+-- this trigger's AFTER UPDATE OF column list -- without which the function
+-- change is inert -- and backfills those 2 rows.
+--
+-- A plausible sentence about a column that does exist is what kept the gap
+-- open for five weeks, which is why it is corrected here rather than only in
+-- r69, and why tests/a160 asserts this correction.
 --
 -- Idempotent. The self-check at the end raises rather than leaving it half
 -- applied, and restores every row it touched.

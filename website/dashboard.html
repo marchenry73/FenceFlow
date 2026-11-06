@@ -11061,7 +11061,13 @@ function reportOfficeError(kind, raw){
    The header carries the same two facts; a refusal that repeats them is
    the difference between "this is broken" and "I am on the wrong login". */
 function whoAmI(){
-  const email = (typeof user !== 'undefined' && user && user.email) ? user.email : '?';
+  /* signedInEmail, NOT `user`. This read a global `user` for weeks and the
+     only `user` on this page is a const inside boot(), so
+     `typeof user === 'undefined'` was ALWAYS true and every refusal said
+     "signed in as ? (OWNER)". The account name is the one fact this message
+     exists to supply, and it was never in it -- which is most of the reason
+     the owner's upload failures went undiagnosed. */
+  const email = (typeof signedInEmail === 'string' && signedInEmail) ? signedInEmail : '?';
   const role = (profile && profile.role) ? profile.role : '?';
   return email + ' (' + role + ')';
 }
@@ -11111,7 +11117,41 @@ function hideRoleStrip(){
  * which only ever costs a slightly less specific message.
  */
 function hasLiveSession(){
-  try { return !!(db && db.auth && db.auth.currentSession && db.auth.currentSession.access_token); }
+  try {
+    const s = db && db.auth && db.auth.currentSession;
+    if (!s || !s.access_token) return false;
+
+    /* EXPIRY, NOT PRESENCE. This asked only whether a session object was
+       there, and supabase-js KEEPS the expired one -- in memory and in
+       localStorage -- because that cached copy is what a refresh is attempted
+       from. So an hour-dead session answered true, and the one state both
+       callers below exist to recognise was the one state they could not see.
+       March was told his own OWNER account was not allowed to upload, for
+       weeks, by a guard written to prevent exactly that sentence. */
+    let exp = (typeof s.expires_at === 'number') ? s.expires_at : null;
+    if (exp === null) {
+      /* Some stored sessions carry no expires_at. The access token always
+         carries its own exp, and that claim is the authority the SERVER
+         checks, so it is the right second place to look. */
+      try {
+        const part = String(s.access_token).split('.')[1];
+        if (part) {
+          const b64 = part.replace(/-/g, '+').replace(/_/g, '/');
+          const claims = JSON.parse(atob(b64 + '='.repeat((4 - b64.length % 4) % 4)));
+          if (typeof claims.exp === 'number') exp = claims.exp;
+        }
+      } catch (e) { /* unreadable token: fall through to unknown, below */ }
+    }
+
+    /* UNKNOWN IS NOT EXPIRED, and this is deliberate rather than tidy. A
+       session we cannot measure keeps the behaviour this page has always had
+       -- a refusal reads as a refusal -- because inventing a sign-in problem
+       out of a session nobody measured sends him to re-authenticate over
+       something re-authenticating cannot fix. Only a PROVABLY dead token
+       flips the message. */
+    if (exp === null) return true;
+    return exp * 1000 > Date.now();
+  }
   catch (e) { return false; }
 }
 
@@ -11169,7 +11209,20 @@ function plainError(text){
     // reaches the screen as written. That is the better failure -- it is
     // at least TRUE, and the office files it to app_errors either way, so
     // whatever it says can be read back and improved.
-    [/row-level security/i, 'errPermission', () => [whoAmI()]],
+    /* A DEAD SESSION FIRST, because it wears this exact disguise.
+       Every policy on this project resolves the caller through auth.uid().
+       With an expired token that is NULL, the row fails the policy, and
+       Postgres answers "row-level security" -- which read as "your account is
+       not allowed" and sent the owner to check permissions that were never
+       the problem. It is also why the page's reads come back empty and
+       Settings looks blank while the phone has the same company's data: the
+       page is running anonymously, not disagreeing with the app.
+       hasLiveSession() reads the client's own cached session and answers
+       false when there is none, so this only displaces errPermission in the
+       case where the account genuinely cannot be the explanation. A real
+       permission refusal, with a live session, still reads as one. */
+    [/row-level security/i, () => (hasLiveSession() ? 'errPermission' : 'errSession'),
+      () => [whoAmI()]],
     [/duplicate key value|violates unique constraint|\b23505\b/i, 'errDuplicate'],
     [/violates foreign key constraint|\b23503\b/i, 'errLinked'],
     [/violates check constraint|invalid input syntax|violates not-null constraint|\b22P02\b|\b23514\b|\b23502\b/i, 'errInvalid'],
@@ -11179,12 +11232,19 @@ function plainError(text){
   const s = String(text == null ? '' : text);
   const hit = TECH_ERRORS.find(([re]) => re.test(s));
   if (!hit) return s;
-  reportOfficeError(hit[1], s);
-  console.warn('Error shown in plain words (' + hit[1] + '):', s);
+  /* The key may be a function, so one shape of error can resolve to two
+     different sentences by asking something at the moment it is shown --
+     today only "row-level security", which is a permission problem with a
+     live session and an expired sign-in without one. */
+  const key = (typeof hit[1] === 'function') ? hit[1]() : hit[1];
+  reportOfficeError(key, s);
+  console.warn('Error shown in plain words (' + key + '):', s);
   // A third element supplies the %s arguments from the match, so a message
   // can name the thing that was refused instead of being generic.
   const args = hit[2] ? hit[2](s.match(hit[0]) || []) : [];
-  return tr(hit[1], ...args);
+  /* errSession names no account: its own sentence has no %s, and passing one
+     would print the placeholder. */
+  return key === 'errSession' ? tr(key) : tr(key, ...args);
 }
 
 /* "When I click save changes, it should save and close." A dialog that
