@@ -325,8 +325,19 @@ check("isStale: an unparsable actual value cannot be proven fresh either", isSta
   // of it: a re-price must write these columns and no others, and a field
   // appearing here unannounced is exactly what it is meant to catch -- as it
   // just did.
+  // ANNOUNCED 6 Nov 2026: materials_to_buy. The deposit rule is "the materials
+  // still to be bought, rounded up to the next $100, plus $100", and it has to
+  // be applied inside a BEFORE trigger -- putting deposit_amount in this patch
+  // would make the statement non-quiet and bump updated_at, which is how a
+  // phone's unsynced offline edits get discarded. So the engine stores the
+  // materials figure here, in the same quiet statement as contract_total
+  // (exactly as labor_cost already is), and deposit_follows_price() applies
+  // only the rounding to it. On touch_updated_at()'s quiet list via
+  // supabase_r67_deposit_follows_the_materials.sql -- which is the condition
+  // that makes adding it to this patch safe at all.
   check("buildCommitPlan: job patch", plan.jobPatch, {
-    contract_total: 0, labor_cost: 0, priced_by: "OFFICE", priced_at: "2026-09-05T00:00:00Z", pricing_engine_version: "2026.09.1",
+    contract_total: 0, labor_cost: 0, materials_to_buy: 0,
+    priced_by: "OFFICE", priced_at: "2026-09-05T00:00:00Z", pricing_engine_version: "2026.09.1",
   });
 }
 {
