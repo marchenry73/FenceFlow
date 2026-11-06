@@ -157,11 +157,23 @@ jobs:
       - name: Gate - and those render tests catch a runtime break
         run: node tests/a90-mutate.mjs
 
+      # The dev office, served at /dev/. GENERATED here and never committed:
+      # a second copy of dashboard.html in the repo is 2.1 MB that drifts the
+      # first time somebody edits one and not the other, and a dev office that
+      # no longer matches the live one tests nothing. This makes it from the
+      # same files, differing by config.js alone, and fails the build if a
+      # second difference appears.
+      - name: Build the site, with the dev office at /dev/
+        run: node scripts/build-dev-site.mjs --out dist
+
       - uses: actions/configure-pages@v5
 
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: website
+          # dist/, not website/: the dev office under /dev/ is generated, and
+          # generated files inside the source tree get counted by every
+          # repo-wide scan (a26-doors caught exactly that).
+          path: dist
 
       - id: deployment
         uses: actions/deploy-pages@v4

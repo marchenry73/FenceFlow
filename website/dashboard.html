@@ -11466,6 +11466,38 @@ async function boot(){
     console.error('profile read failed:', profErr);
     return;
   }
+  // THE DEV OFFICE OPENS ONLY FOR A SANDBOX COMPANY.
+  //
+  // /dev/ is byte for byte this same file (scripts/build-dev-site.mjs copies
+  // it), pointed at the SAME database, because there is one project and a
+  // second is not free. Its red bar says "nothing here reaches a real
+  // customer". Signed in as the real company that sentence would be false, and
+  // a live office wearing a warning stripe is more dangerous than no dev site:
+  // it invites exactly the experiment nobody would try on production.
+  //
+  // So the dev config sets REQUIRE_SANDBOX and this refuses anything else. The
+  // bar then states what the database enforces: a sandbox company cannot hold
+  // a mailbox or a payment connection (supabase_r64_sandbox_company.sql) and
+  // the transactional mail functions refuse it.
+  //
+  // It fails CLOSED. A read that errors, a missing row, or a column that never
+  // arrives all refuse, because "could not tell" must not open the live
+  // company here. REQUIRE_SANDBOX is absent from the live config, so none of
+  // this runs on the real office.
+  if(window.FENCEFLOW_CONFIG && window.FENCEFLOW_CONFIG.REQUIRE_SANDBOX && profile && profile.company_id){
+    const {data:sbRow, error:sbErr}=await db.from('companies')
+      .select('is_sandbox').eq('id', profile.company_id).maybeSingle();
+    if(sbErr || !sbRow || sbRow.is_sandbox!==true){
+      profile=null;
+      $('auth').style.display='none';
+      showRoleStrip('err', sbErr
+        ? 'The dev office could not tell whether this is a sandbox company, so it will not open. Nothing was loaded.'
+        : 'This is the DEV office, and it opens only for a sandbox company. The account you signed in with belongs to a live business, so nothing was loaded. Use the live office for real work.');
+      console.error('dev office refused a non-sandbox company', sbErr || '');
+      return;
+    }
+  }
+
   if(!profile||!profile.company_id){
     // An invited owner belongs on welcome.html, not here.
     //
