@@ -686,13 +686,13 @@ test("FIXED: the office wizard keeps a company's zero tax and zero markup, and a
   assert.deepEqual(
     [blank.row.tax_rate_percent, blank.row.markup_percent, blank.row.labor_rate_per_ft,
      blank.row.minimum_job_charge, blank.row.minimum_labor_charge, blank.row.gate_rate_per_ft],
-    [7, 15, 8, 0, 200, 20],
-    "a company with nothing set is quoted at 7 / 15 / 8 / no job floor / $200 labour floor / 20");
+    [7, 15, 8, 200, 200, 20],
+    "a company with nothing set is quoted at 7 / 15 / 8 / $200 job floor / $200 labour floor / 20");
   // Text in a number field is not a zero either: it takes the default, as it did before.
   const junk = await runWizSaveWho(WIZ_SRC, chose({ s_tax: "about six", s_markup: "" }));
   assert.deepEqual([junk.row.tax_rate_percent, junk.row.markup_percent], [7, 15],
     "unreadable text in a rate field must take the default, not become 0");
-  t.diagnostic("blank company -> tax 7, markup 15, labour $8/ft, minimum $200, gate $20/ft; a typed 0 stays 0");
+  t.diagnostic("blank company -> tax 7, markup 15, labour $8/ft, BOTH floors $200, gate $20/ft; a typed 0 stays 0");
 });
 
 test("FIXED: a stored company setting of ZERO reaches the job as zero (gate rate and waste come off company_settings, not a field)", async () => {
@@ -748,16 +748,25 @@ test("GAP (pinned): the phone's defaults are literals -- 7% tax, 0 markup, $8/ft
   const cls = settings.slice(settings.indexOf("data class BusinessProfile("));
   const params = cls.slice(0, matchClose(cls, cls.indexOf("(")));
   const dflt = (name) => Number((params.match(new RegExp("val " + name + ":\\s*Double\\s*=\\s*([0-9.]+)")) || [])[1]);
-  // RE-AIMED 30 Oct 2026. This read [7, 0, 8, 200] with the 200 on
-  // defaultMinimumJobCharge. The floors were deliberately swapped -- no floor
-  // under the job total, $200 under the LABOUR, which is the rule the owner
-  // uses and which the field's own comment explains -- so the old pin held the
-  // pairing the code had rejected. Both floors are named now, so a swap back
-  // has to be deliberate here too.
+  // RE-AIMED 30 Oct 2026, then again 6 Nov 2026.
+  //
+  // 30 Oct: this read [7, 0, 8, 200] with the 200 on defaultMinimumJobCharge.
+  // The floors were deliberately swapped -- no floor under the job total,
+  // $200 under the LABOUR -- so the old pin held the pairing the code had
+  // rejected.
+  //
+  // 6 Nov: March asked for BOTH at $200 ("do both for the $200"), so the job
+  // total now has a floor as well. The consequence he was told and accepted:
+  // a job that would price under $200 now prices AT $200, which cancels a
+  // discount on a very small job. That is the trade the pair encodes.
+  //
+  // A note for whoever edits the canaries below: they used to work by SWAPPING
+  // these two numbers, which stopped meaning anything the moment both became
+  // 200. They plant a different number now instead.
   assert.deepEqual(
     [dflt("defaultTaxRatePercent"), dflt("defaultMarkupPercent"), dflt("defaultLaborRatePerFt"),
      dflt("defaultMinimumJobCharge"), dflt("defaultMinimumLaborCharge")],
-    [7, 0, 8, 0, 200],
+    [7, 0, 8, 200, 200],
     "the phone's default rates moved: tax, markup, labour rate, job-total floor, labour floor");
   // AND THE READER AGREES WITH THEM.
   //
@@ -805,9 +814,12 @@ test("GAP (pinned): the phone's defaults are literals -- 7% tax, 0 markup, $8/ft
   // CANARY: the comparison can fail. The office's floors as they actually stood
   // must be caught by it.
   {
+    // PLANTS A DIFFERENT NUMBER, not a swap. Both floors are $200 now, so
+    // swapping them is a no-op and this canary would have passed while
+    // checking nothing.
     const inverted = DASH
-      .replace("minimum_job_charge: numOr($('s_min').value, 0)", "minimum_job_charge: numOr($('s_min').value, 200)")
-      .replace("minimum_labor_charge: numOr($('s_min_labor').value, 200)", "minimum_labor_charge: numOr($('s_min_labor').value, 0)");
+      .replace("minimum_job_charge: numOr($('s_min').value, 200)", "minimum_job_charge: numOr($('s_min').value, 0)")
+      .replace("minimum_labor_charge: numOr($('s_min_labor').value, 200)", "minimum_labor_charge: numOr($('s_min_labor').value, 999)");
     const bad = (key) => Number(inverted.match(
       new RegExp(key + ":\\s*numOr\\(\\$\\('s_min(?:_labor)?'\\)\\.value,\\s*(-?[0-9.]+)\\)"))[1]);
     assert.notEqual(bad("minimum_job_charge"), dflt("defaultMinimumJobCharge"),
@@ -819,9 +831,11 @@ test("GAP (pinned): the phone's defaults are literals -- 7% tax, 0 markup, $8/ft
   // CANARY: the comparison can fail. Swapping the two fallbacks in a copy of
   // the source must be caught -- that copy is the bug as it actually stood.
   {
+    // Same correction as the office canary above: a different number, not a
+    // swap of two equal ones.
     const swapped = settings
-      .replace("prefs[Keys.MIN_JOB_CHARGE] ?: 0.0", "prefs[Keys.MIN_JOB_CHARGE] ?: 200.0")
-      .replace("prefs[Keys.MIN_LABOR_CHARGE] ?: 200.0", "prefs[Keys.MIN_LABOR_CHARGE] ?: 0.0");
+      .replace("prefs[Keys.MIN_JOB_CHARGE] ?: 200.0", "prefs[Keys.MIN_JOB_CHARGE] ?: 0.0")
+      .replace("prefs[Keys.MIN_LABOR_CHARGE] ?: 200.0", "prefs[Keys.MIN_LABOR_CHARGE] ?: 999.0");
     assert.notEqual(swapped, settings, "canary: the swap changed nothing, so the fallbacks moved");
     const swappedFallback = (key) =>
       Number(swapped.match(new RegExp("prefs\\[Keys\\." + key + "\\]\\s*\\?:\\s*([0-9.]+)"))[1]);

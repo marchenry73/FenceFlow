@@ -254,3 +254,6 @@ supabase_r63_migration_ledger.sql
 # The sandbox tenant and its two capability guards. Depends on r42 (is_sandbox)
 # and is the first file applied through scripts/apply-migrations.mjs.
 supabase_r64_sandbox_company.sql
+
+supabase_r65_deposit_trigger_respects_typed.sql
+supabase_r66_both_minimum_floors.sql

@@ -26036,7 +26036,7 @@ async function wizSaveWho(){
       // The same inversion was found in SettingsStore.profileFrom on
       // 30 Oct 2026 and fixed in ba6b37f; that fix could not reach this,
       // because the office writes the row itself.
-      minimum_job_charge: numOr($('s_min').value, 0),
+      minimum_job_charge: numOr($('s_min').value, 200),
       minimum_labor_charge: numOr($('s_min_labor').value, 200),
       gate_rate_per_ft: numOr(gateRate, 20), waste_percent: numOr(waste, 0),
       calibration_pixels_per_foot: 20,

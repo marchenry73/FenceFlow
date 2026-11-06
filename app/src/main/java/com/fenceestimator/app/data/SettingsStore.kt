@@ -117,7 +117,7 @@ data class BusinessProfile(
      * silently cancels the discount. Swapped, so a new company starts with the
      * rule he actually uses.
      */
-    val defaultMinimumJobCharge: Double = 0.0,
+    val defaultMinimumJobCharge: Double = 200.0,
     /**
      * Least this company charges for LABOUR on a job, before markup and tax and
      * with materials charged on top. 0 is off, which is what every company that
@@ -843,7 +843,7 @@ class SettingsStore(private val context: Context) {
             // so a pair that disagrees with the data class prices the first
             // jobs on a new phone by the rule the data class rejected.
             // tests/a25-new-company-onboarding.test.mjs asserts they agree.
-            defaultMinimumJobCharge = prefs[Keys.MIN_JOB_CHARGE] ?: 0.0,
+            defaultMinimumJobCharge = prefs[Keys.MIN_JOB_CHARGE] ?: 200.0,
             defaultMinimumLaborCharge = prefs[Keys.MIN_LABOR_CHARGE] ?: 200.0,
             defaultToolsListCsv = prefs[Keys.TOOLS_LIST]
                 ?: "Post hole digger,4' level,Drill/driver,Circular saw,Tape measure,Post level,Wheelbarrow,Safety glasses,Gloves,String line",
