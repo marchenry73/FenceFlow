@@ -250,3 +250,7 @@ supabase_r42_product_key_test_and_real.sql
 supabase_r20_seed_new_company_catalog.sql
 # The ledger itself. Last, because every line above predates it.
 supabase_r63_migration_ledger.sql
+
+# The sandbox tenant and its two capability guards. Depends on r42 (is_sandbox)
+# and is the first file applied through scripts/apply-migrations.mjs.
+supabase_r64_sandbox_company.sql
