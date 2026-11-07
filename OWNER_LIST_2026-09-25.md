@@ -123,7 +123,37 @@ live with a positive control: NOTHING else in the repo root has been applied. Ei
 
 ## C. Money the customer sees
 
-- [ ] **C1. Cancellation is not filled in** — make it work.
+- [x] **C1. DONE 06-11 — and the title was literally true.** Cancellation is
+      *built*: the office has the dialog, the phone has `CancellationApi`, and
+      r45/r61 hold the rule server-side ($1 a foot for work that will not
+      happen, plus material when it was ordered, nothing at all inside the
+      three business days). What was **not filled in** was the column r45
+      added for the purpose. `jobs.cancellation_retained` says in its own
+      comment: *"What was kept, AS DECIDED AT THE MOMENT OF CANCELLATION.
+      Stored rather than recomputed."* Nothing wrote it — not the office, not
+      the phone, not a trigger. And the **deployed** `job_cancellation_terms`
+      (read out of the live database, not a file) mentioned neither that column
+      nor `cancelled_at`, so it re-priced from today's line items every time it
+      was asked. The customer is told "we keep $X, you get $Y back", $X is
+      stored nowhere, and the next person to open the job sees a different
+      number with no way to tell which was the agreement — the same defect
+      `accepted_total` was created to fix on the quote side, on a refund.
+      Only the **material** half drifts; `feet` is `signed_linear_feet`, frozen
+      at signing.
+      `supabase_r71_cancellation_figure_is_frozen.sql`, applied 06-11: one rule
+      function, the display prefers a figure already decided, and a trigger on
+      the `cancelled_at` transition writes it. **A trigger, not two client
+      patches** — that transition is the one funnel the office and the phone
+      both go through, so neither needed changing and no APK was published.
+      `retained` freezes; `refund_due` stays `max(paid − retained, 0)` against
+      live `paid`, so it falls to zero as money actually goes back.
+      0 of 20 jobs have ever been cancelled, so nothing had been harmed yet —
+      and nothing needed backfilling. `tests/a165`, 14 checks including the
+      behavioural one, with a positive control that disables the trigger and
+      confirms the figure is then not stored.
+      **Still open:** the cancel path has never been used by a real person; the
+      office does not yet *show* what a cancellation kept; the phone cannot
+      read the column at all.
 - [x] **C2. DONE 06-11.** Three parts, and two of them already worked. The
       **summary** renders (fence type, total feet, gate count, a per-run
       breakdown one tap away) and the **pay link** works — measured live:

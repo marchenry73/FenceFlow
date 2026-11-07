@@ -88,10 +88,23 @@ const BODY_MAX = 20000;
 
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+const cors = {
+  "Access-Control-Allow-Origin": "*",
+  // Authorization AND apikey AND x-client-info: db.functions.invoke() sends
+  // all three, and a preflight is refused for one missing name as surely as
+  // for all of them. quote-view's shorter list is for a function nobody
+  // signs in to -- copying it here would leave this exactly as broken.
+  "Access-Control-Allow-Headers": "authorization, apikey, content-type, x-client-info",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
 const json = (body: unknown, status = 200) =>
   new Response(JSON.stringify(body), {
     status,
-    headers: { "Content-Type": "application/json" },
+    // ...cors on EVERY reply. A 200 with no Access-Control-Allow-Origin is
+    // blocked by the browser just as the 405 preflight was, so answering the
+    // preflight alone would move the failure rather than fix it.
+    headers: { ...cors, "Content-Type": "application/json" },
   });
 
 const env = (k: string) => Deno.env.get(k) ?? "";
@@ -160,6 +173,9 @@ async function post(provider: Sender, key: string, payload: unknown): Promise<Po
 }
 
 Deno.serve(async (req) => {
+  // BEFORE the method check, or the preflight still collects the 405 that
+  // this fix exists to stop.
+  if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error_code: "method", message: "POST only" }, 405);
 
   const url = env("SUPABASE_URL");
