@@ -197,10 +197,13 @@
 
   .done{background:var(--ok-soft);border:1px solid var(--ok-line);color:var(--ok-dk);
         border-radius:14px;padding:20px;margin-bottom:16px;font-size:16px}
-  .done-link{display:inline-block;margin-top:12px;background:none;
-        border:1px solid var(--ok-line);color:var(--ok-dk);padding:10px 16px;
+  /* "Download a copy". Lives under the Pricing panel, not in the green
+     approved box it used to sit inside, so it is neutral rather than
+     green-on-green. Same metrics as the old .done-link. */
+  .keep-link{display:inline-block;margin-top:16px;background:none;
+        border:1px solid var(--line);color:var(--text);padding:10px 16px;
         border-radius:9px;font:600 14px/1 "IBM Plex Sans",sans-serif;cursor:pointer}
-  .done-link:hover{background:#fff}
+  .keep-link:hover{border-color:var(--orange);color:var(--orange)}
   .err{background:#FDECEC;color:#8C1114;border-radius:9px;padding:12px 15px;
        font-size:14.5px;margin-top:12px;display:none}
 
@@ -654,8 +657,6 @@ function setLang(code) {
       <img id="approvedSignatureImg" style="display:none;max-width:260px;width:100%;margin-top:12px;
            background:#fff;border:1px solid var(--ok-line);border-radius:8px;padding:6px">
       <div id="nextSteps"></div>
-      <button type="button" id="downloadBtn" class="done-link" style="display:none"
-              data-t="downloadCopy">Download a copy</button>
     </div>
 
     <div class="panel">
@@ -672,6 +673,15 @@ function setLang(code) {
         <div id="scope" style="margin-top:10px"></div>
       </div>
       <div class="totals" id="totals"></div>
+      <!-- A copy of the quote as it stands. Shown before an approval as well
+           as after one: a homeowner comparing two contractors, or showing
+           this to whoever else pays for it, needs the figures in something
+           they can keep -- and making that conditional on approving first
+           asks for the decision before handing over what they decide on.
+           render() -> canDownloadCopy() decides; it is NOT offered when the
+           server has refused this price (approvalBlocked). -->
+      <button type="button" id="downloadBtn" class="keep-link" style="display:none"
+              data-t="downloadCopy">Download a copy</button>
     </div>
 
     <!-- Only ever shown when the contractor has typed at least one way of
@@ -835,6 +845,27 @@ function nextStepsKey(q){
   return 'nextStepsReady';
 }
 
+/* MAY THE CUSTOMER KEEP A COPY OF THIS QUOTE?
+   Pure, and separate from render(), for two reasons: render() is all DOM and
+   no test can call it, and the answer is a judgement about money rather than
+   about layout.
+
+     approved        -> yes, as it always has been.
+     price refused   -> NO. approvalBlocked means the figure on this page is
+                        below one already agreed and the server will not take
+                        an approval at it (quote-view's priceShortfall).
+                        render() takes the ways-to-pay panel down for the same
+                        reason; a file she keeps outlives any panel.
+     nothing priced  -> no. A quote with no total is not a document.
+     otherwise       -> yes. This is the ordinary case, and the one that was
+                        missing: an unapproved, priced quote. */
+function canDownloadCopy(q){
+  if(!q) return false;
+  if(q.approvedAt) return true;
+  if(q.approvalBlocked) return false;
+  return (Number(q.total)||0) > 0.005;
+}
+
 function render(){
   const q=quote;
   $('coName').textContent=q.company.name||tr('yourContractor');
@@ -990,13 +1021,17 @@ function render(){
   // disappears at exactly the moment "Nothing left to pay" appears.
   renderHowToPay(q, balance);
 
+  // Set BOTH ways from the one rule, and before the approval branches below so
+  // every state passes through it: a re-render must never leave a button
+  // standing that the current state would not offer.
+  $('downloadBtn').style.display=canDownloadCopy(q)?'':'none';
+
   if(q.approvedAt){
     $('approvedBox').style.display='';
     $('approvedText').textContent=tr('approvedOn', q.approvedBy,
       new Date(q.approvedAt).toLocaleDateString(LANG),
       q.company.name||tr('yourContractor'));
     $('nextSteps').textContent=tr(nextStepsKey(q));
-    $('downloadBtn').style.display='';
     renderApprovedSignature();
     // Already approved on an earlier visit: the deposit is the only thing
     // left, so it stands on its own.
@@ -1500,7 +1535,10 @@ function markApproved(name){
   $('approvedText').textContent=tr('approvedThanks', name,
     quote.company.name||tr('yourContractor'));
   $('nextSteps').textContent=tr(nextStepsKey(quote));
-  $('downloadBtn').style.display='';
+  // quote.approvedAt was just set, so this is canDownloadCopy's approved
+  // case. Asked rather than assumed, so this path and render() can never
+  // disagree about who may keep a copy.
+  $('downloadBtn').style.display=canDownloadCopy(quote)?'':'none';
   renderApprovedSignature();
 }
 

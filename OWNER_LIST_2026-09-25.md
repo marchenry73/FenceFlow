@@ -124,8 +124,32 @@ live with a positive control: NOTHING else in the repo root has been applied. Ei
 ## C. Money the customer sees
 
 - [ ] **C1. Cancellation is not filled in** — make it work.
-- [ ] **C2. A sent quote shows the customer everything, plus a pay link / "Pay
-      here" that opens Stripe so they can pay immediately.**
+- [x] **C2. DONE 06-11.** Three parts, and two of them already worked. The
+      **summary** renders (fence type, total feet, gate count, a per-run
+      breakdown one tap away) and the **pay link** works — measured live:
+      `paymentsReady: true`, `depositPayable: true`, deposit $3,500 of
+      $5,764.72. The **download** was the gap, and not in the way it looked:
+      "Download a copy" was *declared inside* `#approvedBox`, which is
+      `display:none` until the customer approves — so the two
+      `$('downloadBtn').style.display=''` lines in the file both ran, both
+      succeeded and both showed nothing. A customer still deciding had no way
+      to keep the figures, which is the one audience a quote is for. The button
+      now lives under the Pricing panel and one pure rule decides it
+      (`canDownloadCopy`): yes once priced, still yes after approval, **no**
+      while `approvalBlocked` — that figure is one the server has already
+      refused as below an agreed price, and a file she keeps outlives the
+      panel render() takes down for the same reason. Verified on a real
+      unapproved quote (nini, $32,175.25, 1429 ft of vinyl, 1 gate): button
+      visible, approved box still hidden, no console error, document built
+      with no approval block. `tests/a164-quote-copy-before-approval.test.mjs`,
+      13 checks, all four watched failing.
+      NOT changed, deliberately: the quote still shows no materials/labour
+      split. `quote-view` strips `subtotal`/`tax`/`taxRate` on purpose —
+      subtotal *is* the material cost, and anyone with the link could subtract
+      it and read the margin before negotiating. Reversing that is your call,
+      not a coding one.
+- [ ] ~~C2. A sent quote shows the customer everything, plus a pay link / "Pay
+      here" that opens Stripe so they can pay immediately.~~
 - [ ] **C3. Signature by email:** send the customer everything they need to sign,
       with verification; they either draw a signature or type their full name;
       afterwards they can download the documents. This is for HIS clients to use
