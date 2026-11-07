@@ -213,9 +213,38 @@ live with a positive control: NOTHING else in the repo root has been applied. Ei
 - [ ] **F2. Merge "Drawing changes since approval" with "Changes from the
       field"** into one section that looks good and saves space.
 - [x] **F3. ALREADY DONE — verified live 24-10.** `admin_companies()` returns `owner_email` (column 29) from the company's OWNER profile; Fence solutions has exactly one OWNER, `marchenry73@gmail.com`, and `admin.html` renders it in the company row and the Manage dialog. `companies.email` (`marc@fenceflowapp.com`) is the separate customer-facing setting and is deliberately untouched. Original wording:
-- [ ] **F4. The customer reply-to address should be the COMPANY's email.**
-      `marc@fenceflowapp.com` is his address within the company; the company
-      needs its own, accurately.
+- [x] **F4. DONE 07-11 (the code half).** The reply-to already *was* the
+      company's email everywhere it matters — `mail-send` via
+      `fenceflowReplyTo`, `hoa-letter`, `invite-crew` all read
+      `companies.email`, and a company without one gets a refusal that names
+      the remedy: *"Add your business email in Settings first, so replies to
+      FenceFlow mail have somewhere to go."* What was wrong is that the
+      customer-facing email is stored **twice** and, unlike name, phone and
+      licence, was never mirrored: `companies.email` feeds the reply-to and
+      the quote page, while the settings blob's `email` is what
+      `PdfExporter` prints in the contract header. Same concept, two stores,
+      agreeing only by luck.
+      r62 excluded it for a reason that had stopped being true — it cites a
+      disagreement where "the settings copy is a personal gmail", and measured
+      07-11 there is no disagreement at all (both read `marc@fenceflowapp.com`;
+      the gmail is gone). It also cited F3, but **F3 is a different pair**:
+      `companies.email` vs the *owner's login* out of `profiles`. The blob's
+      `email` is `BusinessProfile.email`, declared in `SettingsStore.kt`
+      between `businessName`/`phone` and `licenseNumber` — the very fields
+      already mirrored.
+      `supabase_r72_email_follows_the_identity.sql`, applied 07-11: mirrors it
+      both ways and adds `email` to the companies-side trigger column list
+      (without that the branch is inert — r69's trap). One difference from the
+      other three: a **shape check**, because a wrong name is merely wrong on a
+      page while a wrong address silently stops customer mail — `"n/a"`, a
+      phone number or a company name is never mirrored into a reply-to.
+      `tests/a167`, both canaries watched failing.
+      **Still needs you:** *"Marc fence"* has no customer-facing email in
+      either store, so there is nothing to mirror — its quote pages show no
+      contact address and its FenceFlow mail refuses. *"Legacy"* uses a
+      personal yahoo address (`beaunissantmarchenrybernard@yahoo.fr`) as its
+      customer-facing email; mirroring will now keep that accurately in both
+      stores, which may not be the address you want.
 
 ## G. Queued from before
 

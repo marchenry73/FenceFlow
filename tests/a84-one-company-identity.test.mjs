@@ -217,7 +217,7 @@ test("4. the rollback took: nothing named A84 PROBE survives", () => {
 });
 
 // ============================================== 5. email is deliberately apart
-test("5. email is NOT mirrored, and the mirror says so", () => {
+test("5. every field of the company identity is mirrored, email included", () => {
   const r = one(`
     select (select prosrc from pg_proc
              where pronamespace = 'public'::regnamespace
@@ -227,8 +227,30 @@ test("5. email is NOT mirrored, and the mirror says so", () => {
   // Comments stripped, so the prose explaining the exclusion cannot satisfy a
   // check about the code.
   const code = body.replace(/^\s*--.*$/gm, "");
-  assert.doesNotMatch(code, /'email'/,
-    "the mirror now copies email -- companies.email is the customer-facing address and the settings copy is a separate field (F3); mirroring them replaces one with the other");
+  // RE-AIMED AGAIN 7 Nov 2026, and this is the SECOND of r62's two stated
+  // exclusions to turn out to be wrong. It used to read
+  //
+  //     assert.doesNotMatch(code, /'email'/)
+  //
+  // on r62's grounds that companies.email and the settings copy are separate
+  // fields per F3. Measured 7 Nov: (a) there is no disagreement between them
+  // on any company -- both read marc@fenceflowapp.com, and the "personal
+  // gmail" r62 describes is gone; (b) F3's distinction is a DIFFERENT pair,
+  // companies.email against the owner's LOGIN address out of `profiles`,
+  // which no mirror touches. The blob's `email` is BusinessProfile.email,
+  // declared in SettingsStore.kt between businessName/phone and
+  // licenseNumber, and printed by PdfExporter in the contract header a
+  // customer reads. One concept, two stores, agreeing only by luck.
+  // The owner decided it on 7 Nov, which is what r62 asked for ("reported to
+  // the owner rather than decided here"). r72 mirrors it; this check now
+  // REQUIRES what it used to forbid.
+  assert.match(code, /'email'/,
+    "the mirror no longer carries the email: the reply-to on customer mail and the address printed in the contract header can drift apart again");
+  // The shape check goes with it. Without this, a mirror that copied "n/a" or
+  // a phone number into companies.email would satisfy the line above -- and
+  // mail-send refuses to send at all on an unparseable reply-to.
+  assert.match(code, /looks_like_email/,
+    "the mirror copies the email without the shape check, so a non-address can become a company's customer-facing reply-to");
   // RE-AIMED 6 Nov 2026. This used to forbid license_number as well, on the
   // grounds that it "exists only in the settings blob -- there is no column
   // to keep it in step with". That was r62's stated reason and it was never

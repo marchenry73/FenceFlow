@@ -262,3 +262,4 @@ supabase_r68_can_clock_in_per_person.sql
 supabase_r69_license_follows_the_identity.sql
 supabase_r70_first_settings_save_mirrors_too.sql
 supabase_r71_cancellation_figure_is_frozen.sql
+supabase_r72_email_follows_the_identity.sql
