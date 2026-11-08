@@ -466,3 +466,101 @@ deployed functions under `scratchpad/deployed*/`). `surfaces.mjs` builds the per
 fake database; `dep.mjs` runs the deployed `price-job` engine; `fuzz.mjs` is the four-copy
 rule check; `note.mjs` renders the office re-price panel from the real function. Node 24
 imports the TypeScript directly.
+
+---
+
+# Lens two, 7 Nov 2026 — the branches the live data cannot reach
+
+Owner list A4 says "extend rather than duplicate". This pass did not re-check
+what lens one checked. It asked a different question: **which money code has
+never run against real data at all?**
+
+## 9. The blind spot, measured
+
+Every money suite in `tests/` runs over the live rows. Counted 7 Nov:
+
+| case | rows in production |
+|---|---|
+| line items carrying a supplier price | **0** |
+| change orders | **0** |
+| jobs with a refund | **0** |
+| refunds above payments | **0** |
+| negative payment records | **0** |
+
+So no test exercises the supplier-price branch, the change-order branch or the
+refund branch of any money function — `job_costing`, `ar_aging`,
+`depositFigures`, `computeTotals`, `job_cancellation_terms`. Lens one listed
+some of this under "Not checked" and inferred the arithmetic by reading the
+live bodies. This pass ran them instead.
+
+## 10. F13 — a job with no materials reports its whole price as profit (MEDIUM, latent)
+
+`job_costing()` returns `costs_are_sell_prices` so the office can say a margin
+is fiction. It is
+
+```sql
+bool_and(i.supplier_unit_price is null) as all_fallback
+```
+
+aggregated over the job's line items, LEFT JOINed, then
+`coalesce(m.all_fallback, false)`. **With no line items there is no materials
+row at all**: `bool_and` over zero rows is null, the coalesce turns that into
+`false`, and `false` reads everywhere as "these are real costs".
+
+Measured as the owner against production:
+
+```
+unflagged jobs: 2
+  quoted=4200.00  material_cost=0.00  margin=100.0  live_lines=0
+  quoted=0.00     material_cost=0.00  margin=None   live_lines=0
+```
+
+100% margin, no marker, no note. Both are fixtures today, which is why this is
+latent rather than live. It matters because **it is the shape a real job takes
+the moment its line items go**, and that has happened twice: the 1 Oct pass
+tombstoned every generated line on five jobs, and a later half-loaded client
+tombstoned 64 priced items cloud-wide. After either, those jobs would have read
+as a windfall on the one report the owner uses to judge whether work pays.
+
+Three states squeezed into a boolean, with the unknown coalesced to the
+reassuring value — the same class as the office's "your account is not allowed"
+and the quote gate.
+
+**Fixed in the office, not the SQL.** `costs_are_sell_prices` is literally
+accurate as it stands: with no lines, no line fell back to a sell price.
+Changing it would need a migration and would make the flag mean two things to
+every other reader. The page already receives `quoted_material`, so it marks
+that row with `†` and says the margin reads **high** — the opposite of the
+sell-prices note, because the two cases are wrong in opposite directions.
+`tests/a168`, with the canaries watched failing.
+
+## 11. Newly checked, and clean
+
+- **Refund above payments.** Constructed on a real job ($38,034.62) inside
+  `begin/rollback`: a $1,000 payment and a $1,500 refund give `paid = -500.00`
+  and `owed = 38,534.62` — the contract total plus the $500 refunded that was
+  never paid. Arithmetically consistent and defensible. `cash_position` follows
+  it. Lens one listed this as "not checked".
+- **The office does surface `costs_are_sell_prices`**: a `*` on the cost cell
+  and an appended note. The code says why: *"Costs at sell prices mean the
+  margin is fiction until supplier prices go in."*
+- **`job_costing` is gated by `money_scope_company_id()`**, so it returns ZERO
+  ROWS to the migration role. Any check that reads it without impersonating an
+  owner passes on an empty answer. `a168` carries a canary for exactly that.
+
+## 12. Still not checked
+
+- The phone's own database and the Kotlin run (`gradlew`); the figures remain a
+  port, not a run.
+- The change-order branch of every money function — still 0 rows, and `a168`
+  does not construct one.
+- `job_costing`'s supplier-price branch with a cost BELOW sell: no row has ever
+  carried a supplier price, so `material_cost < quoted_material` has never been
+  produced by real data.
+
+## 13. Reproduce
+
+Unlike lens one, whose scripts lived in a session scratchpad outside the repo
+and are gone, this pass's proof is `tests/a168-margin-without-materials.test.mjs`
+and runs with the suite. **A proof that cannot be re-run is not a proof** — that
+is the main thing lens two changes about lens one.

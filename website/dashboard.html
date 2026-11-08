@@ -5510,6 +5510,7 @@ jobViewAll:'All', jobViewToday:'Today', jobViewWeek:'This week', jobViewUnschedu
     repCostingWorkedFreeNote:' • %s hours on %s carry no cost at all, because nobody has an hourly rate on file. Those margins are overstated by the whole labour bill — set rates under Crew.',
     repCostingWorkedFreeJob:'1 job', repCostingWorkedFreeJobs:'%s jobs',
     repCostingSellPricesNote:' * No supplier prices recorded on this job yet, so its costs are your sell prices and the margin reads low.',
+    repCostingNoMaterialsNote:' † No materials are costed on this job at all, so its whole price falls to profit and the margin reads high. Check the material list is still there.',
     repCrewNotAttributed:'Not attributed', repCrewNoRole:'No role set',
     repCrewNoOneOnShift:'No crew member on the shift',
     repPeopleNoneMsg:'Nobody clocked any hours in this period.',
@@ -7370,6 +7371,7 @@ jobViewAll:'Todos', jobViewToday:'Hoy', jobViewWeek:'Esta semana', jobViewUnsche
     repCostingWorkedFreeNote:' • %s horas en %s no tienen ningún costo, porque nadie tiene una tarifa por hora en el archivo. Esos márgenes están sobrestimados por toda la mano de obra — configure las tarifas en Cuadrilla.',
     repCostingWorkedFreeJob:'1 trabajo', repCostingWorkedFreeJobs:'%s trabajos',
     repCostingSellPricesNote:' * Este trabajo aún no tiene precios de proveedor registrados, así que sus costos son sus precios de venta y el margen se ve bajo.',
+    repCostingNoMaterialsNote:' † Este trabajo no tiene ningún material costeado, así que todo su precio pasa a ganancia y el margen se ve alto. Comprueba que la lista de materiales siga ahí.',
     repCrewNotAttributed:'Sin atribuir', repCrewNoRole:'Sin puesto asignado',
     repCrewNoOneOnShift:'Ningún miembro de la cuadrilla en el turno',
     repPeopleNoneMsg:'Nadie marcó horas en este período.',
@@ -9211,6 +9213,7 @@ jobViewAll:'Tous', jobViewToday:'Aujourdhui', jobViewWeek:'Cette semaine', jobVi
     repCostingWorkedFreeNote:' • %s heures sur %s ne portent aucun coût, car personne n\'a de taux horaire au dossier. Ces marges sont surestimées de toute la facture de main-d\'œuvre — réglez les taux dans Équipe.',
     repCostingWorkedFreeJob:'1 chantier', repCostingWorkedFreeJobs:'%s chantiers',
     repCostingSellPricesNote:' * Aucun prix fournisseur enregistré pour ce chantier encore, donc ses coûts sont vos prix de vente et la marge paraît basse.',
+    repCostingNoMaterialsNote:' † Aucun matériau n\'est chiffré sur ce chantier, donc tout son prix devient du profit et la marge paraît élevée. Vérifiez que la liste des matériaux est toujours là.',
     repCrewNotAttributed:'Non attribué', repCrewNoRole:'Aucun poste défini',
     repCrewNoOneOnShift:'Aucun membre de l\'équipe sur le quart',
     repPeopleNoneMsg:'Personne n\'a pointé d\'heures dans cette période.',
@@ -19825,13 +19828,27 @@ function renderCosting(){
     // Costs at sell prices mean the margin is fiction until supplier prices
     // go in -- say so instead of showing a number that insults the job.
     const sellCosts = r.costs_are_sell_prices === true;
+    // THE THIRD STATE, which costs_are_sell_prices cannot carry. That flag is
+    // bool_and(supplier_unit_price is null) over the job's lines; with NO
+    // lines it is null and job_costing coalesces it to false -- "these are
+    // real costs". Material cost is then 0, the whole price falls to profit,
+    // and the margin reads 100%. That is what a job looks like after its line
+    // items are lost, which has happened twice on this project, so it must
+    // not be presented as a windfall.
+    //
+    // quoted_material != null first: a deploy of job_costing without that
+    // column would otherwise read as 0 and flag EVERY job.
+    const noMaterials = r.quoted_material != null
+      && Number(r.quoted_material) === 0
+      && Number(r.material_cost || 0) === 0
+      && Number(r.quoted || 0) > 0;
 
     return `<tr>
       <td>${esc(r.customer_name || tr('jobUntitled'))}
           <br><span style="color:var(--muted);font-size:12px">${esc(r.status||'')}</span></td>
       <td>${money(quoted)}</td>
       <td>${money(r.collected)}</td>
-      <td title="${esc(tr('repCostingCostsTitle', money(r.material_cost), money(r.labour_cost), money(r.other_cost)))}">${money(r.total_cost)}${sellCosts ? ' *' : ''}</td>
+      <td title="${esc(tr('repCostingCostsTitle', money(r.material_cost), money(r.labour_cost), money(r.other_cost)))}">${money(r.total_cost)}${noMaterials ? ' †' : (sellCosts ? ' *' : '')}</td>
       <td style="${tone}">${money(profit)}</td>
       <td style="${tone}">${r.margin_percent == null ? '—' : Number(r.margin_percent).toFixed(0) + '%'}</td>
       <td style="${cash < -0.005 ? 'color:var(--muted)' : ''}">${money(cash)}</td>
@@ -19862,6 +19879,14 @@ function renderCosting(){
 
   if (jobCosting.some(r=>r.costs_are_sell_prices === true)) {
     $('costingNote').textContent += tr('repCostingSellPricesNote');
+  }
+  // Separate sentence, not a reworded one: the two say OPPOSITE things about
+  // which way the margin is wrong, and a job can only be in one of the states.
+  if (jobCosting.some(r => r.quoted_material != null
+        && Number(r.quoted_material) === 0
+        && Number(r.material_cost || 0) === 0
+        && Number(r.quoted || 0) > 0)) {
+    $('costingNote').textContent += tr('repCostingNoMaterialsNote');
   }
 }
 
