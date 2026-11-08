@@ -25997,7 +25997,7 @@ async function wizRenderStep(){
     case 1: body.innerHTML = wizStepWhoHtml(); wizWireWho(); break;
     case 2: body.innerHTML = wizStepBuildHtml(); wizWireBuild(); break;
     case 3: body.innerHTML = wizStepRunsHtml(); wizWireRuns(); break;
-    case 4: body.innerHTML = wizStepPricingHtml(); break;
+    case 4: body.innerHTML = wizStepPricingHtml(); wizWirePricing(); break;
     case 5: body.innerHTML = wizStepEstimateHtml(); await wizRunDryRun(); break;
     case 6: body.innerHTML = wizStepScheduleHtml(); break;
     case 7: body.innerHTML = wizStepSendHtml(); wizWireSend(); break;
@@ -26644,6 +26644,54 @@ async function wizSaveRunsStep(){
 
 /* ---------- step 4: pricing ---------- */
 
+/* WHAT THE FIVE TEARDOWN CONTROLS WILL CHARGE (owner list D5).
+   Pure, and separate from the panel, because the interesting part is a rule
+   rather than a layout and nothing can call a template literal.
+
+   Mirrors supabase/functions/_shared/pricing/totals.ts:
+
+       teardownFt = teardownFeet > 0 ? teardownFeet
+                  : drawnTeardownFt > 0 ? drawnTeardownFt
+                  : billableFeet
+       teardownCost = enabled ? flat + ratePerFt * teardownFt + haul : 0
+
+   `known` is false when the length will come from somewhere this panel cannot
+   see -- the drawn old fence, or failing that the whole new fence. The office
+   has no live linear-feet column and the wizard loads no runs, so the honest
+   answer there is which length will be used, not a guess at the total. */
+function teardownPricing(v){
+  const num = x => { const n = Number(x); return Number.isFinite(n) ? n : 0; };
+  if(!v.enabled) return { enabled:false, known:true, total:0, fixed:0, rate:0, feet:0 };
+  const feet = num(v.feet), rate = num(v.ratePerFt);
+  const fixed = num(v.flat) + num(v.haul);
+  const known = feet > 0;
+  return { enabled:true, known, feet, rate, fixed,
+           total: known ? fixed + rate * feet : null };
+}
+
+/* The sentence under the four fields. Separate from teardownPricing so the
+   arithmetic can be tested without matching on English. */
+function teardownNote(v){
+  const p = teardownPricing(v);
+  const m = n => '$' + (Math.round(n * 100) / 100).toLocaleString(undefined,
+    { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  if(!p.enabled){
+    return 'Teardown is off, so none of these four fields charges anything.';
+  }
+  if(p.known){
+    return 'Charges ' + m(p.total) + ' \u2014 ' + m(p.fixed)
+      + ' in flat fee and haul, plus ' + m(p.rate) + '/ft over ' + p.feet + ' ft.';
+  }
+  if(p.rate === 0){
+    return 'Charges ' + m(p.fixed) + '. There is no per-foot rate, so the '
+      + 'length does not matter.';
+  }
+  return 'Teardown feet is 0, so ' + m(p.rate) + '/ft is charged along the old '
+    + 'fence you drew \u2014 and if none is drawn, along the WHOLE NEW FENCE. '
+    + 'Type the old fence length above to price it exactly. Fixed part so far: '
+    + m(p.fixed) + '.';
+}
+
 function wizStepPricingHtml(){
   const j = wiz.job;
   return `
@@ -26670,6 +26718,9 @@ function wizStepPricingHtml(){
         <div><label>Teardown $/ft</label><input id="wz_teardown_ft" type="number" step="0.5" value="${j.teardown_rate_per_ft??0}"></div>
         <div><label>Trash haul fee ($)</label><input id="wz_trash_haul" type="number" step="1" value="${j.trash_haul_fee??0}"></div>
       </div>
+      <!-- D5: keep every field, and say what it is pricing. Filled by
+           wizWirePricing() on mount and on every keystroke. -->
+      <div id="wz_teardown_note" class="sub" style="margin-top:8px"></div>
     </div>`;
 }
 
@@ -26712,6 +26763,31 @@ async function wizRunDryRun(){
   wiz.officePricing = { expectedUpdatedAt, output: body.output };
   $('wizEstMsg').className='msg'; $('wizEstMsg').textContent='';
   wizRenderEstimateResult();
+}
+
+/* D5. Reads the five controls and keeps the sentence under them true. Called
+   once on mount so the note is right before anything is touched -- a note that
+   only appears after an edit leaves the default state unexplained, and the
+   default state (feet 0) is the one that surprises people. */
+function wizWirePricing(){
+  const note = $('wz_teardown_note');
+  if(!note) return;
+  const read = () => ({
+    enabled: $('wz_teardown_on').checked,
+    feet:      $('wz_teardown_feet').value,
+    flat:      $('wz_teardown_flat').value,
+    ratePerFt: $('wz_teardown_ft').value,
+    haul:      $('wz_trash_haul').value,
+  });
+  const paint = () => { note.textContent = teardownNote(read()); };
+  ['wz_teardown_on','wz_teardown_feet','wz_teardown_flat','wz_teardown_ft','wz_trash_haul']
+    .forEach(id => {
+      const el = $(id);
+      if(!el) return;
+      el.addEventListener('input', paint);
+      el.addEventListener('change', paint);
+    });
+  paint();
 }
 
 function wizRenderEstimateResult(){

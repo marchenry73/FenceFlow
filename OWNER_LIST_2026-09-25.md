@@ -195,7 +195,31 @@ live with a positive control: NOTHING else in the repo root has been applied. Ei
 - [x] **D3. ALREADY DONE - verified 24-10.** The drawing screen's + menu offers "new" and "teardown", so the old fence is started where it is drawn; it draws in PlanColors.teardownLine; linearFeet excludes it and teardownLinearFeet sums it, in BOTH engines; TeardownChargeRow puts the job-level charge switch on that same screen; and EstimateEngine warns when a teardown is drawn while the charge is off. Still open: what "so nothing goes in the marker area" asks for, and that an EXISTING run cannot be switched to or from teardown (it is only set when the run is added). Original wording: D3. Draw the old fence on the grid** so nothing goes in the marker area,
       and make sure it is charged for.
 - [x] **D4. STARTED 28-09.** The estimate now says what the tax was charged ON, whenever that differs from the materials — the line whose absence hid A1 for three passes. More charges to surface still.
-- [ ] **D5. DO NOT BUILD AS ASKED — verified.** Those five controls are the ONLY place the teardown charge can be switched on or priced, and the engine forces the cost to zero when the switch is off. Remove them and the charge becomes permanently uncollectable — recreating D3's complaint one screen over. Instead: keep every field and show what it is pricing (in progress). Original wording:
+- [x] **D5. DONE 07-11 — and the phone half was already finished.** Still DO
+      NOT BUILD AS ASKED: those five controls are the only place the teardown
+      charge can be switched on or priced, and the engine forces the cost to
+      zero when the switch is off, so removing them makes the charge
+      permanently uncollectable — D3's complaint one screen over.
+      The replacement ("keep every field, show what it is pricing") turned out
+      to be **already done on the phone's job page**, which is what this item
+      names: `JobDetailScreen` resolves the three-way footage fallback, names
+      which one is in play in four words beside the money, carries the long
+      version in a basis card, and takes the bottom line from the engine's own
+      `teardownCost` so the two cannot drift. The "(in progress)" marker was
+      stale.
+      **The office wizard was the surface still silent**, and that is what was
+      added: step 4's four teardown fields now carry a live sentence saying what
+      they charge. The thing it exists to say is the engine's fallback —
+      `teardownFeet > 0 ? typed : drawn > 0 ? drawn : billableFeet` — so
+      leaving "Teardown feet" at 0 with no old fence drawn charges the per-foot
+      rate **along the whole new fence**. Nothing on that panel hinted at it.
+      It prints an exact figure when the feet are typed and names the length
+      that will be used when they are not, because the office has no live
+      linear-feet column and the wizard loads no runs — a figure it cannot
+      stand behind would be worse than the silence.
+      `tests/a169`, 13 checks, all four canaries watched failing, including one
+      that fails if the ENGINE's fallback changes so the note cannot quietly
+      become a lie. Original wording:
 - [ ] ~~D5. Remove the teardown section on the job page~~ now that it lives on
       the grid, and remove anything else duplicated between the two.
 

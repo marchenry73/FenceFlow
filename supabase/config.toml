@@ -221,3 +221,17 @@ verify_jwt = false
 # and each company is capped per day.
 [functions.resend-inbound]
 verify_jwt = false
+
+# The guest demo. Somebody trying the app has no account and therefore no
+# Supabase session, so the gateway cannot be the thing that guards this --
+# deployed with verification ON, every first-run device would be refused 401
+# before the function ran, and the demo would simply never start.
+#
+# What stands in for it: the endpoint can do exactly one thing, which is claim
+# or read ONE device's demo. It returns nothing about any other device, holds
+# no account data, and the worst a forged device_id buys is a single demo
+# under an identifier nobody else will ever send. The device id is hashed with
+# a server-side pepper before it is stored, and the function refuses outright
+# when that pepper is unset rather than hashing without one.
+[functions.guest-trial]
+verify_jwt = false
