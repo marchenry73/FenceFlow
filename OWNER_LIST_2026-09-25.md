@@ -204,14 +204,33 @@ live with a positive control: NOTHING else in the repo root has been applied. Ei
 - [x] **E1. BUILT 28-09, and the feature was already live.** The table, all four functions and the office panel were applied on 24-09; a stale comment in the file said otherwise and fooled a survey. It is called a product key now, in his words, with a pointer to it from the dashboard. The switch that enforces it is still deliberately absent from the UI. Original wording:
 - [ ] ~~E1. The per-device product key is not visible to customers~~ — they
       cannot use it, in the app or on the website.
-- [ ] **E2. A TEST product key that unlocks the test data, and a REAL one** — a
-      sandbox and the live app — both controlled from the admin portal.
+- [ ] **E2. NEEDS YOUR DECISION — it conflicts with a safety rule already in
+      place (checked 07-11).** The sandbox/real split exists: `companies
+      .is_sandbox` is live, `refuse_sandbox_real_world()` keys off it, and the
+      admin portal shows it as a badge. What it will not do is let you *set*
+      it, and that is deliberate — the code says why: *"a checkbox here would
+      be a way to make a test company start mailing real people by misclick."*
+      So "both controlled from the admin portal" is the one part not built,
+      and building it as asked re-opens exactly the hole that comment closes.
+      If you want it, say so and I will build it behind a type-the-company-name
+      confirmation rather than a checkbox. Original wording: A TEST product key
+      that unlocks the test data, and a REAL one — a sandbox and the live app —
+      both controlled from the admin portal.
 
 ## F. The office and the job page
 
 - [x] **F1. BUILT 28-09.** Only one field on that sheet is genuinely a list — referral source — and it is a picker now in both the job sheet and the wizard, with every value already in the data carried so no job is rewritten. Everything else there is a name, an address, a note or a rate.
-- [ ] **F2. Merge "Drawing changes since approval" with "Changes from the
-      field"** into one section that looks good and saves space.
+- [x] **F2. ALREADY DONE — verified 07-11.** Both halves live in one panel
+      (`#jobChangesPanel`, "Changes on this job") with one header and one
+      border; the old separate panels are gone (0 references left).
+      `syncJobChangesPanel()` shows it only when one of the four parts has
+      content, so on most jobs the sheet is no longer than before the section
+      existed — the "saves space" half of what was asked. The phone did its
+      half in `JobDetailScreen.JobChangesSection` (line 5438).
+      `tests/office-job-changes-merge.test.mjs` pins it: **50 checks**,
+      including canaries proving the pre-merge rule (the drawing half deciding
+      alone) would hide the section on a job that has field changes. Verified
+      from the code and the passing suite, not from the comment that claims it.
 - [x] **F3. ALREADY DONE — verified live 24-10.** `admin_companies()` returns `owner_email` (column 29) from the company's OWNER profile; Fence solutions has exactly one OWNER, `marchenry73@gmail.com`, and `admin.html` renders it in the company row and the Manage dialog. `companies.email` (`marc@fenceflowapp.com`) is the separate customer-facing setting and is deliberately untouched. Original wording:
 - [x] **F4. DONE 07-11 (the code half).** The reply-to already *was* the
       company's email everywhere it matters — `mail-send` via
@@ -248,8 +267,23 @@ live with a positive control: NOTHING else in the repo root has been applied. Ei
 
 ## G. Queued from before
 
-- [ ] **G1. Drawing versions** — the database half is applied and the restore
-      screens shipped in 1.532; finish whatever remains.
+- [ ] **G1. Drawing versions — THIS ITEM'S PREMISE DOES NOT MATCH THE CODE
+      (checked 07-11).** It says "the database half is applied". There is **no
+      versions, snapshots, revisions or history table in production** — the
+      live schema has none. What exists is two different things, and neither
+      is what the sentence describes:
+      • **Drawing undo/redo history** is a per-job **JSON file on the handset**
+        (`DrawingHistoryStore.kt`), and that is a deliberate choice with its
+        reason written down: *"an undo stack is screen state, not business
+        data. It never syncs."* So it does not survive a device change, by
+        design — not an unfinished database half.
+      • **"Put this drawing back"** — the restore the office offers after an
+        approval is withdrawn — is real, is backed by `quote_reapprovals`, and
+        is covered by the 50 checks in `tests/office-job-changes-merge.test.mjs`.
+      So "finish whatever remains" needs you to say which of the two you meant.
+      If it is *versions a second phone can see*, that is a new feature and a
+      real build, not a finish. Original wording: the database half is applied
+      and the restore screens shipped in 1.532; finish whatever remains.
 - [ ] **G2. Different settings per company.** He explicitly said to leave
       **custom features** aside for now, to be built later.
 
