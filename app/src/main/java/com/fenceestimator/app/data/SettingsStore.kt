@@ -273,7 +273,18 @@ data class BusinessProfile(
      * not fields here: nothing but the demo's own start and end has any use for
      * them.
      */
-    val guestSessionStartedAt: Long = 0L
+    val guestSessionStartedAt: Long = 0L,
+    /**
+     * How long THIS device's demo was granted for, in millis. 0 means no grant
+     * is stored and [GuestSession.grantedMs] falls back to the constant.
+     *
+     * Stored because the window is no longer one number: the server gives 15
+     * minutes online, the phone awards itself 5 with no signal, and a phone
+     * that started offline is topped up to the remainder of 15 when it first
+     * reaches the server. Counting any of those down against a constant would
+     * give away minutes that were deliberately withheld.
+     */
+    val guestSessionGrantedMs: Long = 0L
 ) {
     companion object {
         fun defaultContractTerms() = DEFAULT_CONTRACT_TERMS
@@ -325,8 +336,8 @@ class SettingsStore(private val context: Context) {
      * copy again -- by then the stored values are the visitor's, and copying
      * them would make the visitor's choices the original. See [beginDemoPrefs].
      */
-    suspend fun startGuestSession(startedAtMillis: Long) {
-        context.dataStore.edit { beginDemoPrefs(it, startedAtMillis) }
+    suspend fun startGuestSession(startedAtMillis: Long, grantedMs: Long) {
+        context.dataStore.edit { beginDemoPrefs(it, startedAtMillis, grantedMs) }
     }
 
     /**
@@ -592,7 +603,11 @@ class SettingsStore(private val context: Context) {
          * not a demo (see GuestSession.isActive) and copies nothing, so it cannot
          * leave a copy behind with no flag to end it.
          */
-        internal fun beginDemoPrefs(prefs: MutablePreferences, startedAtMillis: Long) {
+        internal fun beginDemoPrefs(
+            prefs: MutablePreferences,
+            startedAtMillis: Long,
+            grantedMs: Long,
+        ) {
             val running = (prefs[Keys.GUEST_SESSION_STARTED_AT] ?: 0L) != 0L
             if (!running && startedAtMillis != 0L) {
                 prefs[Keys.DEMO_PREV_TAKEN] = true
@@ -600,6 +615,11 @@ class SettingsStore(private val context: Context) {
                 copyOrForget(prefs, Keys.LANGUAGE, Keys.DEMO_PREV_LANGUAGE)
             }
             prefs[Keys.GUEST_SESSION_STARTED_AT] = startedAtMillis
+            // In the SAME edit as the start time. A grant without a start is a
+            // window nothing counts down, and a start without its grant falls
+            // back to the full fifteen -- which is exactly the minutes an
+            // offline demo is not supposed to have.
+            prefs[Keys.GUEST_SESSION_GRANTED_MS] = grantedMs
         }
 
         /**
@@ -615,6 +635,9 @@ class SettingsStore(private val context: Context) {
         internal fun endDemoPrefs(prefs: MutablePreferences) {
             giveBackDemoPrefs(prefs)
             prefs[Keys.GUEST_SESSION_STARTED_AT] = 0L
+            // Cleared with the start time, or the next demo on this phone
+            // counts down against the window the LAST one was given.
+            prefs[Keys.GUEST_SESSION_GRANTED_MS] = 0L
         }
 
         /**
@@ -757,6 +780,7 @@ class SettingsStore(private val context: Context) {
         val THEME_MODE = stringPreferencesKey("theme_mode")
         val LANGUAGE = stringPreferencesKey("language")
         val GUEST_SESSION_STARTED_AT = longPreferencesKey("guest_session_started_at")
+        val GUEST_SESSION_GRANTED_MS = longPreferencesKey("guest_session_granted_ms")
         // What the phone had when the guest demo began (beginDemoPrefs). The two
         // strings are the stored enum text, and are ABSENT when the phone had never
         // chosen; the boolean says a copy exists, so "absent" and "no copy" differ.
@@ -857,7 +881,8 @@ class SettingsStore(private val context: Context) {
             biometricUnlockEnabled = prefs[Keys.BIOMETRIC_UNLOCK] ?: false,
             themeMode = runCatching { ThemeMode.valueOf(prefs[Keys.THEME_MODE] ?: "") }.getOrDefault(ThemeMode.SYSTEM),
             language = language,
-            guestSessionStartedAt = prefs[Keys.GUEST_SESSION_STARTED_AT] ?: 0L
+            guestSessionStartedAt = prefs[Keys.GUEST_SESSION_STARTED_AT] ?: 0L,
+            guestSessionGrantedMs = prefs[Keys.GUEST_SESSION_GRANTED_MS] ?: 0L
         )
     }
 

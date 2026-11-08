@@ -98,7 +98,11 @@ class GuestPrefsRestoreTest {
     private fun visitorChanges(p: MutablePreferences) =
         SettingsStore.writeDevicePrefs(p, ThemeMode.DARK, AppLanguage.FRENCH, p[autoLock] ?: 0, p[biometric] ?: false)
 
-    private fun begin(p: MutablePreferences, at: Long = t0) = SettingsStore.beginDemoPrefs(p, at)
+    private fun begin(
+        p: MutablePreferences,
+        at: Long = t0,
+        granted: Long = com.fenceestimator.app.guest.GuestSession.DURATION_MS,
+    ) = SettingsStore.beginDemoPrefs(p, at, granted)
     private fun end(p: MutablePreferences) = SettingsStore.endDemoPrefs(p)
     private fun wipe(p: MutablePreferences) = SettingsStore.clearAllPrefs(p)
 
@@ -191,9 +195,16 @@ class GuestPrefsRestoreTest {
         end(prefs)
         // Every other key on the phone -- company fields, the settings clock, the
         // remembered address, auto-lock, fingerprint -- is exactly as it was. The
-        // one difference from before the demo is that the countdown key now reads
-        // zero instead of being absent.
-        assertEquals(setOf("guest_session_started_at"), changed(before, snapshot(prefs)))
+        // only difference from before the demo is that the countdown key and the
+        // window it counts down now read zero instead of being absent.
+        //
+        // STILL assertEquals over an exact set, deliberately. Loosened to a
+        // "contains" this would stop being the guard it exists to be: a demo
+        // that started rewriting the business name would pass.
+        assertEquals(
+            setOf("guest_session_started_at", "guest_session_granted_ms"),
+            changed(before, snapshot(prefs))
+        )
         assertEquals(0L, prefs[flag])
     }
 
@@ -282,7 +293,13 @@ class GuestPrefsRestoreTest {
         val prefs = usedPhone()
         val before = snapshot(prefs)
         end(prefs)
-        assertEquals(setOf("guest_session_started_at"), changed(before, snapshot(prefs)))
+        // The grant is cleared with the countdown, in the same edit, so ending
+        // a demo that never ran writes both keys as zero rather than leaving
+        // the next demo to count down against the last one's window.
+        assertEquals(
+            setOf("guest_session_started_at", "guest_session_granted_ms"),
+            changed(before, snapshot(prefs))
+        )
         assertEquals("LIGHT", prefs[theme])
         assertEquals("SPANISH", prefs[language])
     }
@@ -372,7 +389,7 @@ class GuestPrefsRestoreTest {
     @Test
     fun `a start with a zero clock is not a demo and leaves no copy behind`() {
         val prefs = chosen("LIGHT", "SPANISH")
-        SettingsStore.beginDemoPrefs(prefs, 0L)
+        SettingsStore.beginDemoPrefs(prefs, 0L, com.fenceestimator.app.guest.GuestSession.DURATION_MS)
         assertFalse("a copy with no countdown to end it would never be spent", copyIsThere(prefs))
     }
 
@@ -609,7 +626,7 @@ class GuestPrefsRestoreTest {
         val store = code(source(storePath))
         // One edit each: the flag and the copy are written together or not at all.
         for ((signature, callee) in listOf(
-            "suspend fun startGuestSession(" to "beginDemoPrefs(it, startedAtMillis)",
+            "suspend fun startGuestSession(" to "beginDemoPrefs(it, startedAtMillis, grantedMs)",
             "suspend fun endGuestSession(" to "endDemoPrefs(it)",
             "suspend fun clearAll(" to "clearAllPrefs(it)"
         )) {

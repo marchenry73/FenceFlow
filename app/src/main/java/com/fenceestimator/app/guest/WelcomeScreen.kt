@@ -36,7 +36,13 @@ import com.fenceestimator.app.R
 fun WelcomeScreen(
     seeding: Boolean,
     onSignIn: () -> Unit,
-    onTryGuest: () -> Unit
+    onTryGuest: () -> Unit,
+    /**
+     * True only when the server said this device has already had its one
+     * demo. Never set by a failure to reach the server -- a visitor with no
+     * signal gets the short demo, not this.
+     */
+    demoRefused: Boolean = false,
 ) {
     Surface(modifier = Modifier.fillMaxSize()) {
         Column(
@@ -67,7 +73,9 @@ fun WelcomeScreen(
             androidx.compose.foundation.layout.Spacer(Modifier.height(12.dp))
             OutlinedButton(
                 onClick = onTryGuest,
-                enabled = !seeding,
+                // Disabled once refused, so the control that cannot work stops
+                // looking like it might and the visitor stops tapping it.
+                enabled = !seeding && !demoRefused,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 if (seeding) {
@@ -76,18 +84,30 @@ fun WelcomeScreen(
                 Text(stringResource(R.string.welcome_try_guest))
             }
             androidx.compose.foundation.layout.Spacer(Modifier.height(8.dp))
+            // THE REFUSAL, with the way out in the same sentence. Without this
+            // the visitor taps the button, the spinner stops and nothing
+            // happens -- a refusal nobody can see reads as a broken button,
+            // and they tap it again.
+            if (demoRefused) {
+                Text(
+                    stringResource(R.string.welcome_demo_used),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error
+                )
+                androidx.compose.foundation.layout.Spacer(Modifier.height(8.dp))
+            }
             // How long the demo lasts, worked out from the one constant that
             // says so rather than written into the sentence. The caption used to
             // spell the number out, in three languages, in three files nobody
             // edits together -- so when the length changed the constant moved
             // and all three captions went on promising the old figure. A
             // sentence with no number in it cannot be left behind.
-            val durationHours = GuestSession.durationHours
+            val durationMinutes = GuestSession.durationMinutes
             Text(
                 stringResource(
                     R.string.welcome_try_guest_caption,
                     androidx.compose.ui.res.pluralStringResource(
-                        R.plurals.guest_duration_hours, durationHours, durationHours
+                        R.plurals.guest_duration_minutes, durationMinutes, durationMinutes
                     )
                 ),
                 style = MaterialTheme.typography.bodySmall,

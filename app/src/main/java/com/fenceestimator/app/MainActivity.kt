@@ -138,6 +138,10 @@ class MainActivity : FragmentActivity() {
                         // takes guestActive (a DataStore-backed flow) to catch up.
                         var welcomeDismissedThisLaunch by remember { mutableStateOf(false) }
                         var seedingGuest by remember { mutableStateOf(false) }
+                        // Set only when the SERVER said this device has already
+                        // had its demo. A failure to ask never sets it -- see
+                        // GuestTrialApi.claim.
+                        var guestRefused by remember { mutableStateOf(false) }
                         var postWelcomeStartRoute by remember { mutableStateOf(Routes.JOBS) }
                         // Recomposes the countdown text once a second. profile
                         // (a DataStore flow) only changes when the flag itself is
@@ -217,13 +221,28 @@ class MainActivity : FragmentActivity() {
                         if (showWelcome) {
                             WelcomeScreen(
                                 seeding = seedingGuest,
+                                demoRefused = guestRefused,
                                 onSignIn = {
                                     postWelcomeStartRoute = Routes.ACCOUNT
                                     welcomeDismissedThisLaunch = true
                                 },
                                 onTryGuest = {
                                     seedingGuest = true
+                                    guestRefused = false
                                     app.applicationScope.launch {
+                                        // ASK FIRST. Seeding writes sample rows
+                                        // and marks the phone as holding demo
+                                        // data; doing that before the server
+                                        // agrees leaves a refused visitor with
+                                        // a phone full of samples for a demo
+                                        // that never ran.
+                                        val grant = com.fenceestimator.app.cloud
+                                            .GuestTrialApi.claim(this@MainActivity)
+                                        if (!grant.allowed) {
+                                            guestRefused = true
+                                            seedingGuest = false
+                                            return@launch
+                                        }
                                         // Stamped as demo data BEFORE the first
                                         // sample row exists. A process that
                                         // dies mid-seed then leaves a phone
@@ -234,7 +253,14 @@ class MainActivity : FragmentActivity() {
                                         // are samples.
                                         app.dataOwnership.onGuestDemoStarted()
                                         runCatching { GuestSeeder.seed(app.repository) }
-                                        app.settingsStore.startGuestSession(System.currentTimeMillis())
+                                        // The window the server granted, not a
+                                        // constant: an offline start gets the
+                                        // short demo and must count down
+                                        // against that, not against the full
+                                        // fifteen.
+                                        app.settingsStore.startGuestSession(
+                                            System.currentTimeMillis(), grant.grantedMs
+                                        )
                                         postWelcomeStartRoute = Routes.JOBS
                                         welcomeDismissedThisLaunch = true
                                         seedingGuest = false

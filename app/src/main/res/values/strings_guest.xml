@@ -9,9 +9,10 @@
     <!-- How long the guest demo lasts, spoken by welcome_try_guest_caption below.
          Never spell the number out in a translated sentence again; read it
          from here instead. -->
-    <plurals name="guest_duration_hours">
-        <item quantity="one">1 hour</item>
-        <item quantity="other">%1$d hours</item>
+    <string name="welcome_demo_used">This device has already had its free demo. Sign in or subscribe to keep using FenceFlow.</string>
+    <plurals name="guest_duration_minutes">
+        <item quantity="one">1 minute</item>
+        <item quantity="other">%1$d minutes</item>
     </plurals>
     <string name="welcome_try_guest_caption">You\'ll see a sample company with example jobs already filled in, ready to look around. Everything resets after %1$s.</string>
 

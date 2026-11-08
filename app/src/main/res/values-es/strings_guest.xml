@@ -4,9 +4,10 @@
     <string name="welcome_subtitle">Inicia sesión con tu empresa, o échale un vistazo primero con una empresa de ejemplo ya configurada.</string>
     <string name="welcome_sign_in">Iniciar sesión o crear una cuenta</string>
     <string name="welcome_try_guest">Probar sin una cuenta</string>
-    <plurals name="guest_duration_hours">
-        <item quantity="one">1 hora</item>
-        <item quantity="other">%1$d horas</item>
+    <string name="welcome_demo_used">Este dispositivo ya usó su demostración gratuita. Inicia sesión o suscríbete para seguir usando FenceFlow.</string>
+    <plurals name="guest_duration_minutes">
+        <item quantity="one">1 minuto</item>
+        <item quantity="other">%1$d minutos</item>
     </plurals>
     <string name="welcome_try_guest_caption">Verás una empresa de ejemplo con trabajos de muestra ya cargados, lista para explorar. Todo se reinicia después de %1$s.</string>
 
