@@ -119,6 +119,18 @@ object SupabaseModule {
     val isConfigured: Boolean =
         BuildConfig.SUPABASE_URL.isNotBlank() && BuildConfig.SUPABASE_KEY.isNotBlank()
 
+    /**
+     * Set by FenceEstimatorApp.onCreate before anything can touch [client].
+     *
+     * The Application object is constructed before any activity, service or
+     * provider of this app runs, and [client] is `by lazy`, so the first touch
+     * cannot come earlier. Held here rather than passed in because the client
+     * is an object-scoped singleton and every caller already reaches it that
+     * way.
+     */
+    @Volatile
+    var appContext: android.content.Context? = null
+
     val client: SupabaseClient by lazy {
         createSupabaseClient(
             supabaseUrl = BuildConfig.SUPABASE_URL,
@@ -126,7 +138,29 @@ object SupabaseModule {
         ) {
             // See cloudJson above for every flag and why.
             defaultSerializer = KotlinXSerializer(cloudJson)
-            install(Auth)
+            // WHERE THE SESSION IS KEPT. Without this, auth-kt installs
+            // SettingsSessionManager, which stores the session -- refresh
+            // token included -- as plain XML in SharedPreferences. Measured
+            // against auth-kt-release.aar 3.0.2 on 7 Nov 2026.
+            //
+            // If appContext were ever null the library's plaintext default
+            // would silently win, which is how a fix like this stops being
+            // one. It is set in onCreate, and a null here is recorded rather
+            // than shrugged off.
+            install(Auth) {
+                val ctx = appContext
+                if (ctx != null) {
+                    sessionManager = EncryptedSessionManager(ctx)
+                } else {
+                    // Log, not CrashReporter.report: that needs a Context,
+                    // which is precisely what is missing in this branch.
+                    android.util.Log.e(
+                        "SupabaseModule",
+                        "no appContext at client creation; the session would " +
+                            "fall back to plaintext storage"
+                    )
+                }
+            }
             install(Postgrest)
             install(io.github.jan.supabase.storage.Storage)
             // Live row changes, so a cleared payment reaches the phone the moment
@@ -162,7 +196,32 @@ object SupabaseModule {
     @Volatile
     var justSignedOut: Boolean = false
 
+    /**
+     * Signs in from a refresh token kept for one of this phone's faces.
+     *
+     * False for every failure, and they are ordinary: tokens are rotated,
+     * revoked when a password changes, and expire if the phone has been in a
+     * drawer. The caller falls back to the password box rather than treating
+     * it as an error, because from the contractor's side nothing is wrong --
+     * they just have to type it this time.
+     */
+    suspend fun signInWithStoredToken(refreshToken: String): Boolean = runCatching {
+        val session = client.auth.refreshSession(refreshToken)
+        client.auth.importSession(session)
+        true
+    }.getOrDefault(false)
+
     suspend fun signOut() {
+        // BEFORE the sign-out, while the user is still known. The face stays
+        // on the sign-in screen; the credential behind it goes, so tapping it
+        // asks for the password. That is what "sign out" means to the person
+        // pressing it, and it is what stops a crew handset carrying a standing
+        // owner session.
+        runCatching {
+            val id = client.auth.currentUserOrNull()?.id
+            val ctx = appContext
+            if (id != null && ctx != null) SignedInProfiles(ctx).forgetToken(id)
+        }
         client.auth.signOut()
         justSignedOut = true
     }

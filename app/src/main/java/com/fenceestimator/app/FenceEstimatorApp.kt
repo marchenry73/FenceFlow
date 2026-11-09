@@ -6,6 +6,7 @@ import com.fenceestimator.app.data.Repository
 import com.fenceestimator.app.cloud.AutoSync
 import com.fenceestimator.app.cloud.CrashReporter
 import com.fenceestimator.app.cloud.SessionManager
+import com.fenceestimator.app.cloud.SupabaseModule
 import com.fenceestimator.app.data.SettingsStore
 import com.fenceestimator.app.notify.Notifications
 import com.fenceestimator.app.notify.PushTokenStore
@@ -77,6 +78,10 @@ class FenceEstimatorApp : Application() {
         // nastiest crashes live -- a bad migration takes the app down before
         // a single screen draws.
         CrashReporter.install(this)
+        // Before anything can touch SupabaseModule.client, which is `by lazy`:
+        // without it the Supabase client falls back to storing the session,
+        // refresh token and all, as plain XML in SharedPreferences.
+        SupabaseModule.appContext = applicationContext
         settingsStore = SettingsStore(this)
         // Before the database, so a push that starts the process mid-update
         // can still show its notification.

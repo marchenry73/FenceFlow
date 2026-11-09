@@ -2358,4 +2358,8 @@
     <string name="emp_can_clock_in_note">Désactivé signifie que cette personne ne peut démarrer aucun poste sur aucun téléphone.</string>
     <string name="set_clock_in_moved">Qui peut pointer se règle par personne : Équipe, touchez quelqu’un, « Peut pointer ».</string>
     <string name="crew_clock_in_switched_off">Le pointage est désactivé pour vous. Demandez au bureau si c’est une erreur.</string>
+    <string name="acct_faces_title">Connectés sur ce téléphone</string>
+    <string name="acct_faces_needs_password">Mot de passe requis</string>
+    <string name="acct_faces_signing_in">Connexion...</string>
+    <string name="acct_faces_remove">Retirer</string>
 </resources>

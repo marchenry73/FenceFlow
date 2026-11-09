@@ -2435,4 +2435,8 @@
     <string name="emp_can_clock_in_note">Off means this person cannot start a shift on any phone.</string>
     <string name="set_clock_in_moved">Who can clock in is set per person now: Crew, tap somebody, "Can clock in".</string>
     <string name="crew_clock_in_switched_off">Clock-in is switched off for you. Ask the office if that is wrong.</string>
+    <string name="acct_faces_title">Signed in on this phone</string>
+    <string name="acct_faces_needs_password">Password needed</string>
+    <string name="acct_faces_signing_in">Signing in...</string>
+    <string name="acct_faces_remove">Remove</string>
 </resources>

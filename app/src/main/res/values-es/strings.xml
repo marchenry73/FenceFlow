@@ -2358,4 +2358,8 @@
     <string name="emp_can_clock_in_note">Desactivado significa que esta persona no puede iniciar un turno en ningún teléfono.</string>
     <string name="set_clock_in_moved">Quién puede registrar entrada se define por persona: Cuadrilla, toque a alguien, "Puede registrar entrada".</string>
     <string name="crew_clock_in_switched_off">El registro de entrada está desactivado para usted. Consulte a la oficina si es un error.</string>
+    <string name="acct_faces_title">Han iniciado sesión en este teléfono</string>
+    <string name="acct_faces_needs_password">Se necesita la contraseña</string>
+    <string name="acct_faces_signing_in">Iniciando sesión...</string>
+    <string name="acct_faces_remove">Quitar</string>
 </resources>

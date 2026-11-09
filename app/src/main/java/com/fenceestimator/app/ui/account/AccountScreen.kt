@@ -37,6 +37,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
@@ -300,6 +301,26 @@ private fun SignedOutSection(state: AccountUiState, viewModel: AccountViewModel)
     // Kept local to this screen rather than in AccountViewModel -- nothing
     // else needs to know a reset was requested, and there is no session state
     // for it to affect either way.
+    // The faces, loaded once per visit to this screen. Kept here with the
+    // other sign-in locals rather than in AccountViewModel: nothing outside
+    // this screen needs to know who has signed in on this handset, and the
+    // view model has no Context to read an encrypted store with.
+    val faceContext = LocalContext.current.applicationContext
+    val profilesStore = remember(faceContext) {
+        com.fenceestimator.app.cloud.SignedInProfiles(faceContext)
+    }
+    var faces by remember {
+        mutableStateOf<List<com.fenceestimator.app.cloud.SignedInProfiles.Face>>(emptyList())
+    }
+    /** The profile a tap is currently signing in, so the row can say so. */
+    var facesBusy by remember { mutableStateOf<String?>(null) }
+    /** A profile whose stored token turned out to be no good. */
+    var faceNeedsPassword by remember { mutableStateOf<String?>(null) }
+    val faceScope = rememberCoroutineScope()
+    LaunchedEffect(state.signedInEmail) {
+        faces = runCatching { profilesStore.faces() }.getOrDefault(emptyList())
+    }
+
     var resetBusy by remember { mutableStateOf(false) }
     var resetMessage by remember { mutableStateOf<UiMessage?>(null) }
     var resetIsError by remember { mutableStateOf(false) }
@@ -316,6 +337,93 @@ private fun SignedOutSection(state: AccountUiState, viewModel: AccountViewModel)
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+
+            // WHO HAS SIGNED IN ON THIS PHONE BEFORE. Only on the sign-in
+            // form, never on the sign-up one: a list of existing accounts has
+            // nothing to say to somebody creating their first.
+            if (!isSignUp && faces.isNotEmpty()) {
+                Text(
+                    stringResource(R.string.acct_faces_title),
+                    style = MaterialTheme.typography.labelLarge,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                faces.forEach { face ->
+                    androidx.compose.material3.Surface(
+                        onClick = {
+                            if (face.canTapToSignIn) {
+                                facesBusy = face.userId
+                                faceScope.launch {
+                                    val token = profilesStore.tokenFor(face.userId)
+                                    val ok = token != null &&
+                                        com.fenceestimator.app.cloud.SupabaseModule
+                                            .signInWithStoredToken(token)
+                                    facesBusy = null
+                                    if (!ok) {
+                                        // Revoked, rotated away or expired.
+                                        // Not an error from where the
+                                        // contractor stands -- they just have
+                                        // to type it this time.
+                                        email = face.email
+                                        faceNeedsPassword = face.userId
+                                        runCatching { passwordFocus.requestFocus() }
+                                    }
+                                }
+                            } else {
+                                email = face.email
+                                runCatching { passwordFocus.requestFocus() }
+                            }
+                        },
+                        enabled = !state.busy && facesBusy == null,
+                        shape = MaterialTheme.shapes.medium,
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        androidx.compose.foundation.layout.Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 12.dp, vertical = 10.dp),
+                            verticalAlignment = androidx.compose.ui.Alignment.CenterVertically
+                        ) {
+                            androidx.compose.foundation.layout.Column(
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Text(
+                                    face.displayName.ifBlank { face.email },
+                                    style = MaterialTheme.typography.bodyLarge,
+                                    fontWeight = FontWeight.Medium
+                                )
+                                // The reason this one will ask for a password,
+                                // said on the row rather than discovered by
+                                // tapping it.
+                                val sub = when {
+                                    facesBusy == face.userId ->
+                                        stringResource(R.string.acct_faces_signing_in)
+                                    !face.canTapToSignIn ->
+                                        stringResource(R.string.acct_faces_needs_password)
+                                    faceNeedsPassword == face.userId ->
+                                        stringResource(R.string.acct_faces_needs_password)
+                                    else -> face.email
+                                }
+                                Text(
+                                    sub,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            androidx.compose.material3.TextButton(
+                                onClick = {
+                                    faceScope.launch {
+                                        profilesStore.remove(face.userId)
+                                        faces = profilesStore.faces()
+                                    }
+                                },
+                                enabled = facesBusy == null
+                            ) { Text(stringResource(R.string.acct_faces_remove)) }
+                        }
+                    }
+                }
+            }
+
             OutlinedTextField(
                 value = email,
                 onValueChange = {
