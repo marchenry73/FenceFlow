@@ -11960,6 +11960,47 @@ function showBlocked(status){
     .addEventListener('click', () => location.reload());
   document.getElementById('blockedOut')
     .addEventListener('click', async () => { await db.auth.signOut({scope:'local'}); location.reload(); });
+  watchForUnblock();
+}
+
+/* NOTICE WHEN THE ANSWER CHANGES.
+   checkService() runs once, before anything loads, so this screen used to go
+   on showing "paused" after the account had been switched back on -- an
+   extension pressed on the phone, a payment finished in another tab, the
+   admin portal lifting a suspension. Reported 17 Nov 2026 as "I extended my
+   trial from the phone and the website is still locked out": the server had
+   let him back in a minute earlier; the tab had simply never asked again.
+
+   So while this screen is up it re-asks when the tab comes back into view or
+   regains focus -- the exact moment someone returns from doing the thing that
+   unlocks them -- and once a minute while it is visible. A confirmed
+   allowed:true reloads, so the office comes up as it would on a fresh visit
+   rather than being patched into a page built for the locked state.
+
+   Only a CONFIRMED yes counts. checkService() answers {allowed:false,
+   unknown:true} when it cannot reach the server, and a network blip must
+   neither let anyone in nor bounce the page round a reload loop. A hidden tab
+   is not polled: hours of background requests buy nothing the visibility
+   listener does not already catch. Installed once, however often the blocked
+   screen is drawn. */
+let unblockWatchInstalled = false;
+function watchForUnblock(){
+  if (unblockWatchInstalled) return;
+  unblockWatchInstalled = true;
+  let asking = false;
+  const recheck = async () => {
+    if (document.hidden || asking) return;
+    asking = true;
+    try {
+      const row = await checkService(1);
+      if (row && row.allowed === true && !row.unknown) location.reload();
+    } finally {
+      asking = false;
+    }
+  };
+  document.addEventListener('visibilitychange', () => { if (!document.hidden) recheck(); });
+  window.addEventListener('focus', recheck);
+  setInterval(recheck, 60000);
 }
 
 /**

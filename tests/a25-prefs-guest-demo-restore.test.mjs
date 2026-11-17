@@ -135,7 +135,7 @@ const inOrder = (text, ...needles) => {
 /** startGuestSession / endGuestSession / clearAll are each ONE dataStore edit running the tested body. */
 function checkStoreEntryPoints(store) {
   const rows = [
-    ["suspend fun startGuestSession(", "beginDemoPrefs(it, startedAtMillis)"],
+    ["suspend fun startGuestSession(", "beginDemoPrefs(it, startedAtMillis, grantedMs)"],
     ["suspend fun endGuestSession(", "endDemoPrefs(it)"],
     ["suspend fun clearAll(", "clearAllPrefs(it)"],
   ];
@@ -323,7 +323,7 @@ const cases = [
     real: () => checkStoreEntryPoints(store),
     planted: [
       ["endGuestSession goes back to writing only the flag", () => checkStoreEntryPoints(plant(store, "context.dataStore.edit { endDemoPrefs(it) }", "context.dataStore.edit { it[Keys.GUEST_SESSION_STARTED_AT] = 0L }"))],
-      ["startGuestSession stops taking the copy", () => checkStoreEntryPoints(plant(store, "context.dataStore.edit { beginDemoPrefs(it, startedAtMillis) }", "context.dataStore.edit { it[Keys.GUEST_SESSION_STARTED_AT] = startedAtMillis }"))],
+      ["startGuestSession stops taking the copy", () => checkStoreEntryPoints(plant(store, "context.dataStore.edit { beginDemoPrefs(it, startedAtMillis, grantedMs) }", "context.dataStore.edit { it[Keys.GUEST_SESSION_STARTED_AT] = startedAtMillis }"))],
       ["clearAll goes back to clearing without the give-back", () => checkStoreEntryPoints(plant(store, "context.dataStore.edit { clearAllPrefs(it) }", "context.dataStore.edit { it.clear() }"))],
       ["endGuestSession becomes two edits", () => checkStoreEntryPoints(plant(store, "context.dataStore.edit { endDemoPrefs(it) }", "context.dataStore.edit { endDemoPrefs(it) }\n        context.dataStore.edit { }"))],
     ],
