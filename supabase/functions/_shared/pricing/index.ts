@@ -318,7 +318,22 @@ export {
  * other about a run that does not exist and said nothing about one that half
  * does.
  */
-export const PRICING_ENGINE_VERSION = "2026.10.24";
+/*
+ * Bumped 2026.10.24 -> 2026.11.17 (17 Nov 2026): A VINYL GATE POST IS AN END
+ * POST. A GATE_POST entry on a vinyl run is now priced from the END_POST rows
+ * even where a GATE_POST row exists -- in the owner's catalog that row is HFS's
+ * unrouted "Blank Post", the wrong part beside a fence line. The owner's rule,
+ * confirmed by Hartford Fence Supply Estimate 66420 (end posts for a gate, no
+ * gate-post SKU). The takeoff labels say so ("Gate posts (end post + Econo
+ * Stiffener)", "Econo stiffeners (one inside each gate post)").
+ *
+ * NO TOTAL MOVES on today's catalogs: the owner's vinyl gate and end post rows
+ * cost the same at every height. What moves is the row a gate post is NAMED
+ * after, so a materials list orders an end post rather than a blank one. The
+ * stiffener count is unchanged -- one per hinge post, and every modelled gate
+ * has exactly one. Anchored (signed/sent) totals do not move regardless.
+ */
+export const PRICING_ENGINE_VERSION = "2026.11.17";
 
 // ---------------------------------------------------------------------------
 // Contract shapes (docs/PRICING_CONTRACT.md). Column names, never invented.

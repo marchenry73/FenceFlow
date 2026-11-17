@@ -454,6 +454,39 @@ function entriesOf(out) {
 }
 const ALL_GATES = ["500.0:0.0:4.0:LINE:IN", "500.0:0.0:5.0:WALL:IN", "500.0:0.0:6.0:LINE_TO_WALL:IN"].join(",");
 
+/**
+ * The role an entry is PRICED FROM, which is not always the role it asks for.
+ *
+ * CHANGE (F), engine 2026.11.17: on VINYL a GATE_POST entry takes the END_POST
+ * rows -- a vinyl gate post IS an end post, with an Econo Stiffener inside it.
+ * The LINE still carries role GATE_POST, so the quote still says which post it
+ * is; only the row behind it moves. One entry, named rather than special-cased
+ * silently, so the day a second substitution lands this list is where it goes.
+ */
+const pricedFrom = (type, role) => (type === "VINYL" && role === "GATE_POST" ? "END_POST" : role);
+
+test("the one role priced from a DIFFERENT role's rows takes that role's cheap decoy, and not its own", () => {
+  // The teeth for pricedFrom above. Without this, the loop below could be made
+  // green by pointing every decoy at whatever the engine happens to pick.
+  const run = runRow({ fence_type: "VINYL", gates_encoded: ALL_GATES, manual_linear_feet: 120 });
+  const decoy = (role) => ({ category: "POST", role, fence_type: "VINYL", name: "DECOY " + role,
+    unit: "EA", unit_price: 0.01, taxable: true, covers_ft: null, color_or_finish: "", source_doc: SEED.seeded });
+  const gatePostLine = (rows) => price(run, rows).items.find((i) => i.role === "GATE_POST");
+  assert.equal(gatePostLine([...ROWS, decoy("END_POST")]).description, "DECOY END_POST",
+    "a vinyl gate post did not follow a cheap END_POST row, so change (F) is not in this engine");
+  assert.notEqual(gatePostLine([...ROWS, decoy("GATE_POST")]).description, "DECOY GATE_POST",
+    "a vinyl gate post took a cheap GATE_POST row: change (F) has been reverted or narrowed");
+  // CONTROL: the same two decoys on a fence type the change does not touch go
+  // the other way round, so neither assertion above is true of every engine.
+  const wood = runRow({ fence_type: "WOOD", gates_encoded: ALL_GATES, manual_linear_feet: 120 });
+  const woodDecoy = (role) => ({ ...decoy(role), fence_type: "WOOD" });
+  const woodGatePost = (rows) => price(wood, rows).items.find((i) => i.role === "GATE_POST");
+  assert.equal(woodGatePost([...ROWS, woodDecoy("GATE_POST")]).description, "DECOY GATE_POST",
+    "control: a WOOD gate post no longer takes its own role's cheap row");
+  assert.notEqual(woodGatePost([...ROWS, woodDecoy("END_POST")]).description, "DECOY END_POST",
+    "control: a WOOD gate post followed an END_POST row, so change (F) is not VINYL-only");
+});
+
 test("every role the takeoff asks for is chosen by WIDTH or by PRICE; a cheaper decoy that names ANY height wins, in every one", () => {
   const widthKeyed = new Set(), priceOnly = new Set(), proved = [];
   for (const type of FENCE_TYPES) {
@@ -461,10 +494,13 @@ test("every role the takeoff asks for is chosen by WIDTH or by PRICE; a cheaper 
     const out = price(run, ROWS);
     for (const e of entriesOf(out)) {
       if (e.prefer_covers_ft !== null) widthKeyed.add(e.role); else priceOnly.add(e.role);
-      // Plant a decoy: same fence type and role, 1 cent, a different height in the name, the width the run asks for.
-      const have = ROWS.filter((r) => r.fence_type === type && r.role === e.role);
+      // Plant a decoy: 1 cent, a different height in the name, the width the run asks for,
+      // on the role the entry is actually PRICED FROM -- which since change (F) is not always
+      // the role the takeoff asked for. See pricedFrom above.
+      const pr = pricedFrom(type, e.role);
+      const have = ROWS.filter((r) => r.fence_type === type && r.role === pr);
       if (!have.length || e.role === "CHAIN_FABRIC") continue; // CHAIN_FABRIC is keyed by covers_ft = height: handled above
-      const decoy = { category: have[0].category, role: e.role, fence_type: type, name: "DECOY 3'H shorter " + e.role, unit: have[0].unit,
+      const decoy = { category: have[0].category, role: pr, fence_type: type, name: "DECOY 3'H shorter " + e.role, unit: have[0].unit,
         unit_price: 0.01, taxable: true, covers_ft: e.prefer_covers_ft, color_or_finish: "", source_doc: SEED.seeded };
       const lines = price(run, [...ROWS, decoy]).items.filter((i) => i.role === e.role);
       assert.ok(lines.some((i) => i.description === decoy.name),
@@ -779,6 +815,21 @@ const FALLBACK_ROLE = { BLANK_POST: "GATE_POST" };
 function choose(run, entry, catalog, mfr, withHeight) {
   const ofRole = (role) => catalog.filter((i) => i.is_active && (i.fence_type === run.fence_type || i.fence_type === "UNIVERSAL") && i.role === role);
   let c = ofRole(entry.role);
+  // CHANGE (F), engine 2026.11.17: A VINYL GATE POST IS AN END POST, so its
+  // candidates are the END_POST rows even where GATE_POST rows exist. The
+  // owner, 17 Nov 2026: "the gate post and the end posts are the same, except
+  // that post has the Econo Stiffener in there." Pinned in full by a53.
+  //
+  // Mirrored HERE, in the same place the engine does it -- before the fallback
+  // and before the colour, manufacturer and height filters -- because this
+  // model is the measuring instrument for the three tests below. Left out, it
+  // disagreed with the engine on every vinyl run carrying a gate, and the
+  // reference-fix test read that as "a non-iron quote moved": a wrong ruler
+  // reporting a wrong answer about something else entirely.
+  if (entry.role === "GATE_POST" && run.fence_type === "VINYL") {
+    const ends = ofRole("END_POST");
+    if (ends.length) c = ends;
+  }
   if (!c.length && FALLBACK_ROLE[entry.role] !== undefined) c = ofRole(FALLBACK_ROLE[entry.role]);
   if (!c.length) return null;
   if (run.color_or_finish.trim() !== "") {

@@ -120,7 +120,14 @@ fun JobsListScreen(
      * crew screen, not the office one: that is where a running shift is
      * clocked out, and nothing on it pretends the job can still be edited.
      */
-    onOpenCrewJob: (Long) -> Unit
+    onOpenCrewJob: (Long) -> Unit,
+    /**
+     * Deleted items, from the jobs menu. It was reachable only as a button at
+     * the foot of the Account card, and the owner could not find it -- a
+     * deleted JOB is looked for on the jobs screen. Defaulted so a caller that
+     * does not wire it simply shows no entry rather than failing to build.
+     */
+    onOpenTrash: (() -> Unit)? = null
 ) {
     val app = currentApp()
     val viewModel: JobsViewModel = viewModel(
@@ -466,6 +473,16 @@ fun JobsListScreen(
                             leadingIcon = { Icon(Icons.Filled.Settings, contentDescription = null) },
                             onClick = { moreOpen = false; onOpenSettings() }
                         )
+                        // Same gate as the Account button it duplicates, so a
+                        // crew phone that cannot restore is not offered a screen
+                        // that refuses it on arrival.
+                        if (session.canDelete && onOpenTrash != null) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.acct_deleted_items)) },
+                                leadingIcon = { Icon(Icons.Filled.Delete, contentDescription = null) },
+                                onClick = { moreOpen = false; onOpenTrash() }
+                            )
+                        }
                     }
                 }
             )

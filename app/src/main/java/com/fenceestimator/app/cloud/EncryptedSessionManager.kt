@@ -114,20 +114,32 @@ class EncryptedSessionManager(
             forEachLegacySession { file, key, session ->
                 if (found == null) {
                     found = session
-                    saveSessionBlocking(session)
-                    clearLegacy(file, key)
+                    // Clear the plaintext ONLY once the encrypted copy is
+                    // confirmed written. This used to call both in order and
+                    // ignore the first one's result: with the Keystore
+                    // unavailable the save wrote nothing, the clear deleted the
+                    // only copy anyway, and the contractor was signed out on
+                    // the NEXT launch -- the exact "gone from both stores" this
+                    // ordering was meant to prevent. Ordering was never enough;
+                    // the clear has to depend on the save.
+                    if (saveSessionBlocking(session)) clearLegacy(file, key)
                 }
             }
         }
         return found
     }
 
-    private fun saveSessionBlocking(session: UserSession) {
-        runCatching {
-            val plain = json.encodeToString(UserSession.serializer(), session)
-            DeviceCipher.encrypt(plain)?.let { prefs.edit().putString(KEY, it).apply() }
-        }
-    }
+    /**
+     * True only when the encrypted copy is ON DISK.
+     *
+     * commit(), not apply(): apply() returns before the write lands and says
+     * nothing either way, and the caller deletes the plaintext on this answer.
+     */
+    private fun saveSessionBlocking(session: UserSession): Boolean = runCatching {
+        val plain = json.encodeToString(UserSession.serializer(), session)
+        val blob = DeviceCipher.encrypt(plain) ?: return false
+        prefs.edit().putString(KEY, blob).commit()
+    }.getOrDefault(false)
 
     private fun clearLegacy(file: String, key: String) {
         runCatching {

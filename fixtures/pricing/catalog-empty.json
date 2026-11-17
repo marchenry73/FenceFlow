@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "engine": {
-    "version": "2026.10.24",
-    "generated_at": "2026-10-26T17:31:59.220554800Z"
+    "version": "2026.11.17",
+    "generated_at": "2026-11-17T17:21:20.099190300Z"
   },
   "case": "catalog-empty",
   "note": "No catalog: every role unmatched, no items, labour and the gate charge still price.",
   "input": {
-    "engine_version": "2026.10.24",
+    "engine_version": "2026.11.17",
     "pixels_per_foot": 20.0,
     "job": {
       "calibration_pixels_per_foot": 20.0,
@@ -64,7 +64,7 @@
     "existing_items": []
   },
   "expected": {
-    "engine_version": "2026.10.24",
+    "engine_version": "2026.11.17",
     "linear_feet": 100.0,
     "teardown_linear_feet": 0.0,
     "billable_linear_feet": 100.0,
@@ -209,7 +209,7 @@
             "group": "POSTS"
           },
           {
-            "label": "Gate posts",
+            "label": "Gate posts (end post + Econo Stiffener)",
             "quantity": 1.0,
             "unit": "",
             "group": "POSTS"
@@ -263,7 +263,7 @@
             "group": "GATES"
           },
           {
-            "label": "Econo stiffeners",
+            "label": "Econo stiffeners (one inside each gate post)",
             "quantity": 1.0,
             "unit": "",
             "group": "GATES"

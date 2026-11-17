@@ -146,52 +146,34 @@ object TrashBin {
      * like it was only worth its materials. It corrected itself a minute later,
      * which is arguably worse: the wrong figure is the one somebody reads.
      */
-    private val JOB_CHILDREN = listOf(
-        "fence_runs", "estimate_line_items", "change_orders",
-        "job_steps", "site_markers", "expenses", "punch_list_items", "time_entries"
-    )
-
+    /**
+     * Puts a deleted record back, by the ONE restore rule on the server
+     * (supabase_r74_restore_deleted.sql, restore_deleted).
+     *
+     * This used to BE the rule: clear the record, and for a job bring back its
+     * children -- but only the ones deleted within a minute of it, because
+     * clearing every child tombstone resurrected things deleted on purpose
+     * weeks earlier. The office then refused to hold a second copy, which is
+     * why it could not restore at all. The owner asked to restore from both,
+     * so the rule moved to the server and both clients call it. The list of
+     * children and the one-minute window now live there and nowhere else.
+     *
+     * The server runs with this caller's own rights (SECURITY INVOKER), so the
+     * same row-level security that governs a direct edit governs this, and it
+     * is atomic: a job comes back whole or not at all. [companyId] is kept for
+     * the callers' sake; the server takes the company from the session.
+     */
+    @Suppress("UNUSED_PARAMETER")
     suspend fun restore(companyId: String, record: TrashedRecord): Result<Unit> =
         withContext(Dispatchers.IO) {
             runCatching {
-                val clear = buildJsonObject {
-                    put("deleted_at", null as String?)
-                    put("deleted_by", "")
-                }
-
-                SupabaseModule.client.postgrest.from(record.table).update(clear) {
-                    filter {
-                        eq("company_id", companyId)
-                        eq("sync_id", record.syncId)
+                SupabaseModule.client.postgrest.rpc(
+                    "restore_deleted",
+                    buildJsonObject {
+                        put("p_table", record.table)
+                        put("p_sync_id", record.syncId)
                     }
-                }
-
-                // Bring the job's children back in the same breath. Most will
-                // carry no tombstone at all -- clearing one that is already
-                // clear costs a round trip and changes nothing, which is a fair
-                // price for the job returning whole.
-                if (record.table == "jobs") {
-                    // Only tombstones written with the job's own deletion or
-                    // later. Clearing every child tombstone resurrected things
-                    // deliberately deleted weeks earlier -- restore a job and a
-                    // line item you removed on purpose was quietly back on the
-                    // estimate, at its old price. The minute of slack covers
-                    // the delete cascade writing its stamps a moment apart.
-                    val cutoff = record.deletedAt?.minus(60_000L)
-                    JOB_CHILDREN.forEach { child ->
-                        runCatching {
-                            SupabaseModule.client.postgrest.from(child).update(clear) {
-                                filter {
-                                    eq("company_id", companyId)
-                                    eq("job_sync_id", record.syncId)
-                                    if (cutoff != null) {
-                                        gte("deleted_at", CloudTime.format(cutoff))
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+                )
                 Unit
             }
         }

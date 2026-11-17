@@ -117,8 +117,22 @@ export interface EstimateSuggestions {
 const FRAME_KIT_GATE_TYPES: ReadonlySet<FenceType> = new Set(["WOOD", "CHAIN_LINK", "SPLIT_RAIL", "COMPOSITE"]);
 
 /**
- * Fence types whose gate leaf needs a STIFFENER -- the vertical that stops the
- * leaf racking out of square.
+ * Fence types whose gate needs an Econo STIFFENER -- inside the HINGE POST.
+ *
+ * CORRECTED 17 Nov 2026. This said the stiffener goes in the gate LEAF and
+ * "stops the leaf racking out of square". It does not, and the paragraph
+ * below already had the evidence: the part is "an H-frame 5x5x96 ... which
+ * fits a 5x5 vinyl post" -- 96 inches long and sized to a POST, not to a gate.
+ * It slides inside the hinge post so the post can carry the gate's weight.
+ * The owner: "the gate post and the end posts are the same, except that post
+ * has the Econo Stiffener in there." His supplier's Estimate 66420 (Hartford
+ * Fence Supply, 17 Nov 2026) quotes one ECONO STIFFENER H-FRAME for one gate,
+ * alongside a gate kit that carries its OWN two P-channel stiffeners for the
+ * leaf -- a different part, already inside the kit's price.
+ *
+ * One per hinge post. Every gate this engine models has exactly one, so this
+ * is one per gate -- the count below did not change, only where it is said
+ * to go.
  *
  * VINYL alone, and for a physical reason rather than a seeding accident. A
  * vinyl gate arrives as a hollow extruded leaf, and the part that stiffens it
@@ -299,7 +313,9 @@ function buildTakeoff(
     line("Line posts", qtyOf("LINE_POST"), "", "POSTS"),
     line("Corner posts", qtyOf("CORNER_POST"), "", "POSTS"),
     line(gateEndPosts > 0 ? `End posts (${gateEndPosts} gate)` : "End posts", qtyOf("END_POST"), "", "POSTS"),
-    line("Gate posts", qtyOf("GATE_POST"), "", "POSTS"),
+    // Kept beginning "Gate posts": both engines' tests find these lines by
+    // prefix. What follows is what the owner asked it to say.
+    line("Gate posts (end post + Econo Stiffener)", qtyOf("GATE_POST"), "", "POSTS"),
     line("Blank posts (nothing connects)", qtyOf("BLANK_POST"), "", "POSTS"),
     line("Total posts", posts.totalPosts, "", "POSTS"),
     line("Post caps", qtyOf("POST_CAP"), "", "POSTS"),
@@ -315,7 +331,7 @@ function buildTakeoff(
     line("Latches", qtyOf("LATCH"), "", "GATES"),
     line("Gate handles", qtyOf("HANDLE"), "", "GATES"),
     line("Gate braces", qtyOf("BRACE"), "", "GATES"),
-    line("Econo stiffeners", qtyOf("STIFFENER"), "", "GATES"),
+    line("Econo stiffeners (one inside each gate post)", qtyOf("STIFFENER"), "", "GATES"),
     line("Hole plugs", qtyOf("HOLE_PLUG"), "", "GATES"),
   ].filter((t) => t.quantity > 0.0);
 }

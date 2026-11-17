@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "engine": {
-    "version": "2026.10.24",
-    "generated_at": "2026-10-26T17:31:59.220554800Z"
+    "version": "2026.11.17",
+    "generated_at": "2026-11-17T17:21:20.099190300Z"
   },
   "case": "quote-carry-in-estimate-order",
   "note": "Two gate panel quotes on one run, handed over out of order. The carry reads the run's lines the way the phone's DAO does (sort_order, then sync_id), so the $250 quote on the later line is the one both widths carry, whatever order the rows arrive in -- and a database read has no order of its own.",
   "input": {
-    "engine_version": "2026.10.24",
+    "engine_version": "2026.11.17",
     "pixels_per_foot": 20.0,
     "job": {
       "calibration_pixels_per_foot": 20.0,
@@ -437,7 +437,7 @@
     ]
   },
   "expected": {
-    "engine_version": "2026.10.24",
+    "engine_version": "2026.11.17",
     "linear_feet": 100.0,
     "teardown_linear_feet": 0.0,
     "billable_linear_feet": 100.0,
@@ -636,7 +636,7 @@
             "group": "POSTS"
           },
           {
-            "label": "Gate posts",
+            "label": "Gate posts (end post + Econo Stiffener)",
             "quantity": 2.0,
             "unit": "",
             "group": "POSTS"
@@ -690,7 +690,7 @@
             "group": "GATES"
           },
           {
-            "label": "Econo stiffeners",
+            "label": "Econo stiffeners (one inside each gate post)",
             "quantity": 2.0,
             "unit": "",
             "group": "GATES"
@@ -857,7 +857,7 @@
         "sync_id": "3f128a80-d5cb-3709-9f5c-a54221c5c82b",
         "fence_run_sync_id": "00000052-0000-4000-8000-000000000001",
         "sort_order": 11,
-        "description": "5\"x5\" Co-Ex Gate Post, White",
+        "description": "5\"x5\" Co-Ex End Post, White",
         "quantity": 2.0,
         "unit": "EA",
         "unit_price": 16.56,

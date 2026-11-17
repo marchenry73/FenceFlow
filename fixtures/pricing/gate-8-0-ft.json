@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "engine": {
-    "version": "2026.10.24",
-    "generated_at": "2026-10-26T17:31:59.220554800Z"
+    "version": "2026.11.17",
+    "generated_at": "2026-11-17T17:21:20.099190300Z"
   },
   "case": "gate-8-0-ft",
   "note": "8.0 ft is a wide gate: second brace and second hinge set.",
   "input": {
-    "engine_version": "2026.10.24",
+    "engine_version": "2026.11.17",
     "pixels_per_foot": 20.0,
     "job": {
       "calibration_pixels_per_foot": 20.0,
@@ -380,7 +380,7 @@
     "existing_items": []
   },
   "expected": {
-    "engine_version": "2026.10.24",
+    "engine_version": "2026.11.17",
     "linear_feet": 100.0,
     "teardown_linear_feet": 0.0,
     "billable_linear_feet": 100.0,
@@ -537,7 +537,7 @@
             "group": "POSTS"
           },
           {
-            "label": "Gate posts",
+            "label": "Gate posts (end post + Econo Stiffener)",
             "quantity": 1.0,
             "unit": "",
             "group": "POSTS"
@@ -591,7 +591,7 @@
             "group": "GATES"
           },
           {
-            "label": "Econo stiffeners",
+            "label": "Econo stiffeners (one inside each gate post)",
             "quantity": 1.0,
             "unit": "",
             "group": "GATES"
@@ -758,7 +758,7 @@
         "sync_id": "61005889-025a-3f67-972a-907be1f42947",
         "fence_run_sync_id": "0000001f-0000-4000-8000-000000000001",
         "sort_order": 11,
-        "description": "5\"x5\" Co-Ex Gate Post, White",
+        "description": "5\"x5\" Co-Ex End Post, White",
         "quantity": 1.0,
         "unit": "EA",
         "unit_price": 16.56,

@@ -177,6 +177,19 @@ export function buildLineItems(
 
   for (const entry of mergedEntries) {
     let candidates = candidatesByRole.get(entry.role) ?? [];
+    // A VINYL GATE POST IS AN END POST (owner, 17 Nov 2026; his supplier's
+    // Estimate 66420 quotes end posts for a gate and no gate-post SKU). It is
+    // billed from the END_POST rows even where the catalog also carries a
+    // GATE_POST row -- in his, that row is HFS's "Blank Post", unrouted, which
+    // is not what goes in the ground beside a fence. The line keeps role
+    // GATE_POST, so the takeoff and every count read by role are unchanged;
+    // only the row it is priced from, and named after, moves. A vinyl catalog
+    // with no END_POST row at all still has its GATE_POST rows to fall back on.
+    // The Econo Stiffener that makes it a gate post is billed on its own line.
+    if (entry.role === "GATE_POST" && run.fenceType === "VINYL") {
+      const endPosts = candidatesByRole.get("END_POST") ?? [];
+      if (endPosts.length > 0) candidates = endPosts;
+    }
     // Nothing priced for the role itself: price it off the fallback role's rows
     // if there is one ([PRICING_FALLBACK_ROLE]). Here, BEFORE the colour,
     // manufacturer and height filters, so a borrowed row is then chosen by

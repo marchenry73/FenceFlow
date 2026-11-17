@@ -152,6 +152,30 @@ class CredentialStorageTest {
     }
 
     @Test
+    fun `the plaintext is cleared only once the encrypted copy is confirmed written`() {
+        // ORDER WAS NOT ENOUGH, and the test above passed on code that lost the
+        // session anyway: with the Keystore unavailable the save wrote nothing,
+        // then the clear deleted the only copy. The clear has to DEPEND on the
+        // save, and the save has to know it landed.
+        val body = code(source(sessionPath))
+        val migrate = body.substringAfter("private suspend fun migrateLegacySession")
+            .substringBefore("private fun saveSessionBlocking")
+        assertTrue(
+            "clearLegacy no longer depends on saveSessionBlocking succeeding -- a failed " +
+                "save deletes the only copy of the session and the user is signed out next launch",
+            Regex("""if\s*\(\s*saveSessionBlocking\([^)]*\)\s*\)\s*clearLegacy\(""").containsMatchIn(migrate)
+        )
+        val save = body.substringAfter("private fun saveSessionBlocking")
+            .substringBefore("private fun clearLegacy")
+        assertTrue("saveSessionBlocking no longer reports whether it wrote", save.contains("): Boolean"))
+        assertTrue(
+            "saveSessionBlocking uses apply(), which returns before the write lands -- the " +
+                "caller would delete the plaintext on a guess",
+            save.contains(".commit()") && !save.contains(".apply()")
+        )
+    }
+
+    @Test
     fun `profiles are remembered where the token rotates, not only at sign-in`() {
         // Supabase retires the old refresh token on every refresh. A profile
         // captured only at sign-in holds a token that is dead within the hour,

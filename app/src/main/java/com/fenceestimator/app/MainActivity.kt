@@ -700,7 +700,8 @@ fun FenceEstimatorNavHost(startDestination: String = Routes.JOBS) {
                 onOpenAccount = { navController.navigate(Routes.ACCOUNT) },
                 onOpenRequestAccess = { navController.navigate(Routes.REQUEST_ACCESS) },
                 onOpenAccessRequests = { navController.navigate(Routes.ACCESS_REQUESTS) },
-                onOpenCrewJob = { id -> navController.navigate(Routes.crewJob(id)) }
+                onOpenCrewJob = { id -> navController.navigate(Routes.crewJob(id)) },
+                onOpenTrash = { navController.navigate(Routes.TRASH) }
             )
         }
         // A scoped crew member asking for a job they are not on. No guard:

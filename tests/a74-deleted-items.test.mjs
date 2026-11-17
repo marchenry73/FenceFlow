@@ -111,8 +111,28 @@ test("jobs is in the list, and is the only table purge_job is offered for", () =
     "the phone's Delete forever button does not ask canPurge");
 
   // And the office, on its own row renderer.
-  assert.match(dash, /r\.table === 'jobs'\s*\n?\s*\?\s*'<button class="btn btn-sm" data-purge=/,
-    "the office offers Delete forever on rows that are not jobs");
+  //
+  // RE-AIMED 17 Nov 2026, and NARROWED rather than loosened. This matched the
+  // exact markup of the button -- class list and all -- so adding Restore
+  // beside it (a second button, and a `btn-grey` on this one) reported that
+  // the office "offers Delete forever on rows that are not jobs", which was
+  // never true: the `r.table === 'jobs'` ternary it is inside had not moved.
+  // A guard pinned to a class attribute fails on restyling and passes on a
+  // second, UNGUARDED button somewhere else in the file -- the real defect --
+  // so the pin moves to the property itself:
+  //
+  //   1. every data-purge button is inside the jobs ternary, and
+  //   2. there is exactly ONE of them in the file.
+  //
+  // (2) is what keeps (1) honest. Without the count, a second purge button
+  // rendered on every row would leave the first one still matching.
+  const purgeButtons = [...dash.matchAll(/data-purge=/g)].length;
+  assert.equal(purgeButtons, 1,
+    "there are " + purgeButtons + " data-purge buttons in the office; the one below is guarded, " +
+    "and a second one somewhere else is exactly the bug this asserts against");
+  assert.match(dash, /r\.table === 'jobs'\s*\n?\s*\?\s*'\s*<button class="[^"]*" data-purge=/,
+    "the office's Delete forever button is no longer inside the `r.table === 'jobs'` test, so it " +
+    "is offered on rows that are not jobs");
   assert.match(dash, /if\(!row \|\| row\.table !== 'jobs'\) return;/,
     "the office's purge handler does not refuse a non-job row");
 });

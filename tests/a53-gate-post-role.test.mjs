@@ -23,6 +23,22 @@
 //       BLANK_POST -> GATE_POST, pinned in full by a58-blank-post-fallback). So "BLANK_POST is
 //       unmatched on every wall gate" -- block 6b's whole subject -- is CLOSED, and block 6b is
 //       re-aimed onto the closure rather than deleted.
+//   (F) A VINYL GATE POST IS AN END POST (engine 2026.11.17). The owner, 17 Nov 2026: "the gate
+//       post and the end posts are the same, except that post has the Econo Stiffener in there."
+//       Hartford Fence Supply Estimate 66420 bears him out -- it quotes end posts for a gate and
+//       no gate-post SKU -- and in his own catalog the vinyl GATE_POST rows are HFS's unrouted
+//       "Blank Post", the wrong part to stand in a fence line. So on VINYL the hinge post is
+//       priced from the END_POST rows even where a GATE_POST row exists. The LINE KEEPS role
+//       GATE_POST, so every count read by role is untouched; only the row it is billed from, and
+//       named after, moves. With no END_POST row it still falls back to the GATE_POST rows, so
+//       nothing is lost. VINYL ONLY -- measured per fence type in the block of that name.
+//
+//       WHAT THIS GIVES UP, stated because it is the cost and not a detail: a hand-priced vinyl
+//       GATE_POST row no longer reaches a vinyl quote, which is the very thing this file was
+//       written to win. It is given up deliberately, on the owner's instruction, and it costs
+//       nothing today because his gate-post and end-post rows are the same money at every height
+//       -- asserted, per height, in "HIS CATALOG" below, which says so the day a supplier
+//       re-prices one of them. Blocks 3, "HIS CATALOG" and THE TEETH are re-aimed accordingly.
 //
 // WHAT THIS FILE PINS
 //   1. THE ROLES, per mounting, and that they follow the physical build:
@@ -107,12 +123,14 @@ const money = (n) => Math.round(n * 100) / 100;
 // "5x5 Co-Ex Gate Post, White" $16.56 h6. BLANK_POST is deliberately absent, because no catalog
 // anywhere has one -- see block 6.
 const GATE_POST_ROW = { name: '5"x5" Co-Ex Gate Post, White', category: "POST", role: "GATE_POST", unit_price: 16.56, color_or_finish: "White", height_ft: 6 };
+// Named, because since change (F) this is the row a VINYL gate post is billed from.
+const END_POST_ROW = { name: '5"x5" Co-Ex End Post, White', category: "POST", role: "END_POST", unit_price: 16.56, color_or_finish: "White", height_ft: 6 };
 const CATALOG = [
   { name: "Vinyl Privacy Panel 6'H x 6'W, White", category: "PANEL", role: "PANEL", unit_price: 120, color_or_finish: "White", covers_ft: 6, height_ft: 6 },
   { name: "Vinyl Privacy Gate 4'W, White", category: "GATE", role: "GATE_PANEL", unit_price: 290, color_or_finish: "White", covers_ft: 4, height_ft: 6 },
   { name: '5"x5" Co-Ex Line Post, White', category: "POST", role: "LINE_POST", unit_price: 16.56, color_or_finish: "White", height_ft: 6 },
   { name: '5"x5" Co-Ex Corner Post, White', category: "POST", role: "CORNER_POST", unit_price: 16.56, color_or_finish: "White", height_ft: 6 },
-  { name: '5"x5" Co-Ex End Post, White', category: "POST", role: "END_POST", unit_price: 16.56, color_or_finish: "White", height_ft: 6 },
+  END_POST_ROW,
   GATE_POST_ROW,
   { name: '5"x5" Post Cap, White', category: "POST", role: "POST_CAP", unit_price: 3.5, color_or_finish: "White" },
   { name: "Concrete Mix 60 lb", category: "CONCRETE", role: "CONCRETE_BAG", fence_type: "UNIVERSAL", unit_price: 6.25 },
@@ -207,7 +225,7 @@ test("THE ROLES: a gate asks for GATE_POST, and every post where a RUN terminate
   assert.equal(entryQty(none, "END_POST"), 2, "control: a gateless open run has two end posts");
 });
 
-test("THE ROLES reach the QUOTE, not just the takeoff: a priced line off his own GATE_POST row appears", () => {
+test("THE ROLES reach the QUOTE: every post is priced, each off the row that part really is", () => {
   // WAS: a GATE_POST line in all three mountings, quantity 1 / 2 / 2.
   // THEN 1 / 2 / 2 became 0 / 2 / 2 with change (D), and 5 Oct 2026 made the
   // two LINE mountings 1 apiece: the HINGE side carries the gate, the LATCH
@@ -219,14 +237,33 @@ test("THE ROLES reach the QUOTE, not just the takeoff: a priced line off his own
   //      reached on a wall gate, but under BLANK_POST, through the fallback of change (E). So
   //      the point of this test -- a hand-priced GATE_POST row is no longer unreachable
   //      inventory -- is asserted in all three, with WALL naming the role that now carries it.
-  for (const [m, role, n] of [["WALL", "BLANK_POST", 1], ["LINE", "GATE_POST", 1], ["LINE_TO_WALL", "GATE_POST", 1]]) {
+  // WHICH ROW each one bills is now part of the assertion, because since change
+  // (F) the two roles answer differently and asserting "16.56" alone would pass
+  // on either -- his rows are the same money, which is exactly what makes a
+  // price-only check blind here.
+  //   BLANK_POST -> the GATE_POST row, through the fallback of change (E). A
+  //                 blank post really is the unrouted post; that is the part.
+  //   GATE_POST  -> the END_POST row, change (F), on VINYL.
+  for (const [m, role, n, rowName] of [
+    ["WALL", "BLANK_POST", 1, GATE_POST_ROW.name],
+    ["LINE", "GATE_POST", 1, END_POST_ROW.name],
+    ["LINE_TO_WALL", "GATE_POST", 1, END_POST_ROW.name],
+  ]) {
     const gp = itemOf(quote(m), role);
     assert.ok(gp !== undefined, m + ": no " + role + " line on the quote");
     assert.equal(gp.quantity, n, m + ": wrong post count on the quote");
-    assert.equal(gp.description, GATE_POST_ROW.name, m + ": the post was billed off some other row than his GATE_POST row");
+    assert.equal(gp.description, rowName, m + ": the post was billed off the wrong catalog row");
     assert.equal(gp.unit_price, 16.56);
     assert.equal(gp.role, role, m + ": the role on the line was rewritten, so the quote no longer says which post this is");
   }
+  // The two rows cost the same, so the check above could only tell them apart
+  // by name. Prove it can: price them differently and each line must follow
+  // its OWN row.
+  const split = replacePrice(CATALOG, "END_POST", 40);
+  assert.equal(itemOf(quote("LINE", split), "GATE_POST").unit_price, 40,
+    "control: the vinyl gate post did not follow the END_POST row's price");
+  assert.equal(itemOf(quote("WALL", split), "BLANK_POST").unit_price, 16.56,
+    "control: the blank post followed the END_POST row, which is not the part it is");
   assert.equal(itemOf(quote("WALL"), "GATE_POST"), undefined,
     "WALL: a GATE_POST line is back on a wall gate -- change (D) says its two posts are a blank post and an end post");
   // CONTROL: this is new. Under 2026.10.3 no fence type, no mounting, no catalog produced one.
@@ -421,10 +458,22 @@ test("HIS CATALOG: with all four of his GATE_POST rows and all three of his END_
     assert.equal(itemOf(now, gatePostRole).unit_price, 16.56, m + ": his gate post was billed at the wrong price");
     assert.equal(itemOf(now, "END_POST").unit_price, 16.56, m + ": his end post was billed at the wrong price");
   }
-  // CONTROL: the same comparison DOES see a move when one of his gate-post rows is re-priced,
-  // so "his total does not move" is a measurement and not a tautology.
-  const dearer = HIS_CATALOG.map((r) => (r.role === "GATE_POST" ? { ...r, unit_price: r.unit_price + 5 } : r));
-  assert.notEqual(quote("LINE", dearer).totals.grand_total, quote("LINE", HIS_CATALOG).totals.grand_total);
+  // CONTROL: the same comparison DOES see a move when the row his posts are billed from is
+  // re-priced, so "his total does not move" is a measurement and not a tautology.
+  //
+  // RE-AIMED onto END_POST by change (F). It used to re-price his GATE_POST rows, which is now
+  // the one edit that provably cannot move a vinyl quote -- so as a control it had stopped
+  // controlling anything, and said so by failing.
+  const dearer = HIS_CATALOG.map((r) => (r.role === "END_POST" ? { ...r, unit_price: r.unit_price + 5 } : r));
+  assert.notEqual(quote("LINE", dearer).totals.grand_total, quote("LINE", HIS_CATALOG).totals.grand_total,
+    "control: re-pricing his end-post rows moved nothing, so the comparison above is a tautology");
+  // AND THE COST OF CHANGE (F), pinned where it is cheapest to read: re-pricing his GATE_POST
+  // rows now moves a vinyl quote by nothing at all. Deliberate, and the reason the header says
+  // what it gives up. If this ever starts moving again, either the scope widened or the rule was
+  // reverted -- both want a human.
+  const dearerGate = HIS_CATALOG.map((r) => (r.role === "GATE_POST" ? { ...r, unit_price: r.unit_price + 5 } : r));
+  assert.equal(quote("LINE", dearerGate).totals.grand_total, quote("LINE", HIS_CATALOG).totals.grand_total,
+    "a vinyl gate post is billed off the END_POST row, so his GATE_POST rows must not reach a vinyl quote");
 });
 
 // ================================================================ 4. THE TEETH ==
@@ -433,11 +482,22 @@ test("THE TEETH: price the GATE_POST row differently and the quote DOES move, by
   // n is how many posts bill off the GATE_POST row. WALL reaches it through
   // the BLANK_POST fallback; the two LINE mountings each hang their gate on
   // ONE gate post since 5 Oct 2026, the latch post having become an end post.
-  for (const [m, n] of [["WALL", 1], ["LINE", 1], ["LINE_TO_WALL", 1]]) {
+  // n is READ OFF THE QUOTE rather than typed, and asserted non-zero: a mounting
+  // that quietly stopped billing any post at all would otherwise sail through
+  // this as "nothing moved, by exactly nothing".
+  const billedOffRow = (out, name) => out.items
+    .filter((i) => i.description === name).reduce((s, i) => s + i.quantity, 0);
+  for (const [m, role, rowName] of [
+    ["WALL", "GATE_POST", GATE_POST_ROW.name],
+    ["LINE", "END_POST", END_POST_ROW.name],
+    ["LINE_TO_WALL", "END_POST", END_POST_ROW.name],
+  ]) {
     const base = quote(m);
-    const dearer = quote(m, replacePrice(CATALOG, "GATE_POST", 26.56)); // +$10 a post
+    const n = billedOffRow(base, rowName);
+    assert.ok(n > 0, m + ": nothing at all bills off the " + role + " row, so this measures nothing");
+    const dearer = quote(m, replacePrice(CATALOG, role, 26.56)); // +$10 a post
     const moved = money(dearer.totals.grand_total - base.totals.grand_total);
-    assert.equal(moved, money(n * 10 * 1.07), m + ": a dearer gate post did not reach the quote (markup 0%, tax 7%)");
+    assert.equal(moved, money(n * 10 * 1.07), m + ": a dearer post did not reach the quote (markup 0%, tax 7%)");
     assert.ok(moved > 0, m + ": the direction is wrong");
   }
   // And this is the whole point of the change: under 2026.10.3 the same edit moved NOTHING,
@@ -447,6 +507,34 @@ test("THE TEETH: price the GATE_POST row differently and the quote DOES move, by
   const blindDearer = quote("LINE", modelFallback(without(replacePrice(CATALOG, "GATE_POST", 26.56), "GATE_POST")));
   assert.equal(blind.totals.grand_total, blindDearer.totals.grand_total,
     "control: with no reachable GATE_POST row, its price cannot matter -- that was the bug");
+});
+
+test("VINYL ONLY: every other fence type still bills its gate post off its own GATE_POST row", () => {
+  // Change (F) is scoped to VINYL in both engines. MEASURED here, not read off
+  // the source, because a scope that quietly widened would move money on fence
+  // types nobody asked about -- and the two engines would still agree with each
+  // other while doing it, so parity would not notice.
+  for (const ft of ["WOOD", "ALUMINUM", "CHAIN_LINK", "ORNAMENTAL_IRON", "COMPOSITE", "SPLIT_RAIL"]) {
+    const rows = [
+      { name: "GP " + ft, category: "POST", role: "GATE_POST", fence_type: ft, unit_price: 100 },
+      { name: "EP " + ft, category: "POST", role: "END_POST", fence_type: ft, unit_price: 20 },
+      { name: "LP " + ft, category: "POST", role: "LINE_POST", fence_type: ft, unit_price: 10 },
+    ];
+    const gp = itemOf(price(runRow({ fence_type: ft, gates_encoded: GATE.LINE }), rows), "GATE_POST");
+    assert.ok(gp !== undefined, ft + ": no gate post line at all");
+    assert.equal(gp.unit_price, 100,
+      ft + ": the gate post is no longer billed off the GATE_POST row -- the VINYL rule has widened");
+  }
+  // POSITIVE CONTROL: the identical shape on VINYL takes the END_POST row. Without
+  // this the loop above would pass just as well on an engine where change (F)
+  // had never landed anywhere.
+  const vinylRows = [
+    { name: "GP V", category: "POST", role: "GATE_POST", unit_price: 100 },
+    { name: "EP V", category: "POST", role: "END_POST", unit_price: 20 },
+    { name: "LP V", category: "POST", role: "LINE_POST", unit_price: 10 },
+  ];
+  assert.equal(itemOf(price(runRow({ gates_encoded: GATE.LINE }), vinylRows), "GATE_POST").unit_price, 20,
+    "control: VINYL did not take the END_POST row either, so the loop above proves nothing");
 });
 
 // ============================ 5. THE MISSING HALF: NO GATE_POST ROW LOSES THE POSTS ==

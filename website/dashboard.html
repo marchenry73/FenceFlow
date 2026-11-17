@@ -2556,9 +2556,9 @@
           deleted it and when. Deleting is a tombstone rather than a removal, which is why this
           list can exist at all &mdash; and why a mistake made on somebody else's phone is
           recoverable from here.</p>
-        <p class="sub" data-t="trashRestoreOnPhone">Put something back from the app, under Account
-          &rarr; Deleted items. Restoring a job also brings back the parts deleted with it, and
-          that rule lives in the app so there is only one copy of it.</p>
+        <p class="sub" data-t="trashRestoreOnPhone">Restore puts something back exactly as it was,
+          here or in the app. Restoring a job also brings back the parts deleted with it &mdash; and
+          only those, not anything you had deleted from it earlier.</p>
         <div class="msg" id="trashMsg"></div>
         <div id="trashList" class="section-loading" data-t="loadingSection">Loading&hellip;</div>
       </div>
@@ -3959,7 +3959,7 @@ const TL = {
     tabTrash:'Deleted items',
     trashHead:'Deleted items', trashSignIn:'Sign in to see what has been deleted.',
     trashLead:'Everything deleted on any device, newest first, with who deleted it and when. Deleting is a tombstone rather than a removal, which is why this list can exist at all \u2014 and why a mistake made on somebody else\u2019s phone is recoverable from here.',
-    trashRestoreOnPhone:'Put something back from the app, under Account \u2192 Deleted items. Restoring a job also brings back the parts deleted with it, and that rule lives in the app so there is only one copy of it.',
+    trashRestoreOnPhone:'Restore puts something back exactly as it was, here or in the app. Restoring a job also brings back the parts deleted with it \u2014 and only those, not anything you had deleted from it earlier.',
     trashEmpty:'Nothing has been deleted.', trashUnnamed:'(no name)',
     trashColWhat:'What', trashColKind:'Kind', trashColWhen:'Deleted', trashColWho:'By',
     trashKindJob:'Job', trashKindChangeOrder:'Change order', trashKindExpense:'Expense',
@@ -3968,6 +3968,7 @@ const TL = {
     trashPurge:'Delete forever', trashPurgeTitle:'Delete this job forever?',
     trashPurgeBody:'\u201c%s\u201d and everything on it \u2014 the drawing, the estimate, the photos, the change orders, the notes \u2014 are destroyed on every device. This cannot be undone. A job with a payment recorded against it will be refused: money is never destroyed.',
     trashPurged:'\u201c%s\u201d is gone for good.', trashPurgeFailed:'It was not deleted.',
+    trashRestore:'Restore', trashRestored:'\u201c%s\u201d is back, as it was.', trashRestoredWithParts:'\u201c%s\u201d is back, with %s part(s) deleted along with it.', trashRestoreFailed:'It was not restored.',
     // Company email (Email tab, compose, Settings -> Company email, seat
     // column). The mailErr* sentences are word for word the server's own
     // MESSAGES in supabase/functions/_shared/mail/errors.ts, which is how the
@@ -5835,7 +5836,7 @@ jobViewAll:'All', jobViewToday:'Today', jobViewWeek:'This week', jobViewUnschedu
     tabTrash:'Elementos eliminados',
     trashHead:'Elementos eliminados', trashSignIn:'Inicie sesi\u00f3n para ver lo que se ha eliminado.',
     trashLead:'Todo lo eliminado en cualquier dispositivo, lo m\u00e1s reciente primero, con qui\u00e9n lo elimin\u00f3 y cu\u00e1ndo. Eliminar deja una marca en lugar de borrar la fila, y por eso esta lista puede existir \u2014 y por eso un error cometido en el tel\u00e9fono de otra persona se puede recuperar desde aqu\u00ed.',
-    trashRestoreOnPhone:'Restaure desde la aplicaci\u00f3n, en Cuenta \u2192 Elementos eliminados. Al restaurar un trabajo tambi\u00e9n vuelven las partes que se eliminaron con \u00e9l, y esa regla vive en la aplicaci\u00f3n para que haya una sola copia.',
+    trashRestoreOnPhone:'Restaurar devuelve algo tal como estaba, aqu\u00ed o en la aplicaci\u00f3n. Al restaurar un trabajo tambi\u00e9n vuelven las partes que se eliminaron con \u00e9l \u2014 y solo esas, no lo que hubiera eliminado antes.',
     trashEmpty:'No se ha eliminado nada.', trashUnnamed:'(sin nombre)',
     trashColWhat:'Qu\u00e9', trashColKind:'Tipo', trashColWhen:'Eliminado', trashColWho:'Por',
     trashKindJob:'Trabajo', trashKindChangeOrder:'Orden de cambio', trashKindExpense:'Gasto',
@@ -5844,6 +5845,7 @@ jobViewAll:'All', jobViewToday:'Today', jobViewWeek:'This week', jobViewUnschedu
     trashPurge:'Eliminar para siempre', trashPurgeTitle:'\u00bfEliminar este trabajo para siempre?',
     trashPurgeBody:'\u00ab%s\u00bb y todo lo que contiene \u2014 el dibujo, el presupuesto, las fotos, las \u00f3rdenes de cambio, las notas \u2014 se destruyen en todos los dispositivos. No se puede deshacer. Un trabajo con un pago registrado ser\u00e1 rechazado: el dinero nunca se destruye.',
     trashPurged:'\u00ab%s\u00bb ya no existe.', trashPurgeFailed:'No se elimin\u00f3.',
+    trashRestore:'Restaurar', trashRestored:'\u00ab%s\u00bb ha vuelto, tal como estaba.', trashRestoredWithParts:'\u00ab%s\u00bb ha vuelto, con %s parte(s) eliminada(s) junto con \u00e9l.', trashRestoreFailed:'No se restaur\u00f3.',
     tabMail:'Correo', mailUnreadTitle:'%s sin leer',
 jobViewAll:'Todos', jobViewToday:'Hoy', jobViewWeek:'Esta semana', jobViewUnscheduled:'Sin programar', jobViewBlocked:'Bloqueados',
     dashGroupToday:'Hoy', dashGroupSales:'Ventas', dashGroupMoney:'Dinero',
@@ -7677,7 +7679,7 @@ jobViewAll:'Todos', jobViewToday:'Hoy', jobViewWeek:'Esta semana', jobViewUnsche
     tabTrash:'\u00c9l\u00e9ments supprim\u00e9s',
     trashHead:'\u00c9l\u00e9ments supprim\u00e9s', trashSignIn:'Connectez-vous pour voir ce qui a \u00e9t\u00e9 supprim\u00e9.',
     trashLead:'Tout ce qui a \u00e9t\u00e9 supprim\u00e9 sur n\u2019importe quel appareil, du plus r\u00e9cent au plus ancien, avec qui l\u2019a supprim\u00e9 et quand. Une suppression laisse une trace au lieu d\u2019effacer la ligne : c\u2019est pour cela que cette liste existe \u2014 et qu\u2019une erreur faite sur le t\u00e9l\u00e9phone de quelqu\u2019un d\u2019autre est r\u00e9cup\u00e9rable ici.',
-    trashRestoreOnPhone:'Restaurez depuis l\u2019application, dans Compte \u2192 \u00c9l\u00e9ments supprim\u00e9s. Restaurer un chantier ram\u00e8ne aussi ce qui a \u00e9t\u00e9 supprim\u00e9 avec lui, et cette r\u00e8gle vit dans l\u2019application pour qu\u2019il n\u2019en existe qu\u2019une copie.',
+    trashRestoreOnPhone:'Restaurer remet un \u00e9l\u00e9ment tel qu\u2019il \u00e9tait, ici ou dans l\u2019application. Restaurer un chantier ram\u00e8ne aussi ce qui a \u00e9t\u00e9 supprim\u00e9 avec lui \u2014 et seulement cela, pas ce que vous en aviez supprim\u00e9 avant.',
     trashEmpty:'Rien n\u2019a \u00e9t\u00e9 supprim\u00e9.', trashUnnamed:'(sans nom)',
     trashColWhat:'Quoi', trashColKind:'Type', trashColWhen:'Supprim\u00e9', trashColWho:'Par',
     trashKindJob:'Chantier', trashKindChangeOrder:'Ordre de modification', trashKindExpense:'D\u00e9pense',
@@ -7686,6 +7688,7 @@ jobViewAll:'Todos', jobViewToday:'Hoy', jobViewWeek:'Esta semana', jobViewUnsche
     trashPurge:'Supprimer d\u00e9finitivement', trashPurgeTitle:'Supprimer ce chantier d\u00e9finitivement ?',
     trashPurgeBody:'\u00ab %s \u00bb et tout ce qu\u2019il contient \u2014 le dessin, le devis, les photos, les ordres de modification, les notes \u2014 sont d\u00e9truits sur tous les appareils. C\u2019est irr\u00e9versible. Un chantier avec un paiement enregistr\u00e9 sera refus\u00e9 : l\u2019argent n\u2019est jamais d\u00e9truit.',
     trashPurged:'\u00ab %s \u00bb n\u2019existe plus.', trashPurgeFailed:'Il n\u2019a pas \u00e9t\u00e9 supprim\u00e9.',
+    trashRestore:'Restaurer', trashRestored:'\u00ab %s \u00bb est de retour, tel qu\u2019il \u00e9tait.', trashRestoredWithParts:'\u00ab %s \u00bb est de retour, avec %s \u00e9l\u00e9ment(s) supprim\u00e9(s) en m\u00eame temps.', trashRestoreFailed:'Il n\u2019a pas \u00e9t\u00e9 restaur\u00e9.',
     tabMail:'E-mails', mailUnreadTitle:'%s non lus',
 jobViewAll:'Tous', jobViewToday:'Aujourdhui', jobViewWeek:'Cette semaine', jobViewUnscheduled:'Non planifiés', jobViewBlocked:'Bloqués',
     dashGroupToday:'Aujourdhui', dashGroupSales:'Ventes', dashGroupMoney:'Argent',
@@ -13404,8 +13407,11 @@ function renderTrash(){
         // deleted_by is an email the app wrote, so it is escaped like any
         // other stored text rather than trusted as our own.
         + '<td>' + esc(r.deletedBy) + '</td>'
-        + '<td>' + (r.table === 'jobs'
-            ? '<button class="btn btn-sm" data-purge="' + i + '">' + esc(tr('trashPurge')) + '</button>'
+        // Restore on EVERY row: the server restores every kind this list shows.
+        + '<td style="white-space:nowrap">'
+        + '<button class="btn btn-sm" data-restore="' + i + '">' + esc(tr('trashRestore')) + '</button>'
+        + (r.table === 'jobs'
+            ? ' <button class="btn btn-sm btn-grey" data-purge="' + i + '">' + esc(tr('trashPurge')) + '</button>'
             : '') + '</td>'
       + '</tr>').join('')
     + '</tbody></table></div>';
@@ -13416,6 +13422,36 @@ function renderTrash(){
   // everywhere and failing on six kinds out of seven.
   box.querySelectorAll('[data-purge]').forEach(b=>
     b.addEventListener('click', ()=>purgeTrashRow(Number(b.dataset.purge))));
+  box.querySelectorAll('[data-restore]').forEach(b=>
+    b.addEventListener('click', ()=>restoreTrashRow(Number(b.dataset.restore), b)));
+}
+
+/* RESTORE, by the one rule on the server (supabase_r74_restore_deleted.sql).
+
+   Nothing about restoring is decided here -- not which children come back with
+   a job, not the one-minute window that stops it resurrecting things deleted
+   on purpose earlier. That rule lived in the phone so there would be only one
+   copy; it now lives in restore_deleted, which the phone calls too. A second
+   copy in this file is exactly what the old note on this tab refused to hold.
+
+   restore_deleted runs with the caller's own rights (SECURITY INVOKER), so the
+   same row-level security that governs a direct edit governs this. A refusal
+   comes back in the server's own words and is shown as such. */
+async function restoreTrashRow(i, btn){
+  const row = trashRows[i];
+  if(!row) return;
+  if(btn) btn.disabled = true;
+  const { data, error } = await db.rpc('restore_deleted', { p_table: row.table, p_sync_id: row.syncId });
+  if(error){
+    if(btn) btn.disabled = false;
+    msg('trashMsg', error.message || tr('trashRestoreFailed'), 'err');
+    return;
+  }
+  const parts = Number(data && data.children) || 0;
+  msg('trashMsg', parts > 0
+      ? tr('trashRestoredWithParts', row.label, String(parts))
+      : tr('trashRestored', row.label), 'ok');
+  await loadTrash();
 }
 
 async function purgeTrashRow(i){

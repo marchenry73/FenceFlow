@@ -111,8 +111,18 @@ enum class TakeoffGroup(val heading: String) {
 private val FRAME_KIT_GATE_TYPES = setOf(FenceType.WOOD, FenceType.CHAIN_LINK, FenceType.SPLIT_RAIL, FenceType.COMPOSITE)
 
 /**
- * Fence types whose gate leaf needs a STIFFENER -- the vertical that stops the
- * leaf racking out of square.
+ * Fence types whose gate needs an Econo STIFFENER -- inside the HINGE POST.
+ *
+ * CORRECTED 17 Nov 2026. This said the stiffener goes in the gate LEAF and
+ * stops it "racking out of square". The paragraph below already held the
+ * evidence that it does not: the part is "an H-frame 5x5x96 ... which fits a
+ * 5x5 vinyl post" -- 96 inches long and sized to a POST. It slides inside the
+ * hinge post. The owner: "the gate post and the end posts are the same, except
+ * that post has the Econo Stiffener in there." Hartford Fence Supply Estimate
+ * 66420 quotes one ECONO STIFFENER H-FRAME for one gate, beside a gate kit that
+ * carries its own two P-channel stiffeners for the leaf -- a different part.
+ * One per hinge post; every modelled gate has exactly one, so the count did not
+ * change. Twin of the note in takeoff.ts.
  *
  * VINYL alone, and for a physical reason rather than a seeding accident. A
  * vinyl gate arrives as a hollow extruded leaf, and the part that stiffens it
@@ -361,7 +371,13 @@ object EstimateEngine {
      * Anchored (signed/sent) totals do not move regardless, as above.
      *
      */
-    const val PRICING_ENGINE_VERSION = "2026.10.24"
+    /**
+     * Bumped 2026.10.24 -> 2026.11.17: a vinyl gate post is an end post. See
+     * the block in buildLineItems and the twin note in index.ts. No total moves
+     * on today's catalogs -- the owner's vinyl gate and end post rows cost the
+     * same at every height -- only the row a gate post is named after.
+     */
+    const val PRICING_ENGINE_VERSION = "2026.11.17"
     /**
      * A thousandth of a foot, which is a hundredth of an inch: the slack every
      * count of bays, panels and pickets allows before it rounds up.
@@ -730,7 +746,10 @@ object EstimateEngine {
             // on their own line above, and the stiffener has its own line under
             // Gate hardware. This is the post that CARRIES the gate -- one per
             // gate that hangs from a post of its own.
-            TakeoffLine("Gate posts", qty(MaterialRole.GATE_POST), "", TakeoffGroup.POSTS),
+            // Kept beginning "Gate posts": both engines' tests find these by
+            // prefix. The rest is what the owner asked it to say, and must match
+            // takeoff.ts word for word or the parity fixtures disagree.
+            TakeoffLine("Gate posts (end post + Econo Stiffener)", qty(MaterialRole.GATE_POST), "", TakeoffGroup.POSTS),
             TakeoffLine("Blank posts (nothing connects)", qty(MaterialRole.BLANK_POST), "", TakeoffGroup.POSTS),
             TakeoffLine("Total posts", posts.totalPosts.toDouble(), "", TakeoffGroup.POSTS),
             TakeoffLine("Post caps", qty(MaterialRole.POST_CAP), "", TakeoffGroup.POSTS),
@@ -746,7 +765,7 @@ object EstimateEngine {
             TakeoffLine("Latches", qty(MaterialRole.LATCH), "", TakeoffGroup.GATES),
             TakeoffLine("Gate handles", qty(MaterialRole.HANDLE), "", TakeoffGroup.GATES),
             TakeoffLine("Gate braces", qty(MaterialRole.BRACE), "", TakeoffGroup.GATES),
-            TakeoffLine("Econo stiffeners", qty(MaterialRole.STIFFENER), "", TakeoffGroup.GATES),
+            TakeoffLine("Econo stiffeners (one inside each gate post)", qty(MaterialRole.STIFFENER), "", TakeoffGroup.GATES),
             TakeoffLine("Hole plugs", qty(MaterialRole.HOLE_PLUG), "", TakeoffGroup.GATES)
         ).filter { it.quantity > 0.0 }
     }
@@ -1496,6 +1515,19 @@ object EstimateEngine {
 
         mergedEntries.forEach { entry ->
             var candidates = candidatesByRole[entry.role].orEmpty()
+            // A VINYL GATE POST IS AN END POST (owner, 17 Nov 2026; Hartford
+            // Fence Supply Estimate 66420 quotes end posts for a gate and no
+            // gate-post SKU). Priced from the END_POST rows even where a
+            // GATE_POST row exists -- in his catalog that row is HFS's unrouted
+            // "Blank Post", the wrong part beside a fence line. The line keeps
+            // role GATE_POST, so every count read by role is unchanged; only
+            // the row it is priced from, and named after, moves. Falls back to
+            // the GATE_POST rows only where no END_POST row exists. Twin of the
+            // block in line-items.ts buildLineItems -- both or neither.
+            if (entry.role == MaterialRole.GATE_POST && run.fenceType == FenceType.VINYL) {
+                val endPosts = candidatesByRole[MaterialRole.END_POST].orEmpty()
+                if (endPosts.isNotEmpty()) candidates = endPosts
+            }
             // Nothing priced for the role itself: price it off the fallback
             // role's rows if there is one ([PRICING_FALLBACK_ROLE]). Here,
             // BEFORE the colour, manufacturer and height filters, so a borrowed

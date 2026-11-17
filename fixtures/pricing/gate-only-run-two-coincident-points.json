@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "engine": {
-    "version": "2026.10.24",
-    "generated_at": "2026-10-26T17:31:59.220554800Z"
+    "version": "2026.11.17",
+    "generated_at": "2026-11-17T17:21:20.099190300Z"
   },
   "case": "gate-only-run-two-coincident-points",
   "note": "A gate on a run whose two points sit on the same spot -- what a double-tap leaves behind. Zero feet, so no post can be the END of a line that is not there. Must price identically to case 36: two blank posts, two caps, the gate and its hardware. It billed four posts and four caps.",
   "input": {
-    "engine_version": "2026.10.24",
+    "engine_version": "2026.11.17",
     "pixels_per_foot": 20.0,
     "job": {
       "calibration_pixels_per_foot": 20.0,
@@ -380,7 +380,7 @@
     "existing_items": []
   },
   "expected": {
-    "engine_version": "2026.10.24",
+    "engine_version": "2026.11.17",
     "linear_feet": 0.0,
     "teardown_linear_feet": 0.0,
     "billable_linear_feet": 0.0,
@@ -566,7 +566,7 @@
             "group": "GATES"
           },
           {
-            "label": "Econo stiffeners",
+            "label": "Econo stiffeners (one inside each gate post)",
             "quantity": 1.0,
             "unit": "",
             "group": "GATES"

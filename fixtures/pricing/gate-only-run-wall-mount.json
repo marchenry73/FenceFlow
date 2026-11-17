@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "engine": {
-    "version": "2026.10.24",
-    "generated_at": "2026-10-26T17:31:59.220554800Z"
+    "version": "2026.11.17",
+    "generated_at": "2026-11-17T17:21:20.099190300Z"
   },
   "case": "gate-only-run-wall-mount",
   "note": "A standalone WALL gate: no fence, so no post can be the END of one. Two blank posts, the gate and its hardware -- the same answer as a standalone LINE gate. This used to bill BLANK + END, putting one post on the end-post row for a fence line that does not exist.",
   "input": {
-    "engine_version": "2026.10.24",
+    "engine_version": "2026.11.17",
     "pixels_per_foot": 20.0,
     "job": {
       "calibration_pixels_per_foot": 20.0,
@@ -380,7 +380,7 @@
     "existing_items": []
   },
   "expected": {
-    "engine_version": "2026.10.24",
+    "engine_version": "2026.11.17",
     "linear_feet": 0.0,
     "teardown_linear_feet": 0.0,
     "billable_linear_feet": 0.0,
@@ -561,7 +561,7 @@
             "group": "GATES"
           },
           {
-            "label": "Econo stiffeners",
+            "label": "Econo stiffeners (one inside each gate post)",
             "quantity": 1.0,
             "unit": "",
             "group": "GATES"

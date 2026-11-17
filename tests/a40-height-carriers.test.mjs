@@ -461,7 +461,16 @@ test("no other repo-root SQL file defines height_ft, so there is one owner of th
   //        catalog column a second meaning because it never touches the
   //        catalog. Listed only because this scan reads whole files rather
   //        than statements; the DEFINES check above is now table-scoped.
-  assert.deepEqual(writers, ["supabase_a40_material_height.sql", "supabase_a45_supplier_heights_and_exact_prices.sql", "supabase_a50_post_heights.sql", "supabase_a87_vinyl_4ft_corner_post.sql", "supabase_h1_house_box.sql"],
+  //
+  // ONE ADDED 17 Nov 2026, on purpose, and checked against the file rather than waved through:
+  //
+  //   hfs_tan  writes material_items.height_ft on the four HFS tan rows from Hartford Fence
+  //            Supply Estimate 66420 -- 6 on the 6 ft privacy end post, its gate post and the
+  //            6 ft walk-gate kit, and NULL on the post cap, which is not for a height. Same
+  //            meaning as every other writer here: the fence height the part is FOR, not the
+  //            part's own length. An INSERT on new rows, like a87; it alters no existing row's
+  //            height.
+  assert.deepEqual(writers, ["supabase_a40_material_height.sql", "supabase_a45_supplier_heights_and_exact_prices.sql", "supabase_a50_post_heights.sql", "supabase_a87_vinyl_4ft_corner_post.sql", "supabase_data_hfs_tan_2026-11-17.sql", "supabase_h1_house_box.sql"],
     "a repo-root SQL file reads or writes height_ft that this test does not know about. If it is a " +
     "new wave filling the column in, add it here; if it gives the number a DIFFERENT meaning " +
     "(a post's own length rather than the fence height it is for), that is the bug. Found: " + writers.join(", "));

@@ -1,13 +1,13 @@
 {
   "schema": 1,
   "engine": {
-    "version": "2026.10.24",
-    "generated_at": "2026-10-26T17:31:59.220554800Z"
+    "version": "2026.11.17",
+    "generated_at": "2026-11-17T17:21:20.099190300Z"
   },
   "case": "gate-latches-to-wall-no-fence",
   "note": "The same mounting with no fence drawn. Attached to a wall, so the standalone rule does NOT apply: still one gate post, 4 hole plugs and hinge concrete only -- not the two blank posts a gate standing on its own gets.",
   "input": {
-    "engine_version": "2026.10.24",
+    "engine_version": "2026.11.17",
     "pixels_per_foot": 20.0,
     "job": {
       "calibration_pixels_per_foot": 20.0,
@@ -380,7 +380,7 @@
     "existing_items": []
   },
   "expected": {
-    "engine_version": "2026.10.24",
+    "engine_version": "2026.11.17",
     "linear_feet": 0.0,
     "teardown_linear_feet": 0.0,
     "billable_linear_feet": 0.0,
@@ -507,7 +507,7 @@
             "group": "SITE"
           },
           {
-            "label": "Gate posts",
+            "label": "Gate posts (end post + Econo Stiffener)",
             "quantity": 1.0,
             "unit": "",
             "group": "POSTS"
@@ -555,7 +555,7 @@
             "group": "GATES"
           },
           {
-            "label": "Econo stiffeners",
+            "label": "Econo stiffeners (one inside each gate post)",
             "quantity": 1.0,
             "unit": "",
             "group": "GATES"
@@ -686,7 +686,7 @@
         "sync_id": "f34717c6-bc4e-321d-b9cb-656545cfd0f6",
         "fence_run_sync_id": "00000057-0000-4000-8000-000000000001",
         "sort_order": 8,
-        "description": "5\"x5\" Co-Ex Gate Post, White",
+        "description": "5\"x5\" Co-Ex End Post, White",
         "quantity": 1.0,
         "unit": "EA",
         "unit_price": 16.56,
