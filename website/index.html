@@ -240,6 +240,15 @@
   .price .btn{display:block;text-align:center}
   .fineprint{color:var(--muted);font-size:15.5px;margin-top:30px;text-align:center}
 
+  /* THE FREE MONTH, above the price cards. Teal rather than orange: orange is
+     this page's button colour, and an orange panel over three prices reads as
+     a banner ad. The border-top is the only strong mark, so the words carry it. */
+  .offer{max-width:62ch;margin:0 auto 38px;padding:26px 30px;text-align:center;
+         background:var(--paper);border:1px solid var(--line);
+         border-top:3px solid var(--teal);border-radius:13px}
+  .offer h3{font:600 27px/1.2 var(--display);letter-spacing:.005em;margin-bottom:9px}
+  .offer p{color:var(--muted);font-size:16.5px;line-height:1.6;margin:0}
+
   footer{background:var(--ink);color:#8B97A9;padding:54px 0 40px;font-size:15px}
   footer .cols{display:flex;justify-content:space-between;gap:30px;flex-wrap:wrap;
                align-items:flex-start}
@@ -274,6 +283,8 @@
     .steps{grid-template-columns:repeat(2,1fr);gap:26px}
     .stepc::after{display:none}
     .prices{grid-template-columns:1fr;max-width:460px;margin:0 auto}
+    .offer{padding:22px 20px;margin-bottom:30px}
+    .offer h3{font-size:24px}
   }
   @media (max-width:620px){
     section{padding:60px 0}
@@ -311,7 +322,7 @@
         satellite photo — and every post, panel, concrete bag and gate latch is counted
         and priced from your own supplier list.</p>
       <div class="hero-cta">
-        <a href="#pricing" class="btn" data-t="ctaTrial">Start your free trial</a>
+        <a href="#pricing" class="btn" data-t="ctaTrial">Start your free month</a>
         <a href="#what" class="btn btn-line" style="padding:15px 26px;font-size:16px" data-t="ctaSee">See what it does</a>
       </div>
       <p class="hero-note"><b data-t="heroNoteBold">Built by a fence contractor</b><span data-t="heroNoteRest">, on his own jobs ·
@@ -535,12 +546,27 @@
 </section>
 
 <!-- -------------------------------------------------------------- price -- -->
+<!-- .offer -- the free month, above the cards. Centred, and quiet: the words
+     are the point, and a loud box beside three price cards reads as a sales
+     banner, which is what a contractor skips. -->
 <section id="pricing">
   <div class="wrap">
     <div class="rise">
       <h2 data-t="pricingHead">Priced per company, not per person</h2>
       <p class="sub" data-t="pricingSub">Every plan includes the phone app, the office, unlimited jobs and
         unlimited estimates. Add a crew member and the bill does not move.</p>
+    </div>
+    <!-- THE OFFER SITS ABOVE THE PRICES, deliberately. A contractor who reads
+         "$99 a month" before he reads "your first month is free" has already
+         decided -- one replied on 17 Nov that he could not take on a monthly
+         bill going into the slow season, having never seen that the month is
+         free. The cards below answer "and after that?", which is the second
+         question, not the first. -->
+    <div class="offer rise">
+      <h3 data-t="offerHead">Your first month is free</h3>
+      <p data-t="offerBody">No card, and nothing to cancel. You get the Crew plan for the whole
+        month &mdash; you plus five logins &mdash; so your whole crew can try it, not just you. When the
+        month ends it simply stops and you owe nothing.</p>
     </div>
     <div class="prices rise">
 
@@ -557,7 +583,7 @@
           <li data-t="liSolo6">Cash and check payments</li>
           <li data-t="liSolo7">Works offline</li>
         </ul>
-        <a href="dashboard.html#signup" class="btn" data-t="btnStartFreeTrial">Start free trial</a>
+        <a href="dashboard.html#signup" class="btn" data-t="btnStartFreeTrial">Start your free month</a>
       </div>
 
       <div class="price on">
@@ -574,7 +600,7 @@
           <li data-t="liCrew6">Money basics: collected &amp; owed</li>
           <li data-t="liCrew7">Card payments by link</li>
         </ul>
-        <a href="dashboard.html#signup" class="btn" data-t="btnStartFreeTrial">Start free trial</a>
+        <a href="dashboard.html#signup" class="btn" data-t="btnStartFreeTrial">Start your free month</a>
       </div>
 
       <div class="price">
@@ -591,20 +617,24 @@
           <li data-t="liPro7">Cloud photo &amp; document backup</li>
           <li data-t="liPro8">Priority support</li>
         </ul>
-        <a href="dashboard.html#signup" class="btn" data-t="btnStartFreeTrial">Start free trial</a>
+        <a href="dashboard.html#signup" class="btn" data-t="btnStartFreeTrial">Start your free month</a>
       </div>
 
     </div>
-    <!-- This used to read "14 days free, no card to start", and that was not true.
-         Signing up takes no card, but the 14 days begin when you pick a plan, and
-         picking a plan is a Stripe Checkout in subscription mode -- which collects
-         a card before the trial starts. create-checkout-session/index.ts even says
-         so in its own comment: "Card up front, first charge when the trial ends --
-         what the pricing page promises." The page promised the opposite. It is the
-         first thing a contractor reads, and being caught out by it at the card
-         screen costs more than the sign-up it was written to win. -->
-    <p class="fineprint" data-t="fineprint">14 days free. A card is taken when you pick a plan; the first
-      charge is when the trial ends. Cancel any time — and if you do, your data stays yours and stays put.</p>
+    <!-- HISTORY, because this line has now been wrong in both directions.
+         It once read "14 days free, no card to start", which was false: the 14
+         days began when you picked a plan, and picking a plan is a Stripe
+         Checkout in subscription mode, which collects a card first. So it was
+         corrected to say the card was taken -- true, and it cost sign-ups.
+         Since supabase_r75_first_month_free.sql the sign-up itself grants 30
+         days with no card and no subscription, so there is nothing to collect
+         and nothing to cancel, and the honest line is this one. If the free
+         month is ever removed from create_company_with_owner, THIS TEXT GOES
+         BACK TO BEING A LIE -- a40-style: the page and the function have to be
+         changed together. -->
+    <p class="fineprint" data-t="fineprint">The prices above are what it costs after your free month. No card
+      to start and nothing to cancel: when the month ends it simply stops and you owe nothing. Pick a plan
+      whenever you are ready &mdash; and if you never do, your data stays yours and stays put.</p>
   </div>
 </section>
 
@@ -650,7 +680,7 @@ const L = {
     eyebrowContractors: 'For fence contractors',
     heroLine1: 'Draw the fence.', heroLine2: 'Get the material list.',
     heroLede: 'Trace the line — on a survey, a blank grid, or straight off a satellite photo — and every post, panel, concrete bag and gate latch is counted and priced from your own supplier list.',
-    ctaTrial: 'Start your free trial', ctaSee: 'See what it does',
+    ctaTrial: 'Start your free month', ctaSee: 'See what it does',
     heroNoteBold: 'Built by a fence contractor',
     heroNoteRest: ', on his own jobs · Works with no signal · Unlimited jobs on every plan',
     tLinePosts: 'Line posts', tCornerPosts: 'Corner posts', tEndPosts: 'End posts',
@@ -717,8 +747,10 @@ const L = {
     liPro4: 'Cost breakdowns: where money goes', liPro5: 'Who owes you, and how long',
     liPro6: 'Monday morning business digest', liPro7: 'Cloud photo & document backup',
     liPro8: 'Priority support',
-    btnStartFreeTrial: 'Start free trial',
-    fineprint: '14 days free. A card is taken when you pick a plan; the first charge is when the trial ends. Cancel any time — and if you do, your data stays yours and stays put.',
+    btnStartFreeTrial: 'Start your free month',
+    offerHead: 'Your first month is free',
+    offerBody: 'No card, and nothing to cancel. You get the Crew plan for the whole month — you plus five logins — so your whole crew can try it, not just you. When the month ends it simply stops and you owe nothing.',
+    fineprint: 'The prices above are what it costs after your free month. No card to start and nothing to cancel: when the month ends it simply stops and you owe nothing. Pick a plan whenever you are ready — and if you never do, your data stays yours and stays put.',
     footDesc: 'Estimating, crew and payments for fence contractors. Built by one, on his own jobs, in Florida.',
     perMonth: '/month',
     footStaff: 'FenceFlow staff sign-in',
@@ -730,7 +762,7 @@ const L = {
     eyebrowContractors: 'Para instaladores de cercas',
     heroLine1: 'Dibuje la cerca.', heroLine2: 'Reciba la lista de materiales.',
     heroLede: 'Trace la línea — sobre un plano, una cuadrícula en blanco, o directamente sobre una foto satelital — y cada poste, panel, bolsa de concreto y bisagra de portón se cuenta y se cotiza con su propia lista de proveedores.',
-    ctaTrial: 'Comience su prueba gratis', ctaSee: 'Vea qué hace',
+    ctaTrial: 'Comience su mes gratis', ctaSee: 'Vea qué hace',
     heroNoteBold: 'Creado por un instalador de cercas',
     heroNoteRest: ', en sus propios trabajos · Funciona sin señal · Trabajos ilimitados en todos los planes',
     tLinePosts: 'Postes de línea', tCornerPosts: 'Postes de esquina', tEndPosts: 'Postes de remate',
@@ -797,8 +829,10 @@ const L = {
     liPro4: 'Desglose de costos: a dónde va el dinero', liPro5: 'Quién le debe, y desde cuándo',
     liPro6: 'Resumen del negocio los lunes por la mañana', liPro7: 'Respaldo en la nube de fotos y documentos',
     liPro8: 'Soporte prioritario',
-    btnStartFreeTrial: 'Comenzar prueba gratis',
-    fineprint: '14 días gratis. Se pide una tarjeta al elegir un plan; el primer cobro es cuando termina la prueba. Cancele cuando quiera — y si lo hace, sus datos siguen siendo suyos y quedan donde están.',
+    btnStartFreeTrial: 'Comenzar su mes gratis',
+    offerHead: 'Su primer mes es gratis',
+    offerBody: 'Sin tarjeta y sin nada que cancelar. Durante todo el mes tiene el plan Crew — usted más cinco cuentas — para que lo pruebe todo su equipo, no solo usted. Cuando termina el mes simplemente se detiene y no debe nada.',
+    fineprint: 'Los precios de arriba son lo que cuesta después de su mes gratis. No se pide tarjeta para empezar y no hay nada que cancelar: cuando termina el mes simplemente se detiene y no debe nada. Elija un plan cuando quiera — y si nunca lo hace, sus datos siguen siendo suyos y quedan donde están.',
     footDesc: 'Cotización, cuadrilla y pagos para instaladores de cercas. Creado por uno solo, en sus propios trabajos, en Florida.',
     perMonth: '/mes',
     footStaff: 'Acceso para el personal de FenceFlow',
@@ -810,7 +844,7 @@ const L = {
     eyebrowContractors: 'Pour les poseurs de clôtures',
     heroLine1: 'Dessinez la clôture.', heroLine2: 'Obtenez la liste de matériaux.',
     heroLede: 'Tracez la ligne — sur un plan, une grille vierge, ou directement sur une photo satellite — et chaque poteau, panneau, sac de béton et loquet de portail est compté et chiffré à partir de votre propre liste de fournisseurs.',
-    ctaTrial: 'Commencer votre essai gratuit', ctaSee: 'Voir ce que ça fait',
+    ctaTrial: 'Commencer votre mois gratuit', ctaSee: 'Voir ce que ça fait',
     heroNoteBold: 'Créé par un poseur de clôtures',
     heroNoteRest: ', sur ses propres chantiers · Fonctionne sans réseau · Chantiers illimités sur tous les forfaits',
     tLinePosts: 'Poteaux de ligne', tCornerPosts: 'Poteaux d’angle', tEndPosts: 'Poteaux d’extrémité',
@@ -877,8 +911,10 @@ const L = {
     liPro4: 'Répartition des coûts : où va l’argent', liPro5: 'Qui vous doit de l’argent, et depuis quand',
     liPro6: 'Point hebdomadaire de l’activité le lundi', liPro7: 'Sauvegarde des photos et documents dans le cloud',
     liPro8: 'Support prioritaire',
-    btnStartFreeTrial: 'Commencer l’essai gratuit',
-    fineprint: '14 jours gratuits. Une carte est demandée au moment de choisir un forfait ; le premier prélèvement a lieu à la fin des 14 jours. Résiliez à tout moment — et si vous le faites, vos données restent à vous et restent en place.',
+    btnStartFreeTrial: 'Commencer votre mois gratuit',
+    offerHead: 'Votre premier mois est gratuit',
+    offerBody: 'Sans carte, et rien à résilier. Pendant tout le mois vous avez le forfait Crew — vous plus cinq comptes — pour que toute votre équipe l’essaie, pas seulement vous. À la fin du mois, cela s’arrête simplement et vous ne devez rien.',
+    fineprint: 'Les prix ci-dessus sont ce que cela coûte après votre mois gratuit. Aucune carte pour commencer et rien à résilier : à la fin du mois, cela s’arrête simplement et vous ne devez rien. Choisissez un forfait quand vous voulez — et si vous ne le faites jamais, vos données restent à vous et restent en place.',
     footDesc: 'Chiffrage, équipe et paiements pour poseurs de clôtures. Créé par une seule personne, sur ses propres chantiers, en Floride.',
     perMonth: '/mois',
     footStaff: 'Connexion du personnel FenceFlow',
