@@ -2,7 +2,7 @@
   "schema": 1,
   "engine": {
     "version": "2026.11.17",
-    "generated_at": "2026-11-17T17:21:20.099190300Z"
+    "generated_at": "2026-11-18T20:11:23.487601900Z"
   },
   "case": "aluminum-typed-open",
   "note": "Aluminum pool fence 6x4 rackable, black, one 4 ft line gate.",
@@ -640,6 +640,26 @@
       }
     ],
     "unmatched_roles": [],
+    "color_fallbacks": [
+      {
+        "run_sync_id": "00000012-0000-4000-8000-000000000001",
+        "role": "HINGE_SET",
+        "wanted": "Black",
+        "used": ""
+      },
+      {
+        "run_sync_id": "00000012-0000-4000-8000-000000000001",
+        "role": "LATCH",
+        "wanted": "Black",
+        "used": ""
+      },
+      {
+        "run_sync_id": "00000012-0000-4000-8000-000000000001",
+        "role": "CONCRETE_BAG",
+        "wanted": "Black",
+        "used": ""
+      }
+    ],
     "zero_priced": [],
     "zero_priced_names": [],
     "totals_items": [

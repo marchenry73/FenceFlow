@@ -2,7 +2,7 @@
   "schema": 1,
   "engine": {
     "version": "2026.11.17",
-    "generated_at": "2026-11-17T17:21:20.099190300Z"
+    "generated_at": "2026-11-18T20:11:23.487601900Z"
   },
   "case": "inactive-row-ignored",
   "note": "The White 6 ft panel is inactive, so White narrows to the 8 ft row and the count is reconciled to 13.",
@@ -564,6 +564,14 @@
       }
     ],
     "unmatched_roles": [],
+    "color_fallbacks": [
+      {
+        "run_sync_id": "00000031-0000-4000-8000-000000000001",
+        "role": "CONCRETE_BAG",
+        "wanted": "White",
+        "used": ""
+      }
+    ],
     "zero_priced": [],
     "zero_priced_names": [],
     "totals_items": [

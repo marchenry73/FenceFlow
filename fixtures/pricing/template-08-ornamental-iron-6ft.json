@@ -2,7 +2,7 @@
   "schema": 1,
   "engine": {
     "version": "2026.11.17",
-    "generated_at": "2026-11-17T17:21:20.099190300Z"
+    "generated_at": "2026-11-18T20:11:23.487601900Z"
   },
   "case": "template-08-ornamental-iron-6ft",
   "note": "Shipped template on a 100 ft open run. 6 ft Ornamental Iron: 6x6, spacing 6.",
@@ -459,6 +459,7 @@
       }
     ],
     "unmatched_roles": [],
+    "color_fallbacks": [],
     "zero_priced": [],
     "zero_priced_names": [],
     "totals_items": [

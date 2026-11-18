@@ -2,7 +2,7 @@
   "schema": 1,
   "engine": {
     "version": "2026.11.17",
-    "generated_at": "2026-11-17T17:21:20.099190300Z"
+    "generated_at": "2026-11-18T20:11:23.487601900Z"
   },
   "case": "gate-malformed-entries",
   "note": "Two-part and non-numeric gates are dropped; an unknown mounting falls back to LINE and an unknown swing to IN; the good one after them still counts.",
@@ -840,6 +840,7 @@
       }
     ],
     "unmatched_roles": [],
+    "color_fallbacks": [],
     "zero_priced": [],
     "zero_priced_names": [],
     "totals_items": [

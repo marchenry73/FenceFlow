@@ -2,7 +2,7 @@
   "schema": 1,
   "engine": {
     "version": "2026.11.17",
-    "generated_at": "2026-11-17T17:21:20.099190300Z"
+    "generated_at": "2026-11-18T20:11:23.487601900Z"
   },
   "case": "chain-link-drawn-no-top-rail",
   "note": "Chain link 4 ft without a top rail: no TOP_RAIL and no RAIL_END entries.",
@@ -651,6 +651,7 @@
       }
     ],
     "unmatched_roles": [],
+    "color_fallbacks": [],
     "zero_priced": [],
     "zero_priced_names": [],
     "totals_items": [

@@ -166,6 +166,7 @@ data class PricingOutput(
     val runs: List<RunOutput>,
     val items: List<ItemOutput>,
     @SerialName("unmatched_roles") val unmatchedRoles: List<RunRole>,
+    @SerialName("color_fallbacks") val colorFallbacks: List<RunColorFallback> = emptyList(),
     @SerialName("zero_priced") val zeroPriced: List<String>,
     @SerialName("zero_priced_names") val zeroPricedNames: List<RunName>,
     /** Line-item sync ids in the order computeTotals summed them. */
@@ -257,6 +258,15 @@ data class ItemOutput(
 data class RunRole(
     @SerialName("run_sync_id") val runSyncId: String,
     val role: String
+)
+
+/** One line billed in a colour the run did not ask for. Twin of RunColorFallback in index.ts. */
+@Serializable
+data class RunColorFallback(
+    @SerialName("run_sync_id") val runSyncId: String,
+    val role: String,
+    val wanted: String,
+    val used: String
 )
 
 @Serializable

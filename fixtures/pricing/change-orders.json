@@ -2,7 +2,7 @@
   "schema": 1,
   "engine": {
     "version": "2026.11.17",
-    "generated_at": "2026-11-17T17:21:20.099190300Z"
+    "generated_at": "2026-11-18T20:11:23.487601900Z"
   },
   "case": "change-orders",
   "note": "Two change orders: feet billed at the labour rate, cost added dollar for dollar, both marked up.",
@@ -577,6 +577,7 @@
       }
     ],
     "unmatched_roles": [],
+    "color_fallbacks": [],
     "zero_priced": [],
     "zero_priced_names": [],
     "totals_items": [

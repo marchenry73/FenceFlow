@@ -559,6 +559,23 @@ export interface RunRole {
   role: MaterialRole;
 }
 
+/**
+ * One line billed in a colour the run did not ask for, because the catalog
+ * holds no row of that role in the colour it did ask for.
+ *
+ * `wanted` is the run's colour as typed; `used` is the colour of the row the
+ * estimate actually bills, which is whatever won on price once colour could
+ * not narrow. Both are carried because the pair is the useful fact: "you
+ * asked for Tan and this is White" is what tells somebody the corner post
+ * arriving on the job will be the wrong colour.
+ */
+export interface RunColorFallback {
+  run_sync_id: string;
+  role: MaterialRole;
+  wanted: string;
+  used: string;
+}
+
 export interface RunName {
   run_sync_id: string;
   name: string;
@@ -603,6 +620,17 @@ export interface PricingOutput {
    */
   items: ItemOutput[];
   unmatched_roles: RunRole[];
+  /**
+   * Every line whose colour is not the colour the run asked for, because the
+   * catalog holds no row of that role in it. See buildLineItems.
+   *
+   * Beside unmatched_roles deliberately: both are "the catalog could not
+   * answer the takeoff exactly", and both have to reach a human. The
+   * difference is that an unmatched role bills NOTHING, while this one bills
+   * the wrong colour -- which is the more dangerous of the two, because the
+   * estimate looks complete and the parts turn up wrong.
+   */
+  color_fallbacks: RunColorFallback[];
   /** Sync ids of freshly built rows (never an edited one) whose catalog price is <= 0. */
   zero_priced: string[];
   zero_priced_names: RunName[];
@@ -862,6 +890,7 @@ export function priceJob(input: PricingInput): PricingOutput {
   const runOutputs: RunOutput[] = [];
   const takeoffItems: EstimateLineItem[] = [];
   const unmatched: RunRole[] = [];
+  const colorFallbacks: RunColorFallback[] = [];
   const zeroPricedIds: string[] = [];
   const zeroPricedNames: RunName[] = [];
 
@@ -885,6 +914,9 @@ export function priceJob(input: PricingInput): PricingOutput {
 
     const built = buildLineItems(run, suggestions, catalog, job.preferredManufacturerSyncId);
     for (const role of built.unmatchedRoles) unmatched.push({ run_sync_id: run.syncId, role });
+    for (const f of built.colorFallbacks) {
+      colorFallbacks.push({ run_sync_id: run.syncId, role: f.role, wanted: f.wanted, used: f.used });
+    }
     for (const name of built.zeroPricedNames) zeroPricedNames.push({ run_sync_id: run.syncId, name });
 
     // Edited lines stay and stand in for the built line they correct, the
@@ -930,6 +962,7 @@ export function priceJob(input: PricingInput): PricingOutput {
       category: null,
     })),
     unmatched_roles: unmatched,
+    color_fallbacks: colorFallbacks,
     zero_priced: zeroPricedIds,
     zero_priced_names: zeroPricedNames,
     totals_items: itemsForTotals.map((i) => i.syncId),

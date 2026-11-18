@@ -2,7 +2,7 @@
   "schema": 1,
   "engine": {
     "version": "2026.11.17",
-    "generated_at": "2026-11-17T17:21:20.099190300Z"
+    "generated_at": "2026-11-18T20:11:23.487601900Z"
   },
   "case": "split-rail-drawn-3-rail-wide-gate",
   "note": "Split rail, 3 rails, drawn, one 10 ft line gate: frame kit 10 ft, second brace and hinge set.",
@@ -577,6 +577,7 @@
       }
     ],
     "unmatched_roles": [],
+    "color_fallbacks": [],
     "zero_priced": [],
     "zero_priced_names": [],
     "totals_items": [

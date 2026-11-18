@@ -116,6 +116,7 @@ class ParityFixtureCheck {
             }
             diffList("items", expected.items, actual.items)?.let { return it }
             diffList("unmatched_roles", expected.unmatchedRoles, actual.unmatchedRoles)?.let { return it }
+            diffList("color_fallbacks", expected.colorFallbacks, actual.colorFallbacks)?.let { return it }
             diffList("zero_priced", expected.zeroPriced, actual.zeroPriced)?.let { return it }
             diffList("zero_priced_names", expected.zeroPricedNames, actual.zeroPricedNames)?.let { return it }
             if (expected.linearFeet != actual.linearFeet ||

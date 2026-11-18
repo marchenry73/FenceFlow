@@ -2,7 +2,7 @@
   "schema": 1,
   "engine": {
     "version": "2026.11.17",
-    "generated_at": "2026-11-17T17:21:20.099190300Z"
+    "generated_at": "2026-11-18T20:11:23.487601900Z"
   },
   "case": "gate-line-to-wall-mount",
   "note": "Line to wall: three end posts and 3.5 bags; gatePosts now counts 3 for this mounting (not the flat 2 every other mounting still takes), so POST_CAP bills all three -- the old undercount is fixed, not reproduced.",
@@ -772,6 +772,32 @@
       }
     ],
     "unmatched_roles": [],
+    "color_fallbacks": [
+      {
+        "run_sync_id": "0000001d-0000-4000-8000-000000000001",
+        "role": "LATCH",
+        "wanted": "White",
+        "used": "Black"
+      },
+      {
+        "run_sync_id": "0000001d-0000-4000-8000-000000000001",
+        "role": "HANDLE",
+        "wanted": "White",
+        "used": "Black"
+      },
+      {
+        "run_sync_id": "0000001d-0000-4000-8000-000000000001",
+        "role": "STIFFENER",
+        "wanted": "White",
+        "used": ""
+      },
+      {
+        "run_sync_id": "0000001d-0000-4000-8000-000000000001",
+        "role": "CONCRETE_BAG",
+        "wanted": "White",
+        "used": ""
+      }
+    ],
     "zero_priced": [],
     "zero_priced_names": [],
     "totals_items": [

@@ -227,6 +227,7 @@ object PricingRunner {
         val runOutputs = mutableListOf<RunOutput>()
         val takeoffItems = mutableListOf<EstimateLineItem>()
         val unmatched = mutableListOf<RunRole>()
+        val colorFallbacks = mutableListOf<RunColorFallback>()
         val zeroPricedIds = mutableListOf<String>()
         val zeroPricedNames = mutableListOf<RunName>()
 
@@ -256,6 +257,9 @@ object PricingRunner {
                 preferredManufacturerId = job.preferredManufacturerId
             )
             built.unmatchedRoles.forEach { unmatched += RunRole(run.syncId, it.name) }
+            built.colorFallbacks.forEach {
+                colorFallbacks += RunColorFallback(run.syncId, it.role.name, it.wanted, it.used)
+            }
             built.zeroPricedNames.forEach { zeroPricedNames += RunName(run.syncId, it) }
 
             // The regenerate, by the phone's own rule: the lines to write,
@@ -305,6 +309,7 @@ object PricingRunner {
                 )
             },
             unmatchedRoles = unmatched,
+            colorFallbacks = colorFallbacks,
             zeroPriced = zeroPricedIds,
             zeroPricedNames = zeroPricedNames,
             totalsItems = itemsForTotals.map { it.syncId },

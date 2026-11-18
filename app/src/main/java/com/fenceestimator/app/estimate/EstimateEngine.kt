@@ -1404,12 +1404,37 @@ object EstimateEngine {
             "fenceflow-line:$runSyncId:$role:${coversFt ?: 0f}".toByteArray()
         ).toString()
 
+    /** One role the run wanted in [wanted] and this could only price in [used]. */
+    data class ColorFallback(
+        val role: MaterialRole,
+        val wanted: String,
+        val used: String
+    )
+
     data class BuiltItems(
         val items: List<EstimateLineItem>,
         /** Roles the takeoff called for that the catalog has nothing priced for. */
         val unmatchedRoles: List<MaterialRole>,
         /** Matched items whose catalog price is still zero, so the estimate would read $0. */
-        val zeroPricedNames: List<String>
+        val zeroPricedNames: List<String>,
+        /**
+         * Roles the run asked for in one colour and this priced in another,
+         * because the catalog has no row of that role in the colour wanted.
+         *
+         * MEASURED on the owner's live vinyl catalog, 18 Nov 2026: he stocks
+         * Tan in END_POST, GATE_POST, LINE_POST, PANEL, GATE_PANEL and
+         * POST_CAP, and NOT in CORNER_POST, TRIM, BRACE, HINGE_SET, LATCH or
+         * HANDLE. The colour filter narrows only when it can, so for those
+         * roles it kept every colour and the cheapest won -- White. A tan
+         * fence was quoted, and would have been ordered, with WHITE corner
+         * posts and WHITE trim, and nothing said so.
+         *
+         * NOT an error and not a refusal: the fence still needs the part, and
+         * a missing colour must not cost the line. It is a fact that has to
+         * reach whoever quotes and whoever orders. Twin of colorFallbacks in
+         * line-items.ts.
+         */
+        val colorFallbacks: List<ColorFallback>
     )
 
     /**
@@ -1492,6 +1517,7 @@ object EstimateEngine {
         val items = mutableListOf<EstimateLineItem>()
         val unmatched = mutableListOf<MaterialRole>()
         val zeroPriced = mutableListOf<String>()
+        val colorFallbacks = mutableListOf<ColorFallback>()
         var order = 0
 
         // The same role can be suggested more than once (two braces on a wide
@@ -1544,9 +1570,17 @@ object EstimateEngine {
                 return@forEach
             }
 
+            // Narrowing is unchanged -- it still narrows only when it can,
+            // because a role with no row in this colour must still be priced
+            // or the fence loses the part. What is new is that the miss is
+            // REMEMBERED. Recorded against the row finally chosen, below, not
+            // here: the colour that matters is the one actually billed, and
+            // manufacturer and height still have to pick.
+            var colorMissed = false
             if (run.colorOrFinish.isNotBlank()) {
                 val colorMatches = candidates.filter { it.colorOrFinish.equals(run.colorOrFinish, ignoreCase = true) }
                 if (colorMatches.isNotEmpty()) candidates = colorMatches
+                else colorMissed = true
             }
 
             if (preferredManufacturerId != null) {
@@ -1663,6 +1697,12 @@ object EstimateEngine {
                 return@forEach
             }
             if (chosen.unitPrice <= 0.0) zeroPriced += chosen.name
+            // The colour asked for had no row of this role, so the line is
+            // billed off whatever colour won on price. Say which, both ways
+            // round. Twin of the block in line-items.ts.
+            if (colorMissed) {
+                colorFallbacks += ColorFallback(entry.role, run.colorOrFinish, chosen.colorOrFinish)
+            }
 
             // How many, against what the chosen item actually covers.
             //
@@ -1727,7 +1767,7 @@ object EstimateEngine {
             )
         }
 
-        return BuiltItems(items, unmatched.distinct(), zeroPriced.distinct())
+        return BuiltItems(items, unmatched.distinct(), zeroPriced.distinct(), colorFallbacks)
     }
 
     data class Totals(

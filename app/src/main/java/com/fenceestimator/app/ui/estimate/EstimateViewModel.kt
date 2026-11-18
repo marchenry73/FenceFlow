@@ -496,6 +496,18 @@ class EstimateViewModel(
         // Say exactly what's missing. Silence here is what left people
         // staring at a $0 estimate with nothing to act on.
         val problems = mutableListOf<String>()
+        // THE COLOUR THE CUSTOMER IS GETTING, when it is not the one asked
+        // for. Beside the unmatched-role warning because they are the same
+        // kind of fact -- the catalog could not answer the takeoff exactly --
+        // and this is the more dangerous of the two: an unmatched role bills
+        // nothing and is obvious, while this bills a complete-looking line in
+        // the wrong colour, and the part turns up wrong on the job.
+        if (built.colorFallbacks.isNotEmpty()) {
+            problems += built.colorFallbacks.joinToString("; ") {
+                "no " + it.wanted + " " + it.role.name.replace('_', ' ').lowercase() +
+                    " in your catalog - priced as " + it.used
+            }
+        }
         if (built.unmatchedRoles.isNotEmpty()) {
             problems += "no catalog item for " + built.unmatchedRoles.joinToString(", ") {
                 it.name.replace("_", " ").lowercase()

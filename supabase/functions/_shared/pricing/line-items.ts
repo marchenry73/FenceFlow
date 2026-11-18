@@ -45,6 +45,13 @@ export function deterministicSyncIdForWidth(runSyncId: string, role: string, cov
   return nameUUIDFromString(`fenceflow-line:${runSyncId}:${role}:${kotlinFloatToString(coversFt ?? 0)}`);
 }
 
+/** One role the run wanted in `wanted` and this could only price in `used`. */
+export interface ColorFallback {
+  role: string;
+  wanted: string;
+  used: string;
+}
+
 export interface BuiltItems {
   /**
    * EstimateLineItem field for field. No category: the phone's line item
@@ -55,6 +62,17 @@ export interface BuiltItems {
   unmatchedRoles: MaterialRole[];
   /** Matched items whose catalog price is still zero, so the estimate would read $0. */
   zeroPricedNames: string[];
+  /**
+   * Roles the run asked for in one colour and this priced in another, because
+   * the catalog has no row of that role in the colour wanted. One entry per
+   * role, carrying the colour asked for and the colour actually billed.
+   *
+   * NOT an error and not a refusal: the fence still needs the part, and a
+   * missing colour must not cost the line. It is a fact the people ordering
+   * and quoting have to see, which is why it leaves the engine instead of
+   * being swallowed by a filter that narrows "only when it can".
+   */
+  colorFallbacks: ColorFallback[];
 }
 
 /**
@@ -144,6 +162,7 @@ export function buildLineItems(
   const items: EstimateLineItem[] = [];
   const unmatched: MaterialRole[] = [];
   const zeroPriced: string[] = [];
+  const colorFallbacks: ColorFallback[] = [];
   let order = 0;
 
   // The same role can be suggested more than once (two braces on a wide
@@ -206,9 +225,16 @@ export function buildLineItems(
       continue;
     }
 
+    // Narrowing is unchanged -- it still narrows only when it can, because a
+    // role with no row in this colour must still be priced or the fence loses
+    // the part. What is new is that the miss is REMEMBERED. Recorded against
+    // the row finally chosen, below, not here: the colour that matters is the
+    // one actually billed, and manufacturer and height still have to pick.
+    let colorMissed = false;
     if (!isBlank(run.colorOrFinish)) {
       const colorMatches = candidates.filter((c) => equalsIgnoreCase(c.colorOrFinish, run.colorOrFinish));
       if (colorMatches.length > 0) candidates = colorMatches;
+      else colorMissed = true;
     }
 
     if (preferredManufacturerSyncId !== null) {
@@ -328,6 +354,15 @@ export function buildLineItems(
       continue;
     }
     if (chosen.unitPrice <= 0.0) zeroPriced.push(chosen.name);
+    // The colour asked for had no row of this role, so the line is billed off
+    // whatever colour won on price. Say which, both ways round.
+    if (colorMissed) {
+      colorFallbacks.push({
+        role: entry.role,
+        wanted: run.colorOrFinish,
+        used: chosen.colorOrFinish,
+      });
+    }
 
     // How many, against what the chosen item actually covers.
     //
@@ -399,6 +434,7 @@ export function buildLineItems(
     items,
     unmatchedRoles: distinct(unmatched),
     zeroPricedNames: distinct(zeroPriced),
+    colorFallbacks,
   };
 }
 

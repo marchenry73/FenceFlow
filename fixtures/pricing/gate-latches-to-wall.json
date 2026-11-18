@@ -2,7 +2,7 @@
   "schema": 1,
   "engine": {
     "version": "2026.11.17",
-    "generated_at": "2026-11-17T17:21:20.099190300Z"
+    "generated_at": "2026-11-18T20:11:23.487601900Z"
   },
   "case": "gate-latches-to-wall",
   "note": "Fence runs up to the gate post and stops; the gate closes the gap to a wall. ONE post, billed off GATE_POST because it carries the gate, one lot of hinge concrete because only it is in the ground, and the same 4 wall-mount hole plugs a wall-hung gate uses for the latch side. No end post: the post is already billed once.",
@@ -792,6 +792,32 @@
       }
     ],
     "unmatched_roles": [],
+    "color_fallbacks": [
+      {
+        "run_sync_id": "00000056-0000-4000-8000-000000000001",
+        "role": "LATCH",
+        "wanted": "White",
+        "used": "Black"
+      },
+      {
+        "run_sync_id": "00000056-0000-4000-8000-000000000001",
+        "role": "HANDLE",
+        "wanted": "White",
+        "used": "Black"
+      },
+      {
+        "run_sync_id": "00000056-0000-4000-8000-000000000001",
+        "role": "STIFFENER",
+        "wanted": "White",
+        "used": ""
+      },
+      {
+        "run_sync_id": "00000056-0000-4000-8000-000000000001",
+        "role": "CONCRETE_BAG",
+        "wanted": "White",
+        "used": ""
+      }
+    ],
     "zero_priced": [],
     "zero_priced_names": [],
     "totals_items": [
