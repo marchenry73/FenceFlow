@@ -621,17 +621,25 @@
       </div>
 
     </div>
-    <!-- HISTORY, because this line has now been wrong in both directions.
-         It once read "14 days free, no card to start", which was false: the 14
-         days began when you picked a plan, and picking a plan is a Stripe
-         Checkout in subscription mode, which collects a card first. So it was
-         corrected to say the card was taken -- true, and it cost sign-ups.
+    <!-- HISTORY, because this line has now been wrong in both directions, and
+         DESCRIBED rather than quoted on purpose -- see the note at the end.
+         It first promised a free fortnight with no card, which was false: that
+         clock only started when you picked a plan, and picking a plan is a
+         Stripe Checkout in subscription mode, which collects a card first. So
+         it was corrected to admit the card, which was true and cost sign-ups.
          Since supabase_r75_first_month_free.sql the sign-up itself grants 30
          days with no card and no subscription, so there is nothing to collect
          and nothing to cancel, and the honest line is this one. If the free
          month is ever removed from create_company_with_owner, THIS TEXT GOES
-         BACK TO BEING A LIE -- a40-style: the page and the function have to be
-         changed together. -->
+         BACK TO BEING A LIE: the page and the function change together.
+
+         WHY THE OLD WORDING IS NOT WRITTEN OUT HERE. The outreach automation
+         fetches this page before each send and holds the campaign if the
+         retired phrases appear in it. A comment ships to the client like any
+         other bytes, so a grep of the response cannot tell a note about the
+         past from a promise in the present -- and this comment, quoting the
+         old line, was itself the only match on the whole page. Describe the
+         old wording, never reproduce it. -->
     <p class="fineprint" data-t="fineprint">The prices above are what it costs after your free month. No card
       to start and nothing to cancel: when the month ends it simply stops and you owe nothing. Pick a plan
       whenever you are ready &mdash; and if you never do, your data stays yours and stays put.</p>

@@ -11922,9 +11922,12 @@ function showBlocked(status){
   const canSelfServe = status.can_self_serve !== false;
   // WHICH SENTENCE A NEVER-SUBSCRIBED COMPANY GETS. Since r75 a new company
   // is created with 30 free days, so it is NOT blocked on day one any more --
-  // it reaches this screen when the free month has RUN OUT. Offering it "your
-  // 14-day free trial" at that point was wrong twice over: the trial is not 14
-  // days, and they have already had it. `trial_days_left` comes from
+  // it reaches this screen when the free month has RUN OUT. Offering it a
+  // fortnight's trial at that point was wrong twice over: that is not the
+  // length any more, and they have already had their free time. The retired
+  // wording is described and not reproduced here, because the outreach
+  // automation greps the served pages for it and a comment is served too.
+  // `trial_days_left` comes from
   // my_service_status; a company that never had a month at all (status '' or
   // 'none', or an older row with no dates) has no number and keeps the plain
   // invitation.
@@ -12352,8 +12355,9 @@ function showServiceBanner(s){
  * Stripe redirects the moment the card clears; the subscription is recorded a
  * second or two later when the webhook arrives. In between, my_service_status
  * still reads the old value, so a company that had just paid was shown
- * "Almost there — pick a plan to start your 14-day free trial" and the same
- * three buttons. Pressing one opened a second checkout session.
+ * "Almost there — pick a plan to start your free trial" and the same
+ * three buttons. Pressing one opened a second checkout session. (The length
+ * in that old sentence is left out deliberately; see the note by ownerPay.)
  *
  * Nothing else on the page read the billing parameter at all, so there was
  * also no confirmation of any kind that the payment had gone through.
