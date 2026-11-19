@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- French for the run editor's colour picker. See the English file for why these exist. -->
+<resources>
+    <string name="colour_in_your_catalog">Couleurs de votre liste de prix</string>
+    <string name="colour_panel_price">panneau %1$s</string>
+    <string name="colour_no_panel">aucun panneau dans cette couleur</string>
+    <string name="colour_covers_all">couvre toutes les pièces</string>
+    <string name="colour_short_parts">aucun %1$s dans cette couleur</string>
+    <string name="colour_not_stocked">Votre liste de prix ne contient rien dans cette couleur ; chaque pièce sera donc chiffrée dans une autre couleur.</string>
+    <string name="colour_none_in_catalog">Aucune couleur dans votre liste de prix pour ce type de clôture.</string>
+</resources>

@@ -13,6 +13,7 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -36,6 +37,22 @@ class RunEditViewModel(
 ) : ViewModel() {
     val run: StateFlow<FenceRun?> = repository.observeFenceRun(runId)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), null)
+
+    /**
+     * The colours this company can actually build this side in, with what each
+     * one cannot cover. Recomputed when the catalog changes OR when the fence
+     * type does, because the answer depends on both -- a wood colour is not an
+     * offer for a vinyl side.
+     *
+     * Live from the catalog rather than a fixed list: the owner adds rows (he
+     * added four tan ones this week), and a picker built from a hardcoded list
+     * of colours would have gone stale the same day.
+     */
+    val colourOptions: StateFlow<List<RunColourOptions.Option>> =
+        combine(repository.observeCatalog(), run) { catalog, r ->
+            if (r == null) emptyList()
+            else RunColourOptions.forFenceType(catalog, r.fenceType)
+        }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
     /**
      * An ordinary field edit on this side, AND the re-pricing it earns.

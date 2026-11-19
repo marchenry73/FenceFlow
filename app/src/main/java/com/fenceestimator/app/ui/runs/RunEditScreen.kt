@@ -96,6 +96,7 @@ fun RunEditScreen(
         factory = GenericViewModelFactory { RunEditViewModel(app.repository, runId, app.session) }
     )
     val run by viewModel.run.collectAsState()
+    val colourOptions by viewModel.colourOptions.collectAsState()
     // `run ?: return` used to show the same bare back arrow whether the run
     // was still loading or had never made it to this phone. Waits out a slow
     // cold start before calling it missing, same treatment as the other
@@ -192,6 +193,22 @@ fun RunEditScreen(
                         stableKey = currentRun.id, initialValue = currentRun.colorOrFinish,
                         label = stringResource(R.string.est2_color_finish), enabled = editable, modifier = Modifier.fillMaxWidth()
                     ) { viewModel.update { r -> r.copy(colorOrFinish = it) } }
+                    // THE COLOURS HE CAN ACTUALLY BUILD IN, under the field and
+                    // not instead of it. The field stays free text on purpose:
+                    // a colour he has not loaded into the catalog yet, or a
+                    // one-off a customer asked for, must still be typeable, and
+                    // replacing the field with a closed list would have made
+                    // that impossible the day it shipped.
+                    //
+                    // Each chip carries the panel price, which is what he asked
+                    // to see, and a colour that cannot dress the whole fence
+                    // says which parts it is short of -- measured from his own
+                    // rows, not guessed. See RunColourOptions.
+                    ColourChoices(
+                        options = colourOptions,
+                        typed = currentRun.colorOrFinish,
+                        enabled = editable
+                    ) { picked -> viewModel.update { r -> r.copy(colorOrFinish = picked) } }
                     // The field existed in the data model and synced to every
                     // phone -- and nothing anywhere let a person SET it. So the
                     // first time somebody drew their customer's old fence, every

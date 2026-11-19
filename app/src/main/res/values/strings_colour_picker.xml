@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The colour picker under the run editor's colour field.
+
+  The owner, 17 Nov 2026: "I also want to add the color of the fence like Vinyl
+  tan ... I also want to see the prices."
+
+  The warning strings exist because of what was measured on his live catalog on
+  18 Nov: he stocks Tan panels, posts and caps and no tan corner post or trim,
+  so a tan fence was quoted and would have been ordered with WHITE corner
+  posts, silently. Both engines now report it on the estimate; these say it at
+  the moment of choosing, which is when it can still be acted on.
+
+  "%1$s" in colour_short_parts is the comma-separated list of parts, already
+  in the reader's language, and "%1$s" in colour_panel_price is the money.
+-->
+<resources>
+    <string name="colour_in_your_catalog">Colours in your price list</string>
+    <string name="colour_panel_price">panel %1$s</string>
+    <string name="colour_no_panel">no panel in this colour</string>
+    <string name="colour_covers_all">covers every part</string>
+    <string name="colour_short_parts">no %1$s in this colour</string>
+    <!--
+      Shown when the colour typed is not one the catalog stocks at all. Not an
+      error: a customer can ask for a colour he has not loaded yet, and the
+      field stays free text so he can type it. It says what will happen, which
+      is what the engines do with it.
+    -->
+    <string name="colour_not_stocked">Your price list has nothing in this colour, so every part will be priced from another colour.</string>
+    <string name="colour_none_in_catalog">No colours in your price list for this fence type yet.</string>
+</resources>

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Spanish for the run editor's colour picker. See the English file for why these exist. -->
+<resources>
+    <string name="colour_in_your_catalog">Colores en su lista de precios</string>
+    <string name="colour_panel_price">panel %1$s</string>
+    <string name="colour_no_panel">no hay panel en este color</string>
+    <string name="colour_covers_all">cubre todas las piezas</string>
+    <string name="colour_short_parts">no hay %1$s en este color</string>
+    <string name="colour_not_stocked">Su lista de precios no tiene nada en este color, así que cada pieza se cotizará con otro color.</string>
+    <string name="colour_none_in_catalog">Todavía no hay colores en su lista de precios para este tipo de cerca.</string>
+</resources>
