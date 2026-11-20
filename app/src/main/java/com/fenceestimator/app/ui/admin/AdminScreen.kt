@@ -4,6 +4,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -353,6 +355,11 @@ private fun CompaniesTab() {
     var actionError by remember { mutableStateOf<String?>(null) }
     /** The company whose plan, price, billing address and notes are open. */
     var managing by remember { mutableStateOf<AdminRepository.Company?>(null) }
+    // Giving time has its own dialog because it carries a NUMBER the admin can
+    // change, which an enum of fixed actions cannot. The quick buttons just
+    // open it pre-filled.
+    var extendFor by remember { mutableStateOf<AdminRepository.Company?>(null) }
+    var extendDays by remember { mutableStateOf("14") }
 
     suspend fun load() {
         state = AdminRepository.companies()
@@ -473,12 +480,19 @@ private fun CompaniesTab() {
                 ) { Text("Manage") }
                 OutlinedButton(
                     enabled = !busy,
-                    onClick = { actionError = null; pending = c to AdminAction.ExtendOneDay },
+                    onClick = { actionError = null; extendDays = "1"; extendFor = c },
                 ) { Text("+1 day") }
                 OutlinedButton(
                     enabled = !busy,
-                    onClick = { actionError = null; pending = c to AdminAction.ExtendTwoWeeks },
+                    onClick = { actionError = null; extendDays = "14"; extendFor = c },
                 ) { Text("+14 days") }
+                // ANY number of days, which is what the owner asked for: the
+                // two fixed buttons could not give somebody a month, and a
+                // month is what a prospect who got locked out needs.
+                OutlinedButton(
+                    enabled = !busy,
+                    onClick = { actionError = null; extendDays = "30"; extendFor = c },
+                ) { Text("Give time\u2026") }
                 if (c.suspended) {
                     OutlinedButton(
                         enabled = !busy,
@@ -679,6 +693,82 @@ private fun CompaniesTab() {
         )
     }
 
+    extendFor?.let { company ->
+        val days = extendDays.toIntOrNull()
+        val valid = days != null && days in 1..3650
+        // Computed once per recomposition from a single `now`, so the sentence
+        // and the date cannot disagree by a tick.
+        val outcome = if (valid) {
+            TrialExtension.outcome(
+                currentEnd = TrialExtension.parse(company.trialEndsAt),
+                days = days!!,
+                now = java.time.Instant.now()
+            )
+        } else null
+        AlertDialog(
+            onDismissRequest = { if (!busy) extendFor = null },
+            title = { Text("Give ${company.name.ifBlank { "this company" }} more time?") },
+            text = {
+                Column {
+                    OutlinedTextField(
+                        value = extendDays,
+                        onValueChange = { typed -> extendDays = typed.filter { it.isDigit() }.take(4) },
+                        label = { Text("Days") },
+                        singleLine = true,
+                        enabled = !busy,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number)
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    // THE DATE, not a sentence to reason from. This is the fix:
+                    // "counted from today" was wrong whenever the trial was
+                    // still running, which is most of the times this button is
+                    // pressed.
+                    Text(
+                        when {
+                            outcome == null -> "Enter a number of days, from 1 to 3650."
+                            outcome.addedToRunningTrial ->
+                                "Their trial has not run out yet, so this is ADDED to the time they " +
+                                    "already have. Their office stays open until " +
+                                    TrialExtension.formatDate(outcome.newEnd) + "."
+                            else ->
+                                "Their trial has run out, so this starts from today. Their office " +
+                                    "opens again until " + TrialExtension.formatDate(outcome.newEnd) + "."
+                        },
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Spacer(Modifier.height(6.dp))
+                    Text(
+                        "A suspension would be lifted too.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = !busy && valid,
+                    onClick = {
+                        busy = true
+                        scope.launch {
+                            val result = AdminRepository.extendTrial(company.id, days!!)
+                            // Same shape as the suspend/reinstate dialog below:
+                            // the server decides and the list is re-read rather
+                            // than patched, so what is on screen afterwards is
+                            // what admin_companies actually says.
+                            result.onFailure { actionError = shownError(it, "That did not go through.") }
+                            load()
+                            busy = false
+                            extendFor = null
+                        }
+                    }
+                ) { Text(if (busy) "Working\u2026" else "Give the time") }
+            },
+            dismissButton = {
+                TextButton(enabled = !busy, onClick = { extendFor = null }) { Text("Cancel") }
+            }
+        )
+    }
+
     pending?.let { p: Pair<AdminRepository.Company, AdminAction> ->
         val company = p.first
         val action = p.second
@@ -693,10 +783,6 @@ private fun CompaniesTab() {
                         busy = true
                         scope.launch {
                             val result = when (action) {
-                                AdminAction.ExtendOneDay ->
-                                    AdminRepository.extendTrial(company.id, 1)
-                                AdminAction.ExtendTwoWeeks ->
-                                    AdminRepository.extendTrial(company.id, 14)
                                 AdminAction.Suspend ->
                                     // hold = false: a plain suspension is a
                                     // billing matter and the office keeps
@@ -830,30 +916,24 @@ private fun MailSenderRow() {
 
 /** What the company buttons can do, with the words each one asks in. */
 private enum class AdminAction(val confirmLabel: String) {
-    ExtendOneDay("Give 1 day"),
-    ExtendTwoWeeks("Give 14 days"),
+    // ExtendOneDay and ExtendTwoWeeks lived here until 19 Nov 2026. They are
+    // gone rather than kept beside the new dialog: two ways to extend a trial
+    // is two wordings to keep true, and the pair of them were the ones telling
+    // people the days were "counted from today" when the server adds them to a
+    // running trial. The quick buttons remain; they open the new dialog
+    // pre-filled.
     Suspend("Suspend"),
     Reinstate("Reinstate");
 
     fun title(c: AdminRepository.Company): String {
         val name = c.name.ifBlank { "this company" }
         return when (this) {
-            ExtendOneDay, ExtendTwoWeeks -> "Extend $name's trial?"
             Suspend -> "Suspend $name?"
             Reinstate -> "Reinstate $name?"
         }
     }
 
     fun body(c: AdminRepository.Company): String = when (this) {
-        // Said as "from today", because that is what the server does with a
-        // trial that has already ended -- it restarts from now rather than
-        // adding to a date in the past.
-        ExtendOneDay ->
-            "Their office opens again for one more day, counted from today. " +
-                "A suspension would be lifted too."
-        ExtendTwoWeeks ->
-            "Their office opens again for another 14 days, counted from today. " +
-                "A suspension would be lifted too."
         Suspend ->
             "Everyone at ${c.name.ifBlank { "this company" }} is locked out of the office and the " +
                 "app until this is lifted. Nothing is deleted. They are still offered a plan, " +
