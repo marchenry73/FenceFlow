@@ -645,6 +645,22 @@ async function pageFigures(admin: ReturnType<typeof createClient>, job: QuoteJob
     ok: !itemsRead.error && !ordersRead.error,
     total,
     money,
+    /* WHETHER THE SERVER HAS A PRICE FOR THIS JOB AT ALL, as opposed to the
+       fallback on the line above.
+
+       `total` falls back to the material lines plus tax when nothing is
+       priced, and that figure has no labour, no gates, no markup and no
+       discount in it. Printing it is one thing; RECORDING it as the price the
+       customer agreed to is another, and nothing used to stop that -- the
+       "price that collapsed" guard below only refuses a figure BELOW one
+       already agreed, so it cannot fire on a FIRST approval. Materials and
+       tax at $4,280 against a real price near $8,000 became the agreed total,
+       and billableTotal never looked at the live figure again.
+
+       This file's own rule, written a few lines above about the deposit cap:
+       "a job priced at zero is one that has not been priced, not one that is
+       free." Same rule, applied to the price itself. */
+    serverPriced: money.total > 0.005,
     // Whether this job holds any priced line at all. Not used to change a
     // figure -- only to say WHY in the log when the guard below refuses, and
     // to tell the office whether the price fell because the material list is
@@ -749,12 +765,29 @@ type PriceShortfall = { agreed: number; recording: number; short: number };
  * OFF rather than refusing every quote: a database without the column (the
  * no-acceptance read above) must behave exactly as this function did before.
  */
+/**
+ * The figure this customer has already agreed to, or 0 if there is none.
+ *
+ * The higher of a signature the contractor physically holds
+ * (signed_contract_total, stamped with the price at the time) and an online
+ * approval (accepted_total). Pulled out of priceShortfall on 20 Nov 2026
+ * because the unpriced-approval guard needs the SAME answer, and two copies of
+ * "what did she agree to" is the shape this project keeps getting wrong.
+ */
+function agreedPrice(job: QuoteJob): number {
+  const num = (v: unknown) => {
+    const n = Number(v);
+    return Number.isFinite(n) ? n : 0;
+  };
+  return Math.max(num(job.signed_contract_total), num(job.accepted_total));
+}
+
 function priceShortfall(job: QuoteJob, recording: number): PriceShortfall | null {
   const num = (v: unknown) => {
     const n = Number(v);
     return Number.isFinite(n) ? n : 0;
   };
-  const agreed = Math.max(num(job.signed_contract_total), num(job.accepted_total));
+  const agreed = agreedPrice(job);
   if (!(agreed > 0.005) || !Number.isFinite(recording)) return null;
   if (isOldEngineRounding(agreed, recording)) return null;
   const short = roundToCents(agreed - recording);
@@ -1282,6 +1315,58 @@ Deno.serve(async (req) => {
       // commoner and milder problem and keeps its own, reassuring wording.
       // Placed BEFORE the signature upload so a refused approval never leaves
       // an orphan PNG in storage.
+      /* THE SERVER HAS NO PRICE FOR THIS JOB, SO THERE IS NOTHING TO AGREE TO.
+         (A4 finding #6, 20 Nov 2026.)
+
+         Refused before the shortfall check below, because the shortfall check
+         cannot see this case at all: it compares against a figure already
+         agreed, and on a FIRST approval there is none. What would otherwise
+         be recorded is the material lines plus tax -- no labour, no gates, no
+         markup, no discount -- and billableTotal then bills that figure for
+         ever.
+
+         MEASURED before choosing a refusal over a correction: of the ten
+         quote links ever sent, none went out on an unpriced job, and of the
+         six jobs ever approved, none was approved unpriced. So this refuses
+         something that has never happened and prevents it from starting,
+         rather than repairing a state anyone is in.
+
+         AND IT ASKS TWO QUESTIONS, NOT ONE. The first version asked only
+         whether the SERVER had a price, and a69's fixture G is a real live
+         shape where that is false and a price exists anyway: a job signed at
+         $7,740 under the pre-2026.10.1 engine, whose contract_total is 0 and
+         whose lines come to $7,735.45 exactly. The existing suite caught it.
+         A signature the contractor holds IS an agreed price, and
+         priceShortfall below already governs that case properly -- so this
+         refuses only when nobody, server or customer, has ever named a
+         figure, and the fallback is the only number in the room.
+
+         The office is told, because the office is the only party that can fix
+         it -- the customer cannot price the job. Same alarm channel and the
+         same shape as the shortfall refusal below, for the same reason: a
+         refusal with no remedy is just a wall. */
+      if (canRecordAcceptance && !figures.serverPriced && !(agreedPrice(job) > 0.005)) {
+        console.error(
+          `quote-view REFUSED an approval on an unpriced job: ${job.id} -- the server holds ` +
+            `no contract_total, so the only figure available is the material lines plus tax ` +
+            `(${figures.total.toFixed(2)}, from ${figures.pricedLines} priced line(s)), which ` +
+            `has no labour, gates, markup or discount in it`,
+        );
+        await alarmOffice(admin, job, false, {
+          title: "A customer could not approve",
+          body: `${job.customer_name || "A customer"} tried to approve, but this job has no ` +
+            `price on it yet -- only its material list. FenceFlow refused rather than record ` +
+            `materials and tax as the agreed price. Price the job, then ask them again.`,
+        });
+        return json({
+          code: "quote_not_ready",
+          // No figure to the customer. The number on the page is not a price
+          // anybody set, and quoting it at her would make it look like one.
+          error: "This quote isn't finished yet, so we can't record an approval on it. Your " +
+            "contractor has been told and will send you the final price. Nothing has been " +
+            "agreed and you have not been charged.",
+        }, 409);
+      }
       const shortfall = canRecordAcceptance ? priceShortfall(job, figures.total) : null;
       if (shortfall) {
         console.error(
@@ -1497,9 +1582,18 @@ Deno.serve(async (req) => {
   // of the three affected jobs the customer has already opened her link, and
   // the first thing she would do is press it. A code, never the two figures --
   // see the refusal above for why she is not shown them.
-  const approvalBlocked = (canRecordAcceptance && !job.quote_approved_at && priceShortfall(job, total))
-    ? "price_below_agreed"
-    : null;
+  /* Whether pressing Approve would be refused, and WHICH refusal.
+     `quote_not_ready` is checked first because it is checked first in the
+     handler above: a job with no price has no agreed figure to fall below,
+     so priceShortfall would answer null and the page would offer a button
+     that can only answer 409. */
+  const approvalBlocked = !canRecordAcceptance || job.quote_approved_at
+    ? null
+    : !figures.serverPriced && !(agreedPrice(job) > 0.005)
+      ? "quote_not_ready"
+      : priceShortfall(job, total)
+        ? "price_below_agreed"
+        : null;
 
   // HIS OWN PAYMENT LINK, or nothing.
   //

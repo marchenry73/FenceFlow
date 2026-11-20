@@ -812,11 +812,10 @@ forty minutes would have cost tokens and taught nobody anything.
    whoever picks Tan.
 3. **Summit Landscapes** (signed up 27 Oct, locked out, never came back). The
    new "Give time" dialog can grant them a month in two taps.
-4. **#6 and #7 are still his decision, not a fix.** Approving a job the
-   server has not priced could refuse the approval or release the anchor when
-   the job is priced; the deposit changing after approval could pin the column
-   or tell the customer it changed. I have not chosen either on his behalf.
-   (#1–#5 and the manager finding were built on 20 Nov — see item 0.)
+4. **A4 IS CLOSED.** #6 and #7 were done on 20 Nov on his say-so: an approval
+   on an unpriced job is refused, and the deposit is pinned one-directionally
+   once a customer has agreed to it. Both proved on production and rolled
+   back; the last section of this file says which option I chose and why.
 5. **B1's last hop**: sign in on a second phone and check the first drops to
    the signed-in-elsewhere screen WITHOUT being reopened. Everything behind
    that hop is verified on production; only FCM-to-a-real-handset is not.
@@ -1080,3 +1079,165 @@ failure.
 What I still cannot tell you from evidence: what a customer sees if they open
 an exhausted link. Stripe's docs do not say on either page I read, and I have
 not watched a second checkout be refused.
+
+---
+
+# 20 November, #6 and #7 — the two that were decisions
+
+March: "do 6 and 7, somethings failed to deploy."
+
+## First: what failed to deploy
+
+**Not the functions.** All 31 are ACTIVE and match the repo; the seven changed
+today were downloaded again and diffed.
+
+**It was the website.** GitHub's Pages deploy failed on commit `059db87`:
+`actions/upload-pages-artifact` succeeded, then `actions/deploy-pages` read
+`Found 0 artifact(s)` and said so itself — *"Is githubstatus.com reporting
+issues… Please re-run the deployment at a later time."* A GitHub-side race, not
+the code. **Nothing was lost: that commit touched no file under `website/`**,
+so the live site's content was already correct.
+
+**And then I made it worse.** I re-ran the failed job, which uploaded a SECOND
+artifact on top of the first — so the next attempt died on *"Multiple artifacts
+named github-pages… Artifact count is 2."* The artifact had landed all along;
+only the metadata read had raced. `gh run rerun --failed` is the wrong tool for
+this failure: a fresh run is the right one, and the push below gives one.
+
+## #6 — an approval on a job the server has not priced
+
+**Chosen: refuse it.** The alternative was to release the anchor when the job
+is later priced. Refusing is better here for a reason I measured rather than
+argued: **of the ten quote links ever sent, none went out on an unpriced job,
+and of the six jobs ever approved, none was approved unpriced.** So a refusal
+prevents something from starting; a release repairs a state nobody is in. And
+once the refusal exists, the state cannot arise, which makes the release
+unreachable code.
+
+The page total falls back to the material lines plus tax when the server has no
+`contract_total` — no labour, no gates, no markup, no discount. Printing that
+is one thing; recording it as the agreed price is another, and nothing stopped
+it: the "price that collapsed" guard only refuses a figure **below** one
+already agreed, so on a **first** approval it cannot fire at all.
+
+This file already had the right rule written down a few lines above, about the
+deposit cap: *"a job priced at zero is one that has not been priced, not one
+that is free."* The price itself was not held to it.
+
+**Now:** the server refuses with `quote_not_ready`, writes nothing, and tells
+the office — the only party who can fix it, since the customer cannot price the
+job. The page is sent the code so it shows a sentence instead of a button that
+can only answer 409, in all three languages. The customer is given no figure:
+the number on that page is not a price anybody set, and quoting it would make
+it look like one.
+
+**What I deliberately did not do:** suppress the fallback figure entirely. It
+runs through many renderers, and the notice beside it already says the quote
+isn't finished.
+
+## #7 — the deposit was not frozen at approval
+
+**Chosen: pin it, one-directionally.** Once the customer is in it the deposit
+may go **down** but not **up**.
+
+Down needs nobody's permission — *"actually, just pay $500 now"* is a thing you
+should be able to do. Up is the one that puts a figure in front of a customer
+they never agreed to. The third option, "allow it and tell the customer it
+changed", means an email saying their deposit went up, which is worse than not
+being able to do it.
+
+**Raising it is still possible, through the one route that asks them again:**
+withdraw the approval, re-price, let them approve the new figure. That is the
+money rule already decided — a re-price carries a new deposit — rather than a
+second way to change the number.
+
+`customer_is_in_it` is copied character for character from r67's own
+definition, so the two cannot drift.
+
+### Both proved on production, rolled back
+
+| | before | after |
+|---|---|---|
+| raise a deposit on an approved job | **840 → 4840** | **840 → 840, HELD** |
+
+Four controls, and they are the point, not decoration — the lesson from the
+`RECORD_MONEY` regression earlier today is that a guard refusing everything
+passes every refusal-shaped check:
+
+| control | measured |
+|---|---|
+| LOWER it on the same job | `840 → 420`, accepted |
+| RAISE it while a re-approval is pending | `14,395.20 → 18,395.20`, accepted |
+| SET one before approval | `0 → 500`, accepted |
+| an ordinary column | still writes |
+
+A trigger that reverted every write would pass row 1 and fail none of nobody's
+tests. `supabase_a4_deposit_pin_probe_live.sql`, re-runnable.
+
+**One thing the probe taught me about itself.** Its first version manufactured
+the re-approval-pending case by writing `reapproval_required_at` directly. That
+column is itself pinned by `hold_reapproval_columns`, so the write was reverted
+and the probe silently measured a still-approved job — making a **passing**
+control read as `ALARM - there is now no way to change a deposit at all`. It
+now picks a job that genuinely has a re-approval pending, by property.
+
+## Tests
+
+- `tests/a182-unpriced-approval-is-refused.test.mjs` — 10 checks, driving the
+  real `quote-view` handler through real HTTP requests. The refusal; nothing
+  written; no figure in the customer's message; an unpriced job with no
+  material list refused too ("not priced" and "free" are the same number
+  again otherwise). Controls: an ordinary quote still approves and records the
+  figure shown; a real $200 job still approves (the guard asks whether there
+  IS a price, not whether it is big enough); the 1 Oct `price_below_agreed`
+  refusal still fires — my reordering could have displaced it; an
+  already-approved quote is not re-judged. Canary: with the guard off,
+  $4,280 of materials and tax becomes the agreed total.
+- `tests/a183-deposit-pin-is-live.test.mjs` — 5 checks against the live
+  database through the probe file, so the test and the thing somebody runs by
+  hand cannot drift. A control that could not be measured is treated as a
+  failure, not a clean sheet.
+
+Full website suite green.
+
+## And the same mistake again, caught by the suite this time
+
+My first version of #6 refused an approval whenever **the server** had no
+price. The existing suite went red on two checks, and both were right.
+
+**a69 fixture G is a real live shape:** a job signed under the pre-2026.10.1
+engine, its signature stamped at **$7,740** (the old round-up-to-ten), its
+lines coming to **$7,735.45** exactly, and the server's `contract_total` at
+**0**. My guard refused it. That is a real customer on a real job, blocked.
+
+"The server has no price" is **not** "nobody has agreed a price." A signature
+the contractor physically holds *is* one — and `priceShortfall` already
+governs that case properly, including an exemption for exactly that old-engine
+rounding.
+
+So the guard now asks **two** questions: the server has no price, *and* nobody
+has ever named a figure. `agreedPrice()` was pulled out of `priceShortfall` so
+both readers share one copy of "what did she agree to" rather than growing a
+second.
+
+This is the same error as the `RECORD_MONEY` regression this morning — a guard
+too wide, with controls that all asked the refusal question and none asked the
+opposite one. The difference is that this time **the suite caught it instead of
+production**, because a69 and `accepted-price-functions` already held the live
+shapes. Both of those cases are now pinned in `a182` as well, where the fix
+lives.
+
+### Two existing checks were re-aimed, and neither was weakened
+
+`accepted-price-functions.test.mjs` ended its unpriced case with *"the figure
+RECORDED is the figure SHOWN"* — recording materials-and-tax as the accepted
+price. **That assertion was finding #6**, written down as correct. It now
+asserts the refusal, and the rule it was protecting is still protected on jobs
+that have a price: the $9,710 case above it, the $5,000 control below it, and
+a69's positive control.
+
+`a69` pinned the literal `tr('approveBlocked')`, which is now chosen per
+refusal code. Re-aimed to pin the choosing — plus a new check that **all three
+language dictionaries carry both messages**, because the comment I wrote
+claiming they do is not a test, and a missing key is a blank notice about money
+for a reader in that language.

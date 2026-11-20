@@ -550,10 +550,26 @@ test("with nothing priced the page still falls back to the lines", async () => {
   // says so rather than quietly agreeing.
   assert.notEqual(EXACT, Math.ceil(EXACT / 10) * 10);
 
-  // And the figure RECORDED is the figure SHOWN. These two being one number is the whole
-  // subject of this file -- the customer is billed what the page asked them to accept.
-  await approve(w);
-  assert.equal(jobRow(w).accepted_total, EXACT);
+  // AND NOTHING IS RECORDED, which is the opposite of what this case asserted
+  // until 20 Nov 2026.
+  //
+  // It used to end `await approve(w); assert.equal(jobRow(w).accepted_total, EXACT)` --
+  // "the figure recorded is the figure shown", which is the right rule everywhere
+  // except here. On a job with NO price from the server and NO figure the customer
+  // has ever agreed to, the only number available is this fallback: the material
+  // lines plus tax, with no labour, no gates, no markup and no discount in it.
+  // Recording it anchored the job at it for ever (billableTotal), and the balance
+  // link then billed materials and tax on a job worth twice that. A4 finding #6.
+  //
+  // The rule this case was protecting is still protected, on jobs that HAVE a
+  // price: the $9,710 case above, the $5,000 control below, and a69's positive
+  // control. What changed is only that materials-and-tax is no longer allowed to
+  // become the agreed price by default.
+  const r = await approve(w);
+  assert.equal(r.status, 409, "an approval on a job nobody has priced must be refused");
+  assert.equal(r.body.code, "quote_not_ready");
+  assert.equal(jobRow(w).accepted_total, null, "nothing was recorded");
+  assert.equal(jobRow(w).quote_approved_at, null, "and the row is untouched");
 });
 
 // The live shape of the case above: the real job has contract_total 0.00, not NULL. Zero and

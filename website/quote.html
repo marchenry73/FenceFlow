@@ -327,6 +327,7 @@ const L = {
     reapprovalNotice: 'We updated your drawing on %s. Please review it and approve again.',
     reapprovalNoticeRun: 'We updated your drawing on %s — the %s line changed. Please review it and approve again.',
     approveBlocked: 'We can’t take an approval on this quote right now — the price shown here doesn’t match what was agreed. Your contractor has been told and will be in touch. Nothing you had already agreed to has changed.',
+    approveNotReady: 'This quote isn’t finished yet, so it can’t be approved. The figure here is only the materials — your contractor has been told and will send you the final price. Nothing has been agreed and you have not been charged.',
     viewDetails: 'View full breakdown',
     hideDetails: 'Hide full breakdown',
     downloadCopy: 'Download a copy',
@@ -432,6 +433,7 @@ const L = {
     reapprovalNotice: 'Actualizamos su plano el %s. Revíselo y apruébelo de nuevo.',
     reapprovalNoticeRun: 'Actualizamos su plano el %s — cambió el tramo %s. Revíselo y apruébelo de nuevo.',
     approveBlocked: 'Ahora mismo no podemos registrar una aprobación en este presupuesto: el precio que aparece aquí no coincide con lo acordado. Su contratista ya está avisado y se pondrá en contacto. Nada de lo que usted ya había aceptado ha cambiado.',
+    approveNotReady: 'Este presupuesto todavía no está terminado, por lo que no se puede aprobar. La cifra que aparece aquí es solo el material: su contratista ya está avisado y le enviará el precio final. No se ha acordado nada y no se le ha cobrado.',
     viewDetails: 'Ver el detalle completo',
     hideDetails: 'Ocultar el detalle completo',
     downloadCopy: 'Descargar una copia',
@@ -533,6 +535,7 @@ const L = {
     reapprovalNotice: 'Nous avons mis à jour votre plan le %s. Veuillez le vérifier et l\'approuver à nouveau.',
     reapprovalNoticeRun: 'Nous avons mis à jour votre plan le %s — le tronçon %s a changé. Veuillez le vérifier et l\'approuver à nouveau.',
     approveBlocked: 'Nous ne pouvons pas enregistrer de validation sur ce devis pour le moment : le prix affiché ici ne correspond pas à ce qui a été convenu. Votre entreprise a été prévenue et vous contactera. Rien de ce que vous aviez déjà accepté n’a changé.',
+    approveNotReady: 'Ce devis n’est pas encore terminé, il ne peut donc pas être validé. Le montant affiché ici ne couvre que les matériaux — votre entreprise a été prévenue et vous enverra le prix final. Rien n’a été accepté et vous n’avez pas été débité.',
     viewDetails: 'Voir le détail complet',
     hideDetails: 'Masquer le détail complet',
     downloadCopy: 'Télécharger une copie',
@@ -1043,7 +1046,14 @@ function render(){
     // one behind a notice. There is nothing she can do on this page to make
     // it go through, and the contractor has already been told.
     $('approveBlockedBox').style.display='';
-    $('approveBlockedText').textContent=tr('approveBlocked');
+    // WHICH refusal. quote-view sends a code: 'price_below_agreed' (the price
+    // here is below something already agreed) or 'quote_not_ready' (the server
+    // has no price for this job at all, so the figure on this page is its
+    // material lines plus tax and nothing anybody set). They need different
+    // sentences -- telling somebody the price "doesn't match what was agreed"
+    // when nothing has ever been agreed is just confusing.
+    $('approveBlockedText').textContent=
+      tr(q.approvalBlocked==='quote_not_ready' ? 'approveNotReady' : 'approveBlocked');
     // And take the ways-to-pay panel back down. renderHowToPay above has
     // already drawn it from the balance, which is the right rule everywhere
     // else -- but the amount she would be paying against here is the one the

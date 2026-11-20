@@ -514,6 +514,18 @@ test("there is no unapprove: the only action the customer endpoint takes is appr
   assert.ok(w.db.tables.jobs[0].quote_approved_at);
 });
 
+test("every language carries BOTH refusal messages", () => {
+  // The branch above picks tr('approveNotReady') or tr('approveBlocked') by
+  // code. A key missing from one dictionary is a blank notice for a reader in
+  // that language -- which, on a page about money, reads as the page being
+  // broken rather than as the quote being unfinished.
+  const src = readFileSync("website/quote.html", "utf8");
+  for (const key of ["approveBlocked", "approveNotReady"]) {
+    const n = (src.match(new RegExp(`^\\s*${key}:`, "gm")) ?? []).length;
+    assert.equal(n, 3, `${key} appears in ${n} of the 3 language dictionaries`);
+  }
+});
+
 test("the page draws no approve controls at all on a blocked quote, and takes the ways-to-pay panel down", () => {
   // A SOURCE-SHAPE check, not a run: render() drives thirty DOM ids and the
   // 3D scene, so it is not extractable the way buildQuoteDocument is. Comments
@@ -525,7 +537,16 @@ test("the page draws no approve controls at all on a blocked quote, and takes th
   const branch = src.slice(start, src.indexOf("\n  } else {", start)).replace(/^\s*\/\/.*$/gm, "");
 
   assert.match(branch, /\$\('approveBlockedBox'\)\.style\.display=''/, "the notice is not shown");
-  assert.match(branch, /approveBlockedText'\)\.textContent=tr\('approveBlocked'\)/, "the notice has no words");
+  /* The notice has words, and the RIGHT words for the refusal.
+     This used to pin the literal tr('approveBlocked'). quote-view sends a code
+     since 20 Nov 2026 -- 'price_below_agreed' or 'quote_not_ready' (nothing is
+     priced at all) -- and telling somebody the price "doesn't match what was
+     agreed" when nothing was ever agreed is wrong, so the branch picks per
+     code. Both keys are checked to exist, in all three dictionaries, further
+     down this file. */
+  assert.match(branch, /approveBlockedText'\)\.textContent=/, "the notice has no words");
+  assert.match(branch, /tr\(q\.approvalBlocked==='quote_not_ready' \? 'approveNotReady' : 'approveBlocked'\)/,
+    "the notice no longer picks its wording from the refusal code");
   assert.match(branch, /\$\('payHow'\)\.style\.display='none'/, "the ways-to-pay panel is left up");
   assert.match(branch, /payList=\[\]/, "payList is left populated");
   // Not a disabled button, not a hidden one: no approve control is touched
