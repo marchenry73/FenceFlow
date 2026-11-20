@@ -773,6 +773,29 @@ broke it anyway: **one suite at a time, nothing else running.**
 
 ---
 
+## State when I stopped, 04:00
+
+Working tree clean of my work, everything pushed, `main` level with origin.
+Sixteen commits tonight, all of them either evidence or a check — **not one
+changes what anybody is charged, sees, or receives.**
+
+Verified at the end rather than assumed: both new checks still green, nothing
+of mine left uncommitted, and the last full website suite was **295/295 with
+0 timeouts, run alone**. (Two files are dirty and are NOT mine:
+`OVERNIGHT_2026-10-24.md` and `supabase/.temp/cli-latest` — they were dirty
+when I arrived and I left them alone.)
+
+**Limits held, all night:** no APK published, nothing customer- or
+crew-facing changed, no money logic touched, no SQL that writes data, no
+email sent. The database was only ever read, or written inside a transaction
+that was rolled back — and each of those probes carried a positive control, so
+a result that looked like a finding had to prove it was not an artefact of the
+probe.
+
+**I stopped at 04:00 rather than 04:40** because A4 is finished and the
+honest options left were low value or outside the limits. Padding the last
+forty minutes would have cost tokens and taught nobody anything.
+
 ## Needs March
 
 0. **The four payment fixes, before the first real card payment.** They are
