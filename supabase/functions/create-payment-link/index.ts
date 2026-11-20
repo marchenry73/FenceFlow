@@ -1470,7 +1470,7 @@ async function makeLink(
       currency: "usd",
     }, account) : null;
 
-    const link = await stripe("/payment_links", {
+    const linkFields = {
       "line_items[0][price]": price.id,
       "line_items[0][quantity]": "1",
       /* ONE PAYMENT PER LINK, ENFORCED BY STRIPE ITSELF.
@@ -1518,7 +1518,39 @@ async function makeLink(
          time the money lands: the setting may have been turned off in
          between, and what matters is what SHE was told when she paid. */
       ...(keepCardForBalance ? { "metadata[keeps_card]": "true" } : {}),
-    }, account);
+    };
+
+    /* THE RESTRICTION IS BEST-EFFORT, AND ONLY THE RESTRICTION.
+
+       restrictions[completed_sessions][limit] is a documented, long-standing
+       Payment Links parameter, and the rest of this file proves the bracket
+       convention works. But it is a parameter added on 20 Nov 2026 to a call
+       that every customer payment goes through, and the failure mode if any
+       connected account or API version refuses it is that NOBODY can be sent
+       a payment link at all -- three days before a campaign whose point is
+       getting customers who pay.
+
+       So: if the only thing wrong with the request is the restriction, the
+       link is created without it and the office is not told, because the
+       webhook's half of this fix (recording a second payment loudly instead
+       of silently) stands either way. A link with no restriction is what
+       every link in a customer's inbox already is.
+
+       Narrow on purpose. It retries ONLY when Stripe names `restrictions` in
+       the error, so a declined account, a bad price or an outage still fails
+       the way it always did rather than being quietly retried into a
+       different request. */
+    let link;
+    try {
+      link = await stripe("/payment_links", linkFields, account);
+    } catch (e) {
+      const why = String((e as Error).message ?? e);
+      if (!/restrictions/i.test(why)) throw e;
+      const { "restrictions[completed_sessions][limit]": _dropped, ...withoutRestriction } = linkFields;
+      console.error("create-payment-link: Stripe refused the single-use restriction, " +
+        "creating the link without it --", why);
+      link = await stripe("/payment_links", withoutRestriction, account);
+    }
 
     const { error: insertError } = await admin.from("job_payments").insert({
       company_id: profile.company_id,

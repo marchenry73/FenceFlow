@@ -136,8 +136,12 @@ function fakeDb(tables) {
   return api;
 }
 
-/** Stripe, faked, recording the form body of every POST. */
-function fakeStripe(posts) {
+/** Stripe, faked, recording the form body of every POST.
+ *
+ *  `refuse` makes it answer the way Stripe would if it did not recognise a
+ *  parameter -- which is the whole point of the best-effort retry below.
+ */
+function fakeStripe(posts, { refuse = null } = {}) {
   let n = 0;
   const reply = (status, body) => new Response(JSON.stringify(body), { status });
   return async (url, init = {}) => {
@@ -148,6 +152,9 @@ function fakeStripe(posts) {
     if (method === "POST") posts.push({ path: u.pathname, form });
     if (method === "POST" && u.pathname === "/v1/prices") return reply(200, { id: `price_${++n}` });
     if (method === "POST" && u.pathname === "/v1/payment_links") {
+      if (refuse && Object.keys(form).some((k) => k.startsWith(refuse.whenKeyStartsWith))) {
+        return reply(400, { error: { message: refuse.message, type: "invalid_request_error" } });
+      }
       n++;
       return reply(200, { id: `plink_new${n}`, url: `https://buy.stripe.com/test_new${n}`, livemode: false, active: true });
     }
@@ -160,7 +167,7 @@ function fakeStripe(posts) {
   };
 }
 
-function world({ job = {}, payments = [] } = {}) {
+function world({ job = {}, payments = [], refuse = null } = {}) {
   const posts = [];
   const db = fakeDb({
     companies: [{ id: COMPANY, name: "Test Fence Co", stripe_account_id: null, subscription_plan: "crew" }],
@@ -173,7 +180,7 @@ function world({ job = {}, payments = [] } = {}) {
     job_payments: payments,
     payment_connections: [],
   });
-  return { handler: load({ db, fetchImpl: fakeStripe(posts) }), db, posts };
+  return { handler: load({ db, fetchImpl: fakeStripe(posts, { refuse }) }), db, posts };
 }
 
 async function office(w, body) {
@@ -264,4 +271,47 @@ test("a REAL insert failure is still reported as unrecorded", async () => {
   assert.equal(r.body.code, "charge_unrecorded",
     "a charge that really is unrecorded must still say so -- the books and Stripe disagree");
   assert.match(r.body.error, /Do not charge again/);
+});
+
+// ------------------------------------- the restriction is best-effort -----
+
+test("if Stripe refuses the restriction, the link is still created without it", async () => {
+  /* The failure mode this guards: a parameter added on 20 Nov 2026 to the one
+     call every customer payment goes through. If any account or API version
+     refused it, NOBODY could be sent a payment link -- days before a campaign
+     whose point is customers who pay. The webhook's half of the #1 fix stands
+     either way, so a link without the restriction is the right answer, not an
+     error. */
+  const w = world({
+    refuse: {
+      whenKeyStartsWith: "restrictions",
+      message: "Received unknown parameter: restrictions[completed_sessions][limit]",
+    },
+  });
+  const r = await office(w, { amountCents: 200000, kind: "deposit" });
+
+  assert.equal(r.status, 200, "the link must still be created: " + JSON.stringify(r.body));
+  assert.ok(r.body.url, "and the customer must still get a URL");
+
+  const tries = w.posts.filter((p) => p.path === "/v1/payment_links");
+  assert.equal(tries.length, 2, "it should have tried once with the restriction and once without");
+  assert.equal(tries[0].form["restrictions[completed_sessions][limit]"], "1");
+  assert.equal(tries[1].form["restrictions[completed_sessions][limit]"], undefined,
+    "the retry must drop the restriction");
+  assert.equal(tries[1].form["metadata[job_sync_id]"], JOB,
+    "and must keep everything else -- a retry that lost the metadata would break the webhook");
+});
+
+test("ANY OTHER Stripe failure is still a failure, not a quiet retry", async () => {
+  // The retry is narrow on purpose. A declined account, a bad price or an
+  // outage must fail the way it always did, or this becomes a blanket retry
+  // that turns one bad request into a different bad request.
+  const w = world({
+    refuse: { whenKeyStartsWith: "line_items", message: "Your account cannot create payment links." },
+  });
+  const r = await office(w, { amountCents: 200000, kind: "deposit" });
+
+  assert.notEqual(r.status, 200, "a real refusal must not be retried into a success");
+  const tries = w.posts.filter((p) => p.path === "/v1/payment_links");
+  assert.equal(tries.length, 1, "it must not have tried a second time");
 });

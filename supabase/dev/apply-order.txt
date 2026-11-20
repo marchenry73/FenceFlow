@@ -268,3 +268,4 @@ supabase_r74_restore_deleted.sql
 supabase_r75_first_month_free.sql
 supabase_quote_signature_patch.sql
 supabase_a4_record_money_is_a_write_permission.sql
+supabase_a4_record_money_follows_the_ledger.sql

@@ -103,8 +103,12 @@ live with a positive control: NOTHING else in the repo root has been applied. Ei
 - [x] **A3. DONE 28-09.** A job paid in full read “Balance due $15,364.00” under “Paid in full”, proved on the live link. One meaning now, the server's, plus six tests from that fixture's figures.
 - [x] ~~A3. The balance is wrong.~~ Check it everywhere: the estimate screen, the
       job sheet, the quote page, the PDF, the payment link.
-- [~] **A4. AUDITED overnight 19/20 Nov 2026. Findings written up, nothing
-      fixed — every one of them is money behaviour and that waits for you.**
+- [~] **A4. AUDITED overnight 19/20 Nov 2026, and the five fixable findings
+      FIXED AND LIVE on 20 Nov** — the manager hole and the four payment ones,
+      applied, deployed and published as app 1.915 (tests a177–a181). Still
+      `[~]` and not `[x]` because two findings are decisions I will not make
+      for you: #6, approving a job the server has not priced, and #7, the
+      deposit changing after approval.
       Full detail with evidence in `OVERNIGHT_2026-11-19.md`; the short form:
 
       Five surfaces read in parallel (office, phone, server functions, money

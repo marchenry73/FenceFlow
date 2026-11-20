@@ -798,14 +798,12 @@ forty minutes would have cost tokens and taught nobody anything.
 
 ## Needs March
 
-0. **BUILT ON 20 NOV, NOT LIVE: say when to land it.** All four payment fixes
-   and the manager fix are in the repo with tests (see the 20 November section
-   at the end of this file). What is left is one `db query` to apply the SQL,
-   one deploy of three edge functions, and an APK publish — and they have to
-   go together, because the SQL alone leaves a dropdown on a manager's phone
-   that the server silently overrides. Nothing has been lost so far only
-   because no live card has ever gone through, and Tuesday's campaign is for
-   getting customers who will.
+0. **LANDED ON 20 NOV — all of it, on his say-so.** The four payment fixes and
+   the manager fix are applied, deployed and published as app **1.915**. Read
+   the two 20 November sections at the end of this file, especially the one
+   about the forty minutes where I had broken cash payments for managers.
+   **His two managers need to open the app and update**, or they keep seeing a
+   payment-status dropdown the server now overrides.
 
 1. **The FenceFlow name, before Tuesday.** fenceflow.com is a live FenceFlow
    LLC in fencing; 62 emails carry the name from Tue 24 Nov, 11:30am.
@@ -963,3 +961,122 @@ Worth doing after.
 **#6 and #7 are still decisions, not fixes** — approving a job the server has
 not priced, and the deposit changing after approval. Both need you to choose,
 and I have not chosen on your behalf.
+
+---
+
+# 20 November, later — it is all live, and I broke something on the way
+
+March said land all of it. Done, in this order: commit, push, apply the SQL,
+deploy the functions, verify each from the artifact, build, publish.
+
+**Live now:**
+
+- `RECORD_MONEY` on production. Verified against the LIVE functions, not the
+  file: `supabase_a4_record_money_probe_live.sql`.
+- Six edge functions redeployed — `stripe-webhook`, `square-webhook`,
+  `create-payment-link`, and `attention-sweep`, `notify-job-change`,
+  `notify-device-displaced` and `quote-view`, which bundle their own copies of
+  the two shared modules that changed. Each one downloaded again afterwards and
+  diffed against the repo: **identical**, including
+  `_shared/record-payment.ts` and `_shared/job-push.ts`. A deploy that says
+  "ok" is not evidence; the download is.
+- **App 1.915.** `RECORD_MONEY` and its label are in `classes.dex` of the APK
+  that was uploaded, and the file served from the proxy has the same SHA-256 as
+  the one on this machine — so this is not last week's build with a new number
+  on it.
+
+`notify-job-change` failed its first deploy on an esm.sh fetch timing out
+after 10s while Supabase bundled it. That is a transient, not a break, and a
+failed deploy leaves the previous version running. It went through on the
+retry.
+
+## THE THING WORTH READING: I broke cash payments for about forty minutes
+
+The first version of the manager fix reverted the seven "money arrived"
+columns to their previous values for anyone without `RECORD_MONEY`. That is
+wrong, and I did not see it until I went looking for it afterwards.
+
+`jobs.amount_paid` is not only written by hand. `recompute_job_totals()`
+derives it from `payment_records` every time a ledger row changes. That
+function is `SECURITY DEFINER` — but `record_money_trusted()` reads
+`request.jwt.claims`, and **a definer function does not change the session's
+claims.** So the recompute ran inside the manager's own session, my trigger saw
+a caller without `RECORD_MONEY`, and reverted the recompute's own write.
+
+Measured on production, as a real manager, rolled back:
+
+| step | measured |
+|---|---|
+| INSERT a $250 CASH ledger row as MANAGER | accepted, as designed |
+| `jobs.amount_paid` afterwards | **0 → 0**, and the ledger summed to 250 |
+
+A manager records cash, the row lands, and the job's figure never moves. That
+is worse than the hole it closed: money that was really taken stops showing.
+
+**The fix is better than the first version rather than a patch over it.** For a
+caller without `RECORD_MONEY`, `amount_paid`, `refunded_amount` and
+`payment_status` are no longer frozen — they are **recomputed from the
+ledger**, with the same arithmetic `recompute_job_totals` uses and the same
+up-only status ladder the webhooks use. So:
+
+| as a MANAGER | before the fix | first version | now |
+|---|---|---|---|
+| type a figure in with nothing behind it | **accepted** | held at the old value | **corrected to the ledger** |
+| record $250 cash in the ledger | shows | **never shows** | **shows** |
+
+The middle column passes a test that only asks the first question. That is why
+`tests/a181-record-money-gate-is-live.test.mjs` asks both, against the live
+database, and why its third case is the one that distinguishes "frozen" from
+"corrected" — the only check that tells the two implementations apart.
+
+`supabase_a4_record_money_follows_the_ledger.sql`, applied.
+
+**Both directions canaried** in rolled-back transactions, by staging the old
+function bodies rather than by argument: the pre-fix body gives
+`amount_paid 0 -> 12345, status DEPOSIT_PAID -> PAID_IN_FULL`, and the
+freeze-at-old body gives `amount_paid -> 0 (ledger sums to 250)`. Both
+verdicts are the failure strings a181 refuses.
+
+**What this says about the morning's work.** The four payment fixes each had a
+canary I watched fail, and they were fine. The manager fix had a probe with
+five positive controls, and it was not — because every control asked the same
+question ("is the write refused?") and none asked the opposite one ("does the
+money still arrive?"). Positive controls stop a refusal being an artefact. They
+do not stop a guard being too wide. The second question has to be asked on
+purpose.
+
+## Two managers need to update their phones
+
+Until a manager's phone is on 1.915 it still shows the payment-status
+dropdown, and the server will now quietly put their choice back. Nothing is
+lost — the figure follows the ledger either way — but the control does nothing,
+so get them updated.
+
+## The one change I could not test against the real thing
+
+`restrictions[completed_sessions][limit]=1` is the only part of today that no
+test could touch, because proving it needs Stripe itself and a connected
+account. Stripe's API reference does document it exactly — `restrictions`,
+`restrictions.completed_sessions`, `restrictions.completed_sessions.limit`,
+an integer, not beta, not version-gated — and the rest of this file proves the
+bracket spelling works. But a parameter added to the one call every customer
+payment goes through has a failure mode worth taking seriously: if any account
+or API version refused it, **nobody could be sent a payment link at all**,
+three days before a campaign whose point is customers who pay.
+
+So it is **best-effort**. If Stripe refuses the request and names
+`restrictions` in the error, the link is created again without it. Narrow on
+purpose: a declined account, a bad price or an outage still fails exactly the
+way it did before, which `a179` checks separately — a blanket retry would turn
+one bad request into a different bad request. The webhook's half of #1 stands
+either way, so a link without the restriction is no worse than every link
+already sitting in a customer's inbox.
+
+Two more checks in `a179`, both canaried: the retry drops the restriction and
+keeps the metadata (a retry that lost `metadata[job_sync_id]` would break the
+webhook that books the payment), and any other Stripe failure is still a
+failure.
+
+What I still cannot tell you from evidence: what a customer sees if they open
+an exhausted link. Stripe's docs do not say on either page I read, and I have
+not watched a second checkout be refused.
