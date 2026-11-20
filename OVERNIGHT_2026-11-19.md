@@ -499,6 +499,44 @@ short-changed. **That is a question for him, not for me.**
 appears to change a shift's hours without clearing `approved_at`, so a
 corrected shift stays approved at its new length.
 
+### A SECURITY DEFINER function any signed-in user can aim at another company
+
+**CONFIRMED on the live database.** `recompute_job_totals(co uuid, job_sid uuid)`
+is `SECURITY DEFINER`, `has_function_privilege('authenticated', …, 'EXECUTE')`
+is **true**, and the live body takes the company id as a PARAMETER and never
+checks that the caller belongs to it:
+
+```
+update jobs set amount_paid = v_paid, refunded_amount = v_refunded
+ where company_id = co and sync_id = job_sid ...
+```
+
+So any signed-in FenceFlow user who knows another company's id and a job's
+sync id can make that company's job recompute its totals, bypassing row-level
+security (which is what DEFINER means).
+
+**Bounding the harm honestly, because it is smaller than it sounds:** the
+function only ever writes the figure the ledger already implies — it sums
+`payment_records` and stores the result. A stranger calling it writes the
+CORRECT value. It returns void, so it leaks nothing back. There is no way to
+pass a figure in.
+
+So this is not a way to steal or fake money today. It is a missing tenant
+check on a privileged function, which is the kind of thing that stops being
+harmless the moment the function grows a second job. The repo already contains
+the fix — `supabase_r19_function_doors.sql:470-520` — and it is labelled
+**"DRY RUN ONLY"**, i.e. written and never applied. Worth applying on a quiet
+day; not worth waking up for.
+
+**And the same reading confirms a separate claim:** the trigger
+`payment_records_totals` is present and enabled on `payment_records`, running
+`payment_records_recompute`. So the ledger already derives `amount_paid` by
+itself — which makes the Stripe webhook's own
+`amount_paid: paidDollars` write (`stripe-webhook/index.ts:265`) a **second
+route to the same figure**, computed from a separate read. The trigger's
+answer is the authoritative one. Two writers for one column is the family half
+of tonight's findings belong to.
+
 ### Two more, one confirmed and one wrong
 
 **CONFIRMED: the office payment door has no cap at all on an unpriced job.**
