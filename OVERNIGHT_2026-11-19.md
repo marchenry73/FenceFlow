@@ -116,6 +116,19 @@ These are the ones where the money leaves, or arrives and is not recorded.
 
 ### Also claimed, same audit — a figure a human reads is wrong
 
+4b. **Money he is owed disappears from Reports because of a date filter.**
+    **CONFIRMED IN SOURCE.** `ReportsViewModel.kt:377` builds the Outstanding
+    list as `jobs.filter { it.status.isWon }`, where `jobs` is already narrowed
+    to the selected window. The Home tile (`JobsViewModel.kt:54`) uses
+    `allJobs`. So on the default 90-day view, a job scheduled 100 days ago
+    that still owes $5,000 is not in the Outstanding list at all, and the two
+    screens give different answers for the same question.
+    This is the "empty answer reads as good news" shape the project keeps
+    meeting: the money does not show as $0 owed, it shows as nothing to see.
+    (Credit where due: the Home tile goes out of its way to tell a computed
+    $0.00 apart from "no answer", with a comment explaining why. The Reports
+    list is the one that forgot.)
+
 5. **Payment status walks backwards.** **CONFIRMED IN SOURCE.** Two writers,
    one column, different rules: `stripe-webhook/index.ts:265` writes
    `payment_status: "DEPOSIT_PAID"` unconditionally, while the shared recorder
@@ -180,9 +193,20 @@ These are the ones where the money leaves, or arrives and is not recorded.
    taken. Worth recording less for its size than for its shape: two routes to
    one figure, which is the family most of tonight's confirmed findings belong
    to.
-10. **Reports profit mixes cash and job-date bases** — payments counted when
-    received, costs counted when the job is dated — so a deposit for next
-    quarter's job reads as ~100% margin this quarter.
+10. **Reports profit mixes cash and job-date bases.** **CONFIRMED IN SOURCE.**
+    In one function (`ReportsViewModel.kt:273-285`): `paymentsInPeriod` is
+    `getPaymentsBetween(from, to)` — filtered by when the money ARRIVED — while
+    `jobs` is filtered by `jobDate(it)` and the expenses, time entries and
+    materials are then all filtered to *those* jobs. So revenue is cash basis
+    and cost is job basis, in the same profit number.
+    A $10,000 deposit landing this quarter for a job scheduled next quarter
+    shows as revenue with none of its cost: roughly 100% margin. The reverse
+    case shows a loss.
+    Worth saying the payments half was deliberately made receivedAt-based to
+    fix a real bug (the comment above it describes editing an old job dragging
+    its historical payments into the current month, and two phones disagreeing).
+    That fix is right. The cost half was simply not moved with it, and nothing
+    on screen says the two halves are counted differently.
 11. **Reports material cost omits tax and change-order materials; Reports
     labour has no overtime.** **CONFIRMED, after ruling out something worse.**
     I first suspected the material figure was the SELL price rather than cost,
