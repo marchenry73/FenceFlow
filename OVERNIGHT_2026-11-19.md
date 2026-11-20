@@ -30,7 +30,34 @@ follows. It does NOT yet mean it has happened in his data: a read-only check
 for that is queued behind the test suite, because concurrent database calls
 are what make this suite report phantom timeouts.
 
-### The four worth waking up for (claims, unverified)
+### FIRST, THE THING THAT CHANGES HOW URGENT THE REST IS
+
+**None of the payment bugs below has ever fired, because no real card payment
+has ever completed through this system.** Checked read-only against
+production:
+
+- `job_payments` holds 29 rows. Every single `paid` row — all 7 — is
+  `livemode = false`. There is not one `livemode = true` paid row, ever.
+  (A first pass flagged "7 paid rows with no ledger row" and I nearly wrote
+  that up as evidence of the lost-payment bug. It is not: test payments are
+  *designed* never to touch the books, and the webhook says so in its own
+  comment. Splitting by `livemode` is what showed it.)
+- `payment_records` holds 3 live rows: two CARD rows totalling $19,204 dated
+  **November and December 2025**, with a blank `recorded_by` — historical,
+  predating this machinery — and one CASH row he recorded himself in
+  September 2026.
+- Square dispute reinstatements with no matching debit: 0. Links paid twice: 0.
+
+So nothing has been lost and there is nothing to reconcile. **What these are
+is latent: the first real customer who pays by card runs through code with
+these four holes in it.** That matters this week, because the campaign starts
+Tuesday and the point of it is customers.
+
+That is also the honest limit of tonight's work: these are proved from source
+and proved NOT to have happened, not proved to happen in production — nobody
+has run a live card through the path to see.
+
+### The four worth waking up for
 
 These are the ones where the money leaves, or arrives and is not recorded.
 
@@ -322,6 +349,13 @@ broke it anyway: **one suite at a time, nothing else running.**
 ---
 
 ## Needs March
+
+0. **The four payment fixes, before the first real card payment.** They are
+   written out above and not applied. Nothing has been lost so far only
+   because no live card has ever gone through — and the campaign that starts
+   Tuesday is for getting customers who will. #2 is the one I would do first:
+   it is a two-line reordering, it is the one that silently loses money that
+   was actually taken, and it needs no decision from him.
 
 1. **The FenceFlow name, before Tuesday.** fenceflow.com is a live FenceFlow
    LLC in fencing; 62 emails carry the name from Tue 24 Nov, 11:30am.
