@@ -79,6 +79,53 @@ test("the argument names match the functions' own", () => {
   assert.ok(/put\("target", companyId\)/.test(un), "unsuspendCompany does not pass `target`");
 });
 
+/**
+ * Every OutlinedButton in CompaniesTab, as its own window of source.
+ *
+ * NOT a slice of the file between two landmarks. Two attempts at that failed
+ * here: one ran past the buttons and blamed a dialog's own repository call on
+ * a button, the other stopped short and read a region with no buttons in it.
+ * Positions move whenever somebody inserts a control; a button does not stop
+ * being a button.
+ *
+ * The per-company controls are OutlinedButton and every dialog's confirm and
+ * dismiss are TextButton, so this sees buttons and never a dialog.
+ *
+ * MEASURED 20 Nov 2026 rather than assumed: CompaniesTab holds 11
+ * OutlinedButton and 10 TextButton, and the only TextButton whose window
+ * touches one of the three reaching actions is a dialog's confirmButton.
+ * THE LIMIT THAT LEAVES: a per-company action added later as a TextButton
+ * OUTSIDE a dialog would not be seen here. If that ever happens, this helper
+ * is where to widen it -- and the floor below is what should make somebody
+ * look.
+ */
+function companyButtons(tab) {
+  const out = [];
+  const re = /OutlinedButton\(/g;
+  let m;
+  while ((m = re.exec(tab)) !== null) {
+    // The window ends at whichever comes first: the next button, the first
+    // dialog after this one, or 700 characters. The dialog bound matters for
+    // the LAST button in the tab -- without it that window runs on into the
+    // dialogs below and the dialog's own (correct) repository call is read as
+    // this button's.
+    const ends = [
+      tab.indexOf("OutlinedButton(", m.index + 1),
+      tab.indexOf("AlertDialog(", m.index + 1),
+      m.index + 700,
+    ].filter((i) => i > m.index);
+    out.push(tab.slice(m.index, Math.min(...ends)));
+  }
+  return out;
+}
+
+/**
+ * The three actions that reach into a company somebody is already working in.
+ * Creating a company is deliberately NOT one of them: the add-company button
+ * calls the repository straight from its onClick, correctly.
+ */
+const ACTS_ON_A_COMPANY = ["extendTrial(", "suspendCompany(", "unsuspendCompany("];
+
 test("every one of them asks before it does anything", () => {
   // These decide whether another company can work tomorrow, from a phone,
   // with a thumb. The console asks before each; so does this.
@@ -86,15 +133,27 @@ test("every one of them asks before it does anything", () => {
   assert.ok(at > 0, "CompaniesTab is gone");
   const tab = SCREEN_SRC.slice(at, SCREEN_SRC.indexOf("private enum class AdminAction", at));
 
-  // No button calls the repository directly; they all set `pending`.
-  for (const call of ["extendTrial(", "suspendCompany(", "unsuspendCompany("]) {
-    const inButtons = tab.slice(tab.indexOf("OutlinedButton"), tab.indexOf("pending?.let"));
-    assert.ok(!inButtons.includes(call),
+  // No button that acts on an existing company calls the repository; each
+  // opens a dialog first.
+  const buttons = companyButtons(tab);
+  // FLOOR, so this cannot pass by finding nothing: Manage, +1 day, +14 days,
+  // Give time and the add-company button are all OutlinedButtons here.
+  assert.ok(buttons.length >= 5,
+    `only ${buttons.length} buttons found in CompaniesTab -- this is reading the wrong thing`);
+  assert.ok(buttons.every((b) => !/AlertDialog\(/.test(b)),
+    "a button window reaches into a dialog, so a dialog's own calls would be blamed on a button");
+  for (const call of ACTS_ON_A_COMPANY) {
+    assert.ok(!buttons.some((b) => b.includes(call)),
       `a company button calls ${call} straight out, with nothing asked`);
   }
   assert.ok(/AlertDialog\(/.test(SCREEN_SRC), "nothing asks before the action runs");
+  // Each reaching action still goes through a confirm step of some kind: the
+  // suspend/reinstate pair through `pending`, the extension through its own
+  // dialog state. Named both ways so neither can quietly stop confirming.
   assert.ok(/pending = c to AdminAction\./.test(tab),
-    "the buttons no longer go through the confirm step");
+    "the suspend and reinstate buttons no longer go through the confirm step");
+  assert.ok(/extendFor = c/.test(tab),
+    "the trial buttons no longer open the confirm dialog");
 });
 
 test("a suspension from the phone is never a HOLD", () => {
@@ -123,11 +182,20 @@ test("a suspension from the phone is never a HOLD", () => {
 test("the list is re-read from the server, not patched in place", () => {
   // The server decides. Patching the row locally would show an outcome nobody
   // confirmed -- the exact shape of every "it said saved" bug in this repo.
-  const at = SCREEN_SRC.indexOf("AdminRepository.extendTrial(company.id, 1)");
-  assert.ok(at > 0, "the one-day action is gone");
+  // ANCHORED ON THE CALL, NOT ON ITS ARGUMENTS. This named
+  // "AdminRepository.extendTrial(company.id, 1)", which vanished when the two
+  // fixed buttons became one dialog taking any number of days. What matters is
+  // that wherever the extension happens, the list is re-read from the server
+  // and a refusal is shown.
+  const at = SCREEN_SRC.search(/AdminRepository\.extendTrial\(/);
+  assert.ok(at > 0, "nothing calls extendTrial any more");
   const after = SCREEN_SRC.slice(at, at + 1400);
   assert.ok(/load\(\)/.test(after), "the list is not re-read after an action");
   assert.ok(/onFailure/.test(after), "a refusal is swallowed instead of being shown");
+  // CONTROL: the window really holds the extension's own handler, so the two
+  // assertions above are not reading a neighbouring dialog's.
+  assert.ok(/extendFor = null|pending = null/.test(after),
+    "the window after the call closes no dialog -- it is the wrong region");
 });
 
 test("CANARY: a direct column write, and a silent action, each turn those red", () => {
@@ -139,12 +207,15 @@ test("CANARY: a direct column write, and a silent action, each turn those red", 
 
   const at = SCREEN_SRC.indexOf("private fun CompaniesTab");
   const tab = SCREEN_SRC.slice(at, SCREEN_SRC.indexOf("private enum class AdminAction", at));
-  const sabotagedTab = tab.replace(
-    "onClick = { actionError = null; pending = c to AdminAction.ExtendOneDay },",
+  // Sabotage by PATTERN rather than by one button's exact text: naming the
+  // ExtendOneDay click verbatim is what made this canary stop sabotaging
+  // anything the day that button was replaced.
+  const clickPattern = /onClick = \{ actionError = null;[^}]*\},/;
+  assert.ok(clickPattern.test(tab), "no confirming button left to sabotage -- re-aim this canary");
+  const sabotagedTab = tab.replace(clickPattern,
     "onClick = { scope.launch { AdminRepository.extendTrial(c.id, 1) } },");
   assert.notEqual(sabotagedTab, tab, "the canary did not change the source");
-  const inButtons = sabotagedTab.slice(sabotagedTab.indexOf("OutlinedButton"),
-                                       sabotagedTab.indexOf("pending?.let"));
-  assert.ok(inButtons.includes("extendTrial("),
+  assert.ok(
+    companyButtons(sabotagedTab).some((b) => ACTS_ON_A_COMPANY.some((c) => b.includes(c))),
     "THE CANARY DID NOT FAIL: a button wired straight to the repository went unnoticed");
 });

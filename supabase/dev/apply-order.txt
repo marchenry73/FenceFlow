@@ -266,3 +266,4 @@ supabase_r72_email_follows_the_identity.sql
 supabase_r73_guest_device_trial.sql
 supabase_r74_restore_deleted.sql
 supabase_r75_first_month_free.sql
+supabase_quote_signature_patch.sql
