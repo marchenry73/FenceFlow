@@ -307,6 +307,54 @@ the customer, and which one he wants is his call. #7 (the deposit changing
 after approval) is the same shape: pin the column, or allow the edit and tell
 the customer it changed. I have not chosen either on his behalf.
 
+### THE ONE I WOULD READ FIRST: a manager can mark a job paid, with no money
+
+**CONFIRMED ON PRODUCTION, with a working positive control, inside a
+transaction that was rolled back.** This is the only finding tonight that is
+both reachable with his current data and proved by doing it rather than by
+reading.
+
+What the probe did, as a real MANAGER of his company (chosen by property, not
+by name):
+
+| step | result |
+|---|---|
+| does MANAGER hold SEE_MONEY | **true** |
+| `update jobs set amount_paid = +12345, payment_status = 'PAID_IN_FULL'` | **ACCEPTED, 1 row** |
+| the row afterwards | `amount_paid 0 -> 12345`, status moved |
+| CONTROL: same user, a job in ANOTHER company | **0 rows, refused** |
+
+The control is the point. The write landed *under* row-level security, not
+around it — so this is a permission result and not an artefact of the probe
+running with too much power.
+
+**WHY IT HAPPENS.** `money_caller_trusted()` (live body) is
+`claims are empty OR is_service_role() OR has_permission('SEE_MONEY')`, and
+`has_permission` (live body) grants SEE_MONEY to OWNER, MANAGER, SALES and
+ACCOUNTANT. `amount_paid` and `payment_status` are both on
+`job_money_columns()`, but that list is only held against callers who do NOT
+pass `money_caller_trusted()`. So **a read permission is being used as the
+write gate**: "may see money" is taken to mean "may declare money received".
+
+The project already learned this distinction once and applied it somewhere
+else — writes to `payment_records` were separately restricted to
+REQUEST_PAYMENT / RECORD_REFUNDS. The `jobs` money columns never got the same
+treatment.
+
+**What it means in practice:** anyone he makes a MANAGER can mark any of his
+company's jobs paid in full, with no payment anywhere, no ledger row, and
+nothing that recomputes `payment_status` server-side afterwards. The job then
+drops out of accounts-receivable. He has two managers today.
+
+Whether a manager *should* be trusted with that is his decision, not mine —
+but at the moment it is not a decision anybody made, it is a side effect of a
+read permission being reused as a write gate.
+
+**The SALES half is not reachable yet:** SALES also holds SEE_MONEY (and
+EDIT_JOBS), so the same write would succeed — but his one SALES profile has
+no company attached, so there is nobody to do it. That changes the day he
+adds a salesperson, which is exactly what the Crew plan is sold for.
+
 ### CREW PAY — money that leaves the business, audited after midnight
 
 Nobody had looked at this surface. Eight claims came back; I confirmed the two
