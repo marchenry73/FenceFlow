@@ -103,9 +103,41 @@ live with a positive control: NOTHING else in the repo root has been applied. Ei
 - [x] **A3. DONE 28-09.** A job paid in full read “Balance due $15,364.00” under “Paid in full”, proved on the live link. One meaning now, the server's, plus six tests from that fixture's figures.
 - [x] ~~A3. The balance is wrong.~~ Check it everywhere: the estimate screen, the
       job sheet, the quote page, the PDF, the payment link.
-- [ ] **A4. Audit every money calculation in the app and the office** and prove
-      it charges the right price. Downstream suites exist
-      (`tests/downstream-*.test.mjs`); extend rather than duplicate.
+- [~] **A4. AUDITED overnight 19/20 Nov 2026. Findings written up, nothing
+      fixed — every one of them is money behaviour and that waits for you.**
+      Full detail with evidence in `OVERNIGHT_2026-11-19.md`; the short form:
+
+      Five surfaces read in parallel (office, phone, server functions, money
+      SQL, crew pay). 24 claims came back. **22 confirmed by following them
+      through the source myself, 7 of those also proved against production,
+      2 downgraded, 5 dismissed outright.** Six claims changed severity once
+      checked, in both directions — which is why they were read rather than
+      filed.
+
+      The one that is live today: **anyone you make a MANAGER can mark any job
+      paid in full with no money behind it.** Proved by doing it as a real
+      manager inside a rolled-back transaction, with a cross-company write
+      refused as the control. `money_caller_trusted()` accepts anyone holding
+      SEE_MONEY, so a READ permission is the WRITE gate.
+
+      Four payment holes are armed but have never fired, because **no live
+      card payment has ever completed through this system** — every paid row
+      is test-mode. They matter before the first real one.
+
+      Crew pay disagrees with itself three ways: the phone, the office Pay tab
+      and the payroll CSV use two different definitions of an hour, and only
+      the Pay tab will pay a REJECTED shift.
+
+      **The "and prove it" half** is `tests/a175-money-columns-are-pinned` and
+      `tests/a176-new-money-columns-get-noticed`: the first stops a column
+      being taken off the protection list unnoticed, the second stops a new
+      money column arriving unprotected. Both canaried.
+
+      NOT done, and deliberately: the downstream suites were not extended. The
+      audit found that the *engines* are well covered and the gaps are in the
+      layers around them — permissions, two-writer columns, and figures
+      computed twice by different routes. Extending `downstream-*` would have
+      added coverage where coverage already was.
 
 ## B. Sync and devices
 

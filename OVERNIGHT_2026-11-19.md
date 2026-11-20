@@ -49,8 +49,16 @@ direction backwards before checking the payroll export, and corrected it. Four
 of the confirmed findings corrected the agent that raised them. That is why
 these were read rather than filed.
 
-Score: **18 confirmed in source, 5 of those also proved against production, 1
-downgraded to "not a defect".** Everything below has the evidence.
+Final score: **22 confirmed by following them through the source myself, 7 of
+those also proved against production, 2 downgraded, 5 dismissed outright.**
+Six claims changed severity once checked — in both directions. Everything
+below has the evidence.
+
+**Two standing checks were left behind** so this does not have to be done by
+hand again: `tests/a175-money-columns-are-pinned` (a column cannot leave the
+protection list unnoticed) and `tests/a176-new-money-columns-get-noticed` (a
+new money column cannot arrive unprotected). Both canaried; the website suite
+is 295/295 with them in it.
 
 ---
 
