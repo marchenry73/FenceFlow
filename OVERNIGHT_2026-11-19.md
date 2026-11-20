@@ -391,12 +391,31 @@ same in the other direction.
 The phone takes a rate snapshot at clock-in (`ClockInIdentity.kt:103`); the
 server overwrites it.
 
-**Not verified, worth his eye** (claims only, I ran out of night): the office
-pay screen appears to count unapproved and rejected hours as payable
-(`renderPay`, `dashboard.html:17078`, filters on `ended_at` only, never
-`approved_at`) — while the CSV export does filter to approved. And
-`correct_time_entry` appears to change a shift's hours without clearing
-`approved_at`, so a corrected shift stays approved at its new length.
+**C3. CORRECTION TO C1, and it makes the picture worse rather than better.**
+I wrote above that "the phone tells a worker more than the office pays him".
+That assumed the office pays from the Pay tab. It may not. There are **three**
+surfaces and **two** definitions of an hour, and each surface has a different
+hole:
+
+| surface | hours used | approval filter |
+|---|---|---|
+| crew member's phone | `hours` — break NOT subtracted | own shifts |
+| office **Pay tab** (`renderPay`, `dashboard.html:17081`) | `paidHoursOf` — break subtracted | **none** — filters on `ended_at` only |
+| office **payroll CSV** (`:34173-34180`) — the thing he'd pay from | `hoursOf` — break NOT subtracted | correctly approved-only |
+
+So the payroll CSV agrees with the phone and disagrees with the Pay tab on
+every shift that had a break; and the Pay tab is the only one of the three
+that will happily put a REJECTED shift in somebody's week. The Pay tab calls
+its figure "estimated pay", which softens it, but it is also the screen a
+person looks at to decide what to pay.
+
+Both halves confirmed in source. The break half was right in my earlier note;
+the direction was not, and which figure he actually pays from decides who is
+short-changed. **That is a question for him, not for me.**
+
+**Still not verified** (claim only, out of night): `correct_time_entry`
+appears to change a shift's hours without clearing `approved_at`, so a
+corrected shift stays approved at its new length.
 
 ### What the audits found CLEAN
 
