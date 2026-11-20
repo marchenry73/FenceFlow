@@ -307,6 +307,49 @@ the customer, and which one he wants is his call. #7 (the deposit changing
 after approval) is the same shape: pin the column, or allow the edit and tell
 the customer it changed. I have not chosen either on his behalf.
 
+### CREW PAY — money that leaves the business, audited after midnight
+
+Nobody had looked at this surface. Eight claims came back; I confirmed the two
+that move money.
+
+**C1. The phone tells a worker more than the office pays him. CONFIRMED.**
+- The phone: `TimeEntry.hours` is `(endedAt - startedAt) / 3_600_000`
+  (`Entities.kt:1497`) — clock time, full stop. `breakMinutes` exists on the
+  entity (`:1381`), is synced both ways, is stored in Room… and appears in no
+  pay calculation anywhere in Kotlin. I grepped every use: all of them are
+  sync or storage.
+- The office: `paidHoursOf(t) = Math.max(0, hoursOf(t) - breakHoursOf(t))`
+  (`dashboard.html:16535`), used by the pay table and the timesheet totals.
+- So an 8.0h shift with a 30-minute break at $20/h is **$160 on the crew
+  member's own phone and $150 in the office**. He is told the higher number
+  and paid the lower one.
+- It compounds at overtime: a 40.0h week with 2.5h of breaks is 40.0h on the
+  phone (overtime territory) and 37.5h in the office (not).
+- This is the worst KIND of the findings tonight even though it is not the
+  largest: the others are numbers he reads, this one is a number his crew
+  reads, and being told $160 and paid $150 is how a contractor loses a good
+  worker.
+
+**C2. Approving a shift re-prices it at today's rate. CONFIRMED, and verified
+live.** `stamp_time_entry_rate` overwrites `new.hourly_rate` with the
+employee's CURRENT rate whenever an employee record exists
+(`supabase_r59_money_door_unknown.sql:159-174`) — and I checked the live
+database rather than the file: the trigger is present, **enabled**, and fires
+`BEFORE INSERT OR UPDATE` on `time_entries`.
+Approval is an UPDATE. So a worker on $20 who does 40 hours, is raised to $25
+on Friday, and has that week approved afterwards, is paid 40 hours at $25 —
+$200 more than the rate in force when the work was done. A rate cut does the
+same in the other direction.
+The phone takes a rate snapshot at clock-in (`ClockInIdentity.kt:103`); the
+server overwrites it.
+
+**Not verified, worth his eye** (claims only, I ran out of night): the office
+pay screen appears to count unapproved and rejected hours as payable
+(`renderPay`, `dashboard.html:17078`, filters on `ended_at` only, never
+`approved_at`) — while the CSV export does filter to approved. And
+`correct_time_entry` appears to change a shift's hours without clearing
+`approved_at`, so a corrected shift stays approved at its new length.
+
 ### What the audits found CLEAN
 
 Worth recording, because an audit that only lists faults tells you nothing
