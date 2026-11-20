@@ -109,10 +109,24 @@ live with a positive control: NOTHING else in the repo root has been applied. Ei
 
 ## B. Sync and devices
 
-- [ ] **B1. "Use this phone" must stop the other phone immediately.** Today the
-      newest claim wins and the displaced phone only notices when next opened.
-      Push exists (`job-change-push`, `_shared/push-recipients.ts`) — a claim
-      should reach the old phone straight away.
+- [x] **B1. BUILT, and the server half VERIFIED LIVE 19 Nov 2026.** The premise
+      above is stale: the displaced phone is nudged already. `claim_device`
+      moves `profiles.active_device_id`, the `profiles_push_displaced_device`
+      trigger (enabled, confirmed on production) runs
+      `queue_displaced_device_push`, which pg_net POSTs to
+      `notify-device-displaced` with the OLD install id, and the phone answers
+      by calling `device_still_mine` itself — the push carries no verdict, so a
+      forged one cannot sign anybody out.
+      MEASURED, not read: the vault secret exists, and the door was exercised
+      with an install id that cannot match any handset. It answered
+      `200 {"skipped":"no such account"}` — which proves the URL is reachable,
+      the gateway does not refuse it, the shared secret is ACCEPTED (a mismatch
+      is a 401, not a logic answer) and the function ran. No real device was
+      touched.
+      STILL UNVERIFIED, and it needs a handset: the last hop, FCM to a real
+      phone. Sign in on a second phone and watch whether the first one drops to
+      the signed-in-elsewhere screen WITHOUT being reopened. That is the only
+      part of this chain nobody can prove from a keyboard.
 - [ ] **B2. Signing in on another phone does not sync immediately** and keeps
       saying it has not reached the cloud. Real bug, reported twice. Reproduce
       before changing anything — see the "empty answer reads as good news"
