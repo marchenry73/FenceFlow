@@ -495,9 +495,24 @@ Both halves confirmed in source. The break half was right in my earlier note;
 the direction was not, and which figure he actually pays from decides who is
 short-changed. **That is a question for him, not for me.**
 
-**Still not verified** (claim only, out of night): `correct_time_entry`
-appears to change a shift's hours without clearing `approved_at`, so a
-corrected shift stays approved at its new length.
+**C4. "A corrected shift stays approved at its new length." DOWNGRADED after
+checking who may correct one.** The fact is true — `correct_time_entry`
+updates `started_at`, `ended_at` and `correction_reason` and leaves
+`approved_at` alone, and the file says so deliberately in a "WHAT IT
+DELIBERATELY DOES NOT DO" section.
+
+What the audit could not verify, and what changes the severity: **a correction
+requires `has_permission('APPROVE_TIME')`** (`:162`). A crew member cannot
+correct their own shift. Whoever corrects it is somebody who could have
+approved it anyway. The same file explicitly refuses an `auth.uid() is null`
+escape hatch and says why — the exact trap this project has a memory about.
+And `preserve_original_shift_trg` is live on the table, so the original clock
+times survive the correction.
+
+So this is not a route to unauthorised pay. What is left is narrower and still
+real: the row keeps an approval stamp made BEFORE the hours changed, so the
+record reads "approved by X" against a length X never saw. An audit-trail
+accuracy point for a quiet day, not a money leak.
 
 ### A SECURITY DEFINER function any signed-in user can aim at another company
 
@@ -651,6 +666,36 @@ CANARIED, both ways: drift the pinned list and check 1 goes red; make
 `amount_paid` vanish from the live answer and checks 1 and 2 both go red, with
 check 2 naming the column that was lost. File restored byte-identical
 afterwards and re-run green.
+
+## A test I added made another test fail, and that is worth writing down
+
+Adding `a175` and `a176` turned the suite red — but on **`a173`**, the restore
+test, which had passed twice earlier the same night. Run on its own, a173
+passes 11/11.
+
+It was not a logic break. It was load. a173 is database-backed and takes about
+76 seconds; a175 and a176 are database-backed too, and between them they were
+making five more round trips on the same connection. That was enough to push
+a173 past the 180-second per-file limit.
+
+So **I caused it**, and the symptom — "passes alone, fails in the suite" — is
+one this project has misread before and has a memory about. The temptation is
+to re-run until it is green, which would have worked and taught nothing.
+
+The actual fix: both new files now read ONCE per run and reuse the answer,
+instead of querying per check. That is not only cheaper (five round trips
+become two). Three separate reads meant three separate snapshots, so in
+principle the checks inside one file could have disagreed with each other
+about what the list was. One read is one answer.
+
+Both files were re-canaried AFTER the change, because making a check cheaper
+is exactly the sort of edit that can quietly make it stop checking. They still
+bite.
+
+**The general lesson for this suite:** it has a per-file timeout and a shared
+database connection, so every database-backed test added makes every other
+database-backed test a little more likely to time out. New tests here should
+read once, not per assertion.
 
 ## Fixed tonight
 

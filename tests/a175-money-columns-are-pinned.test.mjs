@@ -90,8 +90,18 @@ const MUST_NEVER_COME_OFF = [
   "discount_percent",
 ];
 
-const live = () => runSql("select unnest(public.job_money_columns()) as col;")
+/**
+ * Read ONCE per run and reused by every check below.
+ *
+ * Not just speed: three round trips meant three snapshots, so in principle the
+ * checks could disagree with each other about what the list was. One read is
+ * one answer. It also stops this file adding three more concurrent database
+ * calls to a suite that already leans on the same connection -- adding it
+ * un-cached made another test time out.
+ */
+const LIVE = runSql("select unnest(public.job_money_columns()) as col;")
   .map((r) => r.col).sort();
+const live = () => LIVE;
 
 test("the money-column list is exactly what it was pinned at", () => {
   const cols = live();
