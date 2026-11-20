@@ -8,6 +8,52 @@ email sent. Anything in those categories is written up here instead of done.
 
 ---
 
+## If you read one page, read this one
+
+**Nothing is broken for your customers right now.** Nothing was changed
+tonight that anyone can see. The audit found real holes, and almost all of
+them are holes nobody has fallen into yet.
+
+**The one that is live today:**
+
+- **Anyone you make a MANAGER can mark any job paid in full, with no money.**
+  I did it, as a real manager of your company, in a transaction I rolled back.
+  It was accepted; the same user writing another company's job was refused, so
+  it is a permission result and not a trick of the probe. You have two
+  managers. Nothing server-side ever recomputes the status afterwards, so the
+  job quietly leaves what you are owed.
+
+**The four that are armed but have never fired**, because **no live card
+payment has ever gone through this system** — every paid row is test-mode, and
+the only card money in the books is $19,204 from November 2025, before this
+machinery existed:
+
+- a Stripe payment link can be paid twice, and the second one is never booked;
+- if booking a payment fails, Stripe's retry SKIPS it and the money is lost;
+- a Square dispute you WIN books a credit that was never debited;
+- approving a job the server has not priced freezes materials-plus-tax as the
+  agreed price, with no labour in it, for ever.
+
+Those matter **this week**, because the campaign starting Tuesday exists to
+produce customers who pay by card. Fixes are written out below and NOT
+applied.
+
+**The one your crew will notice:** your phone, your office Pay tab and your
+payroll CSV do not agree about what an hour is. Two of them ignore the
+recorded break and one subtracts it, and the Pay tab is the only one that will
+pay a REJECTED shift. Which one you pay from decides who is short-changed, and
+that is your call.
+
+**And one you should know I got wrong first:** I reported the crew-pay
+direction backwards before checking the payroll export, and corrected it. Four
+of the confirmed findings corrected the agent that raised them. That is why
+these were read rather than filed.
+
+Score: **18 confirmed in source, 5 of those also proved against production, 1
+downgraded to "not a defect".** Everything below has the evidence.
+
+---
+
 ## A4 — audit every money calculation, and prove it
 
 This is the item he picked out as "highest priority, he gave figures". Three
@@ -354,6 +400,31 @@ read permission being reused as a write gate.
 EDIT_JOBS), so the same write would succeed — but his one SALES profile has
 no company attached, so there is nobody to do it. That changes the day he
 adds a salesperson, which is exactly what the Crew plan is sold for.
+
+### TWO MONEY COLUMNS WITH NO PROTECTION AT ALL
+
+**CONFIRMED against the live database.** `job_money_columns()` holds 31
+columns. **`cancellation_retained` is not one of them, and neither is
+`materials_to_buy`.**
+
+- **`cancellation_retained`** is the money he KEEPS when a customer cancels.
+  `job_cancellation_terms` takes `coalesce(frozen.amount, <computed>)`
+  (`supabase_r71_cancellation_figure_is_frozen.sql:167-176`), so once a job is
+  cancelled the stored figure wins outright. Overwrite it with 0 and the
+  refund due becomes everything the customer paid. The freeze trigger only
+  fires on the `cancelled_at` null→set transition, so a write AFTER
+  cancellation is not caught.
+- **`materials_to_buy`** is read by the deposit rule
+  (`supabase_r67_deposit_follows_the_materials.sql:179`), so inflating it
+  makes the next re-price ask the customer for a far larger deposit — capped
+  only at what is still owed.
+
+**Not reachable today, and reachable soon.** Both need a caller who can update
+jobs but does NOT hold SEE_MONEY — that is CREW or FOREMAN, and he has
+neither: his roles today are 8 OWNER, 2 MANAGER, 1 SALES. The day he adds a
+crew member, which is what the Crew plan exists for, these two columns are the
+unguarded ones. (Anyone WITH SEE_MONEY can already write every money column —
+see the manager finding above — so for managers this changes nothing.)
 
 ### CREW PAY — money that leaves the business, audited after midnight
 
