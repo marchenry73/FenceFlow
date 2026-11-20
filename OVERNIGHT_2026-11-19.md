@@ -304,8 +304,23 @@ These are the ones where the money leaves, or arrives and is not recorded.
     all depends on the keyboard and locale. The empty-field case needs no
     comma and is enough on its own.
     A $0 expense makes a job look more profitable than it was.
-14. **STILL CLAIMS — not verified.** **No overpayment guard** when recording a payment by hand, and **no sign or
-    finite guard** on custom line items (a quantity of -5 lowers the total).
+14. **CHECKED, and the audit was half right in each half.**
+    - *Recording a payment by hand:* the button is
+      `enabled = amount > 0.0 && parsedDate != null`
+      (`JobDetailScreen.kt:5048`), so zero and negative ARE refused — the
+      audit implied nothing guarded it. What is absent is a cap against
+      paying MORE than is owed: type 5000 instead of 500 on a job owing
+      $4,500 and it is accepted, and the only way back is a refund.
+      Confirmed as a missing cap, not as a missing guard.
+    - *Custom line items:* the parse is
+      `qtyText.replace(',', '.').toDoubleOrNull() ?: return@Button`
+      (`EstimateScreen.kt:1341`) — so it handles a comma decimal AND refuses
+      unparsable text outright, which is better than the dialogs in #13.
+      But `toDoubleOrNull` accepts `-5` and `Infinity`, so a negative
+      quantity or price still goes in and lowers the total.
+      **A question rather than a defect:** a negative line is exactly how
+      somebody would hand-enter a credit or an allowance, so this may be
+      deliberate. `Infinity` is not. Worth him saying which he wants.
 
 ### The fixes I would make, written out and NOT applied
 
