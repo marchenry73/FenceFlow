@@ -147,6 +147,9 @@ These are the ones where the money leaves, or arrives and is not recorded.
    note sitting next to this code invites exactly the wrong conclusion.
 
 3. **The off-session balance charge can lose a race with its own webhook.**
+   **STILL A CLAIM — not verified.** A race needs either a reproduction or a
+   careful read of commit ordering, and I ran out of night. Listed here
+   because its shape matches #2, which IS confirmed.
    `create-payment-link/index.ts:1363` confirms the PaymentIntent and only then
    (`:1398`) inserts the pending row. `stripe-webhook/index.ts:984` does
    `if (!owed) break;` — a 200 with no retry. Claimed effect: an $8,000 balance
@@ -226,7 +229,7 @@ These are the ones where the money leaves, or arrives and is not recorded.
    So a customer who approved a $2,000 deposit can be asked for $6,000 by an
    edit in the office, with no new approval and nothing saying it changed.
    Most likely to bite as a typo rather than as intent.
-8. **A change order is worth a different amount depending on when it was
+8. **CONFIRMED IN SOURCE.** **A change order is worth a different amount depending on when it was
    signed.** The engine marks change orders up (inside `preMarkup`); the
    anchored total adds them raw after acceptance. Same $1,000 order is $1,100
    before acceptance and $1,000 after.
@@ -301,7 +304,7 @@ These are the ones where the money leaves, or arrives and is not recorded.
     all depends on the keyboard and locale. The empty-field case needs no
     comma and is enough on its own.
     A $0 expense makes a job look more profitable than it was.
-14. **No overpayment guard** when recording a payment by hand, and **no sign or
+14. **STILL CLAIMS — not verified.** **No overpayment guard** when recording a payment by hand, and **no sign or
     finite guard** on custom line items (a quantity of -5 lowers the total).
 
 ### The fixes I would make, written out and NOT applied
@@ -450,7 +453,10 @@ project keeps meeting from different directions.
 Nobody had looked at this surface. Eight claims came back; I confirmed the two
 that move money.
 
-**C1. The phone tells a worker more than the office pays him. CONFIRMED.**
+**C1. The phone and the office disagree about what an hour is. CONFIRMED.**
+> **Read C3 below before acting on this one.** The disagreement is real, but
+> the DIRECTION in this heading turned out to depend on which office surface
+> he pays from, and the payroll export does not agree with the Pay tab.
 - The phone: `TimeEntry.hours` is `(endedAt - startedAt) / 3_600_000`
   (`Entities.kt:1497`) — clock time, full stop. `breakMinutes` exists on the
   entity (`:1381`), is synced both ways, is stored in Room… and appears in no
@@ -768,8 +774,10 @@ broke it anyway: **one suite at a time, nothing else running.**
    whoever picks Tan.
 3. **Summit Landscapes** (signed up 27 Oct, locked out, never came back). The
    new "Give time" dialog can grant them a month in two taps.
-4. **The four payment findings above**, once I have confirmed or killed them.
-   Anything that changes money behaviour waits for him by his own instruction.
+4. **The four payment findings are all confirmed** (see above) and all
+   unfixed. Anything that changes money behaviour waits for him by his own
+   instruction. #2 is the one to do first: a two-line reordering, no decision
+   required, and it is the one that loses money genuinely taken.
 5. **B1's last hop**: sign in on a second phone and check the first drops to
    the signed-in-elsewhere screen WITHOUT being reopened. Everything behind
    that hop is verified on production; only FCM-to-a-real-handset is not.
