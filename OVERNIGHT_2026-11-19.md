@@ -499,6 +499,39 @@ short-changed. **That is a question for him, not for me.**
 appears to change a shift's hours without clearing `approved_at`, so a
 corrected shift stays approved at its new length.
 
+### Claims checked against the data and found NOT to bite
+
+Recording these because an audit that only reports faults tells you nothing
+about how much of it you can trust.
+
+**"Two contract figures disagree when `contract_total` is null."** The
+mechanism is real and confirmed in source: `billableTotalOf`
+(`dashboard.html:11809`) answers null when there is no anchor and no
+`contract_total`; `contractTotalOf` (`:13994`) catches that and falls back to
+summing line items, but the job header (`:23089`) and the estimate block
+(`:25359`) take `billableTotalOf(...) ?? 0` and so would show $0 while the
+jobs table (`:15532`, via `contractTotalOf`) showed the line-item sum.
+
+**It does not bite today.** His database has 20 live jobs, 3 with
+`contract_total` null — the audit's note that this was "only pre-column jobs"
+was wrong, they exist. But all three HAVE an anchor, no line items and no
+money paid, so `billableTotalOf` returns the anchored figure and the two
+helpers agree. The divergence needs null `contract_total` AND no anchor AND
+line items, and no such job exists.
+
+**Also checked and absent:** no approved job is anchored below its real price
+(finding 6 has not happened, 0 jobs); no job has `amount_paid` above its
+contract total; no cancelled job has a stored retained figure, so the
+unguarded `cancellation_retained` has nothing to overwrite yet.
+
+**The one job with `contract_total = 0` does not bite either.** A stored 0
+would stop the `coalesce(anchored, contract_total, lines)` chain that a NULL
+falls through — the shape the SQL audit raised — but that job IS anchored, so
+the anchor is taken first and the 0 is never reached. Checked rather than
+assumed.
+(Incidentally it is a DRAFT carrying $7,170 collected, which is his own
+recorded cash payment. Unusual, not a defect, and not mine to tidy.)
+
 ### What the audits found CLEAN
 
 Worth recording, because an audit that only lists faults tells you nothing
