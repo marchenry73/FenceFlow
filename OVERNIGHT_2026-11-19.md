@@ -499,6 +499,34 @@ short-changed. **That is a question for him, not for me.**
 appears to change a shift's hours without clearing `approved_at`, so a
 corrected shift stays approved at its new length.
 
+### Two more, one confirmed and one wrong
+
+**CONFIRMED: the office payment door has no cap at all on an unpriced job.**
+`planOpenLinks` (`create-payment-link/index.ts:370-390`) wraps its whole
+"don't ask for more than is owed" check in `if (contractTotal > 0)`. When the
+job's contract total is 0 or null, the function returns `ok: true` with
+nothing checked, so a link can be raised for any amount. **Four of his live
+jobs are in that state** (3 null, 1 zero).
+The separate "$1 overshoot" in the same function is deliberate and fine — it
+is explicit slack for cents-vs-dollars rounding, with a comment saying so.
+Framing this honestly: it is a guard-rail gap, not an exploit. Raising a link
+is an office action, so it protects him from his own typo rather than from an
+attacker — though a MANAGER can do it too, and the customer-facing door caps
+against `billableTotal` while this one does not. Two doors, two rules.
+
+**WRONG: "the receipt understates the card charge by up to 3%."** The claim
+was that the customer pays `amount_cents + fee_cents` while the receipt prints
+only `amount_cents`. `job_payments` does have a `fee_cents` column, so the
+claim looks supported until you read what writes it:
+`const stripeFee = 0` (`create-payment-link/index.ts:785`), with a comment
+explaining that `companies.pass_card_fee` is FenceFlow's own subscription
+setting and not a surcharge a contractor passes on — "the fee_cents plumbing
+stays at zero so older rows and refunds still work."
+So no fee is ever added to what a customer pays, and the receipt is right.
+Reported here because the next person to grep `fee_cents` will reach the same
+wrong conclusion, and it would have sent him looking for a receipt bug that
+does not exist.
+
 ### Claims checked against the data and found NOT to bite
 
 Recording these because an audit that only reports faults tells you nothing
