@@ -426,6 +426,17 @@ crew member, which is what the Crew plan exists for, these two columns are the
 unguarded ones. (Anyone WITH SEE_MONEY can already write every money column —
 see the manager finding above — so for managers this changes nothing.)
 
+**A third, same family, same day:** a line item a crew phone adds that matches
+nothing is stored at **$0** — `new.unit_price := coalesce(new.unit_price, 0)`
+in `stamp_line_item_price` (`supabase_crew_money_shield_patch.sql:160`). The
+surrounding design is right and I checked it before reporting: the function
+returns early for trusted callers, so it never overwrites a price the office
+set, and it tries the job's last price for that role and then the catalog by
+name first. Only when both miss does it land on 0 — and a stored 0 is
+indistinguishable from "this item is free" to every report that sums `sell`.
+"Not priced" and "free" are the same number again, which is the failure this
+project keeps meeting from different directions.
+
 ### CREW PAY — money that leaves the business, audited after midnight
 
 Nobody had looked at this surface. Eight claims came back; I confirmed the two
@@ -505,6 +516,42 @@ about coverage:
 - Payment-link rounding is correct on the phone.
 
 ---
+
+## The "and prove it" half of A4
+
+The item says "audit every money calculation **and prove it**". An audit is a
+snapshot; it rots. So one thing was left behind that keeps checking after
+tonight:
+
+**`tests/a175-money-columns-are-pinned.test.mjs`** — three checks, read-only.
+
+`job_money_columns()` is a hand-maintained list of column names, and it is the
+only thing standing between a crew handset and `jobs.amount_paid`. A
+hand-maintained list of names is exactly the thing that rots in one direction:
+columns get added to `jobs`, nobody adds them here, and the hole is silent.
+That is how `cancellation_retained` and `materials_to_buy` came to be
+unprotected.
+
+So the test:
+1. pins the list EXACTLY as it stands (31 columns), so adding or removing one
+   is a deliberate act that turns this red and makes somebody say why;
+2. separately names the ten that must never come off — the ones that decide
+   what a customer owes and what he has been paid — listed individually rather
+   than derived from the pin, so trimming the pin to match a shrunken list
+   cannot also silence this check;
+3. a control that refuses to pass on an empty or impossibly short answer,
+   because two empty sets compare equal and that is the failure this project
+   keeps meeting.
+
+**What it deliberately does NOT do:** assert that the two known gaps stay
+gaps. A test that pins a defect in place goes green the day somebody fixes it,
+which is the wrong way round. Closing them turns the exact pin red and asks
+for the pin to be updated — the correct prompt.
+
+CANARIED, both ways: drift the pinned list and check 1 goes red; make
+`amount_paid` vanish from the live answer and checks 1 and 2 both go red, with
+check 2 naming the column that was lost. File restored byte-identical
+afterwards and re-run green.
 
 ## Fixed tonight
 
