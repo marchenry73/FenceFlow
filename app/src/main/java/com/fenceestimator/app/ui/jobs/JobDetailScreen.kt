@@ -3107,12 +3107,30 @@ private fun PaymentFields(job: Job, profile: BusinessProfile, viewModel: JobDeta
     // None of the fields below asked about a permission at all before this --
     // they sat here unconditionally under canSeeMoney, so the guest demo's
     // SEE_MONEY was enough to rewrite every one of them. There is no
-    // permission for "recording what came in" that a real company role should
-    // also lose, so this asks the guest question directly, the same way
-    // RunEditScreen's fields do.
+    // permission for "what the customer is asked for up front" that a real
+    // company role should also lose, so this asks the guest question
+    // directly, the same way RunEditScreen's fields do.
     val editable = !session.isGuestDemo
+
+    /* THE PAYMENT STATUS IS NARROWER, as of 20 Nov 2026.
+
+       Declaring a job paid is not the same act as setting its deposit, and
+       SEE_MONEY -- a READ -- was gating both. A manager or a salesperson
+       could set the payment status directly, with no payment anywhere and no
+       ledger row, and the job then dropped out of accounts receivable. The
+       server refuses that write now (record_money_trusted(), in
+       supabase_a4_record_money_is_a_write_permission.sql) and this hides the
+       control, because a dropdown whose choice is quietly put back on the
+       next sync is worse than no dropdown.
+
+       Deliberately NOT gated on REQUEST_PAYMENT: recording a cash or check
+       payment in the Payments list is a different act that leaves a row
+       saying who took the money, and a manager may still do it. The deposit
+       field and the suggested-deposit button below stay on `editable` for
+       the same reason -- a deposit is a price, not money received. */
+    val canSetPaymentStatus = editable && session.canRecordMoney
     var expanded by remember { mutableStateOf(false) }
-    if (editable) {
+    if (canSetPaymentStatus) {
         ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
             OutlinedTextField(
                 value = job.paymentStatus.label(), onValueChange = {}, readOnly = true,

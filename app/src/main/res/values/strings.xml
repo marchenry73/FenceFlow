@@ -1726,6 +1726,8 @@
     <string name="enum_perm_request_payment_desc">Create payment links and send invoices.</string>
     <string name="enum_perm_record_refunds">Record refunds</string>
     <string name="enum_perm_record_refunds_desc">Give money back on a job. Changes what the customer owes.</string>
+    <string name="enum_perm_record_money">Mark jobs paid by hand</string>
+    <string name="enum_perm_record_money_desc">Set a job’s payment status and the amount paid directly, with no payment behind it. Recording a cash or check payment in the Payments list is separate and does not need this — that leaves a record of who took the money.</string>
     <string name="enum_perm_record_field_work">Record work on site</string>
     <string name="enum_perm_record_field_work_desc">Checklists, photos, clock in and out.</string>
     <string name="enum_perm_see_customer_contact">See customer contact details</string>

@@ -1411,15 +1411,37 @@ async function makeLink(
         livemode: intent.livemode === true,
       });
       if (chargeInsertError) {
-        /* The money may well have moved. Loud, and said plainly, because the
-           books and Stripe now disagree and a person has to reconcile it. */
-        console.error("create-payment-link charge insert", jobSyncId,
-          String(intent.id ?? ""), chargeInsertError.message);
-        return json({
-          code: "charge_unrecorded",
-          error: "The card was charged but the payment could not be recorded against the job. " +
-                 "Do not charge again -- contact FenceFlow with this job so it can be put right.",
-        }, 500);
+        /* ONE CASE THAT IS NOT A FAILURE: the webhook got here first.
+
+           This insert happens AFTER the charge is confirmed, so Stripe's
+           payment_intent.succeeded can arrive before it. The webhook now
+           writes the row itself from the intent's metadata when it finds
+           none, and that row carries the same external_id -- which collides
+           with this insert on the unique (processor, external_id) index.
+
+           The money is charged AND recorded in that case, so telling the
+           office "charged but not recorded, do not charge again" would be
+           alarming and wrong. Checked by reading the row back rather than by
+           parsing the error text, so it is the state of the books that
+           decides, not a message Postgres is free to reword. */
+        const { data: already } = await admin.from("job_payments")
+          .select("id, status")
+          .eq("processor", "stripe")
+          .eq("external_id", String(intent.id ?? ""))
+          .maybeSingle();
+        if (!already) {
+          /* The money may well have moved. Loud, and said plainly, because the
+             books and Stripe now disagree and a person has to reconcile it. */
+          console.error("create-payment-link charge insert", jobSyncId,
+            String(intent.id ?? ""), chargeInsertError.message);
+          return json({
+            code: "charge_unrecorded",
+            error: "The card was charged but the payment could not be recorded against the job. " +
+                   "Do not charge again -- contact FenceFlow with this job so it can be put right.",
+          }, 500);
+        }
+        console.log("create-payment-link: the webhook recorded this charge first",
+          jobSyncId, String(intent.id ?? ""));
       }
 
       return json({
@@ -1451,6 +1473,22 @@ async function makeLink(
     const link = await stripe("/payment_links", {
       "line_items[0][price]": price.id,
       "line_items[0][quantity]": "1",
+      /* ONE PAYMENT PER LINK, ENFORCED BY STRIPE ITSELF.
+
+         A Payment Link is reusable by default and nothing here deactivated
+         it after it was paid -- the only deactivation in this file is on the
+         replacement path, and the webhook never calls it. So a customer who
+         paid a $2,000 deposit could reopen the emailed link and pay again:
+         Stripe would hold $4,000, the books would say $2,000, and nobody
+         would be told, because the webhook's own idempotency guard treats
+         the second completed session as a duplicate delivery and does
+         nothing.
+
+         Stripe refusing the second checkout is the half that prevents the
+         money moving at all. The webhook's second half -- recording an
+         unexpected second payment loudly instead of silently -- is what
+         catches it if this ever fails or an older link is still out there. */
+      "restrictions[completed_sessions][limit]": "1",
       /* THE CARD IS KEPT, AND SHE IS TOLD SO ABOVE THE PAY BUTTON.
 
          setup_future_usage=off_session is what lets the balance be taken

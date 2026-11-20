@@ -57,6 +57,32 @@ enum class Permission(
         "Give money back on a job. Changes what the customer owes.",
         sensitive = true
     ),
+    /**
+     * Declaring money received, by hand, with nothing behind it.
+     *
+     * Added 20 Nov 2026 after the money audit. SEE_MONEY was doing this job,
+     * and SEE_MONEY is a READ: anyone holding it -- manager, salesperson --
+     * could set a job's amount paid and payment status directly, with no
+     * payment anywhere, no ledger row, and nothing to recompute it
+     * afterwards. The job then dropped out of accounts receivable. Proved on
+     * production as a real manager, in a transaction that was rolled back.
+     *
+     * This is NOT the permission for taking a payment. A manager who holds
+     * REQUEST_PAYMENT can still record cash, a check or a transfer in the
+     * Payments list, and the figure moves -- because that leaves a row saying
+     * who recorded it and when. What this one gates is the figure itself: the
+     * payment status dropdown and the paid total on the job.
+     *
+     * Held by OWNER (which is every permission) and ACCOUNTANT. Give it to a
+     * named manager on the Team access screen if that is what you want.
+     */
+    RECORD_MONEY(
+        "Mark jobs paid by hand",
+        "Set a job's payment status and the amount paid directly, with no payment behind " +
+            "it. Recording a cash or check payment in the Payments list is separate and " +
+            "does not need this -- that leaves a record of who took the money.",
+        sensitive = true
+    ),
     RECORD_FIELD_WORK(
         "Record work on site",
         "Checklists, photos, clock in and out."
@@ -166,8 +192,15 @@ val UserRole.defaultPermissions: Set<Permission>
             Permission.SEE_MONEY, Permission.EDIT_JOBS, Permission.SEE_CUSTOMER_CONTACT
         )
 
+        // RECORD_MONEY is here and deliberately NOT on MANAGER or SALES.
+        // Writing down what arrived is the accountant's job; a manager who
+        // needs it can be given it by name. Mirrors has_permission() on the
+        // server (supabase_a4_record_money_is_a_write_permission.sql), and
+        // tests/a180-record-money-permission.test.mjs holds the two role
+        // tables to each other so they cannot drift apart.
         UserRole.ACCOUNTANT -> setOf(
             Permission.SEE_MONEY, Permission.SEE_PAY, Permission.REQUEST_PAYMENT, Permission.RECORD_REFUNDS,
+            Permission.RECORD_MONEY,
             Permission.SEE_CUSTOMER_CONTACT, Permission.SEE_REPORTS
         )
 

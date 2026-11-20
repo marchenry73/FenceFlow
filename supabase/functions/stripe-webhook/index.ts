@@ -10,7 +10,7 @@
 // Deploy with JWT verification OFF -- Stripe calls this, not a signed-in user.
 // The signature check below is what authenticates the caller instead.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
-import { recordRefund, minorToMajor } from "../_shared/record-payment.ts";
+import { recordRefund, minorToMajor, nextPaymentStatus } from "../_shared/record-payment.ts";
 import { moneyDevices } from "../_shared/push-recipients.ts";
 
 /**
@@ -183,7 +183,13 @@ async function applyPaymentToJob(admin: any, payment: any) {
   // so the money is recorded either way and the app rebuilds the paid figure
   // from the ledger when the job finally arrives.
   const { data: job } = await admin.from("jobs")
-    .select("id, sync_id, company_id, customer_name, deposit_amount")
+    // contract_total, refunded_amount and payment_status join the read so the
+    // status below can be DECIDED rather than assumed -- see nextPaymentStatus
+    // in ../_shared/record-payment.ts. The shared recorder already reads the
+    // same three for the same purpose; this copy used to read none of them and
+    // wrote a flat DEPOSIT_PAID instead.
+    .select("id, sync_id, company_id, customer_name, deposit_amount, " +
+            "contract_total, refunded_amount, payment_status")
     .eq("company_id", payment.company_id)
     .eq("sync_id", payment.job_sync_id)
     .maybeSingle();
@@ -252,18 +258,32 @@ async function applyPaymentToJob(admin: any, payment: any) {
   const paidDollars = (ledger ?? [])
     .reduce((sum: number, r: any) => sum + Math.max(0, Number(r.amount || 0)), 0);
 
-  // Records that money arrived, and no more than that. Whether the job is paid
-  // in full depends on the contract total, which is computed in the app from
-  // the line items, change orders and gate charges -- the server does not have
-  // it and should not guess. The app promotes this to PAID_IN_FULL once the
-  // amount actually covers the total.
   // No job row yet -- the ledger above is the record until it syncs.
   if (!job) return;
+
+  /* THE STATUS MOVES UP, OR IT DOES NOT MOVE.
+
+     This used to write "DEPOSIT_PAID" flat, on the stated grounds that the
+     server "does not have" the contract total and should not guess. It does,
+     and the shared recorder has read it for months. The consequence of the
+     flat write was a job already PAID_IN_FULL being stepped BACKWARDS by its
+     own balance payment -- the office and the quote page then both telling a
+     settled customer they still owed money.
+
+     One ladder now, in ../_shared/record-payment.ts, used by this path, by
+     the shared recorder Square uses, and by the refund path. A job this
+     server has never priced still lands on DEPOSIT_PAID exactly as before. */
+  const nextStatus = nextPaymentStatus({
+    netPaid: paidDollars - Number(job.refunded_amount || 0),
+    contractTotal: Number(job.contract_total || 0),
+    current: String(job.payment_status ?? "UNPAID"),
+    direction: "up",
+  });
 
   await mustWrite("mark the job paid",
     admin.from("jobs").update({
     amount_paid: paidDollars,
-    payment_status: "DEPOSIT_PAID",
+    payment_status: nextStatus,
     // Latches the paid figure read-only in the app. What the processor reports
     // is the record; typing over it is not a correction, it is a discrepancy
     // that only surfaces when the customer disputes the bill.
@@ -412,6 +432,73 @@ async function saveCardForBalance(admin: any, session: any, payment: any): Promi
 }
 
 /**
+ * A cleared Stripe payment that has no request row waiting for it.
+ *
+ * Two different events reach this, and both used to end in a silent 200 on
+ * money Stripe was already holding:
+ *
+ *   - a SECOND checkout on a Payment Link that was already paid, and
+ *   - an off-session balance charge whose `payment_intent.succeeded` beat
+ *     create-payment-link's own insert of the pending row. The charge is
+ *     confirmed before the row is written, so the webhook can genuinely
+ *     arrive first; it then found nothing, broke, and answered 200.
+ *
+ * Returns the row to book, or null when there is nothing to do.
+ *
+ * Idempotent by lookup, not by upsert. The unique index on
+ * (processor, external_id) is partial -- `where external_id is not null and
+ * external_id <> ''` -- and Postgres will not infer a partial index from a
+ * bare ON CONFLICT column list, so an upsert here would fail outright. The
+ * lookup also means a redelivery books the SAME row a second time, which the
+ * ledger's upsert makes a no-op, rather than creating a second row and
+ * crediting the customer twice.
+ */
+async function recordUnexpectedStripePayment(admin: any, p: {
+  companyId: string;
+  jobSyncId: string;
+  kind: string | null;
+  currency: string;
+  amountCents: number;
+  intentId: string;
+  livemode: boolean;
+}): Promise<any | null> {
+  if (!p.companyId || !p.jobSyncId || !p.intentId) return null;
+
+  const { data: already } = await admin.from("job_payments")
+    .select("id, job_sync_id, amount_cents, company_id, livemode, stripe_id")
+    .eq("processor", "stripe").eq("external_id", p.intentId).maybeSingle();
+  if (already) return already;
+
+  const { data: made, error } = await admin.from("job_payments")
+    .insert({
+      company_id: p.companyId,
+      job_sync_id: p.jobSyncId,
+      kind: p.kind,
+      amount_cents: p.amountCents,
+      fee_cents: 0,
+      currency: p.currency || "usd",
+      status: "paid",
+      paid_at: new Date().toISOString(),
+      payment_url: "",
+      processor: "stripe",
+      external_id: p.intentId,
+      livemode: p.livemode,
+    })
+    .select("id, job_sync_id, amount_cents, company_id, livemode, stripe_id")
+    .maybeSingle();
+
+  /* THROWN, NOT SWALLOWED. The money is real and Stripe is waiting for an
+     answer: a 500 here is retried, and the lookup above makes the retry
+     find whatever did land. Returning quietly would be the silent 200 this
+     function exists to end. */
+  if (error) {
+    throw new Error("could not record an unexpected Stripe payment " +
+      p.intentId + ": " + error.message);
+  }
+  return made ?? null;
+}
+
+/**
  * Marks a Payment Link's request paid and books it -- called only once the
  * caller is sure the money is actually there, never on the strength of
  * checkout.session.completed alone.
@@ -426,9 +513,13 @@ async function saveCardForBalance(admin: any, session: any, payment: any): Promi
  * checkout.session.completed below for why an "unpaid" session must not
  * reach here.
  *
- * Idempotent exactly as it always was: a row already marked paid is left
- * alone, so a retry or duplicate delivery of either event cannot credit the
- * same payment twice.
+ * Idempotent on the PAYMENT, not on the row. A redelivery of the same event
+ * carries the same payment intent as the one already stored, and is left
+ * alone -- so neither event can credit the same money twice. A DIFFERENT
+ * intent arriving on a link already paid is a second payment, not a
+ * redelivery, and is recorded rather than swallowed: until 20 Nov 2026 the
+ * test was "is this row already paid", which answered 200 in silence to a
+ * customer who had paid the same link twice.
  */
 async function creditPaymentLink(admin: any, session: any): Promise<void> {
   const linkId = session.payment_link;
@@ -438,22 +529,83 @@ async function creditPaymentLink(admin: any, session: any): Promise<void> {
   // webhooks, and adding the same amount twice would silently overstate
   // what the customer has paid.
   const { data: pending } = await admin.from("job_payments")
-    .select("id, job_sync_id, amount_cents, company_id, status, livemode, stripe_id")
+    .select("id, job_sync_id, amount_cents, company_id, status, livemode, " +
+            "stripe_id, external_id, kind, fee_cents, currency")
     .eq("stripe_id", linkId).maybeSingle();
 
-  if (pending && pending.status !== "paid") {
-    await admin.from("job_payments")
-      .update({
-        status: "paid",
-        paid_at: new Date().toISOString(),
-        // A refund arrives naming the payment intent and nothing of ours;
-        // the link id we stored is not on it. Kept here so the refund
-        // branch below can place the money.
-        external_id: String(session.payment_intent ?? ""),
-      })
-      .eq("id", pending.id);
+  /* A SECOND, DIFFERENT PAYMENT ON A LINK ALREADY PAID.
 
+     The guard below treats a row already "paid" as a duplicate delivery and
+     does nothing, which is right for a retry and wrong for a second
+     checkout. Payment Links were reusable, so a customer could reopen the
+     emailed link and pay again; Stripe held the money and this function
+     answered 200 in silence.
+
+     New links now carry restrictions[completed_sessions][limit]=1, so Stripe
+     refuses the second checkout outright. This is the other half, and it
+     stays whatever happens to the first: links already in customers' inboxes
+     have no restriction on them, and a silent 200 on real money is the
+     failure worth never repeating.
+
+     The discriminator is the payment intent, not the session: a redelivery
+     of the SAME session carries the same intent as the one already stored,
+     so it still falls through to nothing. A different intent is a different
+     payment, and the money is real -- so it is recorded as its own payment
+     row and booked like any other, which puts it in the ledger, on the job
+     and in the push, where somebody can see it and refund it.
+
+     Looked up before it is inserted rather than upserted: the unique index on
+     (processor, external_id) is PARTIAL -- it excludes null and empty ids --
+     and Postgres will not infer a partial index from a bare ON CONFLICT
+     column list. A lookup first is also what makes a redelivery that arrives
+     after this row exists book the same row again rather than a second one. */
+  const intentId = String(session.payment_intent ?? "");
+  if (pending && pending.status === "paid" && intentId &&
+      String(pending.external_id ?? "") !== intentId) {
+    console.error("SECOND PAYMENT ON A PAID LINK", linkId,
+      "company", String(pending.company_id), "job", String(pending.job_sync_id),
+      "intent", intentId, "-- recording it; the customer has paid twice");
+
+    const extra = await recordUnexpectedStripePayment(admin, {
+      companyId: String(pending.company_id),
+      jobSyncId: String(pending.job_sync_id),
+      kind: pending.kind,
+      currency: pending.currency ?? "usd",
+      amountCents: Number(session.amount_total ?? pending.amount_cents ?? 0),
+      intentId,
+      livemode: session.livemode === true || pending.livemode === true,
+    });
+    if (extra) await applyPaymentToJob(admin, extra);
+    return;
+  }
+
+  if (pending && pending.status !== "paid") {
+    /* BOOKED FIRST, FLIPPED SECOND -- and the order is the whole point.
+
+       This used to set status="paid" first, not check that the update wrote,
+       and only then book the money. The top-level handler answers 500 on a
+       throw and Stripe retries a 500, which the comment above calls safe --
+       and it is safe only if the flip comes LAST. With the flip first, a
+       booking that failed left the row already reading "paid", so the retry
+       met `pending.status !== "paid"` and fell straight through: Stripe got
+       its 200, the money was taken, and no ledger row was ever written.
+
+       Re-booking on a retry is what makes this ordering safe: the ledger
+       write in applyPaymentToJob is an upsert keyed on this payment row's own
+       id, so running it twice writes the same row twice, not two rows. */
     await applyPaymentToJob(admin, pending);
+
+    await mustWrite("mark the payment paid",
+      admin.from("job_payments")
+        .update({
+          status: "paid",
+          paid_at: new Date().toISOString(),
+          // A refund arrives naming the payment intent and nothing of ours;
+          // the link id we stored is not on it. Kept here so the refund
+          // branch below can place the money.
+          external_id: String(session.payment_intent ?? ""),
+        })
+        .eq("id", pending.id));
 
     /* LAST, and after the money is booked. Recording the card is the lesser
        of the two things this event does, so it never runs before the greater
@@ -973,24 +1125,64 @@ Deno.serve(async (req) => {
         // Ours, and off-session. Set by the charge branch and by nothing else.
         if (String(charged?.metadata?.off_session ?? "") !== "true") break;
 
+        /* Read WITHOUT filtering on status, and the difference matters.
+
+           This used to add .eq("status", "pending"), so "already banked" and
+           "no row at all" came back identically as null and both broke with a
+           200. They are not the same thing. The first is a redelivery and must
+           do nothing; the second is a charge whose pending row has not been
+           written yet -- create-payment-link confirms the PaymentIntent and
+           only THEN inserts the row, so this event can genuinely arrive first
+           -- and breaking on it answered 200 to money that was never booked.
+           An empty answer read as good news, again. */
         const { data: owed } = await admin.from("job_payments")
           .select("id, job_sync_id, amount_cents, company_id, status, livemode")
           .eq("external_id", intentId)
           .eq("processor", "stripe")
-          .eq("status", "pending")
           .maybeSingle();
-        // No row is not an error: a retried delivery of this same event finds
-        // the row already paid and must do nothing.
-        if (!owed) break;
+
+        if (!owed) {
+          /* No row yet. The intent carries our ids in its metadata -- the
+             charge branch of create-payment-link sets job_sync_id,
+             company_id and kind alongside the off_session flag this case
+             already checked -- so the payment can be recorded from the event
+             itself rather than waiting for a row that may never come.
+
+             create-payment-link's own insert afterwards hits the unique index
+             on (processor, external_id) and fails, which it already reports
+             to the office as "charged but not recorded". That message is now
+             wrong in the kinder direction: the money IS recorded, here. */
+          const fromMeta = await recordUnexpectedStripePayment(admin, {
+            companyId: String(charged?.metadata?.company_id ?? ""),
+            jobSyncId: String(charged?.metadata?.job_sync_id ?? ""),
+            kind: charged?.metadata?.kind ?? null,
+            currency: String(charged?.currency ?? "usd"),
+            amountCents: Number(charged?.amount_received ?? charged?.amount ?? 0),
+            intentId,
+            livemode: charged?.livemode === true,
+          });
+          if (!fromMeta) break;
+          console.error("OFF-SESSION CHARGE BOOKED FROM METADATA", intentId,
+            "-- no pending row existed when the webhook arrived");
+          await applyPaymentToJob(admin, fromMeta);
+          break;
+        }
+
+        // A redelivery of this same event. Already banked; nothing to do.
+        if (owed.status === "paid") break;
+
+        /* The ledger row, the paid figure, the push and the receipt -- all of
+           it, exactly as a link payment gets, and BEFORE the status flip for
+           exactly the same reason it is first in creditPaymentLink: this
+           branch finds its row with .eq("status", "pending"), so a flip that
+           lands before a booking that throws makes the retry find nothing,
+           break, and answer 200 on money that was never booked. */
+        await applyPaymentToJob(admin, owed);
 
         await mustWrite("bank the off-session charge",
           admin.from("job_payments")
             .update({ status: "paid", paid_at: new Date().toISOString() })
             .eq("id", owed.id));
-
-        // The ledger row, the paid figure, the push and the receipt -- all of
-        // it, exactly as a link payment gets.
-        await applyPaymentToJob(admin, owed);
         break;
       }
 

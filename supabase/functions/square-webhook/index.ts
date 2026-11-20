@@ -374,8 +374,45 @@ Deno.serve(async (req) => {
         });
       }
 
-      // And back again if the seller wins it.
+      /* And back again if the seller wins it -- BUT ONLY WHAT WAS TAKEN AWAY.
+
+         A dispute that goes OPEN -> WON is the good outcome: the money never
+         left, because the OPEN branch above deliberately does not touch
+         amount_paid ("most of these states haven't moved any money yet").
+         Reinstating on WON regardless therefore wrote a credit with no
+         matching debit, and a $5,000 payment disputed and won read as
+         $10,000 collected. The customer is not harmed -- their balance floors
+         at zero -- but his own collected-cash and profit figures were
+         overstated by the full amount of every dispute he won.
+
+         Only OPEN -> LOST/ACCEPTED -> WON has a debit to reverse, and that
+         debit is the refund row recordRefund wrote under
+         `square-refund-dispute-<id>`. Its presence is the condition.
+
+         This is what the Stripe side already does: it reinstates only after
+         it has seen funds_withdrawn. */
+      let disputeDebit: unknown = null;
       if (state === "WON") {
+        const { data: debit, error: debitError } = await admin
+          .from("payment_records")
+          .select("sync_id")
+          .eq("company_id", request.company_id)
+          .eq("sync_id", "square-refund-dispute-" + disputeId)
+          .maybeSingle();
+        /* A FAILED READ IS NOT AN ABSENT DEBIT. Dropping this error would
+           make an outage look exactly like "nothing was ever taken", and the
+           money would be quietly left off the books. Throwing reaches the
+           handler's catch, which answers 500, and Square retries. */
+        if (debitError) {
+          throw new Error("could not check for the dispute debit before reinstating: " +
+            debitError.message);
+        }
+        disputeDebit = debit ?? null;
+        if (!disputeDebit) {
+          console.log("dispute WON with no debit to reverse -- nothing booked", disputeId);
+        }
+      }
+      if (state === "WON" && disputeDebit) {
         await mustWrite("book the reinstated funds",
           admin.from("payment_records").upsert({
             sync_id: "square-dispute-reinstated-" + disputeId,

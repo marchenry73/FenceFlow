@@ -68,6 +68,50 @@ export function minorToMajor(amountMinor: number, currency: string): number {
   return zeroDecimal.includes(String(currency ?? "").toUpperCase()) ? amountMinor : amountMinor / 100;
 }
 
+/**
+ * WHAT A JOB'S PAYMENT STATUS SHOULD BE, DECIDED IN ONE PLACE.
+ *
+ * There were three answers to this question in this codebase and they did not
+ * agree. recordClearedPayment ranked and only ever raised; recordRefund ranked
+ * and only ever lowered; and the Stripe webhook's own applyPaymentToJob wrote
+ * a flat "DEPOSIT_PAID" with no rank at all -- so a $50 Stripe payment on a job
+ * already PAID_IN_FULL stepped it BACKWARDS, and the office and the quote page
+ * then told a settled customer they still owed money.
+ *
+ * That is the shape this project keeps meeting: two routes to one number. One
+ * function, called by all three.
+ *
+ * `direction` is the half that genuinely differs and so stays a parameter
+ * rather than being guessed from the figures:
+ *   "up"   -- money arrived; the status may rise but must never fall, because
+ *             the phone may have promoted the job on a total this server does
+ *             not have.
+ *   "down" -- money left; the status may fall but must never rise, because a
+ *             refund cannot make a job more paid.
+ *
+ * A job with no contract_total -- one this server has never priced -- lands on
+ * DEPOSIT_PAID whenever any net money is held, which is what both callers did
+ * before: the `total > 0` guard is what decides that.
+ */
+export function nextPaymentStatus(args: {
+  netPaid: number;
+  contractTotal: number;
+  current: string;
+  direction: "up" | "down";
+}): string {
+  const RANK: Record<string, number> = { UNPAID: 0, DEPOSIT_PAID: 1, PAID_IN_FULL: 2 };
+  const total = Number(args.contractTotal || 0);
+  const net = Number(args.netPaid || 0);
+  const wanted = net <= 0.005 ? "UNPAID"
+    : (total > 0 && net >= total - 0.005) ? "PAID_IN_FULL"
+    : "DEPOSIT_PAID";
+  const current = String(args.current ?? "UNPAID");
+  const wantedRank = RANK[wanted] ?? 0;
+  const currentRank = RANK[current] ?? 0;
+  if (args.direction === "up") return wantedRank > currentRank ? wanted : current;
+  return wantedRank < currentRank ? wanted : current;
+}
+
 export interface ProcessorRefund {
   companyId: string;
   jobSyncId: string;
@@ -182,14 +226,12 @@ export async function recordClearedPayment(
      contract_total -- never priced on the server -- still lands on
      DEPOSIT_PAID exactly as before, because the `total > 0` guard is what
      decides that, so nothing changes for a job this server has not priced. */
-  const netPaid = paid - Number(job.refunded_amount || 0);
-  const contractTotal = Number(job.contract_total || 0);
-  const RANK: Record<string, number> = { UNPAID: 0, DEPOSIT_PAID: 1, PAID_IN_FULL: 2 };
-  const wanted = netPaid <= 0.005 ? "UNPAID"
-    : (contractTotal > 0 && netPaid >= contractTotal - 0.005) ? "PAID_IN_FULL"
-    : "DEPOSIT_PAID";
-  const currentStatus = String(job.payment_status ?? "UNPAID");
-  const nextStatus = (RANK[wanted] ?? 0) > (RANK[currentStatus] ?? 0) ? wanted : currentStatus;
+  const nextStatus = nextPaymentStatus({
+    netPaid: paid - Number(job.refunded_amount || 0),
+    contractTotal: Number(job.contract_total || 0),
+    current: String(job.payment_status ?? "UNPAID"),
+    direction: "up",
+  });
 
   await mustWrite("mark the job paid",
     admin.from("jobs").update({
@@ -266,13 +308,14 @@ export async function recordRefund(
   }
 
   const net = Number(job.amount_paid || 0) - Number(job.refunded_amount || 0);
-  const total = Number(job.contract_total || 0);
-  const rank: Record<string, number> = { UNPAID: 0, DEPOSIT_PAID: 1, PAID_IN_FULL: 2 };
-  const should = net <= 0.005 ? "UNPAID"
-    : (total > 0 && net >= total - 0.005) ? "PAID_IN_FULL"
-    : "DEPOSIT_PAID";
   const current = String(job.payment_status ?? "UNPAID");
-  if ((rank[should] ?? 0) < (rank[current] ?? 0)) {
+  const should = nextPaymentStatus({
+    netPaid: net,
+    contractTotal: Number(job.contract_total || 0),
+    current,
+    direction: "down",
+  });
+  if (should !== current) {
     // payment_status is on the trigger's quiet list: this does not move the
     // edit clock, so it cannot overwrite an offline edit on a phone.
     await mustWrite("step the job's payment status down after a refund",

@@ -1670,6 +1670,8 @@
     <string name="enum_perm_request_payment_desc">Crear enlaces de pago y enviar facturas.</string>
     <string name="enum_perm_record_refunds">Registrar reembolsos</string>
     <string name="enum_perm_record_refunds_desc">Devolver dinero en un trabajo. Cambia lo que debe el cliente.</string>
+    <string name="enum_perm_record_money">Marcar trabajos como pagados a mano</string>
+    <string name="enum_perm_record_money_desc">Fijar directamente el estado de pago de un trabajo y el importe pagado, sin que haya un pago detrás. Registrar un pago en efectivo o con cheque en la lista de Pagos es distinto y no necesita esto — eso deja constancia de quién cobró el dinero.</string>
     <string name="enum_perm_record_field_work">Registrar trabajo en sitio</string>
     <string name="enum_perm_record_field_work_desc">Listas de verificación, fotos, entrada y salida.</string>
     <string name="enum_perm_see_customer_contact">Ver datos de contacto del cliente</string>

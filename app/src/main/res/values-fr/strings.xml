@@ -1670,6 +1670,8 @@
     <string name="enum_perm_request_payment_desc">Créer des liens de paiement et envoyer des factures.</string>
     <string name="enum_perm_record_refunds">Enregistrer des remboursements</string>
     <string name="enum_perm_record_refunds_desc">Rembourser de l\'argent sur un chantier. Modifie ce que le client doit.</string>
+    <string name="enum_perm_record_money">Marquer des chantiers comme payés à la main</string>
+    <string name="enum_perm_record_money_desc">Définir directement le statut de paiement d’un chantier et le montant payé, sans aucun paiement derrière. Enregistrer un paiement en espèces ou par chèque dans la liste des Paiements est autre chose et ne demande pas ceci — cela laisse une trace de qui a encaissé.</string>
     <string name="enum_perm_record_field_work">Enregistrer le travail sur place</string>
     <string name="enum_perm_record_field_work_desc">Listes de contrôle, photos, pointage d\'entrée et de sortie.</string>
     <string name="enum_perm_see_customer_contact">Voir les coordonnées des clients</string>

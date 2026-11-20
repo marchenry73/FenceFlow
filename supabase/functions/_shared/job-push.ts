@@ -60,8 +60,12 @@ export const ROLE_PERMISSIONS: ReadonlyMap<string, "ALL" | readonly string[]> = 
     "APPROVE_TIME", "APPROVE_PLAN_CHANGES",
   ]],
   ["SALES", ["SEE_MONEY", "EDIT_JOBS", "SEE_CUSTOMER_CONTACT"]],
+  // RECORD_MONEY, added 20 Nov 2026: declaring money received by hand. On the
+  // accountant and deliberately not on the manager -- see
+  // supabase_a4_record_money_is_a_write_permission.sql.
   ["ACCOUNTANT", [
-    "SEE_MONEY", "SEE_PAY", "REQUEST_PAYMENT", "RECORD_REFUNDS", "SEE_CUSTOMER_CONTACT", "SEE_REPORTS",
+    "SEE_MONEY", "SEE_PAY", "REQUEST_PAYMENT", "RECORD_REFUNDS", "RECORD_MONEY",
+    "SEE_CUSTOMER_CONTACT", "SEE_REPORTS",
   ]],
   ["FOREMAN", [
     "SCHEDULE_AND_ASSIGN", "RECORD_FIELD_WORK", "SEE_CUSTOMER_CONTACT",

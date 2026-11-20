@@ -798,12 +798,14 @@ forty minutes would have cost tokens and taught nobody anything.
 
 ## Needs March
 
-0. **The four payment fixes, before the first real card payment.** They are
-   written out above and not applied. Nothing has been lost so far only
-   because no live card has ever gone through — and the campaign that starts
-   Tuesday is for getting customers who will. #2 is the one I would do first:
-   it is a two-line reordering, it is the one that silently loses money that
-   was actually taken, and it needs no decision from him.
+0. **BUILT ON 20 NOV, NOT LIVE: say when to land it.** All four payment fixes
+   and the manager fix are in the repo with tests (see the 20 November section
+   at the end of this file). What is left is one `db query` to apply the SQL,
+   one deploy of three edge functions, and an APK publish — and they have to
+   go together, because the SQL alone leaves a dropdown on a manager's phone
+   that the server silently overrides. Nothing has been lost so far only
+   because no live card has ever gone through, and Tuesday's campaign is for
+   getting customers who will.
 
 1. **The FenceFlow name, before Tuesday.** fenceflow.com is a live FenceFlow
    LLC in fencing; 62 emails carry the name from Tue 24 Nov, 11:30am.
@@ -812,10 +814,152 @@ forty minutes would have cost tokens and taught nobody anything.
    whoever picks Tan.
 3. **Summit Landscapes** (signed up 27 Oct, locked out, never came back). The
    new "Give time" dialog can grant them a month in two taps.
-4. **The four payment findings are all confirmed** (see above) and all
-   unfixed. Anything that changes money behaviour waits for him by his own
-   instruction. #2 is the one to do first: a two-line reordering, no decision
-   required, and it is the one that loses money genuinely taken.
+4. **#6 and #7 are still his decision, not a fix.** Approving a job the
+   server has not priced could refuse the approval or release the anchor when
+   the job is priced; the deposit changing after approval could pin the column
+   or tell the customer it changed. I have not chosen either on his behalf.
+   (#1–#5 and the manager finding were built on 20 Nov — see item 0.)
 5. **B1's last hop**: sign in on a second phone and check the first drops to
    the signed-in-elsewhere screen WITHOUT being reopened. Everything behind
    that hop is verified on production; only FCM-to-a-real-handset is not.
+
+---
+
+# 20 November 2026 — the five fixes, built
+
+March read the above and said: **"fix the manager one and the 4 payment
+ones."** Built, with tests, in the repo. **None of it is live yet** — the SQL
+is not applied, the edge functions are not deployed, and no APK is published.
+
+## What changed, one line each
+
+| # | What it was | What it is now |
+|---|---|---|
+| MANAGER | Anyone with SEE_MONEY — a READ permission — could mark a job paid in full with no money. | A new `RECORD_MONEY` permission, held by OWNER and ACCOUNTANT. Seven "money arrived" columns are reverted for anyone else. |
+| 1 | A Payment Link could be paid twice, and the second payment was swallowed with a 200. | Stripe refuses the second checkout, AND a second payment that does arrive is recorded, booked and pushed. |
+| 2 | "Mark paid" was written BEFORE the booking, so a failed booking made Stripe's retry skip the money. | Booked first, flipped second, and the flip is checked. |
+| 3 | The off-session charge's webhook could arrive before its own pending row and drop the money. | With no row, the charge is booked from the intent's own metadata. |
+| 4 | A Square dispute WON booked a credit with no matching debit — $5,000 won read as $10,000 collected. | It reinstates only when the debit from LOST/ACCEPTED is actually on the books. |
+| 5 | The Stripe path wrote a flat `DEPOSIT_PAID`, stepping settled jobs backwards. | One shared ladder, `nextPaymentStatus`, used by all three callers. |
+
+#3 was not on the list of four. It is the same hole as #2 in a different
+doorway, and leaving it open beside three closed ones made no sense. Say so if
+you would rather it came out.
+
+## The manager fix, and what it does NOT do
+
+`RECORD_MONEY` gates exactly seven columns on `jobs`: `amount_paid`,
+`payment_status`, `refunded_amount`, `refunded_at`, `refund_reason`,
+`tip_amount`, `payments_from_processor`.
+
+**Your managers keep everything else.** Pricing a job — `contract_total`, the
+rates, markup, tax, discount, the deposit — is untouched. So is asking a
+customer for money.
+
+**A manager can still record a cash or check payment** in the Payments list,
+and the figure still moves, because the ledger trigger recomputes it from the
+ledger. That is deliberate: a ledger row says who took the money and when.
+What is refused is declaring a job paid with *nothing behind it*.
+
+**You are not affected.** All eight of your own logins are OWNER.
+
+**If you want a particular manager to have it**, it is one line —
+`+RECORD_MONEY` in their permission overrides, from the Team access screen.
+The probe below proves that escape hatch works.
+
+### Proved against production, and rolled back
+
+The fix's function bodies were created inside a transaction, the probe ran
+against them, and the transaction was rolled back. DDL is transactional, so
+production is as it was. Checked afterwards: `has_permission` does not mention
+RECORD_MONEY, `record_money_trusted` does not exist, no profile carries the
+override.
+
+| step | measured | verdict |
+|---|---|---|
+| MANAGER holds SEE_MONEY | true | unchanged — they must still see money |
+| MANAGER holds RECORD_MONEY | false | correct |
+| `update amount_paid +12345, status PAID_IN_FULL` | `0 -> 0`, `DEPOSIT_PAID -> DEPOSIT_PAID` | **HELD** |
+| CONTROL: manager writes a PRICE column | `4200 -> 4207` | accepted — pricing still works |
+| CONTROL: manager writes an ordinary column | changed | accepted — the connection really works |
+| CONTROL: same manager, ANOTHER company's job | 0 rows | refused — so this ran under RLS |
+| CONTROL: the OWNER writes `amount_paid` | `0 -> 99` | accepted — you are not locked out |
+| CONTROL: manager with `+RECORD_MONEY` | `99 -> 104` | accepted — the escape hatch works |
+
+Five controls, because a refusal only means something if something comparable
+is accepted in the same breath. The cross-company refusal is the one that
+proves the probe ran under row-level security rather than around it.
+
+Re-run it with `supabase_a4_record_money_probe.sql`.
+
+## THE ORDER THIS HAS TO LAND IN, and why it is not optional
+
+There are THREE copies of the role table in this project — the SQL, the
+Android app, and `supabase/functions/_shared/job-push.ts` — and I only knew
+about two of them. The third turned up because `tests/notify-job-change.test.mjs`
+went red: it reads whichever SQL file last defines `has_permission` in
+apply-order, which was now mine, and compared it to `job-push.ts`. Updating
+that third copy is part of this change.
+
+(It also checks the table against the LIVE function, and that half stayed
+green — because it only tests permissions that appear in a live policy, and
+`RECORD_MONEY` appears in none yet. So the suite does not currently notice
+that the SQL is unapplied. Worth knowing: it is not a second pair of eyes on
+whether this has landed.)
+
+The app's half of the manager fix — hiding the payment-status dropdown
+from someone without `RECORD_MONEY` — only reaches a phone when an APK is
+published. **If the SQL is applied and no APK follows, a manager's phone still
+shows the dropdown and the server quietly puts their choice back**: a control
+that does nothing, which this project has been bitten by before.
+
+So the order is: apply the SQL, deploy the two webhooks and
+create-payment-link, publish an APK. All three, or none.
+
+## Tests
+
+Four new files, 38 checks, every one green, each defect with a canary watched
+failing.
+
+- `tests/a177-stripe-payment-holes.test.mjs` — 17 checks. Drives the REAL
+  stripe-webhook file: TypeScript stripped with Node's own stripper, a fake
+  Supabase client, the REAL shared record-payment module, and real signed HTTP
+  requests through the real door. Four canaries plant the old code back — the
+  old flip-first order loses the money on the retry, the old guard swallows
+  the second payment, the old fallback-less branch drops the raced charge, the
+  old flat write walks a settled job backwards.
+- `tests/a178-square-dispute-won-needs-a-debit.test.mjs` — 7 checks. OPEN→WON
+  books nothing; OPEN→LOST→WON nets to zero; a redelivered WON credits once; a
+  failed lookup is NOT an absent debit (500, so Square retries); the dispute is
+  still recorded on the job even when nothing is booked. Canary: the guard
+  removed books $10,000 against $5,000 collected.
+- `tests/a179-payment-link-is-single-use.test.mjs` — 5 checks. The restriction
+  is really on the request Stripe receives; a charge the webhook booked first
+  is not reported to the office as unrecorded; a REAL insert failure still is.
+- `tests/a180-record-money-permission.test.mjs` — 9 checks. The app's role
+  table and the server's are parsed and compared; RECORD_MONEY is on
+  ACCOUNTANT and no other non-owner role; no permission name contains another
+  (overrides are matched by substring, and SEE_MONEY / RECORD_MONEY is the
+  near miss); every received-money column is also on `job_money_columns()`;
+  the deposit field is NOT behind the new gate.
+
+Two canaries paid for themselves. a180's first Kotlin parser used a lazy regex
+and silently skipped `UserRole.CREW`, whose set fits on one line — a parse
+that dropped a role and still looked like it had read the table. And
+`recordUnexpectedStripePayment` started as an upsert: Postgres will not infer
+a PARTIAL unique index from a bare `ON CONFLICT` column list, so it would have
+thrown every time it was reached.
+
+## What I did NOT do, and why
+
+**`amount_paid` is already derived.** `recompute_job_totals` rebuilds it from
+`payment_records` on every ledger change. A direct write to it is therefore a
+second route to a number that already has an owner — the same pattern behind
+half this audit's findings. The clean end state is to make those columns
+derived-only, writable by nothing but the recompute. I did not do it: it
+reaches the app's sync path, and the week of a campaign is the wrong week.
+Worth doing after.
+
+**#6 and #7 are still decisions, not fixes** — approving a job the server has
+not priced, and the deposit changing after approval. Both need you to choose,
+and I have not chosen on your behalf.

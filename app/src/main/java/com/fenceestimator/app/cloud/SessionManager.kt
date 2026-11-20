@@ -354,6 +354,18 @@ data class SessionState(
     /** Asking a customer for money. */
     val canRequestPayment: Boolean get() = can(Permission.REQUEST_PAYMENT)
 
+    /**
+     * Declaring money received by hand -- the payment status dropdown and the
+     * paid figure on a job.
+     *
+     * Separate from [canRequestPayment] on purpose: recording a cash or check
+     * payment in the Payments list leaves a row saying who took the money and
+     * when, and a manager may still do that. This one is the figure with
+     * nothing behind it, and the server refuses it the same way
+     * (record_money_trusted()).
+     */
+    val canRecordMoney: Boolean get() = can(Permission.RECORD_MONEY)
+
     /** Marking progress, ticking checklists, adding photos on site. */
     val canRecordFieldWork: Boolean get() = can(Permission.RECORD_FIELD_WORK)
 
