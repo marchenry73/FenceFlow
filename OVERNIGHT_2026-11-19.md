@@ -1456,3 +1456,86 @@ The cause itself. The instrumentation says which of the three it is the next
 time it happens — on **your** second phone, signing in, with the job list
 empty. One occurrence answers it. Until then the item stays open, because a
 reason I have not seen is not a reason I have.
+
+## E2, G1, G2 — answered 21 Nov: "create, c, defer"
+
+### E2 — a test company you can make, and cannot make by accident
+
+**Built and live.** The admin portal's New-company dialog now has a second,
+folded-away door: *Or make a test company*. It takes a name and, optionally,
+a live company to copy the price list and settings from, and it hands back the
+same setup code the real door does — the setup code **is** the "test product
+key" the item asked for, so there is no second mechanism to keep in step.
+
+**Why a separate button and not a tick on the live form.** r64's own comment
+is the rule: *"a checkbox here would be a way to make a test company start
+mailing real people by misclick."* The mirror of that mistake is just as bad —
+ticking it on a REAL new company hands a paying contractor a company that can
+never hold a mailbox or a card processor, with no screen anywhere to undo it.
+
+**The name is stamped by the server, not the page.** Whatever is typed, the
+company is called `ZZ TEST — <name>`, the convention the existing sandbox
+already follows, so it is recognisable in every list, export and email rather
+than only where the badge is drawn. The function refuses to finish — taking
+the whole creation down — unless the row ends up both stamped and flagged.
+
+### The one the probe caught before it shipped
+
+The first rolled-back run against production produced a sandbox called
+**"Legacy Solutions"**, wearing that company's phone, licence number and
+email.
+
+`company_settings` carries the company's identity in its blob
+(`business_name`, `phone`, `license_number`, `email`) and
+`company_settings_mirror_identity` pushes all four into `companies.*` on every
+write. r64's `sandbox_refresh_from` copied the whole blob. **A sandbox
+indistinguishable from the real business in every list is the precise thing
+r64 exists to prevent, and the copy that did it was r64's own.**
+
+It had never happened only because that function is granted to `service_role`
+and nothing called it; this feature would have been the first caller. Fixed
+where the copy happens rather than in the new caller, so the next caller
+inherits it: the four identity keys are stripped on the way in. The rates,
+margins, tax and defaults — the 26 keys it is copied *for* — come across
+untouched.
+
+**19 checks, all green**, against production inside a transaction that was
+rolled back: refused for an anonymous caller and for a signed-in non-admin;
+created, stamped and sandboxed for the admin; 128 catalog rows and the
+settings copied; no identity keys in the copied blob; still unable to hold a
+mailbox or a card processor (checked by the guard's own message, not merely
+that something threw); a sandbox source refused; a source that does not exist
+refused before anything is made; and a bare create still getting the 92-row
+starter catalog the seed trigger gives every new company.
+
+One honest stub, named rather than hidden: `admin_second_factor_ok()` was
+replaced with `true` for the length of the transaction, because a fresh second
+factor is something a person does at a keyboard. Everything else was the
+shipped path, including the real identity and email checks in
+`is_platform_admin()`.
+
+`tests/a187` — 13 cases, including the source list **run** against a fake
+company list rather than grepped, and a planted edit that leaves one identity
+key in.
+
+**Noticed while verifying:** three other companies are *named* `ZZ TEST` but
+are not flagged as sandboxes. All three are inert — no mailbox, no card
+processor, no people, and two jobs between them — so nothing is at risk. They
+could be flipped by hand; flipping from a screen is the half you said not to
+build.
+
+### G1 — drawing versions: closed, it was already done
+
+You picked **(c)**. The approval-break restore is real, is backed by
+`quote_reapprovals` (11 rows, carrying `run_snapshot_before` and
+`run_snapshot_after`), and has 50 checks on it. The item's premise — "the
+database half is applied" — was wrong: there is no versions, snapshots,
+revisions or history table in production, and the undo stack is a per-job JSON
+file on the handset that deliberately never syncs. Nothing to finish.
+
+### G2 — different settings per company: deferred
+
+Settings already are per company — `company_settings` holds one row per
+company, and only 2 of 13 have one; the rest run on defaults. What you set
+aside was *custom features per company*, which is a different thing and stays
+in H with the rest of "later".

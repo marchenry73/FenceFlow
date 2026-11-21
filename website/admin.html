@@ -754,6 +754,27 @@
     Leave the email blank to create the company without inviting anyone — you
     can send the invitation later.
   </p>
+  <!-- THE TEST DOOR, and deliberately not a checkbox on the form above.
+       r64's rule is "a checkbox here would be a way to make a test company
+       start mailing real people by misclick"; its mirror is just as bad --
+       ticking it by mistake on a REAL new company gives a paying contractor
+       one that can never hold a mailbox or a card processor, with no screen
+       anywhere to undo it. Folded away, separately labelled, separate
+       button. The server stamps the name whatever is typed. -->
+  <details id="newTestWrap" style="margin-top:14px;border-top:1px solid var(--line);padding-top:12px">
+    <summary style="cursor:pointer;color:var(--muted);font-size:13px" data-t="newTestSummary">Or make a test company</summary>
+    <p style="color:var(--muted);font-size:12.5px;margin:8px 0" data-t="newTestHint">
+      A sandbox. It can never hold a mailbox or a card processor, so it cannot
+      email a customer or take a payment, and its name is stamped so it cannot
+      be mistaken for the real business. Nobody is invited; you join it with
+      the code.
+    </p>
+    <label data-t="newTestSourceLabel">Copy the price list and settings from</label>
+    <select id="newTestSource"></select>
+    <div style="margin-top:10px;text-align:right">
+      <button id="newTestCreate" type="button" data-t="newTestCreateBtn">Create a test company</button>
+    </div>
+  </details>
   <div class="msg" id="newMsg" style="min-height:1.2em;margin-top:8px"></div>
   <div style="margin-top:12px;text-align:right;display:flex;gap:8px;justify-content:flex-end">
     <button id="newCancel" type="button" data-t="cancelBtn">Cancel</button>
@@ -1214,6 +1235,12 @@ const TL = {
     inviteMailRefused:'The mail server refused it (%s).', inviteCouldNotSend:'Could not send it.',
     inviteCouldNotReach:'Could not reach the mail server: %s',
     newMsgGiveName:'Give the company a name.',
+    newTestSummary:'Or make a test company',
+    newTestHint:'A sandbox. It can never hold a mailbox or a card processor, so it cannot email a customer or take a payment, and its name is stamped so it cannot be mistaken for the real business. Nobody is invited; you join it with the code.',
+    newTestSourceLabel:'Copy the price list and settings from',
+    newTestSourceNone:'\u2014 nothing, start it empty \u2014',
+    newTestCreateBtn:'Create a test company',
+    newTestNoCode:'The test company was created, but no code came back. Find it in the list and send a setup code from there.',
     newMsgCreatingInviting:'Creating and sending the invitation…', newMsgCreating:'Creating…',
     newMsgCreatedNotSent:'Company created, but the invitation did not send: %s',
 
@@ -1543,6 +1570,12 @@ const TL = {
     inviteMailRefused:'El servidor de correo la rechazó (%s).', inviteCouldNotSend:'No se pudo enviar.',
     inviteCouldNotReach:'No se pudo comunicar con el servidor de correo: %s',
     newMsgGiveName:'Póngale un nombre a la empresa.',
+    newTestSummary:'O crear una empresa de prueba',
+    newTestHint:'Un entorno de prueba. Nunca puede tener buzón ni procesador de tarjetas, así que no puede enviar correo a un cliente ni cobrar, y su nombre lleva un sello para que no se confunda con la empresa real. No se invita a nadie; usted entra con el código.',
+    newTestSourceLabel:'Copiar la lista de precios y la configuración de',
+    newTestSourceNone:'\u2014 nada, empezar vacía \u2014',
+    newTestCreateBtn:'Crear una empresa de prueba',
+    newTestNoCode:'La empresa de prueba se creó, pero no llegó ningún código. Búsquela en la lista y envíe un código desde ahí.',
     newMsgCreatingInviting:'Creando y enviando la invitación…', newMsgCreating:'Creando…',
     newMsgCreatedNotSent:'La empresa se creó, pero la invitación no se envió: %s',
 
@@ -1872,6 +1905,12 @@ const TL = {
     inviteMailRefused:'Le serveur de courriel l\'a refusée (%s).', inviteCouldNotSend:'Impossible de l\'envoyer.',
     inviteCouldNotReach:'Impossible de joindre le serveur de courriel : %s',
     newMsgGiveName:'Donnez un nom à l\'entreprise.',
+    newTestSummary:'Ou créer une entreprise de test',
+    newTestHint:'Un bac à sable. Il ne peut jamais avoir de boîte mail ni de processeur de carte, donc il ne peut ni écrire à un client ni encaisser, et son nom porte une marque pour qu’on ne le confonde pas avec la vraie entreprise. Personne n’est invité ; vous le rejoignez avec le code.',
+    newTestSourceLabel:'Copier la liste de prix et les réglages depuis',
+    newTestSourceNone:'\u2014 rien, la commencer vide \u2014',
+    newTestCreateBtn:'Créer une entreprise de test',
+    newTestNoCode:'L’entreprise de test a été créée, mais aucun code n’est revenu. Trouvez-la dans la liste et envoyez-lui un code depuis là.',
     newMsgCreatingInviting:'Création et envoi de l\'invitation…', newMsgCreating:'Création…',
     newMsgCreatedNotSent:'Entreprise créée, mais l\'invitation n\'a pas été envoyée : %s',
 
@@ -3893,8 +3932,56 @@ function createCompany() {
   $('newName').value = '';
   $('newEmail').value = '';
   $('newMsg').textContent = '';
+  fillTestSourceOptions();
+  $('newTestWrap').open = false;
   $('newDialog').showModal();
   $('newName').focus();
+}
+
+/* Only LIVE companies may be copied from: sandbox_refresh_from refuses a
+   sandbox source, and offering one would be a control that can only fail.
+   Rebuilt on every open rather than once at load, so a company created or
+   flagged since is in the list. */
+function fillTestSourceOptions() {
+  const sel = $('newTestSource');
+  if (!sel) return;
+  const live = (clients || []).filter(c => !c.is_sandbox && c.name);
+  sel.innerHTML = '<option value="">' + esc(tr('newTestSourceNone')) + '</option>' +
+    live.map(c => '<option value="' + esc(c.id) + '">' + esc(c.name) + '</option>').join('');
+}
+
+/* The test door. Separate from submitNewCompany() all the way down: it sends
+   no invitation (a sandbox has no business reaching a real inbox), and the
+   name it types is only half the name -- the server stamps "ZZ TEST —" and
+   refuses to finish if the row does not end up both stamped and flagged. */
+async function submitNewTestCompany() {
+  const name = $('newName').value.trim();
+  if (!name) { $('newMsg').textContent = tr('newMsgGiveName'); return; }
+  if (!(await secondFactorFresh())) return;
+
+  const source = $('newTestSource').value || null;
+  $('newTestCreate').disabled = true;
+  $('newMsg').textContent = tr('newMsgCreating');
+
+  const { data, error } = await db.rpc('admin_create_test_company', {
+    company_name: name, copy_catalog_from: source
+  });
+  $('newTestCreate').disabled = false;
+  if (error) { $('newMsg').textContent = error.message; return; }
+
+  const row = Array.isArray(data) ? data[0] : data;
+  const code = row && row.setup_code;
+  await loadAll();
+  if (!code) { $('newMsg').textContent = tr('newTestNoCode'); return; }
+
+  // The same code dialog the live door uses -- the setup code IS the "test
+  // product key" this item asked for, and there is no second mechanism to
+  // keep in step.
+  $('newDialog').close();
+  $('setupCode').textContent = code;
+  $('setupDialogBody').innerHTML = tr('setupDialogBody', '<b>' + esc('ZZ TEST — ' + name) + '</b>');
+  $('setupDialogFootnote').innerHTML = tr('setupDialogFootnote', '<b>' + esc(tr('startTrialBtn')) + '</b>');
+  $('setupDialog').showModal();
 }
 
 async function submitNewCompany() {
@@ -5136,6 +5223,7 @@ $('refresh').addEventListener('click', loadAll);
 $('addCompany').addEventListener('click', createCompany);
 $('newCancel').addEventListener('click', () => $('newDialog').close());
 $('newCreate').addEventListener('click', submitNewCompany);
+$('newTestCreate').addEventListener('click', submitNewTestCompany);
 $('newEmail').addEventListener('keydown', e => { if (e.key === 'Enter') submitNewCompany(); });
 $('newName').addEventListener('keydown', e => { if (e.key === 'Enter') $('newEmail').focus(); });
 $('setupDone').addEventListener('click', () => $('setupDialog').close());

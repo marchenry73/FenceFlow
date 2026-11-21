@@ -55,6 +55,11 @@ const read = (f) => readFileSync(join(ROOT, f), "utf8");
 /** Every gap this audit found, dated 2026-09-29. Struck only when the gap is genuinely closed. */
 export const KNOWN_GAPS = {
   G1: "the admin portal counts fixture companies (Companies +4, On trial +2, MRR +$349, the table and the CSV), and its Jobs column counts a company's own flagged jobs",
+  // Still true as written: companies.is_sandbox (r42/r64) is a CAPABILITY
+  // flag -- it takes a company's mailbox and card processor away -- not a
+  // "leave this out of the figures" flag, and nothing in the tiles, the
+  // reports or the exports reads it. G1 is the gap; this is the reason it
+  // cannot be closed by a column that already exists.
   G2: "there is no company-level flag: jobs.is_test_fixture is the only fixture column in the schema",
   G3: "ar_aging() and job_costing() return flagged jobs; only their callers fence them (business_report() and the dashboard do; nothing forces a new caller to)",
   G4: "a tenant can write jobs.is_test_fixture on its own jobs, and can rename its company to or from a fixture name",
@@ -66,7 +71,14 @@ export const KNOWN_GAPS = {
 
 /** Which code reads which marker. "none" means the file never mentions any marker, comments included. */
 export const CONSUMERS = [
-  { id: "admin portal (tiles, table, CSV)", file: "website/admin.html", marker: "none" },
+  // "creates", not "none" and not "name", since 21 Nov 2026. The portal still
+  // applies NO fixture test to its tiles, table or CSV -- G1 stands untouched
+  // -- but it is now the one place that MAKES a fixture: admin_create_test_company
+  // stamps "ZZ TEST — <name>" and the page shows that stamped name back in the
+  // setup-code dialog. Borrowing "name" would say it FILTERS by the name, which
+  // is what send-welcome-email does and this does not.
+  { id: "admin portal (tiles, table, CSV)", file: "website/admin.html", marker: "creates",
+    shape: /'ZZ TEST — ' \+ name/ },
   { id: "office dashboard (job list)", file: "website/dashboard.html", marker: "flag", shape: /jobs\s*=\s*visibleJobs\(\s*allJobsLoaded/ },
   { id: "office dashboard (money rows)", file: "website/dashboard.html", marker: "flag", shape: /function\s+onlyVisibleRows\(/ },
   { id: "send-follow-ups (automatic email to customers)", file: "supabase/functions/send-follow-ups/index.ts", marker: "flag", shape: /\.eq\(\s*"is_test_fixture"\s*,\s*false\s*\)/ },

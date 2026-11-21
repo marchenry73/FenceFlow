@@ -312,8 +312,24 @@ live with a positive control: NOTHING else in the repo root has been applied. Ei
 - [x] **E1. BUILT 28-09, and the feature was already live.** The table, all four functions and the office panel were applied on 24-09; a stale comment in the file said otherwise and fooled a survey. It is called a product key now, in his words, with a pointer to it from the dashboard. The switch that enforces it is still deliberately absent from the UI. Original wording:
 - [ ] ~~E1. The per-device product key is not visible to customers~~ — they
       cannot use it, in the app or on the website.
-- [ ] **E2. NEEDS YOUR DECISION — it conflicts with a safety rule already in
-      place (checked 07-11).** The sandbox/real split exists: `companies
+- [x] **E2. BUILT AND LIVE 21-11 — you said "create".** The admin portal's
+      New-company dialog has a second, folded-away door: *Or make a test
+      company*, with an optional live company to copy the price list and
+      settings from. The setup code it returns IS the test product key. The
+      server stamps the name `ZZ TEST — <name>` whatever is typed and refuses
+      to finish unless the row ends up stamped AND flagged. Separate button,
+      never a tick on the live form: ticking that by mistake would hand a
+      paying contractor a company that can never hold a mailbox or a card
+      processor. CAUGHT BY THE PROBE BEFORE IT SHIPPED: r64's own
+      `sandbox_refresh_from` copied `company_settings`, whose blob carries
+      business_name/phone/license_number/email, and the identity mirror
+      pushed all four into `companies.*` — the first sandbox it made was
+      called "Legacy Solutions". Fixed at the copy, so every future caller
+      inherits it. 19 live rolled-back checks, `tests/a187` (13).
+      FLIPPING an existing company is still deliberately not buildable from a
+      screen. Original wording of the decision:
+- [ ] ~~E2. NEEDS YOUR DECISION~~ — it conflicts with a safety rule already in
+      place (checked 07-11). The sandbox/real split exists: `companies
       .is_sandbox` is live, `refuse_sandbox_real_world()` keys off it, and the
       admin portal shows it as a badge. What it will not do is let you *set*
       it, and that is deliberate — the code says why: *"a checkbox here would
@@ -375,8 +391,13 @@ live with a positive control: NOTHING else in the repo root has been applied. Ei
 
 ## G. Queued from before
 
-- [ ] **G1. Drawing versions — THIS ITEM'S PREMISE DOES NOT MATCH THE CODE
-      (checked 07-11).** It says "the database half is applied". There is **no
+- [x] **G1. CLOSED 21-11 — you picked (c): it was already done.** The
+      approval-break restore is real, backed by `quote_reapprovals` (11 rows,
+      carrying run_snapshot_before/after) and covered by 50 checks. There is
+      no version store to finish, and the undo stack is a handset JSON file
+      that never syncs, by design. Original wording:
+- [ ] ~~G1. Drawing versions~~ — THIS ITEM'S PREMISE DOES NOT MATCH THE CODE
+      (checked 07-11). It says "the database half is applied". There is **no
       versions, snapshots, revisions or history table in production** — the
       live schema has none. What exists is two different things, and neither
       is what the sentence describes:
@@ -392,7 +413,12 @@ live with a positive control: NOTHING else in the repo root has been applied. Ei
       If it is *versions a second phone can see*, that is a new feature and a
       real build, not a finish. Original wording: the database half is applied
       and the restore screens shipped in 1.532; finish whatever remains.
-- [ ] **G2. Different settings per company.** He explicitly said to leave
+- [x] **G2. DEFERRED 21-11 at your word.** Settings already ARE per company:
+      `company_settings` holds one row each, and only 2 of 13 companies have
+      one — the rest run on defaults. What you set aside was *custom features
+      per company*, which is H's business, not this item's. Moved there; not
+      to be re-read each pass. Original wording:
+- [ ] ~~G2. Different settings per company.~~ He explicitly said to leave
       **custom features** aside for now, to be built later.
 
 ## H. Later, on his instruction
