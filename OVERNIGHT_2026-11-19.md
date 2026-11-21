@@ -1387,3 +1387,72 @@ and both files restored byte-identical.
 
 Android unit tests: **1668, 0 failures**, results checked by their own
 timestamps rather than by the word SUCCESSFUL.
+
+## B2 — why a second phone sits on an empty list
+
+The item said to reproduce before changing anything. The mechanism turned out
+to be readable without a second phone, and it is already written down in this
+codebase in three places that nobody had joined up.
+
+**`can_see_pay()` refuses to guess.** It raises, rather than answering false,
+in two cases — `auth.uid()` is null (the phone's token had not attached yet)
+and there is no `profiles` row for that id (an account still being linked to
+its company). That is right: neither is a person without SEE_MONEY.
+
+**The app folds every throw into one `UNKNOWN`** — also right, and deliberate:
+an unanswerable question must never collapse into a "no", or a dead spot
+scrubs every cached rate, which is how a real hourly rate on this database
+once went from 25 to 0.
+
+**But a pass whose money scope is UNKNOWN does no job work at all.** Not the
+jobs, not the catalog, not the line items. It retries at 4s, 8s and 12s and
+then falls back to a heartbeat: 60s with the app on screen, **fifteen minutes
+in a pocket**. AutoSync's own comment already names the symptom: *"the
+commonest moment to be unable to ask is the first sync after signing in on a
+new phone: exactly when somebody is looking at an empty job list, deciding
+whether this app works."*
+
+So B2's two halves are one mechanism.
+
+**The second half is already fixed.** "Keeps saying it has not reached the
+cloud" was the old catch-all sentence. The card now reads *"Jobs and prices
+were left alone this time — this phone is still confirming what your account
+is allowed to see, and it will not guess. Checking again in a moment."* I also
+checked the reader that could have done harm: the sign-out warning counts real
+unsynced rows from the database, not this flag, so it was never falsely
+telling anyone that signing out would destroy work.
+
+### What was missing: the reason
+
+`can_see_pay()` distinguishes its three causes and says which in the message.
+`foldPayAnswer` dropped the throwable. So the one fact that answers "why is my
+second phone empty" was the one fact nobody kept — the same shape as this
+morning's finding, turned around: a reason nobody wrote down rather than a
+flag nobody read.
+
+`askScopeWith` now hands the throwable to the caller and `AutoSync` files it
+through `CrashReporter`, which already drops cancellations and lost
+connections and writes once per run — so a dead spot stays quiet and *"money
+scope unknown: no profile row for &lt;uid&gt;"* lands on the admin page once.
+The throwable goes over **whole**, never reworded; the server's three
+sentences are the only thing telling the three causes apart.
+
+Four cases in `SyncScopeTest` drive it with a fake answer instead of a network
+call: a real answer reports nothing, a failure is UNKNOWN and hands the
+throwable itself over exactly once, a cancellation is handed over too (filing
+is CrashReporter's decision, and a second filter here is a second place for
+that rule to drift), and the default reporter leaves every other caller
+unchanged. `tests/a186` pins that AutoSync actually passes a reporter rather
+than taking that default — a default of `{}` makes "nobody kept the reason"
+compile, pass, and look exactly like keeping it.
+
+Watched to fail: the reporter call stripped turns 2 of the 4 red, and the file
+was restored byte-identical. Android unit tests **1672, 0 failures**; website
+suite **305/305**.
+
+### What is still open on B2
+
+The cause itself. The instrumentation says which of the three it is the next
+time it happens — on **your** second phone, signing in, with the job list
+empty. One occurrence answers it. Until then the item stays open, because a
+reason I have not seen is not a reason I have.

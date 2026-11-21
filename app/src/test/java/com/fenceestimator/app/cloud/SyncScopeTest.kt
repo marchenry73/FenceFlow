@@ -97,4 +97,64 @@ class SyncScopeTest {
             foldPayAnswer(Result.failure(RuntimeException("no signal")))
         )
     }
+
+    // ---------------------------------------------------------------------
+    // B2: the REASON the money scope could not be asked.
+    //
+    // can_see_pay() tells three causes apart and says which in its message --
+    // no authenticated identity, no profile row for this uid, or the request
+    // never arriving. All three fold to UNKNOWN, which is right; dropping
+    // WHICH is what left "my second phone sits on an empty list" unanswerable
+    // for two months, because an UNKNOWN pass does no job work at all.
+
+    @Test
+    fun `a real answer is handed back and nothing is reported`() {
+        val reported = mutableListOf<Throwable>()
+        for ((answer, expected) in listOf(true to MoneyScope.ALLOWED, false to MoneyScope.DENIED)) {
+            val scope = kotlinx.coroutines.runBlocking {
+                askScopeWith(onCouldNotAsk = { reported += it }, ask = { answer })
+            }
+            assertEquals(expected, scope)
+        }
+        assertEquals("a question that was answered has no reason to report", emptyList<Throwable>(), reported)
+    }
+
+    @Test
+    fun `a failure is UNKNOWN and the throwable itself is handed over, once`() {
+        val boom = RuntimeException("money scope unknown: no profile row for abc")
+        val reported = mutableListOf<Throwable>()
+        val scope = kotlinx.coroutines.runBlocking {
+            askScopeWith(onCouldNotAsk = { reported += it }, ask = { throw boom })
+        }
+        assertEquals(MoneyScope.UNKNOWN, scope)
+        assertEquals(1, reported.size)
+        // The throwable ITSELF, not a sentence built from it: the server's
+        // three messages are the only thing that tells the three causes apart,
+        // and rewriting them by hand is how 42 real messages were once lost.
+        assertTrue("the reason must reach the reporter unchanged", reported.single() === boom)
+    }
+
+    @Test
+    fun `a cancellation is handed over too -- deciding what is worth filing is not this function's job`() {
+        // CrashReporter.isWorthReporting already drops cancellations and lost
+        // connections. A second filter here would be a second place for that
+        // rule to drift, and the one that silently stops reporting.
+        val reported = mutableListOf<Throwable>()
+        kotlinx.coroutines.runBlocking {
+            askScopeWith(
+                onCouldNotAsk = { reported += it },
+                ask = { throw kotlinx.coroutines.CancellationException("left the screen") },
+            )
+        }
+        assertEquals(1, reported.size)
+        assertTrue(CrashReporter.isWorthReporting(reported.single()).not())
+    }
+
+    @Test
+    fun `the default reporter does nothing, so a caller that only wants the answer is unchanged`() {
+        val scope = kotlinx.coroutines.runBlocking {
+            askScopeWith(onCouldNotAsk = {}, ask = { throw RuntimeException("x") })
+        }
+        assertEquals(MoneyScope.UNKNOWN, scope)
+    }
 }

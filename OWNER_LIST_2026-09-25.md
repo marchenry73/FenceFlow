@@ -164,7 +164,21 @@ live with a positive control: NOTHING else in the repo root has been applied. Ei
       phone. Sign in on a second phone and watch whether the first one drops to
       the signed-in-elsewhere screen WITHOUT being reopened. That is the only
       part of this chain nobody can prove from a keyboard.
-- [ ] **B2. Signing in on another phone does not sync immediately** and keeps
+- [ ] **B2. MECHANISM FOUND 21-11 without a second phone; the CAUSE still
+      needs one occurrence.** `can_see_pay()` raises rather than guessing when
+      the token has not attached or no `profiles` row exists for the id; the
+      app folds every throw to `UNKNOWN`; and **an UNKNOWN pass does no job
+      work at all** — retrying at 4s/8s/12s, then 60s on screen and fifteen
+      minutes in a pocket. That is "does not sync immediately". The second
+      half is already fixed: the card now says it is confirming what the
+      account may see, not that work is stranded, and the sign-out warning
+      counts real rows rather than this flag. WHAT WAS MISSING: the reason.
+      `can_see_pay()` names which of the three it is and `foldPayAnswer` threw
+      it away. `askScopeWith` now hands the throwable over and AutoSync files
+      it once per run (`tests/a186`, four cases in `SyncScopeTest`). Shipped
+      in 1.920. **Next time your second phone signs in to an empty list, the
+      reason lands on the admin page** — that closes it. Original wording:
+- [ ] ~~B2. Signing in on another phone does not sync immediately~~ and keeps
       saying it has not reached the cloud. Real bug, reported twice. Reproduce
       before changing anything — see the "empty answer reads as good news"
       memory: an unauthenticated read returns `[]`, not an error.

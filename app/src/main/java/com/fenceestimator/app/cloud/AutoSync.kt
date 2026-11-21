@@ -750,7 +750,12 @@ class AutoSync(
             // on its own, which is what let one table's transient failure
             // read as "not allowed" while another read the real rows in the
             // same pass.
-            val scope = askMoneyScope()
+            // The reporter is the whole point of asking this way: an UNKNOWN
+            // pass moves no jobs, and until now the reason was dropped on the
+            // floor. can_see_pay() names which of the three it is, and
+            // CrashReporter files it once per run (it drops cancellations and
+            // lost connections itself, so a dead spot stays quiet).
+            val scope = askMoneyScope { why -> CrashReporter.report(context, "money-scope", why) }
             // Remembered for after the lock, which is where a retry can start.
             //
             // An unanswered question here is not a small thing. The job sync

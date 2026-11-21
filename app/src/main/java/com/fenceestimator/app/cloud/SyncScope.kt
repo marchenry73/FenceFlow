@@ -32,14 +32,56 @@ enum class MoneyScope { ALLOWED, DENIED, UNKNOWN }
  *
  * `can_see_pay()` (supabase_can_see_pay_patch.sql) answers with exactly
  * `coalesce(has_permission('SEE_MONEY'), false)` -- a real true or false for
- * anyone signed in, and a thrown error only when the request itself could not
- * be made (no signal, no session, the RPC missing on an old database). Only
- * the second case is folded into [MoneyScope.UNKNOWN]; the two real answers
- * are trusted as given.
+ * anyone signed in with a profile row, and a thrown error when the request
+ * could not be made, when no identity is attached, or when this database holds
+ * no profile for that id. Every throw is folded into [MoneyScope.UNKNOWN]; the
+ * two real answers are trusted as given.
+ *
+ * [onCouldNotAsk] is handed the throwable when there is one, so the REASON
+ * survives the fold -- see [askScopeWith]. It defaults to doing nothing, which
+ * is right for a caller that only wants the answer; AutoSync passes a reporter
+ * because the first sync after signing in on a new phone is the one that most
+ * often cannot ask, and it was the one nobody could explain.
  */
-suspend fun askMoneyScope(): MoneyScope = foldPayAnswer(runCatching {
-    SupabaseModule.client.postgrest.rpc("can_see_pay").decodeAs<Boolean>()
-})
+suspend fun askMoneyScope(onCouldNotAsk: (Throwable) -> Unit = {}): MoneyScope =
+    askScopeWith(onCouldNotAsk) {
+        SupabaseModule.client.postgrest.rpc("can_see_pay").decodeAs<Boolean>()
+    }
+
+/**
+ * The ask, with the REASON kept.
+ *
+ * `can_see_pay()` tells three causes apart and says which in its message:
+ * `auth.uid()` was null (the phone's token had not attached yet), there is no
+ * `profiles` row for that id (an account still being linked to its company),
+ * or the request never reached the database at all. Every one of them folds to
+ * [MoneyScope.UNKNOWN], which is correct -- none of them is a "no" -- but
+ * [foldPayAnswer] then dropped the throwable, so all three looked identical
+ * from the phone.
+ *
+ * That is the fact B2 needs. An UNKNOWN pass does no job work at all, which is
+ * why signing in on a second phone can sit on an empty list; which of the
+ * three causes it is decides whether the fix is a wait, a retry or a repair,
+ * and until now it was never recorded. See
+ * memory/flag-written-for-no-reader.md -- same shape, other way round: a
+ * reason nobody wrote down rather than one nobody read.
+ *
+ * Separated from the RPC so the reporting contract can be tested with a fake
+ * answer instead of a network call, and kept `internal` so only this file's
+ * two doors use it.
+ */
+internal suspend fun askScopeWith(
+    onCouldNotAsk: (Throwable) -> Unit,
+    ask: suspend () -> Boolean,
+): MoneyScope {
+    val answer = runCatching { ask() }
+    // Reported whatever it is, cancellations included: deciding which
+    // failures are worth keeping is CrashReporter's job and it already drops
+    // those and lost connections, so a dead spot files nothing while "no
+    // profile row for <uid>" files once.
+    answer.exceptionOrNull()?.let(onCouldNotAsk)
+    return foldPayAnswer(answer)
+}
 
 /**
  * Asks the server, once per sync pass, whether this account may see what a
