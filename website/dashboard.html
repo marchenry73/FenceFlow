@@ -5616,6 +5616,7 @@ jobViewAll:'All', jobViewToday:'Today', jobViewWeek:'This week', jobViewUnschedu
     alertUncontactedLead:'Nobody has contacted a new lead yet',
     alertDisputeOpen:'A payment dispute is open',
     alertUnsignedApproved:'Approved but not signed',
+    alertApprovedUnverified:'Approved online with no identity check',
     alertLabourOver:'Labour cost is over what a job was priced at',
     alertMaterialsMissing:'Scheduled soon with materials not ordered/received',
     alertStaleQuote:'A sent quote has gone quiet',
@@ -5663,6 +5664,7 @@ jobViewAll:'All', jobViewToday:'Today', jobViewWeek:'This week', jobViewUnschedu
     dispReasonNoRefund:'refund not processed', dispReasonUnacceptable:'work not as described',
     dispReasonGeneral:'no reason given',
     alertTxtUnsignedApproved:'Approved but not signed: %s',
+    alertTxtApprovedUnverified:'Approved with no identity check — no phone on the job: %s',
     alertTxtLabourOver:'Labour is over what it was priced at by %s: %s',
     alertTxtMaterialsMissing:'Scheduled %s with materials %s: %s',
     alertMaterialsOrderedNotReceived:'ordered but not received',
@@ -7464,6 +7466,7 @@ jobViewAll:'Todos', jobViewToday:'Hoy', jobViewWeek:'Esta semana', jobViewUnsche
     alertUncontactedLead:'Nadie ha contactado a un cliente potencial nuevo todavía',
     alertDisputeOpen:'Hay una disputa de pago abierta',
     alertUnsignedApproved:'Aprobado pero no firmado',
+    alertApprovedUnverified:'Aprobado en línea sin verificación de identidad',
     alertLabourOver:'El costo de mano de obra superó lo presupuestado',
     alertMaterialsMissing:'Programado pronto con materiales no pedidos/recibidos',
     alertStaleQuote:'Un presupuesto enviado se quedó sin respuesta',
@@ -7511,6 +7514,7 @@ jobViewAll:'Todos', jobViewToday:'Hoy', jobViewWeek:'Esta semana', jobViewUnsche
     dispReasonNoRefund:'reembolso no procesado', dispReasonUnacceptable:'trabajo distinto a lo descrito',
     dispReasonGeneral:'sin motivo indicado',
     alertTxtUnsignedApproved:'Aprobado pero no firmado: %s',
+    alertTxtApprovedUnverified:'Aprobado sin verificación de identidad — sin teléfono en el trabajo: %s',
     alertTxtLabourOver:'La mano de obra superó lo presupuestado por %s: %s',
     alertTxtMaterialsMissing:'Programado para %s con materiales %s: %s',
     alertMaterialsOrderedNotReceived:'pedidos pero no recibidos',
@@ -9309,6 +9313,7 @@ jobViewAll:'Tous', jobViewToday:'Aujourdhui', jobViewWeek:'Cette semaine', jobVi
     alertUncontactedLead:'Personne n\'a encore contacté un nouveau prospect',
     alertDisputeOpen:'Une contestation de paiement est ouverte',
     alertUnsignedApproved:'Approuvé mais non signé',
+    alertApprovedUnverified:'Approuvé en ligne sans vérification de l’identité',
     alertLabourOver:'Le coût de main-d\'œuvre dépasse le prix du chantier',
     alertMaterialsMissing:'Planifié bientôt avec des matériaux non commandés/reçus',
     alertStaleQuote:'Un devis envoyé est resté sans réponse',
@@ -9356,6 +9361,7 @@ jobViewAll:'Tous', jobViewToday:'Aujourdhui', jobViewWeek:'Cette semaine', jobVi
     dispReasonNoRefund:'remboursement non traité', dispReasonUnacceptable:'travaux non conformes',
     dispReasonGeneral:'aucun motif indiqué',
     alertTxtUnsignedApproved:'Approuvé mais non signé : %s',
+    alertTxtApprovedUnverified:'Approuvé sans vérification de l’identité — aucun téléphone sur le chantier : %s',
     alertTxtLabourOver:'La main-d\'œuvre dépasse le prix chiffré de %s : %s',
     alertTxtMaterialsMissing:'Planifié le %s avec des matériaux %s : %s',
     alertMaterialsOrderedNotReceived:'commandés mais non reçus',
@@ -9877,6 +9883,7 @@ const ALERT_DEFS = [
   { key:'uncontacted_lead',  labelKey:'alertUncontactedLead' },
   { key:'dispute_open',      labelKey:'alertDisputeOpen' },
   { key:'unsigned_approved', labelKey:'alertUnsignedApproved' },
+  { key:'approved_unverified', labelKey:'alertApprovedUnverified' },
   { key:'labour_over',       labelKey:'alertLabourOver' },
   { key:'materials_missing', labelKey:'alertMaterialsMissing' },
   { key:'stale_quote',       labelKey:'alertStaleQuote' },
@@ -9951,6 +9958,7 @@ const ALERT_SEVERITY = {
   uncontacted_lead:       'warn',     // warn under 24h since first contact was due, critical past it (see push site)
   // -- real money or a promise slipping, but nothing has failed outright --
   unsigned_approved:      'warn',    // approved with no signature -- no contract to point to yet
+  approved_unverified:    'warn',    // approved online with no phone to check the person against
   needs_reapproval:       'warn',    // the drawing changed after approval; only a fresh approval clears it
   labour_over:            'warn',    // labour has already cost more than it was priced at
   material_over_budget:   'warn',    // same, for materials
@@ -12631,7 +12639,7 @@ const JOB_COLUMNS = [
   'deposit_amount','amount_paid','refunded_amount','dispute_amount',
   'dispute_opened_at','dispute_closed_at','dispute_reason',
   'payment_status','quote_token','quote_sent_at','quote_viewed_at',
-  'quote_approved_at','quote_approved_name','signed_at',
+  'quote_approved_at','quote_approved_name','quote_approved_without_phone_check','signed_at',
   'signed_linear_feet','final_sign_off_at','permit_number',
   'permit_status','locate_ticket_no','locate_called_at',
   'locate_expires_at','hoa_name','hoa_email','hoa_approval_status',
@@ -14349,6 +14357,32 @@ function renderDash(){
                    && !['COMPLETED','DECLINED'].includes(j.status))
     .forEach(j => items.push({ urgent:false, severity:'warn',
       text: tr('alertTxtUnsignedApproved', name(j)), id: j.id, key:'unsigned_approved:'+j.id, fp:j.updated_at }));
+
+  // APPROVED ONLINE WITH NOBODY CHECKED AGAINST ANYTHING.
+  //
+  // quote-view asks for the last four digits of the phone on the job before
+  // it records an approval. A job carrying no phone at all has nothing to
+  // check against, and that function deliberately lets the approval through
+  // rather than stranding a real customer over a field their contractor left
+  // empty -- but it writes quote_approved_without_phone_check so the office
+  // can see the gate did not run.
+  //
+  // UNTIL NOW NOTHING READ THAT COLUMN: not this page, not the app, not an
+  // email. A flag written for a reader who does not exist is the same as no
+  // flag, and four live jobs carry it, the largest at $11,442 with no
+  // signature on it either.
+  //
+  // Not raised once a signature IS on file: a contract the contractor
+  // physically holds settles who agreed, which is the whole point of the
+  // check. fp is quote_approved_at -- the moment this became true, fixed --
+  // so marking it seen keeps it seen instead of returning on the next edit
+  // to the job.
+  if (alertOn('approved_unverified')) jobs.filter(j => j.quote_approved_without_phone_check
+                   && j.quote_approved_at && !j.signed_at
+                   && !['COMPLETED','DECLINED'].includes(j.status))
+    .forEach(j => items.push({ urgent:false, severity:'warn',
+      text: tr('alertTxtApprovedUnverified', name(j)), id: j.id,
+      key:'approved_unverified:'+j.id, fp:j.quote_approved_at }));
 
   // The drawing changed after the customer approved -- enforced in the
   // database (supabase_reapproval_on_drawing_change.sql), which clears

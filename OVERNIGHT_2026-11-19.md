@@ -1241,3 +1241,106 @@ refusal code. Re-aimed to pin the choosing — plus a new check that **all three
 language dictionaries carry both messages**, because the comment I wrote
 claiming they do is not a test, and a missing key is a blank notice about money
 for a reader in that language.
+
+## C3 — signature by email: four clauses, measured against the live system
+
+**Verified 20 Nov 2026.** C3 asked for four things. Three were already built and
+had never been checked end to end; the fourth was built and then quietly
+undone by a flag nobody read.
+
+### What the item asked, and what is actually there
+
+**"Send the customer everything they need to sign."** Built, three ways: the
+job screen sends the link straight to a text addressed to this customer
+(`smsto:` fills the number the job already holds), sends it as an email
+through FenceFlow's own path (`mail-send`, under the company's name, replies
+coming back to them), or queues that email for a chosen time. All three fetch
+the token at the moment of sending, and all three push the job up first if it
+is not in the cloud yet rather than telling its owner to go and sync.
+
+**"With verification."** Built: the page asks for the last four digits of the
+phone on the job, the server judges them (the page never compares), near
+misses are counted and lock out at four, and a right answer clears a
+stranger's earlier misses so they cannot be spent against the real customer.
+See the gap below for what happens when there is no phone.
+
+**"They either draw a signature or type their full name."** Built, and until
+today never once exercised: **no customer has ever drawn one.** Nine quotes
+have been approved online; the drawn-signature count is zero. So I ran it.
+
+**"Afterwards they can download the documents."** Built, and it works on a
+later visit too, not only on the page load that signed: the copy embeds the
+signature by fetching the short-lived signed URL when the in-memory drawing
+is gone.
+
+### Driving the real page, with nothing reaching production
+
+A local stand-in for Supabase served the repo's own `website/quote.html`
+untouched — only `config.js`, the file whose entire job is to point the page
+at an API, was replaced. The quote it rendered was a real one captured by a
+read-only GET. Nothing was written to the live database at any point, and no
+live job was approved.
+
+At a phone's 375px width:
+
+- **The pad captures ink, and in the right place.** A stroke from edge to
+  edge of a 313px-wide pad lands on buffer pixels 2 to 597 of 600 — the
+  rescaling from CSS pixels into the fixed 600x200 buffer is right, so a
+  signature drawn on a phone is not squeezed into the left third of what gets
+  uploaded.
+- **The empty-pad refusal fires, and sends nothing.** Draw mode with a clean
+  pad answers "Draw your signature before approving, or switch to typing your
+  name only" and **no request leaves the page** — checked by looking at what
+  the server received, which was nothing.
+- **The approval carries the drawing.** The POST body holds the typed name,
+  the four digits, the total the page was showing, and a `data:image/png`
+  signature of **15,094 bytes with a valid PNG header**.
+- **Afterwards the page shows it back** — approve panel gone, thank-you
+  shown, the drawing rendered, download offered.
+- **The downloaded copy is the signed document.** 452 KB of self-contained
+  HTML carrying the signature image, the name, the total and the company.
+
+One cosmetic thing: the file is named from the customer's name with accents
+stripped to hyphens, so Sébastien's copy saves as `s-bastien-quote.html`.
+
+### The gap: a flag written for a reader who did not exist
+
+When a job carries **no phone at all**, there is nothing to check the customer
+against. `quote-view` deliberately lets that approval through — refusing would
+strand a real customer over a field their contractor left empty — and writes
+`quote_approved_without_phone_check` so the office can see the gate did not
+run.
+
+**Nothing has ever read that column.** Not the office, not the app, not an
+email, not a report. I grepped every reader in the repository: the only writes
+are quote-view's own, and the only other mentions are migrations carrying the
+column forward.
+
+Measured on the live database: **four of the nine online approvals carry it.**
+Two are deleted jobs. One was later signed on paper, which settles it. The
+fourth is live, unsigned, and **worth $11,442.36** — approved by somebody
+nobody checked, and the office was never told.
+
+**Fixed:** the office now raises `approved_unverified` next to "approved but
+not signed", at the same severity and for the same reason — an approval with
+nothing behind it. It goes quiet the moment a signature is on file, because a
+contract the contractor physically holds answers the question the phone check
+was asking. Its fingerprint is the approval stamp rather than `updated_at`, so
+marking it seen keeps it seen instead of returning on the next edit to the job.
+
+`tests/a184-approved-with-no-identity-check.test.mjs` lifts the shipped
+detector out of the page and runs it: the live shape raises it, a signature
+silences it, a withdrawn approval and a finished job raise nothing, muting
+works, the key is in the registry and the severity table and in exactly one
+detector, the column is in `JOB_COLUMNS` (left off, every job reads
+`undefined`, the filter is false every time and the alert silently never
+fires), and both new strings exist in all three dictionaries. One case plants
+the too-wide version — the `!j.signed_at` term removed — and watches it nag
+about a job that has a signature on file. The whole file was watched to fail
+with the detector deleted from the page, and the page restored byte-identical.
+
+### Left for you
+
+The app could say so **before** the link goes out: "this job has no phone, so
+whoever opens this link can approve it." That is a one-line gate on the send
+button and it needs a build and a publish, so it is not in this change.

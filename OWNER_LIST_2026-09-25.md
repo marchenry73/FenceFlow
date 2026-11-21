@@ -231,7 +231,25 @@ live with a positive control: NOTHING else in the repo root has been applied. Ei
       not a coding one.
 - [ ] ~~C2. A sent quote shows the customer everything, plus a pay link / "Pay
       here" that opens Stripe so they can pay immediately.~~
-- [ ] **C3. Signature by email:** send the customer everything they need to sign,
+- [x] **C3. VERIFIED BUILT 20-11, and one half had never run.** All four
+      clauses are there: the link goes out by text, by FenceFlow's own email or
+      on a timer; the page asks for the last four digits of the phone on the
+      job and the server judges them, with a lockout; the customer types a name
+      or draws a signature; and the signed copy downloads on a later visit too,
+      not only on the page load that signed it. Driven end to end against the
+      real `quote.html` with a local stand-in for Supabase, so nothing touched
+      production: at phone width the pad captures ink across the full buffer,
+      an empty pad is refused and sends nothing, and the approval carries a
+      15KB valid PNG. **No customer has ever drawn one — 0 of 9 approvals.**
+      THE GAP, NOW FIXED: a job with no phone has nothing to check against, so
+      quote-view lets the approval through and writes
+      `quote_approved_without_phone_check` — and *nothing had ever read that
+      column*. Four live jobs carry it; the one that is undeleted and unsigned
+      is worth $11,442.36. The office now raises `approved_unverified`
+      (`tests/a184`). Still yours: the app could warn before the link goes out
+      that this job has no phone — one gate on the send button, needs a build.
+      Original wording:
+- [ ] ~~C3. Signature by email:~~ send the customer everything they need to sign,
       with verification; they either draw a signature or type their full name;
       afterwards they can download the documents. This is for HIS clients to use
       with THEIR customers.
