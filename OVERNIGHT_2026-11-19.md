@@ -1339,8 +1339,51 @@ the too-wide version — the `!j.signed_at` term removed — and watches it nag
 about a job that has a signature on file. The whole file was watched to fail
 with the detector deleted from the page, and the page restored byte-identical.
 
-### Left for you
+### And the warning before the link goes out
 
-The app could say so **before** the link goes out: "this job has no phone, so
-whoever opens this link can approve it." That is a one-line gate on the send
-button and it needs a build and a publish, so it is not in this change.
+The office alert above says it afterwards. This says it while a phone number
+is still something somebody can type.
+
+**Four doors, one question.** The phone has three ways to put a quote link in
+front of a customer — straight to a text, FenceFlow's own email, or that email
+on a timer — and the office has a fourth. All four reach the same page, and
+`quote-view` asks whoever opens it for the last four digits of the phone on
+the job. A job with no phone has nothing to check against.
+
+So the question is asked **once**, inside the coroutine the phone's three send
+paths already launch, rather than once per button. The fourth button on the
+screen — Open the link — deliberately does not ask: opening a link on your own
+phone sends nothing to anybody.
+
+**It warns; it does not refuse.** Some customers really are email only, and a
+send button that will not send is the control this project keeps writing rules
+against. On the phone it is a dialog, because a tap there sends straight away:
+*"Whoever opens this link can approve the quote… it will still send; you just
+will not know who said yes."* **Send anyway** or **Add a phone first**, and a
+tap outside is a no, because dismissing is not an answer to "send it anyway".
+
+In the office it is a line beside the button instead, since that door opens a
+compose window and there is already a step between reading the warning and the
+quote leaving. The office reads the phone from the **sheet's own field**, not
+the saved row, so typing one clears the warning without saving first — the
+same reasoning as the address check directly above it.
+
+The comment above the office's quote button has said since September that *"a
+gate on one door only is this file's own recorded mistake."* That is why the
+fourth door got it in the same change as the first three.
+
+`tests/a185-no-phone-no-check-warning.test.mjs` — 13 cases. It strips comments
+from the Kotlin before looking at it, because a check a comment can satisfy
+passes on a file where the code was deleted and the comment left behind. It
+finds all four link sites structurally, asserts the three that send are
+guarded and the one that opens is not, tells the three apart by how each
+actually sends, and pins that the gate returns early and the send *awaits* the
+answer rather than asking decoratively. The office half is **run**, not
+grepped: `updateJobMailBtn` is lifted out and driven against a fake sheet, with
+and without a phone typed, asserting the button stays enabled either way. One
+case plants the missing guard. Both halves were watched to fail — the Kotlin
+with the guards stripped (4 red), the office with the fill removed (2 red) —
+and both files restored byte-identical.
+
+Android unit tests: **1668, 0 failures**, results checked by their own
+timestamps rather than by the word SUCCESSFUL.

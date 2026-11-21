@@ -3007,6 +3007,12 @@
              A gate on one door only is this file's own recorded mistake. -->
         <button class="btn btn-sm btn-grey" id="jobQuoteMailBtn" type="button" data-t="jobQuoteMailBtn">Email the quote</button>
         <span class="sub" id="jobMailNote"></span>
+        <!-- Said beside the button, not in a dialog: this door opens a
+             compose window rather than sending on the tap, so there is
+             already a step between reading this and the quote leaving.
+             The phone has the same warning as a dialog, because its
+             three doors send straight away. -->
+        <span class="sub" id="jobQuoteNoPhoneNote" style="color:#E6A82D"></span>
       </div>
       <div class="mail-threads jm-rows" id="jobMailRows"></div>
     </div>
@@ -4120,6 +4126,7 @@ jobViewAll:'All', jobViewToday:'Today', jobViewWeek:'This week', jobViewUnschedu
     jobSecMail:'Email', jobMailEmailBtn:'Email customer',
     jobMailNoEmail:'Add the customer’s email above first.',
     jobQuoteMailBtn:'Email the quote',
+    jobQuoteNoPhone:'No phone on this job — whoever opens the link can approve it unchecked.',
     quoteSentStampFailed:'The email went out, but the job could not be marked as sent. Open the job again and press “Mark as sent”.',
     jobMailBadEmail:'The email above is not an address FenceFlow can send to.',
     jobMailEmpty:'No email for this job yet. Mail to or from the customer or the HOA shows up here by itself.',
@@ -5997,6 +6004,7 @@ jobViewAll:'Todos', jobViewToday:'Hoy', jobViewWeek:'Esta semana', jobViewUnsche
     jobSecMail:'Correo', jobMailEmailBtn:'Escribir al cliente',
     jobMailNoEmail:'Primero añada arriba el correo del cliente.',
     jobQuoteMailBtn:'Enviar el presupuesto',
+    jobQuoteNoPhone:'Este trabajo no tiene teléfono: quien abra el enlace puede aprobarlo sin verificación.',
     quoteSentStampFailed:'El correo se envió, pero el trabajo no se pudo marcar como enviado. Abra el trabajo otra vez y pulse «Marcar como enviado».',
     jobMailBadEmail:'El correo de arriba no es una dirección a la que FenceFlow pueda escribir.',
     jobMailEmpty:'Todavía no hay correos de este trabajo. Los correos con el cliente o la HOA aparecen aquí solos.',
@@ -7844,6 +7852,7 @@ jobViewAll:'Tous', jobViewToday:'Aujourdhui', jobViewWeek:'Cette semaine', jobVi
     jobSecMail:'E-mails', jobMailEmailBtn:'Écrire au client',
     jobMailNoEmail:'Ajoutez d’abord le courriel du client ci-dessus.',
     jobQuoteMailBtn:'Envoyer le devis',
+    jobQuoteNoPhone:'Aucun téléphone sur ce chantier : quiconque ouvre le lien peut l’approuver sans contrôle.',
     quoteSentStampFailed:'Le courriel est parti, mais le chantier n’a pas pu être marqué comme envoyé. Rouvrez le chantier et appuyez sur « Marquer comme envoyé ».',
     jobMailBadEmail:'Le courriel ci-dessus n’est pas une adresse à laquelle FenceFlow peut écrire.',
     jobMailEmpty:'Aucun e-mail pour ce chantier pour l’instant. Les e-mails échangés avec le client ou l’association apparaissent ici d’eux-mêmes.',
@@ -32861,6 +32870,18 @@ function updateJobMailBtn(){
   const typed = $('j_email').value.trim() !== '';
   $('jobMailBtn').disabled = !to.length;
   $('jobMailNote').textContent = to.length ? '' : tr(typed ? 'jobMailBadEmail' : 'jobMailNoEmail');
+  // WHO WILL WE CHECK, WHEN SHE SAYS YES? quote-view asks whoever opens a
+  // quote link for the last four digits of the phone on the job before it
+  // records an approval, and a job with no phone has nothing to check
+  // against -- the approval goes through unchecked, and the office learns
+  // it afterwards from approved_unverified. Said here while a phone number
+  // is still something somebody can type. A warning, not a block: some
+  // customers really are email only.
+  const noPhoneNote = $('jobQuoteNoPhoneNote');
+  if (noPhoneNote) {
+    const hasPhone = ($('j_phone').value || '').replace(/\D/g, '').length >= 4;
+    noPhoneNote.textContent = hasPhone ? '' : tr('jobQuoteNoPhone');
+  }
   // The quote button needs an address AND a customer link AND the quote's own
   // two gates. Disabled with a reason in the tooltip rather than hidden, so
   // "why can't I email this quote" has an answer without a tap.

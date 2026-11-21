@@ -256,6 +256,39 @@ fun JobDetailScreen(
     val scope = androidx.compose.runtime.rememberCoroutineScope()
     var confirmDeleteJob by remember { mutableStateOf(false) }
 
+    /* WHO WILL WE CHECK, WHEN SHE SAYS YES?
+     *
+     * quote-view asks whoever opens a quote link for the last four digits of
+     * the phone on the job before it records an approval. A job carrying no
+     * phone has nothing to check against, so that function lets the approval
+     * through on purpose -- refusing would strand a real customer over a field
+     * nobody filled in -- and writes quote_approved_without_phone_check. The
+     * office raises that afterwards (approved_unverified, 20 Nov 2026). This
+     * is the same fact said BEFORE the link goes out, when a phone number is
+     * still a thing somebody can type.
+     *
+     * MEASURED on the live database that day: four of the nine quotes ever
+     * approved online were approved with no check at all, every one of them
+     * because the job had no phone. The largest was $11,442.36.
+     *
+     * It warns and does not refuse -- some customers really are email only,
+     * and a send button that will not send is the fake control this project
+     * keeps writing rules against. Asked inside the coroutine the three send
+     * paths already launch (text or share, email now, email on a timer), so
+     * there is ONE copy of the question rather than one per button; the
+     * Open-the-link button deliberately does not ask, because opening a link
+     * sends nothing to anybody.
+     */
+    var noPhoneAsk by remember {
+        mutableStateOf<kotlinx.coroutines.CompletableDeferred<Boolean>?>(null)
+    }
+    suspend fun mayGoWithoutAPhone(phone: String): Boolean {
+        if (phone.isNotBlank()) return true
+        val answer = kotlinx.coroutines.CompletableDeferred<Boolean>()
+        noPhoneAsk = answer
+        return answer.await()
+    }
+
     // The order of the sections below, in one place. Some are hidden from crew
     // accounts, so a hardcoded index would land on the wrong card for them.
     // Only needs to run as far as the last section anything scrolls to.
@@ -498,6 +531,7 @@ fun JobDetailScreen(
                 OutlinedButton(
                     onClick = {
                         scope.launch {
+                            if (!mayGoWithoutAPhone(j.phone)) return@launch
                             val link = quoteLinkFor(context, app, session.signedIn, j.syncId)
                             val url = (link as? QuoteLink.Ready)?.url
                             if (url == null) {
@@ -797,6 +831,7 @@ fun JobDetailScreen(
                     OutlinedButton(
                         onClick = {
                             scope.launch {
+                                if (!mayGoWithoutAPhone(j.phone)) return@launch
                                 // The same three-way answer the share button
                                 // gets, so "no signal" is never blamed for a
                                 // job that simply has not reached the cloud.
@@ -935,6 +970,7 @@ fun JobDetailScreen(
                        place for that link check to rot. */
                     val scheduleAt: (Long) -> Unit = { millis ->
                         scope.launch {
+                            if (!mayGoWithoutAPhone(j.phone)) return@launch
                             val link = quoteLinkFor(context, app, session.signedIn, j.syncId)
                             val url = (link as? QuoteLink.Ready)?.url
                             if (url == null) {
@@ -1649,6 +1685,27 @@ fun JobDetailScreen(
             dismissButton = {
                 OutlinedButton(onClick = { viewModel.dismissHideDeclined() }) {
                     Text(stringResource(R.string.action_cancel))
+                }
+            }
+        )
+    }
+
+    // The question mayGoWithoutAPhone asks. Dismissing it is a no, like every
+    // other dialog here -- the send waits on the answer and a tap outside is
+    // not an answer to "send it anyway".
+    noPhoneAsk?.let { ask ->
+        AlertDialog(
+            onDismissRequest = { noPhoneAsk = null; ask.complete(false) },
+            title = { Text(stringResource(R.string.jd_no_phone_title)) },
+            text = { Text(stringResource(R.string.jd_no_phone_body)) },
+            confirmButton = {
+                Button(onClick = { noPhoneAsk = null; ask.complete(true) }) {
+                    Text(stringResource(R.string.jd_no_phone_send))
+                }
+            },
+            dismissButton = {
+                OutlinedButton(onClick = { noPhoneAsk = null; ask.complete(false) }) {
+                    Text(stringResource(R.string.jd_no_phone_cancel))
                 }
             }
         )

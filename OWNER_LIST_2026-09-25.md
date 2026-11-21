@@ -246,9 +246,10 @@ live with a positive control: NOTHING else in the repo root has been applied. Ei
       `quote_approved_without_phone_check` — and *nothing had ever read that
       column*. Four live jobs carry it; the one that is undeleted and unsigned
       is worth $11,442.36. The office now raises `approved_unverified`
-      (`tests/a184`). Still yours: the app could warn before the link goes out
-      that this job has no phone — one gate on the send button, needs a build.
-      Original wording:
+      (`tests/a184`), and all four send doors — the phone's text, email and
+      scheduled email, and the office's Email the quote — now warn BEFORE the
+      link goes out that nobody can be checked (`tests/a185`). It warns rather
+      than refuses: some customers really are email only. Original wording:
 - [ ] ~~C3. Signature by email:~~ send the customer everything they need to sign,
       with verification; they either draw a signature or type their full name;
       afterwards they can download the documents. This is for HIS clients to use

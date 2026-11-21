@@ -84,6 +84,11 @@ function harness({ src = SECTION, canUseMail = true, canEdit = true, rpc = null,
   // "no element #jobQuoteMailBtn" from inside renderJobMail. See elementDrift() below.
   add("jobQuoteMailBtn", el("button"));
   add("jobMailNote", el("span"));
+  // The no-phone warning beside "Email the quote", added 20 Nov 2026. A job
+  // with no phone has nothing for quote-view to check an approver against, so
+  // the office says so before the link goes out. Registered here for the same
+  // reason jobQuoteMailBtn is: this harness's $ THROWS on an unknown id.
+  add("jobQuoteNoPhoneNote", el("span"));
   add("jobOverlay", el("div", { classes: ["on"] }));
   for (const k of J_TEXT) add("j_" + k, el(k === "notes" ? "textarea" : "input"));
   for (const k of [...J_NUM, ...J_SEL, "scheduled_date", "assigned_employee_id"]) add("j_" + k, el("input"));
@@ -372,6 +377,35 @@ test("Email the quote is off without an address, without a link, or when a gate 
 // ---------------------------------------------------------------------------
 // "Open in Email".
 // ---------------------------------------------------------------------------
+
+test("a job with no phone is warned that nobody can be checked -- and may still send", async () => {
+  /* quote-view asks whoever opens a quote link for the last four digits of
+     the phone on the job before it records an approval. A job with no phone
+     has nothing to check against: the approval goes through unchecked, and
+     the office only learns it afterwards (approved_unverified). This is that
+     fact said while a phone number is still something somebody can type.
+
+     MEASURED 20 Nov 2026: four of the nine quotes ever approved online were
+     approved with no check at all, every one because the job had no phone.
+     The largest was $11,442.36. */
+  // quote_token, because the button's OTHER gate (no link yet) would disable
+  // it for a reason that has nothing to do with this one -- and then the
+  // "still sends" assertion below would be measuring the wrong refusal.
+  const h = harness();
+  openJobLike(h, { ...JOB, quote_token: "tok" });   // and no phone
+  await flush();
+  assert.equal(h.els.get("jobQuoteNoPhoneNote").textContent, tr("jobQuoteNoPhone"));
+  assert.equal(h.els.get("jobQuoteMailBtn").disabled, false,
+    "a warning, not a block -- some customers really are email only");
+
+  // PLANTED: the same job with a phone typed into the sheet says nothing, so
+  // the sentence above came from the empty field and not from the panel
+  // writing it every time.
+  const g = harness();
+  openJobLike(g, { ...JOB, quote_token: "tok", phone: "813 555 0134" });
+  await flush();
+  assert.equal(g.els.get("jobQuoteNoPhoneNote").textContent, "");
+});
 
 test("Open in Email closes the sheet and opens the thread when nothing was edited", async () => {
   const h = harness();

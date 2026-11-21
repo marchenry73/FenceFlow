@@ -1169,6 +1169,10 @@
     <string name="jd_send_quote_to_customer">Send quote to customer</string>
     <string name="jd_send_quote_chooser">Send the quote</string>
     <string name="jd_quote_link_body">Hi %1$s — here is your fence quote. You can see your fence in 3D, and approve it right on the page: %2$s</string>
+    <string name="jd_no_phone_title">No phone on this job</string>
+    <string name="jd_no_phone_body">Whoever opens this link can approve the quote. Before an approval is recorded we ask for the last four digits of the customer\'s phone — and this job has none to check against, so the approval goes through unchecked. It will still send; you just will not know who said yes.</string>
+    <string name="jd_no_phone_send">Send anyway</string>
+    <string name="jd_no_phone_cancel">Add a phone first</string>
     <string name="jd_quote_emailed_at">Emailed to the customer %1$s</string>
     <string name="jd_quote_not_emailed">Not emailed yet. (A quote sent by text is not recorded — nothing can tell the app the message left.)</string>
     <string name="jd_quote_send_later">Send later</string>
