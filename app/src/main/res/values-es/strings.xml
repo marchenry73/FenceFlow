@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name" translatable="false">FenceFlow</string>
+    <string name="app_name" translatable="false">FenceFlowApp</string>
     <string name="action_back">Atrás</string>
     <string name="action_save">Guardar</string>
     <string name="action_cancel">Cancelar</string>
