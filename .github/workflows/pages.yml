@@ -206,7 +206,24 @@ jobs:
 
       - uses: actions/configure-pages@v5
 
-      - uses: actions/upload-pages-artifact@v3
+      # v5, not v3, and deploy-pages v5 below, not v4. On 23 Nov 2026 this
+      # workflow deployed fine at 22:28 and then failed every run from 23:15
+      # on, with deploy-pages saying "Found 0 artifact(s)" immediately after
+      # the upload step reported success.
+      #
+      # The upload is NOT the problem, and neither guess made at the time was
+      # right: it is not a retired upload backend, and it is not the Node 20
+      # to 24 forced migration (the 22:28 run that worked carried the same
+      # warning). The artifact genuinely lands --
+      #
+      #   GET /repos/:owner/:repo/actions/runs/:id/artifacts
+      #     -> total_count 1, name github-pages, expired false, 16.5 MB
+      #
+      # for the very run whose deploy-pages step reported zero. The artifact
+      # is there and the REST API can see it; only deploy-pages@v4 own lookup
+      # cannot. So the version pair is what moves, and the reason is written
+      # down here because the first two explanations each sounded complete.
+      - uses: actions/upload-pages-artifact@v5
         with:
           # dist/, not website/: the dev office under /dev/ is generated, and
           # generated files inside the source tree get counted by every
@@ -214,7 +231,7 @@ jobs:
           path: dist
 
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5
 
       # The owner reported he could not see which plan he was on. #billState
       # carried a data-t, so applyStaticText put the placeholder back on every
