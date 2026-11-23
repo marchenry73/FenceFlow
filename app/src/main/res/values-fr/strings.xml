@@ -163,13 +163,13 @@
     <string name="sync_plain_rejected">Synchronisation impossible : %1$s</string>
     <string name="svc_signed_in_elsewhere">Ce compte s\'est connecté sur un autre téléphone, alors celui-ci a été déconnecté. Votre travail est en sécurité. Si ce n\'était pas vous, changez votre mot de passe.</string>
     <string name="svc_elsewhere_title">Connecté sur un autre téléphone</string>
-    <string name="svc_elsewhere_body">Ce compte s\'est connecté sur un autre téléphone. Un compte ne fonctionne que sur un téléphone à la fois, donc FenceFlow s\'est arrêté sur celui-ci.</string>
+    <string name="svc_elsewhere_body">Ce compte s\'est connecté sur un autre téléphone. Un compte ne fonctionne que sur un téléphone à la fois, donc FenceFlowApp s\'est arrêté sur celui-ci.</string>
     <string name="svc_elsewhere_nothing_lost">Rien n\'a été supprimé sur ce téléphone. Touchez Utiliser ce téléphone pour continuer ici ; l\'autre téléphone s\'arrêtera jusqu\'à ce qu\'il se reconnecte.</string>
     <string name="svc_elsewhere_seat_note">Si deux personnes partagent ce compte, chacune a besoin du sien : demandez-le au bureau. Si ce n\'était pas vous, changez votre mot de passe.</string>
-    <string name="push_displaced_body">Ce compte vient de se connecter sur un autre téléphone, donc FenceFlow a arrêté de synchroniser ici. Rien n\'a été supprimé sur ce téléphone ; ouvrez FenceFlow pour récupérer la session.</string>
+    <string name="push_displaced_body">Ce compte vient de se connecter sur un autre téléphone, donc FenceFlowApp a arrêté de synchroniser ici. Rien n\'a été supprimé sur ce téléphone ; ouvrez FenceFlowApp pour récupérer la session.</string>
     <string name="svc_use_this_phone">Utiliser ce téléphone</string>
     <string name="svc_use_this_phone_working">Passage à ce téléphone…</string>
-    <string name="svc_use_this_phone_failed">Impossible de joindre FenceFlow pour changer de téléphone. Vérifiez la connexion et réessayez.</string>
+    <string name="svc_use_this_phone_failed">Impossible de joindre FenceFlowApp pour changer de téléphone. Vérifiez la connexion et réessayez.</string>
     <string name="svc_device_key_required">Cet appareil a besoin d\'une clé pour se connecter ici. Demandez le code à votre bureau et saisissez-le ci-dessous.</string>
     <string name="svc_device_key_invalid">Cette clé n\'a pas fonctionné : elle est peut-être incorrecte, déjà utilisée ou expirée. Demandez-en une nouvelle à votre bureau.</string>
     <string name="svc_device_key_label">Clé de l\'appareil</string>
@@ -233,7 +233,7 @@
     <string name="jobs_make_prices_yours">Faites de ces prix les vôtres</string>
     <string name="jobs_make_prices_yours_body">Vos prix et vos tarifs de main-d\'œuvre déterminent chaque devis. Ce qui se trouve actuellement dans le catalogue est un point de départ, pas votre tarification : parcourez-le, ajoutez ce qui manque et fixez vos tarifs avant votre premier vrai devis.</string>
     <string name="jobs_add_business_name">Mettez votre nom sur vos devis</string>
-    <string name="jobs_add_business_name_body">Le nom de votre entreprise n\'est pas renseigné : vos devis et factures portent donc l\'en-tête « FenceFlow » au lieu du vôtre. C\'est l\'affaire d\'un instant.</string>
+    <string name="jobs_add_business_name_body">Le nom de votre entreprise n\'est pas renseigné : vos devis et factures portent donc l\'en-tête « FenceFlowApp » au lieu du vôtre. C\'est l\'affaire d\'un instant.</string>
     <string name="jobs_add_business_name_action">Ajouter mon entreprise</string>
     <string name="jobs_prices_right">Ils sont bons</string>
 
@@ -385,7 +385,7 @@
     <string name="set_how_to_use">Utiliser l\'application + Bases des clôtures</string>
     <string name="set_send_suggestion">Envoyer une suggestion ou une réclamation</string>
     <string name="set_account_explain">Connectez-vous pour partager les chantiers avec votre équipe sur plusieurs téléphones, avec des niveaux d\'accès distincts pour le terrain et le bureau. Facultatif : l\'application fonctionne hors ligne sans cela.</string>
-    <string name="set_open_admin">Console d’administration FenceFlow</string>
+    <string name="set_open_admin">Console d’administration FenceFlowApp</string>
     <string name="set_manage_account">Gérer le compte et l\'équipe</string>
     <string name="set_business_name">Nom de l\'entreprise</string>
     <string name="set_owner_name">Nom du propriétaire</string>
@@ -401,7 +401,7 @@
     <string name="set_logo_contrast">Contraste</string>
     <string name="set_logo_use">Utiliser</string>
     <string name="set_logo_label">Logo de l’entreprise</string>
-    <string name="set_logo_note">Imprimé sur vos devis et contrats PDF, affiché sur la page de devis que votre client ouvre, et en haut des courriels que FenceFlow lui envoie. PNG, JPG ou WEBP, jusqu’à 2 Mo.</string>
+    <string name="set_logo_note">Imprimé sur vos devis et contrats PDF, affiché sur la page de devis que votre client ouvre, et en haut des courriels que FenceFlowApp lui envoie. PNG, JPG ou WEBP, jusqu’à 2 Mo.</string>
     <string name="set_logo_none">Pas encore de logo.</string>
     <string name="set_logo_upload">Ajouter un logo</string>
     <string name="set_logo_replace">Remplacer</string>
@@ -412,21 +412,21 @@
     <string name="set_logo_too_big">Cette image dépasse 2 Mo. Enregistrez-la plus petite et réessayez.</string>
     <string name="set_logo_unreadable">Ce fichier n’a pas pu être lu.</string>
     <string name="set_logo_owner_only">Seul le propriétaire de l’entreprise peut changer le logo.</string>
-    <string name="set_logo_no_cloud">Connectez-vous à FenceFlow pour définir un logo.</string>
+    <string name="set_logo_no_cloud">Connectez-vous à FenceFlowApp pour définir un logo.</string>
     <string name="set_license_number">Numéro de licence</string>
     <string name="set_contract_terms">Conditions du contrat</string>
     <string name="set_contract_terms_needs_review">L\'avis d\'annulation n\'est pas encore remplacé</string>
-    <string name="set_contract_terms_explain">Ce sont les conditions imprimées sur le contrat que votre client signe. Remplacez-les par les vôtres : celles fournies avec FenceFlow sont un point de départ, pas un conseil juridique, et rien ici ne vérifie si vos conditions sont valables là où vous travaillez.</string>
+    <string name="set_contract_terms_explain">Ce sont les conditions imprimées sur le contrat que votre client signe. Remplacez-les par les vôtres : celles fournies avec FenceFlowApp sont un point de départ, pas un conseil juridique, et rien ici ne vérifie si vos conditions sont valables là où vous travaillez.</string>
     <string name="set_contract_terms_field">Conditions imprimées sur le contrat</string>
-    <string name="set_contract_terms_federal_offer">FenceFlow peut rédiger le droit fédéral d\'annulation de trois jours ouvrables — la partie qui est la même dans tous les États. Ce n\'est pas un conseil juridique, et votre État peut exiger des termes précis, une taille de caractères précise ou plus de trois jours. Votre avocat peut ajouter cela par-dessus. Une fois ceci en place, l\'avertissement ci-dessus disparaît.</string>
+    <string name="set_contract_terms_federal_offer">FenceFlowApp peut rédiger le droit fédéral d\'annulation de trois jours ouvrables — la partie qui est la même dans tous les États. Ce n\'est pas un conseil juridique, et votre État peut exiger des termes précis, une taille de caractères précise ou plus de trois jours. Votre avocat peut ajouter cela par-dessus. Une fois ceci en place, l\'avertissement ci-dessus disparaît.</string>
     <string name="set_contract_terms_federal_use">Utiliser l\'avis fédéral standard</string>
-    <string name="set_contract_terms_review_body">Le bloc à remplacer est toujours dans le texte ci-dessous : cherchez VOTRE DROIT D\'ANNULATION. Demandez à votre avocat la formulation exigée par votre État et collez-la à la place de ce paragraphe. FenceFlow ne sait pas ce qu\'exige votre État et ne le vérifie pas.</string>
+    <string name="set_contract_terms_review_body">Le bloc à remplacer est toujours dans le texte ci-dessous : cherchez VOTRE DROIT D\'ANNULATION. Demandez à votre avocat la formulation exigée par votre État et collez-la à la place de ce paragraphe. FenceFlowApp ne sait pas ce qu\'exige votre État et ne le vérifie pas.</string>
     <string name="set_contract_terms_placeholders">Remplis à la production du contrat : {COMPANY}, {ADDRESS}, {TOTAL}, {DEPOSIT}, {WARRANTY_PERIOD}. Tout le reste est imprimé tel que vous le tapez.</string>
     <string name="set_contract_terms_cancellation_note">La section ANNULATION ci-dessous ne comporte ni préavis ni frais à compléter. Elle ne facture que ce qu\'un chantier annulé vous a réellement coûté : les matériaux qui ne peuvent pas être retournés, les frais de retour réellement facturés par le fournisseur et le travail déjà effectué. Modifiez-la si votre politique est différente.</string>
     <string name="set_contract_terms_this_phone">Ces conditions sont conservées sur ce téléphone. Un second téléphone du même compte garde sa propre copie : modifiez-les aussi là-bas.</string>
     <string name="set_contract_terms_blank">Cette case est vide : le contrat n\'imprimera aucune condition.</string>
-    <string name="set_contract_terms_reset">Repartir des conditions fournies avec FenceFlow</string>
-    <string name="set_contract_terms_reset_confirm">Ceci remplace tout le contenu de la case par les conditions fournies avec FenceFlow, dans votre langue. Votre propre formulation n\'est conservée nulle part.</string>
+    <string name="set_contract_terms_reset">Repartir des conditions fournies avec FenceFlowApp</string>
+    <string name="set_contract_terms_reset_confirm">Ceci remplace tout le contenu de la case par les conditions fournies avec FenceFlowApp, dans votre langue. Votre propre formulation n\'est conservée nulle part.</string>
     <string name="set_contract_terms_reset_action">Remplacer</string>
     <string name="set_theme_system">Système</string>
     <string name="set_theme_light">Clair</string>
@@ -463,9 +463,9 @@
     <string name="set_unnamed_tier">Grille sans nom</string>
     <string name="set_tier_summary">Main-d\'oeuvre %1$s $/pi · Majoration %2$s%% · Remise %3$s%%</string>
     <string name="set_add_pricing_tier">+ Ajouter une grille tarifaire</string>
-    <string name="set_pricing_tiers_empty">Aucune grille tarifaire pour l\'instant. Ajoutez-en une, ou copiez les grilles de départ de FenceFlow comme exemple de taux horaire et de marge à ajuster.</string>
-    <string name="set_copy_starting_tiers">Copier les grilles de départ de FenceFlow</string>
-    <string name="set_copy_starting_tiers_confirm">Ceci ajoute les 5 grilles tarifaires de départ de FenceFlow (taux horaire, marge et remises). Vérifiez-les et ajustez-les pour votre entreprise avant de les utiliser dans un devis.</string>
+    <string name="set_pricing_tiers_empty">Aucune grille tarifaire pour l\'instant. Ajoutez-en une, ou copiez les grilles de départ de FenceFlowApp comme exemple de taux horaire et de marge à ajuster.</string>
+    <string name="set_copy_starting_tiers">Copier les grilles de départ de FenceFlowApp</string>
+    <string name="set_copy_starting_tiers_confirm">Ceci ajoute les 5 grilles tarifaires de départ de FenceFlowApp (taux horaire, marge et remises). Vérifiez-les et ajustez-les pour votre entreprise avant de les utiliser dans un devis.</string>
     <string name="set_tools_materials">Outils et matériaux</string>
     <string name="set_tools_explain">Copiés sur la liste de chaque chantier, pour que rien ne reste au dépôt.</string>
     <string name="set_add_a_tool">Ajouter un outil</string>
@@ -493,7 +493,7 @@
     <string name="set_expenses_csv_explain">Uniquement les dépenses, en un seul CSV pour un comptable ou un logiciel fiscal.</string>
     <string name="set_export_expenses_csv">Exporter les dépenses seules (CSV)</string>
     <string name="set_backup_explain">Local uniquement : sans compte ni service cloud. Sauvegardez pour enregistrer tous vos chantiers, clients et catalogue dans un fichier de votre choix (Google Drive, Dropbox, stockage local, où vous voulez). La restauration remplace tout ce qui se trouve actuellement sur ce téléphone.</string>
-    <string name="set_version_line">FenceFlow %1$s  (build %2$d)</string>
+    <string name="set_version_line">FenceFlowApp %1$s  (build %2$d)</string>
     <string name="set_restore_title">Remplacer toutes les données actuelles ?</string>
     <string name="set_restore_text">La restauration remplacera tous les chantiers, clients et entrées du catalogue présents sur ce téléphone par le contenu du fichier de sauvegarde. Cette action est irréversible. Continuer ?</string>
     <string name="set_restore_failed">Échec de la restauration : %1$s</string>
@@ -527,8 +527,8 @@
     <string name="acct_signed_in">Connecté</string>
     <string name="acct_sign_out_confirm_body">Se déconnecter de cet appareil ? Il faudra vous reconnecter pour revoir les chantiers et resynchroniser.</string>
     <string name="acct_access_level">Niveau d\'accès : %1$s</string>
-    <string name="acct_invite_share_subject">Rejoignez notre équipe FenceFlow</string>
-    <string name="acct_invite_share_body">Installez FenceFlow, créez un compte, puis choisissez « Rejoindre l\'équipe » et saisissez ce code d\'invitation :\n\n%1$s</string>
+    <string name="acct_invite_share_subject">Rejoignez notre équipe FenceFlowApp</string>
+    <string name="acct_invite_share_body">Installez FenceFlowApp, créez un compte, puis choisissez « Rejoindre l\'équipe » et saisissez ce code d\'invitation :\n\n%1$s</string>
     <string name="acct_invite_share_chooser">Envoyer le code d\'invitation</string>
     <string name="acct_team_invite_code">Code d\'invitation de l\'équipe</string>
     <string name="acct_copy_code">Copier le code</string>
@@ -739,7 +739,7 @@
     <string name="jd_payment_after_signature">Le paiement peut être demandé une fois le contrat signé par le client.</string>
     <string name="jd_live_mode">MODE RÉEL -- ce lien débite une vraie carte et déplace de l\'argent réel. Les cartes de test seront refusées.</string>
     <string name="jd_test_mode">MODE TEST -- aucun argent réel ne circule. Payez avec 4242 4242 4242 4242.</string>
-    <string name="jd_stripe_explain">Crée un lien de paiement Stripe. L\'argent va sur votre compte Stripe -- FenceFlow ne le détient jamais, et les données de carte ne transitent jamais par ce téléphone.</string>
+    <string name="jd_stripe_explain">Crée un lien de paiement Stripe. L\'argent va sur votre compte Stripe -- FenceFlowApp ne le détient jamais, et les données de carte ne transitent jamais par ce téléphone.</string>
     <string name="jd_set_deposit_hint">Fixez un montant d\'acompte ci-dessous et le lien facturera exactement ce montant.</string>
     <string name="jd_payment_link">Lien de paiement</string>
     <string name="jd_payment_link_hint">Rempli par le bouton ci-dessus, ou collez un lien que vous utilisez déjà (PayPal, Venmo). L\'argent va directement sur votre propre compte.</string>
@@ -835,7 +835,7 @@
     <string name="jd_refund_too_much">Plus que ce qui a été encaissé sur ce chantier.</string>
     <string name="jd_reason">Motif</string>
     <string name="jd_reason_placeholder">Trop-perçu, portail annulé, geste commercial...</string>
-    <string name="jd_refund_note">Ceci enregistre le remboursement sur le chantier. Le renvoi de l\'argent se fait depuis votre tableau de bord Stripe -- FenceFlow ne le détient jamais.</string>
+    <string name="jd_refund_note">Ceci enregistre le remboursement sur le chantier. Le renvoi de l\'argent se fait depuis votre tableau de bord Stripe -- FenceFlowApp ne le détient jamais.</string>
     <string name="jd_record">Enregistrer</string>
     <string name="jd_stale_sig_title">Ce chantier a changé après la signature</string>
     <string name="jd_stale_sig_body">Depuis la signature de %1$s, %2$s. La signature enregistrée correspond à l\'ancien chantier -- obtenez-en une nouvelle avant de facturer.</string>
@@ -865,15 +865,15 @@
     <string name="cat_unpriced_many">%1$d articles n\'ont pas de prix</string>
     <string name="cat_unpriced_showing_only">Seuls ceux-ci sont affichés. Touchez pour tout afficher à nouveau.</string>
     <string name="cat_unpriced_explain">Ils comptent pour 0,00 $ dans un devis, donc tout devis qui les utilise sort sous le coût. Touchez pour ne voir que ceux-ci.</string>
-    <string name="cat_placeholder_one">1 prix est encore le chiffre de départ de FenceFlow</string>
-    <string name="cat_placeholder_many">%1$d prix sont encore des chiffres de départ de FenceFlow</string>
+    <string name="cat_placeholder_one">1 prix est encore le chiffre de départ de FenceFlowApp</string>
+    <string name="cat_placeholder_many">%1$d prix sont encore des chiffres de départ de FenceFlowApp</string>
     <string name="cat_placeholder_showing_only">Affichage de ceux-là seulement. Touchez pour tout réafficher.</string>
     <string name="cat_placeholder_explain">Ce sont des tarifs courants du marché, pas ceux de votre fournisseur. Les devis fondés dessus seront proches mais pas les vôtres. Touchez pour voir uniquement ceux-là.</string>
     <string name="cat_add_custom_item">Ajouter un article personnalisé</string>
     <string name="cat_empty_title">Votre catalogue est vide</string>
-    <string name="cat_empty_body">Une nouvelle entreprise démarre sans matériaux ni prix, pour qu\'aucun devis ne reprenne par accident les chiffres de quelqu\'un d\'autre. Ajoutez des articles un par un ci-dessous, ou copiez la liste de départ de FenceFlow pour commencer avec un exemple fonctionnel -- chaque prix copié doit quand même être vérifié auprès de votre fournisseur avant d\'envoyer un devis.</string>
-    <string name="cat_copy_starting_list">Copier la liste de départ de FenceFlow</string>
-    <string name="cat_copy_starting_list_confirm">Ceci ajoute les ~90 articles de départ de FenceFlow à votre catalogue, chacun toujours marqué comme prix de départ non vérifié. Rien de ce qui existe déjà n\'est supprimé ni modifié.</string>
+    <string name="cat_empty_body">Une nouvelle entreprise démarre sans matériaux ni prix, pour qu\'aucun devis ne reprenne par accident les chiffres de quelqu\'un d\'autre. Ajoutez des articles un par un ci-dessous, ou copiez la liste de départ de FenceFlowApp pour commencer avec un exemple fonctionnel -- chaque prix copié doit quand même être vérifié auprès de votre fournisseur avant d\'envoyer un devis.</string>
+    <string name="cat_copy_starting_list">Copier la liste de départ de FenceFlowApp</string>
+    <string name="cat_copy_starting_list_confirm">Ceci ajoute les ~90 articles de départ de FenceFlowApp à votre catalogue, chacun toujours marqué comme prix de départ non vérifié. Rien de ce qui existe déjà n\'est supprimé ni modifié.</string>
     <string name="cat_copy_starting_list_confirm_action">Copier les articles</string>
     <string name="cat_reading_pdf">Lecture du PDF…</string>
     <string name="cat_nothing_matches">Aucun résultat pour « %1$s ».</string>
@@ -1032,7 +1032,7 @@
     <string name="contract_legal_gap_send">Envoyer quand même</string>
     <string name="contract_legal_gap_fix">Ouvrir les conditions du contrat</string>
     <string name="presend_title">Avant que cela parte chez le client</string>
-    <string name="presend_unverified_body">%1$d prix de matériaux sur ce chantier sont encore les chiffres de départ de FenceFlow, pas ceux de votre fournisseur.</string>
+    <string name="presend_unverified_body">%1$d prix de matériaux sur ce chantier sont encore les chiffres de départ de FenceFlowApp, pas ceux de votre fournisseur.</string>
     <string name="presend_and_more">et %1$d de plus</string>
     <string name="est_unverified_banner">%1$d prix ici ne sont pas encore les vôtres : vérifiez-les avant d\'envoyer</string>
     <string name="est2_material_list_hint">Quantités seulement, sans prix : ils vous font un devis.</string>
@@ -1228,7 +1228,7 @@
     <string name="rep_help_protect_body">Les habitudes qui évitent les litiges : faites confirmer la visite avant de creuser, photographiez le site avant et après, consignez chaque modification dans un avenant signé et gardez à jour votre responsabilité civile et votre assurance accidents du travail.</string>
     <string name="rep_help_link_insurance">Comparez les assurances responsabilité civile pour entrepreneurs</string>
     <string name="rep_help_link_license_board">Consultez l\'ordre des entrepreneurs de votre état</string>
-    <string name="rep_help_third_party_note">Ces liens ouvrent votre navigateur vers des sites tiers : FenceFlow ne contrôle pas leur contenu.</string>
+    <string name="rep_help_third_party_note">Ces liens ouvrent votre navigateur vers des sites tiers : FenceFlowApp ne contrôle pas leur contenu.</string>
     <string name="rep_help_link_failed">Impossible d’ouvrir un navigateur pour ce lien</string>
     <string name="rep_guide_start_job_title">1. Créer un chantier</string>
     <string name="rep_guide_start_job_body">Touchez le bouton + sur l\'écran d\'accueil. Renseignez le nom, l\'adresse, le téléphone et l\'e-mail du client. Le champ d\'adresse propose de vraies adresses pendant la saisie, vous n\'avez donc pas à tout taper.</string>
@@ -1327,16 +1327,16 @@
     <string name="onb_start_using_it">Commencer</string>
     <string name="onb_next">Suivant</string>
     <string name="onb_skip">Passer</string>
-    <string name="onb_paused_title">FenceFlow est en pause</string>
-    <string name="onb_paused_default_reason">L\'accès de cette entreprise à FenceFlow a pris fin.</string>
+    <string name="onb_paused_title">FenceFlowApp est en pause</string>
+    <string name="onb_paused_default_reason">L\'accès de cette entreprise à FenceFlowApp a pris fin.</string>
     <string name="onb_paused_nothing_lost">Rien n\'a été perdu. Chaque chantier, dessin, photo et paiement est exactement là où il était et reviendra dès que ce sera réglé.</string>
     <string name="onb_paused_crew_note">Si vous faites partie de l\'équipe, c\'est une affaire pour le bureau ; il n\'y a rien à corriger de votre côté.</string>
     <string name="onb_check_again">Vérifier à nouveau</string>
     <string name="onb_checking">Vérification…</string>
-    <string name="onb_check_failed">Impossible de joindre FenceFlow. Vérifiez votre connexion, ou déconnectez-vous et reconnectez-vous si cela persiste.</string>
+    <string name="onb_check_failed">Impossible de joindre FenceFlowApp. Vérifiez votre connexion, ou déconnectez-vous et reconnectez-vous si cela persiste.</string>
     <string name="onb_trial_title">Commencez votre essai gratuit</string>
-    <string name="onb_trial_explain">Votre entreprise est prête. Choisissez une formule pour activer FenceFlow : 14 jours gratuits, modifiable ou annulable à tout moment.</string>
-    <string name="onb_trial_where">Les formules se choisissent sur le site FenceFlow, avec cette même adresse e-mail. Revenez ici et appuyez sur Vérifier à nouveau une fois terminé.</string>
+    <string name="onb_trial_explain">Votre entreprise est prête. Choisissez une formule pour activer FenceFlowApp : 14 jours gratuits, modifiable ou annulable à tout moment.</string>
+    <string name="onb_trial_where">Les formules se choisissent sur le site FenceFlowApp, avec cette même adresse e-mail. Revenez ici et appuyez sur Vérifier à nouveau une fois terminé.</string>
     <string name="onb_trial_open">Choisir une formule</string>
     <string name="onb_paused_open_billing">Ouvrir la facturation</string>
     <string name="onb_sign_out">Se déconnecter</string>
@@ -1359,9 +1359,9 @@
     <string name="onb_working">En cours...</string>
     <string name="onb_update_now">Mettre à jour</string>
     <string name="onb_later">Plus tard</string>
-    <string name="onb_unlock_prompt_title">Déverrouiller FenceFlow</string>
+    <string name="onb_unlock_prompt_title">Déverrouiller FenceFlowApp</string>
     <string name="onb_unlock_prompt_subtitle">Votre session a expiré</string>
-    <string name="onb_locked_title">FenceFlow est verrouillé</string>
+    <string name="onb_locked_title">FenceFlowApp est verrouillé</string>
     <string name="onb_locked_body">Votre session a expiré par mesure de sécurité.</string>
     <string name="onb_unlock">Déverrouiller</string>
     <string name="onb_unlock_with_screen_lock">Déverrouiller avec le verrouillage d\'écran</string>
@@ -1584,7 +1584,7 @@
     <string name="warn_changed_after_signed">Ceci a changé après la signature : %1$s. Obtenez une nouvelle signature avant d\'envoyer quoi que ce soit.</string>
     <string name="warn_posts_no_concrete">Des poteaux figurent sur le devis mais le béton n\'a pas été ajouté.</string>
     <string name="warn_gate_no_hardware">Un portail est dessiné mais la quincaillerie du portail (charnières, loquet) n\'a pas encore été ajoutée.</string>
-    <string name="warn_no_materials">Aucun matériau n\'est chiffré sur ce chantier : le total ne couvre que la main-d\'œuvre. Copiez la liste de départ de FenceFlow dans Catalogue ou ajoutez vos propres articles, puis touchez Suggérer les quantités sur chaque tronçon de clôture. Si le client fournit les matériaux, vous pouvez ignorer ceci.</string>
+    <string name="warn_no_materials">Aucun matériau n\'est chiffré sur ce chantier : le total ne couvre que la main-d\'œuvre. Copiez la liste de départ de FenceFlowApp dans Catalogue ou ajoutez vos propres articles, puis touchez Suggérer les quantités sur chaque tronçon de clôture. Si le client fournit les matériaux, vous pouvez ignorer ceci.</string>
     <string name="doc_title_working_estimate">Devis — interne</string>
     <string name="doc_title_customer_contract">Contrat</string>
     <string name="doc_title_supplier_request">Demande de matériaux</string>
@@ -1830,7 +1830,7 @@
     <string name="ntf_overdue_body">Aurait dû être terminé %1$s. %2$s</string>
     <string name="ntf_note_what_held">Notez ce qui l\'a retardé afin de pouvoir en informer le client.</string>
     <string name="ntf_held_up">Retardé : %1$s</string>
-    <string name="ntf_fenceflow_updated">FenceFlow mis à jour</string>
+    <string name="ntf_fenceflow_updated">FenceFlowApp mis à jour</string>
     <string name="ntf_jobs_came_in">%1$d chantiers sont arrivés de votre équipe.</string>
     <string name="ntf_a_job">un chantier</string>
     <string name="ntf_new_job_title">Nouveau chantier sur votre liste</string>
@@ -1935,7 +1935,7 @@
          resource value, and that escape has been eaten by a patch script
          three separate times today. -->
     <string name="gate_offline_too_long">Ce téléphone n’a pas pu vérifier votre compte depuis un moment. Connectez-vous à internet une fois et tout revient aussitôt.</string>
-    <string name="gate_block_unconfirmed">Ce téléphone n’a pas pu joindre FenceFlow depuis qu’on lui a dit que votre compte était suspendu, donc il ne sait pas si c’est toujours le cas. Connectez-vous à internet une fois, ou déconnectez-vous et reconnectez-vous, et ça se règle tout seul.</string>
+    <string name="gate_block_unconfirmed">Ce téléphone n’a pas pu joindre FenceFlowApp depuis qu’on lui a dit que votre compte était suspendu, donc il ne sait pas si c’est toujours le cas. Connectez-vous à internet une fois, ou déconnectez-vous et reconnectez-vous, et ça se règle tout seul.</string>
     <!-- Shown when the office corrects a shift. The person can already
          dispute a correction; until the phone could see one had happened,
          that meant disputing something invisible. -->
@@ -2066,10 +2066,10 @@
     <string name="crew_kept_body">Le bureau vous a retiré de ce chantier. Il reste sur ce téléphone avec tout ce qui n’a pas encore été envoyé, et un pointage en cours peut toujours être clôturé. Demandez l’accès pour y travailler de nouveau.</string>
     <string name="crew_kept_no_clock_in">Pointage impossible : vous n’êtes plus sur ce chantier.</string>
     <string name="crew_stage_not_yours">Vous n’êtes plus sur ce chantier, donc son étape ne peut pas être changée depuis ce téléphone.</string>
-    <string name="startup_settling_title">FenceFlow termine une mise à jour</string>
-    <string name="startup_settling_body">Fermez FenceFlow et rouvrez-le dans un instant. Il n’a pas pu démarrer pendant que la mise à jour était encore en cours d’installation.</string>
+    <string name="startup_settling_title">FenceFlowApp termine une mise à jour</string>
+    <string name="startup_settling_body">Fermez FenceFlowApp et rouvrez-le dans un instant. Il n’a pas pu démarrer pendant que la mise à jour était encore en cours d’installation.</string>
     <string name="startup_settling_nothing_lost">Rien n’a été modifié ni perdu sur ce téléphone.</string>
-    <string name="startup_settling_close">Fermer FenceFlow</string>
+    <string name="startup_settling_close">Fermer FenceFlowApp</string>
 
     <!-- Wave 2: teardown runs, the signing shortcut, and crew shift status. -->
     <string name="draw_add_run_new">Nouveau tronçon de clôture</string>
@@ -2147,7 +2147,7 @@
     <string name="so_empty_nosignal_title">Aucun chantier sur ce téléphone pour l\'instant</string>
     <string name="so_empty_nosignal_body">Il n\'y a pas de réseau pour le moment. Les chantiers du bureau arrivent tout seuls dès que vous êtes de nouveau en ligne.</string>
     <string name="so_ntf_title">Vous avez été déconnecté</string>
-    <string name="so_ntf_body">Les chantiers ne se mettront pas à jour et votre travail n\'arrivera pas au bureau tant que vous ne vous reconnectez pas. Ouvrez FenceFlow pour vous connecter.</string>
+    <string name="so_ntf_body">Les chantiers ne se mettront pas à jour et votre travail n\'arrivera pas au bureau tant que vous ne vous reconnectez pas. Ouvrez FenceFlowApp pour vous connecter.</string>
 
     <!-- Crew enquiry capture: a neighbour asks while a crew member is on a job, and the office prices it.
          Nothing in this block carries a price. -->
@@ -2356,7 +2356,7 @@
     <string name="photo_viewer_previous">Photo précédente</string>
     <string name="photo_viewer_next">Photo suivante</string>
     <string name="jd_open_hoa_in_email_app">Ouvrir dans mon application de messagerie</string>
-    <string name="jd_send_hoa_from_fenceflow">L’envoyer pour moi, depuis FenceFlow</string>
+    <string name="jd_send_hoa_from_fenceflow">L’envoyer pour moi, depuis FenceFlowApp</string>
     <string name="jd_hoa_sending">Envoi…</string>
     <string name="jd_hoa_goes_to">Envoyé à %1$s</string>
     <string name="jd_hoa_sent_to">Envoyé à %1$s. La réponse arrive dans la boîte de votre entreprise.</string>

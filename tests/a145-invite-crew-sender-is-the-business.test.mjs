@@ -13,10 +13,10 @@
 //
 // -- the bare MAIL_FROM whenever MAIL_FROM already carried a display name.
 // The runbook at the top of that same file says MAIL_FROM is expected to be
-// exactly that: `"FenceFlow <crew@fenceflowapp.com>"`. So the one branch that
+// exactly that: `"FenceFlowApp <crew@fenceflowapp.com>"`. So the one branch that
 // could ever have put the business's name on the letter was unreachable for
 // every value the file tells the owner to configure, and every crew invitation
-// went out as "FenceFlow".
+// went out as "FenceFlowApp".
 //
 // The repo had already settled which behaviour is right: fenceflowFrom() in
 // _shared/mail/mime-build.ts takes the BARE address out of MAIL_FROM and puts
@@ -47,7 +47,7 @@ const JOIN_CODE = "a1450000-0000-4000-8000-00000000c0de";
 const MAIL_HOST = "https://mail.fake.example.test/emails";
 const CREW_EMAIL = "newhire@crew.example.test";
 /** The exact value the file's own runbook tells the owner to set. */
-const RUNBOOK_MAIL_FROM = "FenceFlow <crew@fenceflowapp.com>";
+const RUNBOOK_MAIL_FROM = "FenceFlowApp <crew@fenceflowapp.com>";
 
 const ENV = {};
 function resetEnv(over = {}) {
@@ -176,7 +176,7 @@ test("with MAIL_FROM exactly as the runbook says, the letter is FROM the busines
 
   const from = mail.sent[0].from;
   // The whole defect, stated as a value: the old code sent RUNBOOK_MAIL_FROM
-  // back unchanged, so the crew member saw "FenceFlow" and not their employer.
+  // back unchanged, so the crew member saw "FenceFlowApp" and not their employer.
   assert.notEqual(from, RUNBOOK_MAIL_FROM, "the sender is still the bare MAIL_FROM: the business name was dropped");
   assert.equal(from, '"Acme Fence & Deck" <crew@fenceflowapp.com>');
   // And it says the same thing the shared helper every other mail path uses says.
@@ -219,10 +219,10 @@ test("a company name that could forge a header cannot: no CR, LF, quote, backsla
   assert.doesNotMatch(from, /Bcc:\s*victim@elsewhere\.example\.test\s*$/i, "a Bcc that reads as a header continuation");
 });
 
-test("no company name falls back to MAIL_FROM_NAME, then to FenceFlow -- never to a nameless address", async () => {
+test("no company name falls back to MAIL_FROM_NAME, then to FenceFlowApp -- never to a nameless address", async () => {
   for (const [over, expected] of [
-    [{ MAIL_FROM_NAME: "FenceFlow Crew" }, '"FenceFlow Crew" <crew@fenceflowapp.com>'],
-    [{}, '"FenceFlow" <crew@fenceflowapp.com>'],
+    [{ MAIL_FROM_NAME: "FenceFlowApp Crew" }, '"FenceFlowApp Crew" <crew@fenceflowapp.com>'],
+    [{}, '"FenceFlowApp" <crew@fenceflowapp.com>'],
   ]) {
     resetEnv(over);
     const mail = fakeMail();

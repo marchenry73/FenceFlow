@@ -184,7 +184,7 @@ object Satellite {
     private suspend fun downloadTile(z: Int, x: Int, y: Int, key: String): Bitmap? =
         withContext(Dispatchers.IO) {
             try {
-                // The key says "this is the FenceFlow app", which is what
+                // The key says "this is FenceFlowApp", which is what
                 // lets the proxy serve a metered provider rather than falling
                 // back to the free chain. Not a secret: it is the same anon
                 // key every request from this app already carries.

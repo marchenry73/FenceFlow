@@ -78,7 +78,7 @@ Deno.serve(async (req) => {
       const out = [];
       for (const plan of plans) {
         const product = await stripe("POST", "/products", {
-          name: `FenceFlow ${plan.name}`,
+          name: `FenceFlowApp ${plan.name}`,
         });
         const price = await stripe("POST", "/prices", {
           product: product.id,

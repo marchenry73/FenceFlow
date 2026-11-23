@@ -512,7 +512,7 @@ function stampedVersion() {
 /**
  * A copy on the machine, beside every other project's builds.
  *
- * FenceFlow ships over the air, so this is NOT the distribution path -- phones
+ * FenceFlowApp ships over the air, so this is NOT the distribution path -- phones
  * update from the release row, which points at the file just uploaded. This is
  * the spare: the shared APK folder is where every project on this machine keeps
  * a build that can be sideloaded when something is wrong with the hosted one.
@@ -554,7 +554,7 @@ function keepASpareCopy(remote) {
     // is for.
     //
     // The rule warns that this leaves no rollback copy. True for a sideloaded
-    // app whose only copy lives here -- and not true for FenceFlow, whose
+    // app whose only copy lives here -- and not true for FenceFlowApp, whose
     // phones update from a release row pointing at storage that keeps every
     // build ever published. This file is a convenience for sideloading, not
     // the distribution path, so the single-file rule costs nothing here.

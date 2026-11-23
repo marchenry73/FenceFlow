@@ -448,13 +448,13 @@ export function parseAddressList(input) {
 
 /**
  * Whether the reader warns that a message's sender was never checked, and
- * how loudly. A FenceFlow mail reply (source resend_inbound) comes in through
+ * how loudly. A FenceFlowApp mail reply (source resend_inbound) comes in through
  * a reply address every customer has seen and anyone can write to, and
  * nothing Resend hands over proves who sent it: its From line is whatever
  * the sender typed. Mail fetched from the company's own mailbox has at least
  * been through that provider's filtering, so it gets no warning here.
  *   null           no warning
- *   "unverified"   every FenceFlow mail reply
+ *   "unverified"   every FenceFlowApp mail reply
  *   "own_address"  one whose From claims to be the company itself (one of
  *                  `own`, or an address at one of `domains`, the reply
  *                  domain) -- how a forged invoice or a "new bank details"
@@ -472,7 +472,7 @@ export function senderWarning(m, own = [], domains = []) {
 
 /**
  * Who a reply goes to. `own` is every address the company sends from (its
- * mailboxes and FenceFlow mail); none of them is ever a recipient.
+ * mailboxes and FenceFlowApp mail); none of them is ever a recipient.
  *   - An incoming message: Reply-To if it set one, else From.
  *   - A message we sent: its original To (answering our own message means
  *     writing to the same people again).
@@ -567,7 +567,7 @@ export const MAIL_ERROR_KEYS = Object.freeze({
   session_limit: "mailErrSessionLimit",
 });
 
-/* Codes whose `detail` FenceFlow wrote itself for a person to read ("Enter
+/* Codes whose `detail` FenceFlowApp wrote itself for a person to read ("Enter
    the mailbox's full email address.") -- that sentence is more useful than
    the generic one. For every other code the detail is the mail server's own
    words (already redacted by the server), shown as "The server said: ...". */

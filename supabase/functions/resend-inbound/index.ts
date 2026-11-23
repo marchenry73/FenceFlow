@@ -1,13 +1,13 @@
 /**
  * resend-inbound -- Resend's email.received webhook. Brings customers'
- * replies to FenceFlow mail back into the company's inbox.
+ * replies to FenceFlowApp mail back into the company's inbox.
  *
  *   POST <a svix-signed Resend event>   (from Resend; no Supabase JWT)
  *
- * HOW A REPLY FINDS ITS COMPANY. Once receiving is proven, FenceFlow mail
+ * HOW A REPLY FINDS ITS COMPANY. Once receiving is proven, FenceFlowApp mail
  * goes out with a Reply-To of <inbound_token>.<reply_token>@MAIL_INBOUND_DOMAIN
  * (reply.ts fenceflowReplyTo). The inbound_token names one company's
- * FenceFlow-mail account and is the ONLY thing that picks the company. The
+ * FenceFlowApp-mail account and is the ONLY thing that picks the company. The
  * reply_token names the thread and is merely passed on to mail_ingest,
  * which honours it inside that account's company alone -- so a reply_token
  * copied out of company B's mail, sent to company A's address, opens a new
@@ -33,7 +33,7 @@
  *  - Already handled (its svix-id is in mail_inbound_events): 200.
  *  - The recipients of the SIGNED event (received_for, to, cc, bcc) go
  *    through reply.ts inboundRoutes(): only <hex>[.<hex>]@<exactly
- *    MAIL_INBOUND_DOMAIN>. Each token is looked up among FenceFlow-mail
+ *    MAIL_INBOUND_DOMAIN>. Each token is looked up among FenceFlowApp-mail
  *    accounts; one delivery reaches at most MAX_TARGETS companies.
  *  - No known token: dropped with 200 and counted (mail_events
  *    inbound_dropped, no company). Nothing is stored and Resend is asked
@@ -63,7 +63,7 @@
  * skip a message that was never stored.
  *
  * PROVING RECEIVING WORKS. mail_platform_settings.inbound_verified_at is
- * what switches every company's FenceFlow-mail Reply-To to the reply domain
+ * what switches every company's FenceFlowApp-mail Reply-To to the reply domain
  * (mail-send, mail-connect), so it is set only when the whole chain has
  * worked at once: a signed delivery, to an address at exactly
  * MAIL_INBOUND_DOMAIN, whose message Resend then handed over for
@@ -75,7 +75,7 @@
  *
  * THE SENDER IS NOT CHECKED, and cannot be from here. The svix signature
  * proves Resend delivered the message, not who wrote it: the reply address
- * is known to every customer who got FenceFlow mail, and Resend's receiving
+ * is known to every customer who got FenceFlowApp mail, and Resend's receiving
  * API documents no SPF/DKIM/DMARC verdict (a message's own
  * Authentication-Results header is text its sender can write). So the From
  * line is stored as written, and the office reader warns on every
@@ -269,7 +269,7 @@ async function readRawBody(req: Request): Promise<Uint8Array> {
 }
 
 async function readCapped(res: Response, max: number): Promise<Uint8Array> {
-  const tooBig = () => new MailError("session_limit", "The download is larger than FenceFlow takes.");
+  const tooBig = () => new MailError("session_limit", "The download is larger than FenceFlowApp takes.");
   const declared = Number(res.headers.get("content-length") ?? "");
   if (Number.isFinite(declared) && declared > max) {
     await res.body?.cancel().catch(() => {});
@@ -606,7 +606,7 @@ async function recordHandled(admin: SupabaseClient, svixId: string, emailId: str
 
 /**
  * The companies a delivery is for: each route's inbound_token looked up
- * among live FenceFlow-mail accounts. One target per company, at most
+ * among live FenceFlowApp-mail accounts. One target per company, at most
  * MAX_TARGETS; a route carrying a thread token is preferred over a bare one
  * to the same account. The reply_token is never used to find anything here.
  */

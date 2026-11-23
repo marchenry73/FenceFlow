@@ -1,4 +1,4 @@
-// Pure builder for the one email FenceFlow sends a new company when its
+// Pure builder for the one email FenceFlowApp sends a new company when its
 // owner finishes signing up. Split out of send-welcome-email/index.ts for the
 // same reason invite-crew-email.ts is split out of invite-crew: nothing here
 // touches Deno, the network or the clock, so tests/welcome-email.test.mjs can
@@ -12,7 +12,7 @@
 // block only tightens the padding on a phone, for the clients that read it.
 //
 // Every claim in it is something the office actually does today: the
-// Catalog tab (with "Start from FenceFlow's catalog"), the Crew tab's + Add
+// Catalog tab (with "Start from FenceFlowApp's catalog"), the Crew tab's + Add
 // (invite-crew emails the app link and the team code), and Jobs -> + New Job
 // with a quote link the customer can approve. There are no deep links into a
 // tab -- dashboard.html has no URL for one -- so each step names the tab and
@@ -47,7 +47,7 @@ const escapeHtml = (s: unknown): string =>
 const oneLine = (s: unknown, max: number): string =>
   String(s ?? "").replace(/[\u0000-\u001f\u007f]+/g, " ").replace(/\s+/g, " ").trim().slice(0, max);
 
-// FenceFlow's own palette, from website/index.html's :root.
+// FenceFlowApp's own palette, from website/index.html's :root.
 const INK = "#0B1220";
 const ORANGE = "#FF5A1F";
 const PAPER = "#F6F7F5";
@@ -77,7 +77,7 @@ function steps(plan: string | null | undefined): Step[] {
       title: "Add your prices",
       body:
         "Open the Catalog tab and put in what your supplier charges for posts, panels, " +
-        "concrete and gate hardware \u2014 or press \u201cStart from FenceFlow\u2019s catalog\u201d " +
+        "concrete and gate hardware \u2014 or press \u201cStart from FenceFlowApp\u2019s catalog\u201d " +
         "and change the numbers. Every estimate is priced from this list.",
       tab: "Catalog",
     },
@@ -115,10 +115,10 @@ export function buildWelcomeEmail(input: WelcomeEmailInput): WelcomeEmailOutput 
   const support = oneLine(input.supportEmail, 254);
   const list = steps(input.plan);
 
-  const subject = `Welcome to FenceFlow, ${company}`;
+  const subject = `Welcome to FenceFlowApp, ${company}`;
   const greeting = first ? `Hi ${first},` : "Hi there,";
   const intro = `${company} is set up and your office is ready. Three things are worth doing first:`;
-  const preheader = "Your FenceFlow office is ready. Here are the three things to do first.";
+  const preheader = "Your FenceFlowApp office is ready. Here are the three things to do first.";
 
   const e = escapeHtml;
   const officeHref = e(office);
@@ -172,7 +172,7 @@ export function buildWelcomeEmail(input: WelcomeEmailInput): WelcomeEmailOutput 
         <tr>
           <td class="ff-card" bgcolor="#FFFFFF" style="background:#FFFFFF;border:1px solid ${LINE};border-top:0;border-radius:0 0 14px 14px;padding:38px 40px 34px 40px;">
             <p style="margin:0 0 10px 0;font-family:${BODY_FONT};font-size:12px;line-height:1;font-weight:700;letter-spacing:2px;text-transform:uppercase;color:${ORANGE};">You&rsquo;re all set up</p>
-            <h1 class="ff-h1" style="margin:0 0 18px 0;font-family:${DISPLAY_FONT};font-size:34px;line-height:1.08;font-weight:700;color:${INK};">Welcome to FenceFlow, ${e(company)}.</h1>
+            <h1 class="ff-h1" style="margin:0 0 18px 0;font-family:${DISPLAY_FONT};font-size:34px;line-height:1.08;font-weight:700;color:${INK};">Welcome to FenceFlowApp, ${e(company)}.</h1>
             <p style="margin:0 0 8px 0;font-family:${BODY_FONT};font-size:16px;line-height:1.6;color:${TEXT};">${e(greeting)}</p>
             <p style="margin:0 0 26px 0;font-family:${BODY_FONT};font-size:16px;line-height:1.6;color:${TEXT};">${e(intro)}</p>
             <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">${stepRows}
@@ -201,8 +201,8 @@ export function buildWelcomeEmail(input: WelcomeEmailInput): WelcomeEmailOutput 
         </tr>
         <tr>
           <td align="center" style="padding:22px 24px 0 24px;font-family:${BODY_FONT};font-size:12px;line-height:1.6;color:${MUTED};">
-            You are getting this because ${e(company)} was just set up on FenceFlow.<br>
-            It is a one-time welcome &mdash; FenceFlow will not send another.<br>
+            You are getting this because ${e(company)} was just set up on FenceFlowApp.<br>
+            It is a one-time welcome &mdash; FenceFlowApp will not send another.<br>
             If the button does not work, paste this into your browser: <span style="word-break:break-all;">${e(office)}</span>
           </td>
         </tr>
@@ -215,7 +215,7 @@ export function buildWelcomeEmail(input: WelcomeEmailInput): WelcomeEmailOutput 
 </html>`;
 
   const text = [
-    `Welcome to FenceFlow, ${company}.`,
+    `Welcome to FenceFlowApp, ${company}.`,
     "",
     greeting,
     "",
@@ -233,8 +233,8 @@ export function buildWelcomeEmail(input: WelcomeEmailInput): WelcomeEmailOutput 
     `Questions, or stuck on a step? Reply to this email or write to ${support}.`,
     "",
     "--",
-    `You are getting this because ${company} was just set up on FenceFlow.`,
-    "It is a one-time welcome - FenceFlow will not send another.",
+    `You are getting this because ${company} was just set up on FenceFlowApp.`,
+    "It is a one-time welcome - FenceFlowApp will not send another.",
   ].join("\n");
 
   return { subject, html, text };

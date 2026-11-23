@@ -352,7 +352,7 @@ class EstimateViewModel(
         }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), EMPTY_TOTALS)
 
     /**
-     * Materials on THIS job still priced with a figure FenceFlow shipped
+     * Materials on THIS job still priced with a figure FenceFlowApp shipped
      * rather than one this company checked.
      *
      * The catalog banner counts placeholders across the whole catalog, which

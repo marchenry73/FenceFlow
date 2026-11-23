@@ -20,7 +20,7 @@
 // clearing its data and reinstalling, because it is keyed to the app's signing
 // key and the device. It does NOT survive a factory reset. The only sanctioned
 // way to survive a reset is Play Integrity's device recall, which requires the
-// app to be distributed through Google Play -- FenceFlow is a direct APK
+// app to be distributed through Google Play -- FenceFlowApp is a direct APK
 // download served by apk-proxy -- and is in any case still beta behind an
 // interest form. Checked and parked by the owner on 7 Nov 2026: a factory
 // reset wipes the whole phone to save the price of one month.

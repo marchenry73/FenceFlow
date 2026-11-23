@@ -245,10 +245,10 @@ Deno.serve(async (req) => {
     const { data: allowed, error: allowedError } = await supabase.rpc("company_allowed", { cid: profile.company_id });
     if (allowedError) {
       console.error("price-job: company_allowed", allowedError.message);
-      return json({ error: "Could not check your FenceFlow account." }, 500);
+      return json({ error: "Could not check your FenceFlowApp account." }, 500);
     }
     if (allowed === false) {
-      return json({ error: "This FenceFlow account is not active. Check the Billing tab." }, 403);
+      return json({ error: "This FenceFlowApp account is not active. Check the Billing tab." }, 403);
     }
 
     const { data: jobData, error: jobError } = await supabase
@@ -369,7 +369,7 @@ Deno.serve(async (req) => {
     if (plan.tombstoneSyncIds.length > 0) {
       // Never delete -- update the same two columns every other table's
       // trash bin uses, so a mistaken re-price stays recoverable the same
-      // way a mistaken delete anywhere else in FenceFlow is.
+      // way a mistaken delete anywhere else in FenceFlowApp is.
       //
       // Still generated and still live, asked of the row itself: the plan
       // chose these from the rows it read, and a phone can edit one of them

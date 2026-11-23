@@ -1,5 +1,5 @@
 /**
- * mail-sync -- brings new mail from each connected mailbox into FenceFlow.
+ * mail-sync -- brings new mail from each connected mailbox into FenceFlowApp.
  *
  * Headers only. For every company mailbox connected over IMAP it logs in,
  * reads INBOX and the Sent folder with EXAMINE (read-only) and BODY.PEEK (so
@@ -124,7 +124,7 @@ const DUE_SCAN_LIMIT = 100;
 /** PostgREST answers at most 1000 rows; the stale-UID sweep pages by that. */
 const STALE_PAGE = 1000;
 const STALE_MAX_PAGES = 20;
-/** Codes that mean FenceFlow's own side failed, not a tenant's mailbox. Any
+/** Codes that mean FenceFlowApp's own side failed, not a tenant's mailbox. Any
  *  of these makes the scheduled run answer ok:false, so the workflow fails
  *  and somebody hears of it. A tenant's wrong password must not. */
 const OUR_SIDE: ReadonlySet<MailErrorCode> = new Set<MailErrorCode>(["server_error", "not_configured"]);
@@ -276,7 +276,7 @@ export async function imapHostFor(row: StoredAccount, resolver: Resolver | null)
 // ---------------------------------------------------------------------------
 
 /** Every address the company sends from (all its mail_accounts, any kind or
- *  status), plus FenceFlow's inbound reply domain: never counterparts. */
+ *  status), plus FenceFlowApp's inbound reply domain: never counterparts. */
 async function ownMailboxes(admin: SupabaseClient, companyId: string, deps: SyncDeps): Promise<OwnMailboxes> {
   const { data, error } = await admin.from("mail_accounts").select("email_address").eq("company_id", companyId);
   if (error) throw new MailError("server_error", "Could not read the company's mailboxes.");

@@ -1,6 +1,6 @@
 /**
  * mail-send -- sends one email from the office: through a company mailbox's
- * own SMTP server (port 465, implicit TLS), or as "FenceFlow mail" through
+ * own SMTP server (port 465, implicit TLS), or as "FenceFlowApp mail" through
  * Resend under the company's name.
  *
  *   POST {
@@ -39,7 +39,7 @@
  * service role goes near a password or a file.
  *
  * FROM IS NEVER THE REQUEST'S. A mailbox sends as its own address, MAIL FROM
- * included, with its display name (or the company's name). FenceFlow mail
+ * included, with its display name (or the company's name). FenceFlowApp mail
  * sends as the company's name on the bare address inside MAIL_FROM. Nothing
  * in the request can name a sender, add a header or reach the SMTP envelope:
  * addresses are refused, never repaired, if they carry a line break, space or
@@ -95,13 +95,13 @@
  * unless told not to, Gmail always does; for anyone else the first send
  * waits, looks for the copy by its Message-ID, and APPENDs one only if it is
  * still missing after a second look, remembering the answer in
- * smtp_saves_sent. A copy that turns up later re-binds FenceFlow's row
+ * smtp_saves_sent. A copy that turns up later re-binds FenceFlowApp's row
  * through mail_ingest (by Message-ID) instead of duplicating it.
  *
  * FENCEFLOW MAIL replies go to the company's email, or -- once receiving is
- * configured AND proven by a signed webhook -- back into FenceFlow through
+ * configured AND proven by a signed webhook -- back into FenceFlowApp through
  * <inbound_token>.<thread reply_token>@MAIL_INBOUND_DOMAIN. With neither
- * there is nowhere honest for a reply to land (it would reach FenceFlow's own
+ * there is nowhere honest for a reply to land (it would reach FenceFlowApp's own
  * mailbox carrying another company's customer), so the send is refused. The
  * Resend call carries the row id as its Idempotency-Key.
  */
@@ -181,7 +181,7 @@ export const SENT_COPY_SECOND_WAIT_MS = 4_000;
 /** Characters of Resend's answer read. It is a small JSON object. */
 const RESEND_ANSWER_MAX_CHARS = 4_000;
 /** Stored for a send whose outcome is unknown; the office shows it on the row. */
-export const UNCONFIRMED_NOTE = "FenceFlow could not confirm this email was sent. Check Sent before sending it again.";
+export const UNCONFIRMED_NOTE = "FenceFlowApp could not confirm this email was sent. Check Sent before sending it again.";
 
 /** Codes that mean the mailbox refused its password: the account becomes
  *  auth_failed so neither the schedule nor the next send presents it again. */
@@ -603,7 +603,7 @@ async function gatherAttachments(caller: MailCaller, req: SendRequest, parent: R
 /**
  * In-Reply-To and References. A reply carries both (RFC 5322 3.6.4). A
  * forward carries References only: the recipient's mail program starts a new
- * conversation, while FenceFlow keeps it in the thread it came from (the
+ * conversation, while FenceFlowApp keeps it in the thread it came from (the
  * claim names that thread's reply_token).
  */
 function threadingFor(req: SendRequest, parent: Row | null): { inReplyTo: string | null; references: string[] } {
@@ -628,7 +628,7 @@ interface ClaimInput {
   attachments: Gathered[];
   sizeBytes: number;
   now: Date;
-  /** Domains that are FenceFlow's own (the inbound reply domain). */
+  /** Domains that are FenceFlowApp's own (the inbound reply domain). */
   ownDomains: string[];
   replyToken: string | null;
 }
@@ -750,7 +750,7 @@ function uidOf(v: unknown): number | null {
   return Number.isInteger(n) && n >= 1 && n <= 4294967295 ? n : null;
 }
 
-/** Where the answered message lives on the server, when FenceFlow can mark
+/** Where the answered message lives on the server, when FenceFlowApp can mark
  *  it: an inbox message of the SAME mailbox that sent the reply, not yet
  *  answered. Another mailbox's message is left alone (it would mean a second
  *  sign-in for a cosmetic flag), and a DB-only mark would be undone by that
@@ -889,7 +889,7 @@ async function viaMailbox(caller: MailCaller, deps: SendDeps, req: SendRequest, 
   const messageId = newMessageId(from.address, deps.uuid());
   const threading = threadingFor(req, parent);
   // The letterhead goes on the company's own mailbox sends too, not only on
-  // FenceFlow mail: it is their logo on their letter either way, and a quote
+  // FenceFlowApp mail: it is their logo on their letter either way, and a quote
   // that looks like the company's paperwork from one address and like software
   // output from the other would be the odder of the two.
   const composed = composeBody({
@@ -983,7 +983,7 @@ async function viaMailbox(caller: MailCaller, deps: SendDeps, req: SendRequest, 
 }
 
 // ---------------------------------------------------------------------------
-// Sending as FenceFlow mail (Resend).
+// Sending as FenceFlowApp mail (Resend).
 // ---------------------------------------------------------------------------
 
 /** Thrown when Resend may have accepted the message: no answer, a timeout, a
@@ -1024,7 +1024,7 @@ async function postToResend(deps: SendDeps, url: string, key: string, payload: R
     });
   } catch (e) {
     const name = String((e as { name?: unknown })?.name ?? "");
-    throw new DeliveryUnknown(/timeout|abort/i.test(name) ? "timeout" : "connect_failed", "No answer from FenceFlow mail.");
+    throw new DeliveryUnknown(/timeout|abort/i.test(name) ? "timeout" : "connect_failed", "No answer from FenceFlowApp mail.");
   }
   let answer: unknown = null;
   try {
@@ -1038,20 +1038,20 @@ async function postToResend(deps: SendDeps, url: string, key: string, payload: R
   }
   const said = resendSaid(answer);
   if (res.status >= 500 || res.status === 409) {
-    console.error(`${FN}: FenceFlow mail answered ${res.status}`);
+    console.error(`${FN}: FenceFlowApp mail answered ${res.status}`);
     throw new DeliveryUnknown("server_busy", said);
   }
   if (res.status === 401 || res.status === 403) {
-    console.error(`${FN}: FenceFlow mail refused the server's key (${res.status})`);
-    throw new MailError("not_configured", "FenceFlow mail refused the server's key.");
+    console.error(`${FN}: FenceFlowApp mail refused the server's key (${res.status})`);
+    throw new MailError("not_configured", "FenceFlowApp mail refused the server's key.");
   }
-  if (res.status === 429) throw new MailError("rate_limited", "FenceFlow mail is busy. Try again in a minute.");
+  if (res.status === 429) throw new MailError("rate_limited", "FenceFlowApp mail is busy. Try again in a minute.");
   if (res.status === 413) throw new MailError("too_large", said);
   throw new MailError("send_rejected", said);
 }
 
 /**
- * Which service carries FenceFlow mail today.
+ * Which service carries FenceFlowApp mail today.
  *
  * One row, read per send. 'resend' is the default and is what was hardcoded
  * before this existed, so a database that has never been touched sends exactly
@@ -1141,7 +1141,7 @@ async function postToBrevo(deps: SendDeps, url: string, key: string, payload: Ro
     });
   } catch (e) {
     const name = String((e as { name?: unknown })?.name ?? "");
-    throw new DeliveryUnknown(/timeout|abort/i.test(name) ? "timeout" : "connect_failed", "No answer from FenceFlow mail.");
+    throw new DeliveryUnknown(/timeout|abort/i.test(name) ? "timeout" : "connect_failed", "No answer from FenceFlowApp mail.");
   }
   let answer: unknown = null;
   try {
@@ -1167,9 +1167,9 @@ async function postToBrevo(deps: SendDeps, url: string, key: string, payload: Ro
   }
   if (res.status === 401 || res.status === 403) {
     console.error(`${FN}: Brevo refused the server's key (${res.status})`);
-    throw new MailError("not_configured", "FenceFlow mail refused the server's key.");
+    throw new MailError("not_configured", "FenceFlowApp mail refused the server's key.");
   }
-  if (res.status === 429) throw new MailError("rate_limited", "FenceFlow mail is busy. Try again in a minute.");
+  if (res.status === 429) throw new MailError("rate_limited", "FenceFlowApp mail is busy. Try again in a minute.");
   if (res.status === 413) throw new MailError("too_large", said);
   throw new MailError("send_rejected", said);
 }
@@ -1190,7 +1190,7 @@ function brevoSaid(answer: unknown): string {
   return said ? said.slice(0, 300) : "The mail service refused the message.";
 }
 
-/** The company's FenceFlow-mail account, created on first use by the RPC
+/** The company's FenceFlowApp-mail account, created on first use by the RPC
  *  (race-safe; PostgREST cannot upsert against a partial unique index). */
 /**
  * The company's letterhead as a URL an inbox can load, or null.
@@ -1271,7 +1271,7 @@ async function fenceflowAccount(caller: MailCaller, address: string): Promise<st
   return data;
 }
 
-/** Replies come back into FenceFlow only once receiving is configured AND a
+/** Replies come back into FenceFlowApp only once receiving is configured AND a
  *  signed webhook has proven it -- the same test mail-connect's status uses. */
 async function inboundState(caller: MailCaller, deps: SendDeps): Promise<{ ready: boolean; domain: string }> {
   const domain = envOf(deps, "MAIL_INBOUND_DOMAIN").toLowerCase();
@@ -1299,11 +1299,11 @@ async function viaFenceflow(caller: MailCaller, deps: SendDeps, req: SendRequest
       "not_configured",
       provider === "brevo"
         ? "Brevo is selected as the sender but BREVO_API_KEY is not set on the server."
-        : "FenceFlow mail is not set up on the server.",
+        : "FenceFlowApp mail is not set up on the server.",
     );
   }
   secrets.push(key);
-  const from = fenceflowFrom(caller.companyName, mailFrom, envOf(deps, "MAIL_FROM_NAME") || "FenceFlow");
+  const from = fenceflowFrom(caller.companyName, mailFrom, envOf(deps, "MAIL_FROM_NAME") || "FenceFlowApp");
   const fields = validateSendFields(body, MAX_RECIPIENTS_RESEND);
   const parentId = req.replyToMessageId ?? req.forwardOfMessageId;
   const parent = parentId ? await loadParent(caller, parentId) : null;
@@ -1330,7 +1330,7 @@ async function viaFenceflow(caller: MailCaller, deps: SendDeps, req: SendRequest
   };
   const reply = fenceflowReplyTo(replyInput);
   if (reply.mode === "unavailable") {
-    throw new MailError("bad_request", "Add your business email in Settings first, so replies to FenceFlow mail have somewhere to go.");
+    throw new MailError("bad_request", "Add your business email in Settings first, so replies to FenceFlowApp mail have somewhere to go.");
   }
 
   const prior = await priorSend(caller, req.clientSendId);
@@ -1467,7 +1467,7 @@ async function viaFenceflow(caller: MailCaller, deps: SendDeps, req: SendRequest
 /**
  * SCHEDULED SEND. A row in mail_drafts with send_at set is an email waiting
  * for its moment; this sweeps the ones that are due and sends each through the
- * ordinary FenceFlow path, so a scheduled letter is the same letter with the
+ * ordinary FenceFlowApp path, so a scheduled letter is the same letter with the
  * same guarantees as one sent by hand.
  *
  * Swept every five minutes by GitHub Actions, which is the shortest interval
@@ -1498,7 +1498,7 @@ async function viaFenceflow(caller: MailCaller, deps: SendDeps, req: SendRequest
  *
  *  - An author who is no longer allowed to send: gone, now CREW, or moved to
  *    another company. company_allowed() is re-asked too, so a company that
- *    has stopped paying does not get FenceFlow spending its Resend quota on a
+ *    has stopped paying does not get FenceFlowApp spending its Resend quota on a
  *    letter queued before it lapsed.
  *
  *    ONE GAP, STATED RATHER THAN HIDDEN: can_use_company_mail() reads
@@ -1552,7 +1552,7 @@ async function sendOneScheduled(
 
   if (draft.account_id) {
     throw new ScheduledRefusal(
-      "A scheduled email can only be sent by FenceFlow, not from your own mailbox.",
+      "A scheduled email can only be sent by FenceFlowApp, not from your own mailbox.",
     );
   }
   if (kind === "reply" || kind === "forward") {
@@ -1575,7 +1575,7 @@ async function sendOneScheduled(
 
   const { data: allowed, error: allowedError } = await admin.rpc("company_allowed", { cid: companyId });
   if (allowedError) throw new ScheduledRefusal("The company's standing could not be read.");
-  if (allowed !== true) throw new ScheduledRefusal("This company's FenceFlow account is not active.");
+  if (allowed !== true) throw new ScheduledRefusal("This company's FenceFlowApp account is not active.");
 
   const { data: company, error: companyError } = await admin
     .from("companies").select("name, email, logo_path, is_sandbox").eq("id", companyId).maybeSingle();

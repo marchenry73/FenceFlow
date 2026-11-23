@@ -38,7 +38,7 @@ const base = {
 {
   const { subject, html, text } = buildSignupEmail(base);
 
-  ok('subject names the business', subject === 'Finish setting up Marc fence on FenceFlow');
+  ok('subject names the business', subject === 'Finish setting up Marc fence on FenceFlowApp');
   ok('subject is one line', !/[\r\n]/.test(subject));
   ok('greeting uses the first name only', html.includes('Hi Marc,') && !html.includes('Hi Marc Henry'));
   ok('html: the setup button points at welcome.html', html.includes(`href="${SETUP}"`));
@@ -56,9 +56,9 @@ const base = {
      point of this email -- so every line has to read without one. */
   const noName = buildSignupEmail({ ...base, companyName: '', ownerName: '' });
   ok('no company name: subject still reads',
-    noName.subject === 'Finish setting up your FenceFlow account');
+    noName.subject === 'Finish setting up your FenceFlowApp account');
   ok('no company name: no empty gap or "undefined"',
-    !/undefined|null|\s{2,}on FenceFlow/.test(noName.subject + noName.text));
+    !/undefined|null|\s{2,}on FenceFlowApp/.test(noName.subject + noName.text));
   ok('no owner name: greeting falls back', noName.text.includes('Hi there,'));
   ok('null company name is handled like a blank one',
     buildSignupEmail({ ...base, companyName: null }).subject === noName.subject);

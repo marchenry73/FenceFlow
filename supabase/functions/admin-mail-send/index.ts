@@ -1,10 +1,10 @@
 /**
- * admin-mail-send -- emails YOUR CLIENTS from the admin console, as FenceFlow.
+ * admin-mail-send -- emails YOUR CLIENTS from the admin console, as FenceFlowApp.
  *
  * "Email your clients from the admin portal."
  *
  * This sat on the not-started list for two reasons, and both are answered
- * here. It needs a sender that posts as FenceFlow rather than as one company's
+ * here. It needs a sender that posts as FenceFlowApp rather than as one company's
  * own inbox -- mail-send is company-scoped, gated on can_use_company_mail(),
  * and a platform admin writing to another company's owner is not that. And it
  * sends real mail to real people, which deserves more than a textarea and a
@@ -29,9 +29,9 @@
  *
  * THE RECIPIENT IS NEVER IN THE REQUEST. The console sends company IDS and the
  * address comes from the company row, through admin_email_recipients(). That
- * is what stops this being an open relay wearing a FenceFlow return address:
+ * is what stops this being an open relay wearing a FenceFlowApp return address:
  * a stolen admin token can mail his own clients, which is bad, but it can
- * never mail anybody who is not already a FenceFlow client. The same function
+ * never mail anybody who is not already a FenceFlowApp client. The same function
  * drops companies with no address, removed companies, and test companies
  * ('ZZ TEST%') -- so the count that gets mailed can be SMALLER than the count
  * he selected, and the answer says which were skipped rather than quietly
@@ -65,7 +65,7 @@
  *
  * ONE RECIPIENT PER MESSAGE, deliberately. Nine clients get nine separate
  * emails, not one with nine addresses on it: a single To: line would show
- * every client who else uses FenceFlow, which is his customer list.
+ * every client who else uses FenceFlowApp, which is his customer list.
  *
  * Secrets: SUPABASE_URL, SUPABASE_ANON_KEY, MAIL_API_KEY / BREVO_API_KEY,
  * MAIL_FROM, MAIL_FROM_NAME, MAIL_API_URL, BREVO_API_URL, SUPPORT_EMAIL.
@@ -113,10 +113,10 @@ type Sender = "resend" | "brevo";
 const asSender = (v: unknown): Sender | null =>
   v === "resend" || v === "brevo" ? v : null;
 
-/** "FenceFlow <x@y>" split into the shape the builders want. */
+/** "FenceFlowApp <x@y>" split into the shape the builders want. */
 function platformFrom(): { name: string; address: string } {
   const address = normalizeAddress(env("MAIL_FROM"));
-  const name = env("MAIL_FROM_NAME") || "FenceFlow";
+  const name = env("MAIL_FROM_NAME") || "FenceFlowApp";
   return { name, address };
 }
 
@@ -195,7 +195,7 @@ Deno.serve(async (req) => {
   });
   const { data: isAdmin, error: adminErr } = await asCaller.rpc("is_platform_admin");
   if (adminErr || isAdmin !== true) {
-    return json({ error_code: "unauthorized", message: "not a FenceFlow admin" }, 401);
+    return json({ error_code: "unauthorized", message: "not a FenceFlowApp admin" }, 401);
   }
 
   let body: Record<string, unknown>;
@@ -288,7 +288,7 @@ Deno.serve(async (req) => {
 
   const from = platformFrom();
   if (!from.address) {
-    return json({ error_code: "not_configured", message: "no FenceFlow sending address is set" }, 503);
+    return json({ error_code: "not_configured", message: "no FenceFlowApp sending address is set" }, 503);
   }
 
   const { data: settings } = await asCaller
@@ -310,7 +310,7 @@ Deno.serve(async (req) => {
   //
   // SUPPORT_EMAIL is not set on this project (checked, 23 Oct 2026), so the
   // Reply-To header is absent and a reply lands on the From address --
-  // MAIL_FROM, which is a FenceFlow mailbox, so it reaches somebody. That is
+  // MAIL_FROM, which is a FenceFlowApp mailbox, so it reaches somebody. That is
   // the right behaviour and it was already the behaviour; what was missing was
   // telling the CLIENT. An email from a supplier with no way to answer it
   // reads as a no-reply, and these go to paying customers.
@@ -323,8 +323,8 @@ Deno.serve(async (req) => {
   // cleanSubject() runs over the footer inside composeBody, so this stays one
   // line.
   const footerLine = replyTo
-    ? `You are receiving this because your company uses FenceFlow. Reply to this email to reach us at ${replyTo}.`
-    : "You are receiving this because your company uses FenceFlow.";
+    ? `You are receiving this because your company uses FenceFlowApp. Reply to this email to reach us at ${replyTo}.`
+    : "You are receiving this because your company uses FenceFlowApp.";
   const results: Array<Record<string, unknown>> = [];
   let sent = 0;
   let failed = 0;
@@ -357,9 +357,9 @@ Deno.serve(async (req) => {
     // The same letter composer the office's own mail goes through, so the
     // plain-text and HTML parts are built one way across the product.
     //
-    // NOT fenceflowFooter(). That reads "Sent by <company> using FenceFlow",
+    // NOT fenceflowFooter(). That reads "Sent by <company> using FenceFlowApp",
     // which is right when a fencing company writes to its customer and reads
-    // "Sent by FenceFlow using FenceFlow" here. A client hearing from the
+    // "Sent by FenceFlowApp using FenceFlowApp" here. A client hearing from the
     // platform needs the other thing: why this arrived, and how to answer it.
     const composed = composeBody({ text, footer: footerLine });
     const mail = {

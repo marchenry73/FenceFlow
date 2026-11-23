@@ -9,7 +9,7 @@
 // Two ways of sending, and it picks whichever is available:
 //
 //   1. MAIL_API_KEY + MAIL_FROM set  ->  the link is generated here and put
-//      inside FenceFlow's own email, sent through a transactional provider
+//      inside FenceFlowApp's own email, sent through a transactional provider
 //      (Resend's API shape; Postmark and others accept the same fields). This
 //      is the one to use once a domain exists: it looks like the product, it
 //      says who it is from, and it is not rate-limited to a handful an hour.
@@ -40,7 +40,7 @@ const escapeHtml = (s: string) =>
   s.replace(/[&<>"']/g, (c) =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c] ?? c));
 
-/** FenceFlow's own invitation. Plain enough to survive every mail client. */
+/** FenceFlowApp's own invitation. Plain enough to survive every mail client. */
 function invitationEmail(companyName: string, link: string, fromName: string) {
   const safeCompany = escapeHtml(companyName || "your company");
   const safeLink = escapeHtml(link);
@@ -51,9 +51,9 @@ function invitationEmail(companyName: string, link: string, fromName: string) {
       Fence<span style="color:#FF5A1F">Flow</span>
     </div>
     <div style="background:#fff;border:1px solid #E3E7ED;border-radius:12px;padding:26px">
-      <h1 style="font-size:21px;margin:0 0 10px">${safeCompany} is set up on FenceFlow</h1>
+      <h1 style="font-size:21px;margin:0 0 10px">${safeCompany} is set up on FenceFlowApp</h1>
       <p style="font-size:15px;line-height:1.55;color:#3a4250;margin:0 0 16px">
-        FenceFlow estimates fencing work from a drawing, orders the right
+        FenceFlowApp estimates fencing work from a drawing, orders the right
         materials, and keeps the money straight. Everything below takes a few
         minutes and you only do it once.
       </p>
@@ -83,9 +83,9 @@ function invitationEmail(companyName: string, link: string, fromName: string) {
 </body></html>`;
 
   const text = [
-    `${companyName || "Your company"} is set up on FenceFlow.`,
+    `${companyName || "Your company"} is set up on FenceFlowApp.`,
     "",
-    "FenceFlow estimates fencing work from a drawing, orders the right materials,",
+    "FenceFlowApp estimates fencing work from a drawing, orders the right materials,",
     "and keeps the money straight.",
     "",
     "Open this link to set up. It signs you in - there is no password to invent yet:",
@@ -166,7 +166,7 @@ Deno.serve(async (req) => {
     const { data: isAdmin, error: adminErr } = await asCaller.rpc("is_platform_admin");
     if (adminErr || isAdmin !== true) {
       return json({
-        error: "Only a FenceFlow admin may invite a company, and the admin's second factor has to be current.",
+        error: "Only a FenceFlowApp admin may invite a company, and the admin's second factor has to be current.",
       }, 403);
     }
 
@@ -191,7 +191,7 @@ Deno.serve(async (req) => {
     const mailKey = Deno.env.get("MAIL_API_KEY");
     const mailFrom = Deno.env.get("MAIL_FROM");
     const mailUrl = Deno.env.get("MAIL_API_URL") ?? "https://api.resend.com/emails";
-    const fromName = Deno.env.get("MAIL_FROM_NAME") ?? "FenceFlow";
+    const fromName = Deno.env.get("MAIL_FROM_NAME") ?? "FenceFlowApp";
 
     let sentVia = "supabase";
 
@@ -282,7 +282,7 @@ Deno.serve(async (req) => {
     if (mailKey && mailFrom) {
       // Our own email, our own link. generateLink does not send anything --
       // it hands back the URL, which is exactly what lets the message look
-      // like FenceFlow rather than like a database.
+      // like FenceFlowApp rather than like a database.
       trace.path = "provider:invite";
       let { data: linkData, error: linkError } = await admin.auth.admin.generateLink({
         type: "invite",
@@ -347,7 +347,7 @@ Deno.serve(async (req) => {
         body: JSON.stringify({
           from: mailFrom,
           to: [email],
-          subject: `${companyName || "Your company"} is set up on FenceFlow`,
+          subject: `${companyName || "Your company"} is set up on FenceFlowApp`,
           html: body.html,
           text: body.text,
         }),

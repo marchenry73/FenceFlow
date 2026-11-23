@@ -1,8 +1,8 @@
 /**
  * Every number company email is bounded by, in one file.
  *
- * The mail functions talk to servers FenceFlow does not control (a tenant's
- * Zoho or Gmail, or a host the owner typed in) and handle mail FenceFlow did
+ * The mail functions talk to servers FenceFlowApp does not control (a tenant's
+ * Zoho or Gmail, or a host the owner typed in) and handle mail FenceFlowApp did
  * not write. Each limit here exists so that one hostile or merely enormous
  * mailbox cannot hold an edge function past its 2 s of CPU, 150 s of wall
  * time or 256 MB of memory, and so that a stolen office session cannot turn
@@ -152,7 +152,7 @@ export const CONNECT_ATTEMPTS_PER_HOUR = 10;
 // of "four hundred sent".
 //
 // THE SAME FOR BOTH, as of 21 Oct 2026. They used to differ -- 20/200 through
-// a company's own mailbox and 20/100 through FenceFlow mail -- for no reason
+// a company's own mailbox and 20/100 through FenceFlowApp mail -- for no reason
 // anybody could name, so the same day's work succeeded or failed depending on
 // which sender happened to be chosen. March asked for one number, set high
 // enough never to be met by real work:
@@ -168,7 +168,7 @@ export const RESEND_SENDS_PER_HOUR = 60;
 export const RESEND_SENDS_PER_DAY = 300;
 export const INBOUND_PER_COMPANY_PER_DAY = 300;
 /** Mailbox sign-ins and Resend receiving calls made by mail-message, per
- *  company: opening mail FenceFlow has no copy of, read/unread marks, and
+ *  company: opening mail FenceFlowApp has no copy of, read/unread marks, and
  *  attachments not stored yet. Every one of them is a fresh sign-in to the
  *  tenant's mailbox, and a stream of sign-ins is what Zoho and Google answer
  *  with a lock -- which classifyLoginFailure must read as a refused

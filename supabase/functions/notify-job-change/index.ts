@@ -1,4 +1,4 @@
-// FenceFlow push notifications. Triggered by a Database Webhook on `jobs`.
+// FenceFlowApp push notifications. Triggered by a Database Webhook on `jobs`.
 //
 // A job push goes only to people who can open that job (the rule and its
 // reasons live in ../_shared/job-push.ts, which is pure and tested by
@@ -119,7 +119,7 @@ Deno.serve(async (req) => {
       const title = "Someone joined your crew";
       const body = asked
         ? `${name} joined and asked to be ${asked}. Say yes or no in the office.`
-        : `${name} joined your company on FenceFlow.`;
+        : `${name} joined your company on FenceFlowApp.`;
       const { data: owners, error } = await db
         .from("profiles").select("id")
         .eq("company_id", rec.company_id).eq("role", "OWNER");

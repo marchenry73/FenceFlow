@@ -160,7 +160,7 @@ class AccountViewModel(
         SupabaseModule.createCompany(companyName.trim(), ownerName.trim())
     }
 
-    /** Attaches this account to a company FenceFlow set up in advance. */
+    /** Attaches this account to a company FenceFlowApp set up in advance. */
     fun claimCompanySetup(setupCode: String, ownerName: String) = run(UiMessage(R.string.vm_you_are_set_up)) {
         SupabaseModule.claimCompanySetup(setupCode, ownerName)
     }

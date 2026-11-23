@@ -1,9 +1,9 @@
 /**
- * Mail FenceFlow did not write, turned into mail_ingest rows and cached
+ * Mail FenceFlowApp did not write, turned into mail_ingest rows and cached
  * bodies.
  *
  * Everything that arrives here came from a stranger: a customer's mail
- * program, a spammer, or someone who knows FenceFlow parses what they send.
+ * program, a spammer, or someone who knows FenceFlowApp parses what they send.
  * So this file decides, in one pure place, what of it is believed:
  *
  *  - Parsing is postal-mime (vendored in ../vendor/postal-mime, with its
@@ -146,7 +146,7 @@ export interface MailAddress {
 
 /**
  * The address if it plausibly is one, else null. Deliberately looser than
- * mime-build's normalizeAddress (which decides what FenceFlow will SEND to):
+ * mime-build's normalizeAddress (which decides what FenceFlowApp will SEND to):
  * incoming mail may carry internationalised addresses. But it must be one
  * token with exactly one "@", something on each side, and a dot in the
  * domain; quoted local parts, comments and anything with whitespace or
@@ -203,7 +203,7 @@ export function parseAddressList(raw: string | ReadonlyArray<string> | null | un
 export interface OwnMailboxes {
   /** Every mail_accounts.email_address of the company. */
   addresses: ReadonlyArray<string>;
-  /** Whole domains that are the company's or FenceFlow's own, e.g. the
+  /** Whole domains that are the company's or FenceFlowApp's own, e.g. the
    *  inbound reply domain. */
   domains?: ReadonlyArray<string>;
 }

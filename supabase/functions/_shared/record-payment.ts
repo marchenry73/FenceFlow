@@ -253,7 +253,7 @@ export async function recordClearedPayment(
 /**
  * Money went back. Write it down the way the app already does.
  *
- * A refund issued in the Square or Stripe dashboard used to reach FenceFlow
+ * A refund issued in the Square or Stripe dashboard used to reach FenceFlowApp
  * only if somebody remembered to press "Record refund" on the phone; until
  * then the job went on showing the pre-refund balance, the office showed
  * Paid in Full, and the next reminder asked the customer for money they had

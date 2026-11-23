@@ -3,23 +3,23 @@
  * company's behalf with nobody signed in: the payment receipt
  * (payment-receipt) and the sales follow-up (send-follow-ups).
  *
- * THE PROBLEM THIS SOLVES. Both letters go out FROM FenceFlow's own verified
+ * THE PROBLEM THIS SOLVES. Both letters go out FROM FenceFlowApp's own verified
  * sending address -- they have to, deliverability lives on that domain -- with
  * the company's name on it. So the Reply-To header is the ONLY thing deciding
  * whether the customer's answer reaches the company at all. Without one, her
- * reply goes to MAIL_FROM: FenceFlow's own mailbox, carrying another company's
+ * reply goes to MAIL_FROM: FenceFlowApp's own mailbox, carrying another company's
  * customer. Both functions used to write `companies.email` straight into that
  * header, unvalidated, and simply left the header off when the column was
  * blank -- which four companies in the live database are. Nothing said so.
  *
  * THE ORDER, which is reply.ts's order deliberately, so a reply to a receipt
  * lands in the same place as a reply to the same company's quote email and
- * its FenceFlow mail:
+ * its FenceFlowApp mail:
  *
- *   1. The company's own FenceFlow routing address,
+ *   1. The company's own FenceFlowApp routing address,
  *      <inbound_token>@<MAIL_INBOUND_DOMAIN>, once receiving is proven
  *      (mail_platform_settings.inbound_verified_at plus the receiving secrets)
- *      AND the company already has a FenceFlow mail account. resend-inbound
+ *      AND the company already has a FenceFlowApp mail account. resend-inbound
  *      reads the token back and files the reply in that company's own mailbox,
  *      beside the job. This is the COMPANY's address by construction: it does
  *      not name a person, and it keeps working when one leaves.
@@ -28,7 +28,7 @@
  *      a real address.
  *   3. Otherwise nothing, and the caller decides what to do about it. There is
  *      no honest third option: an unanswerable letter is the caller's problem
- *      to weigh, not something to paper over with FenceFlow's own address.
+ *      to weigh, not something to paper over with FenceFlowApp's own address.
  *
  * THE CHOOSING IS NOT COPIED. fenceflowReplyTo() makes it, the same function
  * mail-send, mail-connect and quote-approval-email call. This module only
@@ -41,7 +41,7 @@
  * calls mail_fenceflow_account() because it also files a Sent copy and needs
  * an account id, but a receipt and a follow-up file nothing, and a cron run
  * that provisioned a mailbox for every company it looked at would be making
- * rows nobody asked for. A company with no FenceFlow mail account therefore
+ * rows nobody asked for. A company with no FenceFlowApp mail account therefore
  * falls to its own email, which is exactly right: routing a reply into a
  * mailbox that does not exist would lose it.
  *

@@ -1,7 +1,7 @@
 // Outgoing mail: what mime-build.ts writes, checked byte by byte and then
 // read back by the vendored postal-mime -- the same parser mail-message uses
 // on mail coming in, so a round trip here is what a recipient's program
-// sees. Plus the Resend request for FenceFlow mail and where its replies go.
+// sees. Plus the Resend request for FenceFlowApp mail and where its replies go.
 //
 // Run with:  node --test tests/mail-mime.test.mjs
 //
@@ -196,7 +196,7 @@ test("boundaries are random per message and never appear inside a part", async (
   assert.notEqual(boundaryOf(a.bytes), boundaryOf(b.bytes));
   // Text that looks like a boundary is sent quoted-printable ("=" becomes
   // "=3D"), so it cannot close a part early.
-  const tricky = "--=_FenceFlow_000000000000000000000000_a--\nstill the body";
+  const tricky = "--=_FenceFlowApp_000000000000000000000000_a--\nstill the body";
   const built = build({ text: tricky });
   const parsed = await PostalMime.parse(built.bytes);
   assert.equal(parsed.text.replace(/\n+$/, ""), tricky);
@@ -293,7 +293,7 @@ test("composeBody: everything typed is escaped in the HTML, links cannot break t
   // The link ends at the quote, so nothing typed can reach inside the attribute.
   assert.ok(html.includes('<a href="https://x.example/a?b=">https://x.example/a?b=</a>&quot;c&quot;&amp;d=&lt;e&gt;'), html);
   assert.ok(text.includes("\n\n-- \n<script>alert(1)</script>"), "signature under the standard separator");
-  assert.ok(text.trimEnd().endsWith("Sent by Acme Fence using FenceFlow"));
+  assert.ok(text.trimEnd().endsWith("Sent by Acme Fence using FenceFlowApp"));
   assert.equal(textToHtml("a\nb").includes("a<br>\nb"), true);
 });
 
@@ -334,22 +334,22 @@ test("attachments over the count or the 10 MB total are refused", () => {
 });
 
 // ---------------------------------------------------------------------------
-// FenceFlow mail through Resend.
+// FenceFlowApp mail through Resend.
 // ---------------------------------------------------------------------------
 
-test("fenceflowFrom: the company's name on FenceFlow's own address, even when MAIL_FROM already has a name", () => {
-  assert.deepEqual(fenceflowFrom("Acme Fence", "FenceFlow <noreply@send.fenceflowapp.com>"), {
+test("fenceflowFrom: the company's name on FenceFlowApp's own address, even when MAIL_FROM already has a name", () => {
+  assert.deepEqual(fenceflowFrom("Acme Fence", "FenceFlowApp <noreply@send.fenceflowapp.com>"), {
     name: "Acme Fence",
     address: "noreply@send.fenceflowapp.com",
   });
   assert.deepEqual(fenceflowFrom('Evil"\r\nBcc: x', "noreply@send.fenceflowapp.com").name, "Evil Bcc: x");
-  assert.equal(fenceflowFrom("", "noreply@send.fenceflowapp.com").name, "FenceFlow");
+  assert.equal(fenceflowFrom("", "noreply@send.fenceflowapp.com").name, "FenceFlowApp");
   assert.throws(() => fenceflowFrom("Acme", "not an address"), (e) => e.code === "not_configured");
-  assert.equal(bareAddressOf("FenceFlow <noreply@send.fenceflowapp.com>"), "noreply@send.fenceflowapp.com");
+  assert.equal(bareAddressOf("FenceFlowApp <noreply@send.fenceflowapp.com>"), "noreply@send.fenceflowapp.com");
 });
 
 test("buildResendEmail: validated, capped at 10 recipients, bcc as Resend's field, threading headers set", () => {
-  const from = fenceflowFrom("Acme Fence", "FenceFlow <noreply@send.fenceflowapp.com>");
+  const from = fenceflowFrom("Acme Fence", "FenceFlowApp <noreply@send.fenceflowapp.com>");
   const body = composeBody({ text: "Hi", footer: fenceflowFooter("Acme Fence") });
   const req = buildResendEmail({
     from,
@@ -378,9 +378,9 @@ test("buildResendEmail: validated, capped at 10 recipients, bcc as Resend's fiel
   assert.ok(long.length <= 900 && long.startsWith(`<${"x".repeat(40)}0@example.org>`));
 });
 
-test("PLANTED: with receiving unproven and no business email, FenceFlow mail has nowhere honest for replies", () => {
+test("PLANTED: with receiving unproven and no business email, FenceFlowApp mail has nowhere honest for replies", () => {
   // Not ready + no company email: unavailable. Never MAIL_FROM, which would
-  // put another company's customer in FenceFlow's own mailbox.
+  // put another company's customer in FenceFlowApp's own mailbox.
   assert.deepEqual(fenceflowReplyTo({ inboundReady: false, inboundDomain: "reply.fenceflowapp.com", inboundToken: "a1b2c3d4e5f6" }), {
     mode: "unavailable",
     replyTo: null,
@@ -389,7 +389,7 @@ test("PLANTED: with receiving unproven and no business email, FenceFlow mail has
     mode: "company_email",
     replyTo: "Office@acmefence.com",
   });
-  // Only a proven inbound path switches replies into FenceFlow; "true-ish" is not true.
+  // Only a proven inbound path switches replies into FenceFlowApp; "true-ish" is not true.
   assert.equal(fenceflowReplyTo({ inboundReady: "yes", inboundDomain: "reply.fenceflowapp.com", inboundToken: "a1b2c3d4e5f6", companyEmail: "o@acmefence.com" }).mode, "company_email");
   assert.deepEqual(
     fenceflowReplyTo({ inboundReady: true, inboundDomain: "reply.fenceflowapp.com", inboundToken: "a1b2c3d4e5f6", replyToken: "0a0b0c0d0e0f", companyEmail: "o@acmefence.com" }),
@@ -486,8 +486,8 @@ test("composeBody: the PLAIN TEXT part is untouched by any of it", () => {
   // Every sentence a customer reads is written in email-templates.ts. This
   // file decides how the HTML twin looks and never what it says.
   const body = "Hi Pat,\n\nOpen it here: https://example.test/q/abc\n\nThanks.";
-  const { text } = composeBody({ text: body, signature: "Marc", footer: "Sent by Acme Fence using FenceFlow" });
-  assert.equal(text, body + "\n\n-- \nMarc\n\nSent by Acme Fence using FenceFlow\n");
+  const { text } = composeBody({ text: body, signature: "Marc", footer: "Sent by Acme Fence using FenceFlowApp" });
+  assert.equal(text, body + "\n\n-- \nMarc\n\nSent by Acme Fence using FenceFlowApp\n");
 });
 
 test("composeBody: everything in the header and the footer is still escaped", () => {

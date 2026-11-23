@@ -17,7 +17,7 @@ import javax.crypto.spec.GCMParameterSpec
  * SettingsSessionManager by default on Android, which keeps the session in
  * multiplatform-settings -- SharedPreferences, plain XML in the app's data
  * directory. MEASURED 7 Nov 2026 by reading auth-kt-release.aar 3.0.2: that
- * is the class that ships, and FenceFlow installs Auth with no override. So
+ * is the class that ships, and FenceFlowApp installs Auth with no override. So
  * the signed-in contractor's REFRESH TOKEN has been sitting unencrypted on
  * every handset. A refresh token is not a password but it is worth as much as
  * one: anyone who can read the file can mint sessions as that account until it

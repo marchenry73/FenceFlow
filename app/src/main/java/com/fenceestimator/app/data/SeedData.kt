@@ -101,7 +101,7 @@ fun isPlaceholderPrice(sourceDoc: String): Boolean =
  * catalog by itself at start-up. Always false: the phone does not put
  * somebody else's market-rate guesses into a company's catalog on its own.
  * The same ninety-two items are still reachable through the opt-in "Copy
- * FenceFlow's starting list" action, which calls [SeedData.materialItems]
+ * FenceFlowApp's starting list" action, which calls [SeedData.materialItems]
  * directly. Whether the DATABASE seeds a brand-new company is a separate
  * question with its own file (supabase_r20_seed_new_company_catalog.sql, which
  * says in its header whether it has been applied); rows it writes reach this
@@ -119,7 +119,7 @@ internal fun shouldAutoSeedMaterialItems(currentCount: Int): Boolean = false
  * carry a discount), not placeholders like the catalog's prices -- there is
  * no flag equivalent to `sourceDoc` that marks a tier "unverified", so a
  * company that never opened Settings would otherwise be quoting off
- * FenceFlow's labor rate without ever having seen it. Opt-in only, through
+ * FenceFlowApp's labor rate without ever having seen it. Opt-in only, through
  * the same action as the catalog.
  */
 internal fun shouldAutoSeedPricingTiers(currentCount: Int): Boolean = false

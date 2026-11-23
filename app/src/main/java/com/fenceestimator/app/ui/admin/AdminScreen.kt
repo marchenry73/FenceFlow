@@ -122,7 +122,7 @@ fun AdminScreen(onBack: () -> Unit) {
                 ) { CircularProgressIndicator() }
 
                 AdminEntry.HIDDEN -> EmptyState(
-                    "This account is not a FenceFlow platform admin."
+                    "This account is not a FenceFlowApp platform admin."
                 )
 
                 AdminEntry.NEEDS_ENROLMENT -> EmptyState(
@@ -813,11 +813,11 @@ private fun CompaniesTab() {
 }
 
 /**
- * Which service carries FenceFlow mail, and the switch for it.
+ * Which service carries FenceFlowApp mail, and the switch for it.
  *
  * Here rather than in Settings because it is a PLATFORM decision: one row,
  * every company at once. A company that has connected its own mailbox is
- * unaffected -- this only decides what "FenceFlow mail" means for everyone
+ * unaffected -- this only decides what "FenceFlowApp mail" means for everyone
  * who has not.
  *
  * It asks before it flips, and names the consequence rather than the setting:
@@ -844,7 +844,7 @@ private fun MailSenderRow() {
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant)
     ) {
         Column(Modifier.padding(Space.md)) {
-            Text("FenceFlow mail goes through", fontWeight = FontWeight.Medium,
+            Text("FenceFlowApp mail goes through", fontWeight = FontWeight.Medium,
                 style = MaterialTheme.typography.bodyMedium)
             Text(
                 "Every company that has not connected its own mailbox. " +
@@ -1306,7 +1306,7 @@ private fun BinTab() {
  * comes up away from a desk, and "send this to nine companies" is not a thing
  * to do with a thumb.
  *
- * ONE SPEAKER. FenceFlow's mail tables are company-scoped and the platform has
+ * ONE SPEAKER. FenceFlowApp's mail tables are company-scoped and the platform has
  * no inbox, so a client's reply goes to the support address and nothing here
  * ingests it. The screen says that rather than leaving a gap where the
  * replies would be.

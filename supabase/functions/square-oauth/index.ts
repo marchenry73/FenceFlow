@@ -6,7 +6,7 @@
  *   ?action=start     signed-in contractor -> the Square consent screen
  *   ?action=callback  Square -> here, with a code to exchange for a token
  *
- * The money never touches FenceFlow. This only obtains permission to create
+ * The money never touches FenceFlowApp. This only obtains permission to create
  * payment links on the contractor's account and to hear when one is paid.
  */
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
@@ -42,7 +42,7 @@ Deno.serve(async (req) => {
 
   if (!appId || !appSecret || !redirectUri) {
     return json({
-      error: "Square is not set up on this FenceFlow yet. " +
+      error: "Square is not set up on this FenceFlowApp yet. " +
              "It needs a Square application id, secret and redirect URL.",
     }, 501);
   }

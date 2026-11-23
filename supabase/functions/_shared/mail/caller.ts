@@ -117,7 +117,7 @@ export interface MailCaller {
   role: string;
   isOwner: boolean;
   companyName: string;
-  /** companies.email, trimmed, or null. FenceFlow mail's Reply-To. */
+  /** companies.email, trimmed, or null. FenceFlowApp mail's Reply-To. */
   companyEmail: string | null;
   /**
    * companies.logo_path -- an object path in the PRIVATE company-logos bucket,

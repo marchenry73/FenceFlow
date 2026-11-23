@@ -573,7 +573,7 @@ test("FIXED: an imported price is unverified to the office too, not just to the 
   // WAS A PINNED GAP, closed 31 Oct 2026. The office tested only
   // /^(Starting price|Placeholder)/ while the phone's isPlaceholderPrice counts
   // four labels, the extra two being the IMPORT ones -- and both are written by
-  // FenceFlow's own importers, the web one by the price-list importer in
+  // FenceFlowApp's own importers, the web one by the price-list importer in
   // dashboard.html itself. So an imported row was flagged by the phone and shown
   // clean by the office, and unverifiedPricesOn -- which exists because "the
   // office did not [refuse], so the same job could be sent from a desk with the
@@ -918,10 +918,10 @@ test("the phone's first-run tour and its empty-catalog message never name the co
 
 test("the office tells a new owner where to add prices in the phone app; the button is named on the Catalog tab and in the welcome email, not on the checklist", () => {
   assert.match(OFFICE_EN.setupStepCatalogDetail, /phone app/i);
-  assert.doesNotMatch(OFFICE_EN.setupStepCatalogDetail, /Start from FenceFlow/i);
+  assert.doesNotMatch(OFFICE_EN.setupStepCatalogDetail, /Start from FenceFlowApp/i);
   assert.match(OFFICE_EN.catEmptyMsg, /%s/, "control: the Catalog tab's empty message names a button");
-  assert.match(OFFICE_EN.catStartSeedBtn, /Start from FenceFlow/i);
-  assert.match(read("supabase/functions/_shared/welcome-email.ts"), /Start from FenceFlow/, "control: the welcome email names it");
+  assert.match(OFFICE_EN.catStartSeedBtn, /Start from FenceFlowApp/i);
+  assert.match(read("supabase/functions/_shared/welcome-email.ts"), /Start from FenceFlowApp/, "control: the welcome email names it");
 });
 
 test("GAP (pinned): the public site never links to a way to get the phone app, though the last screen of sign-up says to install it", () => {
@@ -931,7 +931,7 @@ test("GAP (pinned): the public site never links to a way to get the phone app, t
   assert.ok(hrefs.some(([p, h]) => p === "index.html" && /dashboard\.html#signup/.test(h)), "control: the reader finds the sign-up call to action");
   const store = hrefs.filter(([, h]) => /\.apk\b|play\.google\.com|apps\.apple\.com|market:\/\/|apk-proxy/i.test(h));
   assert.deepEqual(store, [], "no page links to an install source");
-  assert.match(read("website/welcome.html"), /Install the FenceFlow app on your phone/, "control: the instruction is there");
+  assert.match(read("website/welcome.html"), /Install FenceFlowApp on your phone/, "control: the instruction is there");
 });
 
 // =========================================================== LIVE (read-only) ==

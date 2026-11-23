@@ -1,6 +1,6 @@
 /**
  * Outgoing mail as bytes a mail server will take unchanged, and the Resend
- * request for FenceFlow mail.
+ * request for FenceFlowApp mail.
  *
  * mail-send hands this file what the office typed. Everything that decides
  * whether the result can be abused is here, in one pure file:
@@ -58,7 +58,7 @@ const MAX_LIST_INPUT = 50;
 // Addresses.
 // ---------------------------------------------------------------------------
 
-/** RFC 5322 dot-atom local part. No quoted local parts: nobody FenceFlow
+/** RFC 5322 dot-atom local part. No quoted local parts: nobody FenceFlowApp
  *  emails needs one, and they are where parser disagreements live. */
 const LOCAL_RE = /^[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+(?:\.[A-Za-z0-9!#$%&'*+/=?^_`{|}~-]+)*$/;
 const DOMAIN_RE = /^(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+(?:[a-z]{2,63}|xn--[a-z0-9-]{1,59})$/;
@@ -91,7 +91,7 @@ export function isValidAddress(raw: unknown): boolean {
   }
 }
 
-/** The bare address inside "FenceFlow <noreply@send.example.com>", or the
+/** The bare address inside "FenceFlowApp <noreply@send.example.com>", or the
  *  value itself when it is already bare. Null when neither is valid. */
 export function bareAddressOf(value: unknown): string | null {
   const s = String(value ?? "").trim();
@@ -651,15 +651,15 @@ export function textToHtml(text: string): string {
   return htmlDocument(htmlInner(text));
 }
 
-/** The footer on FenceFlow mail, so a customer can tell who used what. */
+/** The footer on FenceFlowApp mail, so a customer can tell who used what. */
 export function fenceflowFooter(companyName: unknown): string {
   const name = cleanDisplayName(companyName);
-  return name ? `Sent by ${name} using FenceFlow` : "Sent using FenceFlow";
+  return name ? `Sent by ${name} using FenceFlowApp` : "Sent using FenceFlowApp";
 }
 
 /**
  * The text and HTML that go out: what was typed, then the signature under
- * the standard "-- " separator, then the footer (FenceFlow mail only).
+ * the standard "-- " separator, then the footer (FenceFlowApp mail only).
  *
  * logoUrl, when given, becomes the letterhead at the top of the HTML part and
  * NOTHING in the plain-text part. That asymmetry is the point: a plain-text
@@ -859,7 +859,7 @@ export function buildMime(mail: OutgoingMail): BuiltMail {
   const text = String(mail.text ?? "");
   const html = mail.html ? String(mail.html) : textToHtml(text);
 
-  const base = `=_FenceFlow_${randomHex(12)}`;
+  const base = `=_FenceFlowApp_${randomHex(12)}`;
   const alt = `${base}_a`;
   const mixed = `${base}_m`;
 
@@ -946,17 +946,17 @@ export function validateSendFields(
 }
 
 // ---------------------------------------------------------------------------
-// FenceFlow mail (Resend).
+// FenceFlowApp mail (Resend).
 // ---------------------------------------------------------------------------
 
 /**
- * The sender of FenceFlow mail: the company's name on FenceFlow's own
+ * The sender of FenceFlowApp mail: the company's name on FenceFlowApp's own
  * verified address. The bare address is taken out of MAIL_FROM, so the
- * company name still shows when MAIL_FROM is "FenceFlow <noreply@...>" (the
+ * company name still shows when MAIL_FROM is "FenceFlowApp <noreply@...>" (the
  * older senderWithName returns such a MAIL_FROM unchanged and the company
  * name is lost). not_configured when MAIL_FROM holds no valid address.
  */
-export function fenceflowFrom(companyName: unknown, mailFrom: unknown, fallbackName = "FenceFlow"): {
+export function fenceflowFrom(companyName: unknown, mailFrom: unknown, fallbackName = "FenceFlowApp"): {
   name: string;
   address: string;
 } {
@@ -990,7 +990,7 @@ export interface ResendMailInput {
   bcc?: ReadonlyArray<string>;
   replyTo?: string | null;
   subject: string;
-  /** From composeBody() with the FenceFlow footer. */
+  /** From composeBody() with the FenceFlowApp footer. */
   text: string;
   html: string;
   messageId: string;
@@ -1036,7 +1036,7 @@ export function buildBrevoEmail(input: ResendMailInput): Record<string, unknown>
   const bcc = dedupeAgainst(addressList(input.bcc ?? [], "Bcc"), seen);
   if (to.length === 0) throw new MailError("bad_request", "Add at least one recipient.");
   if (to.length + cc.length + bcc.length > MAX_RECIPIENTS_RESEND) {
-    throw new MailError("bad_request", `At most ${MAX_RECIPIENTS_RESEND} recipients with FenceFlow mail.`);
+    throw new MailError("bad_request", `At most ${MAX_RECIPIENTS_RESEND} recipients with FenceFlowApp mail.`);
   }
   const messageId = cleanMessageId(input.messageId);
   if (!messageId || !messageId.includes("@")) throw new MailError("bad_request", "Invalid Message-ID.");
@@ -1097,7 +1097,7 @@ export function buildResendEmail(input: ResendMailInput): Record<string, unknown
   const bcc = dedupeAgainst(addressList(input.bcc ?? [], "Bcc"), seen);
   if (to.length === 0) throw new MailError("bad_request", "Add at least one recipient.");
   if (to.length + cc.length + bcc.length > MAX_RECIPIENTS_RESEND) {
-    throw new MailError("bad_request", `At most ${MAX_RECIPIENTS_RESEND} recipients with FenceFlow mail.`);
+    throw new MailError("bad_request", `At most ${MAX_RECIPIENTS_RESEND} recipients with FenceFlowApp mail.`);
   }
   const messageId = cleanMessageId(input.messageId);
   if (!messageId || !messageId.includes("@")) throw new MailError("bad_request", "Invalid Message-ID.");

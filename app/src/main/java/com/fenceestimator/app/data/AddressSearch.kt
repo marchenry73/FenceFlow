@@ -39,7 +39,7 @@ import java.net.URLEncoder
  */
 object AddressSearch {
 
-    private const val USER_AGENT = "FenceFlow/1.0 (fencing contractor estimating app)"
+    private const val USER_AGENT = "FenceFlowApp/1.0 (fencing contractor estimating app)"
     private const val TIMEOUT_MS = 6000
 
     suspend fun search(query: String): List<String> {

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * A copy of the database that FenceFlow does not depend on anyone for.
+ * A copy of the database that FenceFlowApp does not depend on anyone for.
  *
  * Supabase keeps its own backups, on its own plan, under its own account
  * status. This writes every table in the public schema to Google Drive as
@@ -21,7 +21,7 @@
  * holds, fails the whole run, leaves LAST_BACKUP_FAILED.txt in the folder,
  * and exits non-zero so a scheduler can notice.
  *
- * Runs weekly from Windows Task Scheduler ("FenceFlow DB backup", Sundays
+ * Runs weekly from Windows Task Scheduler ("FenceFlowApp DB backup", Sundays
  * 10:00, StartWhenAvailable) and by hand:
  *   node scripts/backup-db.mjs              -> writes to the Drive folder below
  *   node scripts/backup-db.mjs <out dir>    -> writes there instead
@@ -32,7 +32,7 @@ import { join, resolve } from "node:path";
 import { tmpdir, homedir } from "node:os";
 
 const PROJECT_REF = "newcrgafcptspmapacrx";
-// The backups live on the computer. Google Drive holds the FenceFlow APK and
+// The backups live on the computer. Google Drive holds the FenceFlowApp APK and
 // nothing else -- that is the rule, set on 11 September after a replica of the
 // project tree, 200 MB of it build output, was cleaned out of Drive by hand.
 //

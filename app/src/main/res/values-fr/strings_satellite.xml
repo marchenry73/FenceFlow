@@ -37,7 +37,7 @@
     <!-- Employees screen: outcome of inviting a newly-added crew member by
          email (invite-crew). -->
     <string name="emp_invite_sent_title">Invitation envoyée par email</string>
-    <string name="emp_invite_emailed_body">Ils recevront un email avec un lien pour rejoindre votre équipe sur FenceFlow.</string>
+    <string name="emp_invite_emailed_body">Ils recevront un email avec un lien pour rejoindre votre équipe sur FenceFlowApp.</string>
 
     <!-- No mail path was configured on the server side; invite-crew handed
          back a team code to pass along by hand instead. -->

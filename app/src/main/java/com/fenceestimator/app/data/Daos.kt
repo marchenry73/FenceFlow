@@ -916,7 +916,7 @@ object SyncTables {
         // from this phone rather than sitting in Room forever. A shipped
         // row's rare superseding (company_id null) is not caught by this
         // sweep, which only asks for one company's own tombstones -- an
-        // acceptable gap for a change FenceFlow makes, not a customer.
+        // acceptable gap for a change FenceFlowApp makes, not a customer.
         "build_templates"
     )
 }
@@ -933,7 +933,7 @@ interface BuildTemplateDao {
     /**
      * Shipped rows before a company's own, matching the ordering
      * `my_build_templates()` uses server-side, so the Add Fence Run picker
-     * shows "your templates" ahead of "FenceFlow templates" without having
+     * shows "your templates" ahead of "FenceFlowApp templates" without having
      * to re-sort in Kotlin.
      */
     @Query("SELECT * FROM build_templates WHERE deletedAt IS NULL ORDER BY (companyId IS NULL), fenceType, sortOrder, name")

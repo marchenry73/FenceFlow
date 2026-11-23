@@ -12,5 +12,5 @@
     <string name="jd_template_untitled">Plantilla sin título</string>
     <string name="jd_template_group_your_default">Tu predeterminada</string>
     <string name="jd_template_group_yours">Tus plantillas</string>
-    <string name="jd_template_group_shipped">Plantillas de FenceFlow</string>
+    <string name="jd_template_group_shipped">Plantillas de FenceFlowApp</string>
 </resources>

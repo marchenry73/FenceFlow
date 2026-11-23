@@ -65,7 +65,7 @@ object HoaLetterApi {
             return@withContext Result.Failed("Cloud isn't set up on this build.")
         }
         val token = SupabaseModule.client.auth.currentSessionOrNull()?.accessToken
-            ?: return@withContext Result.Failed("This phone isn't signed in to FenceFlow.")
+            ?: return@withContext Result.Failed("This phone isn't signed in to FenceFlowApp.")
 
         // Its own client with explicit timeouts, the same shape QuoteEmailApi
         // uses: hoa-letter builds a PDF before it sends, so it is one of the
@@ -115,7 +115,7 @@ object HoaLetterApi {
             // reported as "not sent": the letter may already be on its way,
             // and a second tap on a confident failure is how a board gets the
             // same packet twice.
-            Result.Failed("Could not reach FenceFlow to send it. Check Sent before trying again.")
+            Result.Failed("Could not reach FenceFlowApp to send it. Check Sent before trying again.")
         } finally {
             http.close()
         }

@@ -368,7 +368,7 @@ object PdfExporter {
         // the title. A company called "Legacy Solutions Fencing & Landscaping"
         // should still fit on its own document. Measured from leftX, so a logo
         // takes its room out of the name's rather than out of the title's.
-        val name = business.businessName.ifBlank { "FenceFlow" }
+        val name = business.businessName.ifBlank { "FenceFlowApp" }
         val nameRoom = titleX - leftX - 24f
         val namePaint = Paint(titlePaint)
         while (namePaint.measureText(name) > nameRoom && namePaint.textSize > 12f) {

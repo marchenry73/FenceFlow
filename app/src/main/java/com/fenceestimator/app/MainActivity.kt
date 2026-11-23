@@ -329,7 +329,7 @@ class MainActivity : FragmentActivity() {
                                 // `service`: it used to be disguised as the
                                 // company being blocked (allowed = false), so an
                                 // active company's displaced crew phone read
-                                // "FenceFlow is paused" and was sent to billing.
+                                // "FenceFlowApp is paused" and was sent to billing.
                                 var displaced by remember { mutableStateOf(false) }
                                 // The same fact, as the background learned it.
                                 //
@@ -746,7 +746,7 @@ fun FenceEstimatorNavHost(startDestination: String = Routes.JOBS) {
           }
         }
         // No AccessGuard here, deliberately. Every other guarded route refuses
-        // on a company PERMISSION this phone already knows. Being a FenceFlow
+        // on a company PERMISSION this phone already knows. Being a FenceFlowApp
         // platform admin is not one of those -- it is a fact about the account
         // that only the server holds -- so the screen reads it itself and
         // shows nothing until it has. The database refuses the powers either

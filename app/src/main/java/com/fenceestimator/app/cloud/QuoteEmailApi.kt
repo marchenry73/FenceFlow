@@ -76,7 +76,7 @@ object QuoteEmailApi {
         }
         if (to.isBlank()) return@withContext Result.Failed("This job has no customer email.")
         val token = SupabaseModule.client.auth.currentSessionOrNull()?.accessToken
-            ?: return@withContext Result.Failed("This phone isn't signed in to FenceFlow.")
+            ?: return@withContext Result.Failed("This phone isn't signed in to FenceFlowApp.")
 
         val client = HttpClient(CIO) {
             install(HttpTimeout) {

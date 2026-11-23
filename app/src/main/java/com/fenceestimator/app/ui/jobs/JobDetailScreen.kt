@@ -3066,7 +3066,7 @@ private fun HoaFields(job: Job, runs: List<FenceRun>, profile: BusinessProfile, 
         Text(stringResource(R.string.jd_open_hoa_in_email_app))
     }
 
-    // THE OTHER CHOICE: FenceFlow sends it.
+    // THE OTHER CHOICE: FenceFlowApp sends it.
     //
     // March, 6 Nov 2026: "when I do the HOA, it pulls up my gmail... Also I
     // want to have the choice to either open the app or send the email, just

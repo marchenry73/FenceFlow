@@ -1,4 +1,4 @@
-// Pure builder for the email FenceFlow sends when an owner or manager adds
+// Pure builder for the email FenceFlowApp sends when an owner or manager adds
 // somebody to their crew. Split out of invite-crew/index.ts on purpose: this
 // file touches nothing Deno-only (no Deno.serve, no Deno.env, no fetch), so
 // tests/invite-crew.test.mjs can import it under plain Node with
@@ -55,12 +55,12 @@ export function buildInviteCrewEmail(input: InviteCrewEmailInput): InviteCrewEma
   const version = (input.appVersion || "").trim();
   const phone = (input.companyPhone || "").trim();
 
-  const subject = `${company} added you to their crew on FenceFlow`;
+  const subject = `${company} added you to their crew on FenceFlowApp`;
 
   const installLine = link
     ? `<a href="${escapeHtml(link)}" style="display:inline-block;margin-top:8px;background:#FF5A1F;` +
       `color:#fff;text-decoration:none;font-weight:700;font-size:14px;padding:10px 18px;` +
-      `border-radius:8px">Download FenceFlow${version ? ` (${escapeHtml(version)})` : ""}</a>` +
+      `border-radius:8px">Download FenceFlowApp${version ? ` (${escapeHtml(version)})` : ""}</a>` +
       `<div style="font-size:12px;color:#8A93A0;margin-top:8px;word-break:break-all">` +
       `Or paste this into your phone's browser:<br>${escapeHtml(link)}</div>`
     : `<span style="color:#5A6472">Ask ${escapeHtml(company)} for the download link &mdash; ` +
@@ -79,13 +79,13 @@ export function buildInviteCrewEmail(input: InviteCrewEmailInput): InviteCrewEma
     <div style="background:#fff;border:1px solid #E3E7ED;border-radius:12px;padding:26px">
       <h1 style="font-size:20px;margin:0 0 10px">${escapeHtml(inviter)} added you to the crew at ${escapeHtml(company)}</h1>
       <p style="font-size:15px;line-height:1.55;color:#3a4250;margin:0 0 18px">
-        FenceFlow is the app ${escapeHtml(company)} uses to run jobs, log hours and get paid &mdash;
+        FenceFlowApp is the app ${escapeHtml(company)} uses to run jobs, log hours and get paid &mdash;
         no more paper timesheets.
       </p>
       <ol style="font-size:15px;line-height:1.65;color:#171b22;margin:0 0 18px;padding-left:20px">
         <li style="margin-bottom:14px"><strong>Install the app.</strong><br>${installLine}</li>
         <li style="margin-bottom:14px"><strong>Open it and create an account</strong> using this
-          email address &mdash; it is how FenceFlow knows it is you:<br>
+          email address &mdash; it is how FenceFlowApp knows it is you:<br>
           <span style="font-weight:600">${escapeHtml(email)}</span></li>
         <li style="margin-bottom:4px"><strong>Tap &ldquo;Join the team&rdquo;</strong> and enter this
           team code:<br>
@@ -94,7 +94,7 @@ export function buildInviteCrewEmail(input: InviteCrewEmailInput): InviteCrewEma
                 border-radius:8px;padding:8px 14px">${escapeHtml(code)}</span></li>
       </ol>
       <p style="font-size:13.5px;line-height:1.55;color:#5A6472;margin:0">
-        ${escapeHtml(company)} controls what you can see and do in FenceFlow once you are in &mdash;
+        ${escapeHtml(company)} controls what you can see and do in FenceFlowApp once you are in &mdash;
         that is normal, not a limit on you specifically.
       </p>
     </div>
@@ -108,18 +108,18 @@ export function buildInviteCrewEmail(input: InviteCrewEmailInput): InviteCrewEma
   const text = [
     `${inviter} added you to the crew at ${company}.`,
     "",
-    "FenceFlow is the app they use to run jobs, log hours and get paid -- no more paper timesheets.",
+    "FenceFlowApp is the app they use to run jobs, log hours and get paid -- no more paper timesheets.",
     "",
     "1. Install the app.",
     `   ${installLineText}`,
     "",
-    "2. Open it and create an account using this email address -- it is how FenceFlow knows it is you:",
+    "2. Open it and create an account using this email address -- it is how FenceFlowApp knows it is you:",
     `   ${email}`,
     "",
     '3. Tap "Join the team" and enter this team code:',
     `   ${code}`,
     "",
-    `${company} controls what you can see and do in FenceFlow once you are in -- that is normal,`,
+    `${company} controls what you can see and do in FenceFlowApp once you are in -- that is normal,`,
     "not a limit on you specifically.",
     "",
     `Questions about the app? Reply to this email${phone ? ` or call ${company} at ${phone}` : ""},`,

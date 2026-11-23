@@ -408,13 +408,13 @@ object AdminRepository {
     // ------------------------------------------------- which service sends
     //
     // PLATFORM-WIDE, one row, and a change here moves every company's
-    // FenceFlow mail at once -- which is why it is an admin function with the
+    // FenceFlowApp mail at once -- which is why it is an admin function with the
     // second factor behind it, and why the screen asks before it flips.
     // A company's OWN connected mailbox is untouched either way; this only
-    // decides what "FenceFlow mail" means.
+    // decides what "FenceFlowApp mail" means.
 
     /**
-     * Which service carries FenceFlow mail: "resend" or "brevo".
+     * Which service carries FenceFlowApp mail: "resend" or "brevo".
      *
      * THROUGH THE RPC, NOT THE TABLE. This read a row off
      * mail_platform_settings directly until 2026-10-22, and had therefore
@@ -666,7 +666,7 @@ object AdminRepository {
     suspend fun inviteCompany(companyId: String, email: String): Result<Unit> = io {
         if (!SupabaseModule.isConfigured) error("Cloud isn't set up on this build.")
         val token = SupabaseModule.client.auth.currentSessionOrNull()?.accessToken
-            ?: error("This phone isn't signed in to FenceFlow.")
+            ?: error("This phone isn't signed in to FenceFlowApp.")
 
         val http = HttpClient(CIO) {
             install(HttpTimeout) {

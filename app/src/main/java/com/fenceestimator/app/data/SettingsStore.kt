@@ -231,7 +231,7 @@ data class BusinessProfile(
     val updatedAt: Long = 0L,
     /**
      * The contractor's own Square access token, kept on this device only.
-     * It is never sent to the FenceFlow cloud -- each business bills into
+     * It is never sent to the FenceFlowApp cloud -- each business bills into
      * its own Square account, and nobody else should be able to read it.
      */
     /**

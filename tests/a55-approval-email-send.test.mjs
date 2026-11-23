@@ -237,7 +237,7 @@ function ingest(args) {
   for (const r of args.p_rows) {
     for (const k of Object.keys(r)) if (!INGEST_KEYS.has(k)) world.unknownIngestKeys.add(k);
     if (r.source === "fenceflow_send" && (!r.client_send_id || r.folder_role !== "sent")) {
-      return { data: null, error: { code: "22023", message: "A FenceFlow send needs client_send_id" } };
+      return { data: null, error: { code: "22023", message: "A FenceFlowApp send needs client_send_id" } };
     }
     const dup = world.db.mail_messages.find((m) => m.company_id === acct.company_id && r.client_send_id && m.client_send_id === r.client_send_id);
     if (dup) { out.push({ message_id: dup.id, thread_id: dup.thread_id, inserted: false }); continue; }
@@ -501,12 +501,12 @@ test("an approved job is emailed once: one message, to the customer, from the co
   assert.equal(world.resend.length, 1);
   const c = world.resend[0];
   assert.deepEqual(sentTo(c), [CUSTOMER_EMAIL]);
-  assert.equal(c.body.from, '"Test Fence Co" <noreply@send.fake.example.test>', "the company's name on FenceFlow's verified address");
-  assert.equal(c.body.reply_to, COMPANY_EMAIL, "replies go to the company, not to FenceFlow's own mailbox");
+  assert.equal(c.body.from, '"Test Fence Co" <noreply@send.fake.example.test>', "the company's name on FenceFlowApp's verified address");
+  assert.equal(c.body.reply_to, COMPANY_EMAIL, "replies go to the company, not to FenceFlowApp's own mailbox");
   assert.equal(c.body.subject, "Your approved fence quote from Test Fence Co");
   const t = text(c);
   for (const must of ["$9,710.00", "Deposit required to start: $1,800.00", "Pat Buyer", "1 Test Street, Testville", "about 140 ft", "$TestOnly", "zelle@example.test", "TEST ONLY BANK",
-    "Cash is accepted", `https://site.fake.example.test/quote.html?t=${TOKEN}`, "pay the deposit by card", "Sent by Test Fence Co using FenceFlow"]) {
+    "Cash is accepted", `https://site.fake.example.test/quote.html?t=${TOKEN}`, "pay the deposit by card", "Sent by Test Fence Co using FenceFlowApp"]) {
     assert.ok(t.includes(must), `the email is missing: ${must}`);
   }
   assert.ok(c.body.html.includes("Deposit required to start") && c.body.html.startsWith("<!doctype html>"), "the HTML twin is made from the text");
@@ -525,7 +525,7 @@ test("an approved job is emailed once: one message, to the customer, from the co
   assert.equal(m.id, row.mail_message_id);
   assert.equal(m.sent_by, undefined, "sent by the system, not by a person");
   assert.equal(world.db.mail_thread_jobs.length, 1, "the thread is linked to the job, so it shows on the job's mail panel");
-  // The rate ledger counted it, as a FenceFlow-mail send.
+  // The rate ledger counted it, as a FenceFlowApp-mail send.
   assert.deepEqual(world.events.map((e) => [e.company, e.kind, e.actor]), [[COMPANY, "send_resend", null]]);
   // A success pushes nobody: the office is told about failures, not about every success.
   assert.deepEqual(world.fcm, []);
@@ -732,11 +732,11 @@ test("FAILURES are recorded and pushed, and say what is true: not configured, no
     ["mail not configured (no key)", () => { delete ENV.MAIL_API_KEY; }, "failed", "not_configured", /not set up on the server/, 0],
     ["mail not configured (no sender address)", () => { delete ENV.MAIL_FROM; }, "failed", "not_configured", /not set up/, 0],
     ["a sender address that is not an address", () => { ENV.MAIL_FROM = "not an address"; }, "failed", "not_configured", /not set up/, 0],
-    ["no business email and no inbound routing: replies would reach FenceFlow itself", () => { world.db.companies[0].email = ""; }, "failed", "no_reply_address", /no business email/i, 0],
+    ["no business email and no inbound routing: replies would reach FenceFlowApp itself", () => { world.db.companies[0].email = ""; }, "failed", "no_reply_address", /no business email/i, 0],
     ["a business email that is not an address", () => { world.db.companies[0].email = "nope"; }, "failed", "no_reply_address", /no business email/i, 0],
     ["the hourly rate limit", () => { world.noteAnswer = RESEND_SENDS_PER_HOUR + 1; }, "failed", "rate_limited", /sending limit/, 0],
     ["the daily rate limit", () => { world.dayAnswer = RESEND_SENDS_PER_DAY + 1; }, "failed", "rate_limited", /sending limit/, 0],
-    ["the rate ledger answering with something that is not a number", () => { world.noteAnswer = "lots"; }, "failed", "server_error", /FenceFlow's side/, 0],
+    ["the rate ledger answering with something that is not a number", () => { world.noteAnswer = "lots"; }, "failed", "server_error", /FenceFlowApp's side/, 0],
     ["the provider refusing the message (422)", () => { world.resendMode = "422"; }, "failed", "send_rejected", /refused/, 1],
     ["the provider refusing our key (401)", () => { world.resendMode = "401"; }, "failed", "not_configured", /not set up/, 1],
     ["the provider's rate limit (429)", () => { world.resendMode = "429"; }, "failed", "rate_limited", /sending limit/, 1],
@@ -867,7 +867,7 @@ test("the office push reaches ONLY the people who hold SEE_MONEY, in this compan
 
 // ============================================================ 6. where replies go =====
 
-test("replies: once receiving is proven the Reply-To is this thread's own FenceFlow address; until then it is the company's email", async () => {
+test("replies: once receiving is proven the Reply-To is this thread's own FenceFlowApp address; until then it is the company's email", async () => {
   resetWorld();
   Object.assign(ENV, { MAIL_INBOUND_DOMAIN: INBOUND_DOMAIN, RESEND_WEBHOOK_SECRET: "whsec_FAKE", RESEND_RECEIVING_KEY: "re_FAKE_recv" });
   world.db.mail_platform_settings[0].inbound_verified_at = "2026-09-22T16:03:35Z";

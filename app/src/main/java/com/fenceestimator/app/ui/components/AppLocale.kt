@@ -37,7 +37,7 @@ private class LocalizedContext(
 
 /**
  * Applies the user's chosen language to everything drawn inside [content],
- * without changing the device language -- FenceFlow can be in Spanish while
+ * without changing the device language -- FenceFlowApp can be in Spanish while
  * the rest of the phone stays in English. Arabic also flips layout direction
  * so the interface mirrors rather than just showing translated text in a
  * left-to-right layout.

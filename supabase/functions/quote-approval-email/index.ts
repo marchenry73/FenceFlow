@@ -30,13 +30,13 @@
  * every word come from the database, never from the request, and the job must
  * be approved.
  *
- * HOW IT SENDS -- ONE WAY, THE EXISTING ONE. This is mail-send's "FenceFlow
+ * HOW IT SENDS -- ONE WAY, THE EXISTING ONE. This is mail-send's "FenceFlowApp
  * mail" path (viaFenceflow) with no signed-in person on the end of it, and it
  * uses the same pieces for the same jobs: fenceflowFrom() (the company's name on
- * FenceFlow's verified address), fenceflowReplyTo() (replies go to the company --
- * into its FenceFlow inbox once receiving is proven, else to companies.email --
+ * FenceFlowApp's verified address), fenceflowReplyTo() (replies go to the company --
+ * into its FenceFlowApp inbox once receiving is proven, else to companies.email --
  * and the send is REFUSED when neither exists, because a reply would otherwise
- * reach FenceFlow's own mailbox carrying another company's customer),
+ * reach FenceFlowApp's own mailbox carrying another company's customer),
  * buildResendEmail() and composeBody() (the HTML twin is made from the text and
  * escaped), mail_ingest() (the message appears in the office's Sent view and on
  * the job's mail panel, de-duplicated by client_send_id), the note_mail_event()
@@ -125,7 +125,7 @@ const DEFAULT_SITE = "https://fenceflowapp.com";
 /** Longest wait for Resend's answer; no answer by then is "unconfirmed", never "failed". */
 export const RESEND_TIMEOUT_MS = 30_000;
 /** Written on a send whose outcome is unknown; mail-send's own sentence, so the office reads one wording. */
-export const UNCONFIRMED_NOTE = "FenceFlow could not confirm this email was sent. Check Sent before sending it again.";
+export const UNCONFIRMED_NOTE = "FenceFlowApp could not confirm this email was sent. Check Sent before sending it again.";
 
 const JOB_COLUMNS = "id, sync_id, company_id, customer_name, email, address, deleted_at, is_test_fixture, " +
   "quote_token, quote_approved_at, quote_approved_name, contract_total, deposit_amount, amount_paid, " +
@@ -216,31 +216,31 @@ const LEDGER_UNAVAILABLE: Outcome = {
 const COULD_NOT_READ: Outcome = {
   state: "failed",
   code: "could_not_read",
-  reason: "FenceFlow could not read this job's details just now, so no contract email was sent.",
-  short: "FenceFlow could not read the job just now",
+  reason: "FenceFlowApp could not read this job's details just now, so no contract email was sent.",
+  short: "FenceFlowApp could not read the job just now",
 };
 const UNEXPECTED: Outcome = {
   state: "failed",
   code: "server_error",
-  reason: "Something went wrong on FenceFlow's side, so no contract email was sent.",
-  short: "something went wrong on FenceFlow's side",
+  reason: "Something went wrong on FenceFlowApp's side, so no contract email was sent.",
+  short: "something went wrong on FenceFlowApp's side",
 };
 const UNCONFIRMED: Outcome = {
   state: "unconfirmed",
   code: "unconfirmed",
   reason: UNCONFIRMED_NOTE,
-  short: "FenceFlow could not confirm it went out - check Sent in company email before sending it again",
+  short: "FenceFlowApp could not confirm it went out - check Sent in company email before sending it again",
 };
 
 /** The one sentence mail-send uses when a company has nowhere for customer replies to go. */
-const NO_REPLY_ADDRESS = "Add your business email in Settings first, so replies to FenceFlow mail have somewhere to go.";
+const NO_REPLY_ADDRESS = "Add your business email in Settings first, so replies to FenceFlowApp mail have somewhere to go.";
 
 const REASON_BY_CODE: Partial<Record<MailErrorCode, string>> = {
   not_configured: "Company email is not set up on the server yet, so no contract email was sent.",
   rate_limited: `Company email has reached its sending limit (${RESEND_SENDS_PER_HOUR} an hour, ${RESEND_SENDS_PER_DAY} a day), so no contract email was sent.`,
   send_rejected: "The mail service refused to send it, so no contract email was sent.",
   too_large: "The contract email was too large to send, so nothing was sent.",
-  server_error: "Something went wrong on FenceFlow's side, so no contract email was sent.",
+  server_error: "Something went wrong on FenceFlowApp's side, so no contract email was sent.",
 };
 
 const SHORT_BY_CODE: Partial<Record<MailErrorCode, string>> = {
@@ -248,7 +248,7 @@ const SHORT_BY_CODE: Partial<Record<MailErrorCode, string>> = {
   rate_limited: "company email has reached its sending limit",
   send_rejected: "the mail service refused it",
   too_large: "the email was too large",
-  server_error: "something went wrong on FenceFlow's side",
+  server_error: "something went wrong on FenceFlowApp's side",
 };
 
 /** A MailError as an outcome: the CODE decides the words. Nothing a server said is ever copied in. */
@@ -478,7 +478,7 @@ async function loadFacts(db: Db, deps: Deps, job: Row): Promise<Loaded> {
 }
 
 // ---------------------------------------------------------------------------
-// Sending: FenceFlow mail, as mail-send's viaFenceflow does it.
+// Sending: FenceFlowApp mail, as mail-send's viaFenceflow does it.
 // ---------------------------------------------------------------------------
 
 const PROVIDER_ID_RE = /^[A-Za-z0-9._:-]{1,200}$/;
@@ -497,7 +497,7 @@ async function postToResend(deps: Deps, url: string, key: string, payload: Row, 
     });
   } catch (e) {
     const name = String((e as { name?: unknown })?.name ?? "");
-    throw new DeliveryUnknown(/timeout|abort/i.test(name) ? "timeout" : "connect_failed", "No answer from FenceFlow mail.");
+    throw new DeliveryUnknown(/timeout|abort/i.test(name) ? "timeout" : "connect_failed", "No answer from FenceFlowApp mail.");
   }
   let answer: Row | null = null;
   try {
@@ -510,14 +510,14 @@ async function postToResend(deps: Deps, url: string, key: string, payload: Row, 
     return typeof id === "string" && PROVIDER_ID_RE.test(id) ? id : null;
   }
   if (res.status >= 500 || res.status === 409) {
-    console.error(`${FN}: FenceFlow mail answered ${res.status}`);
+    console.error(`${FN}: FenceFlowApp mail answered ${res.status}`);
     throw new DeliveryUnknown("server_busy");
   }
   if (res.status === 401 || res.status === 403) {
-    console.error(`${FN}: FenceFlow mail refused the server's key (${res.status})`);
-    throw new MailError("not_configured", "FenceFlow mail refused the server's key.");
+    console.error(`${FN}: FenceFlowApp mail refused the server's key (${res.status})`);
+    throw new MailError("not_configured", "FenceFlowApp mail refused the server's key.");
   }
-  if (res.status === 429) throw new MailError("rate_limited", "FenceFlow mail is busy.");
+  if (res.status === 429) throw new MailError("rate_limited", "FenceFlowApp mail is busy.");
   if (res.status === 413) throw new MailError("too_large");
   throw new MailError("send_rejected");
 }
@@ -559,8 +559,8 @@ async function sendViaFenceflow(
 ): Promise<SendResult> {
   const key = envOf(deps, "MAIL_API_KEY");
   const mailFrom = envOf(deps, "MAIL_FROM");
-  if (!key || !mailFrom) throw new MailError("not_configured", "FenceFlow mail is not set up on the server.");
-  const from = fenceflowFrom(loaded.companyName, mailFrom, envOf(deps, "MAIL_FROM_NAME") || "FenceFlow");
+  if (!key || !mailFrom) throw new MailError("not_configured", "FenceFlowApp mail is not set up on the server.");
+  const from = fenceflowFrom(loaded.companyName, mailFrom, envOf(deps, "MAIL_FROM_NAME") || "FenceFlowApp");
 
   // Where replies go is settled before anything is recorded or spent.
   const inboundDomain = envOf(deps, "MAIL_INBOUND_DOMAIN").toLowerCase();

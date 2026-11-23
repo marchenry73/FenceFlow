@@ -1430,7 +1430,7 @@ class Repository(private val db: AppDatabase) {
      * for companies old enough to have been auto-seeded before that policy
      * was reversed -- leaves their rows exactly as they are.
      *
-     * A brand-new company no longer gets FenceFlow's ninety-one items or its
+     * A brand-new company no longer gets FenceFlowApp's ninety-one items or its
      * five pricing tiers inserted here. Those were market-rate guesses and a
      * stranger's labor rate wearing a real-looking price tag, not this
      * company's numbers, and a fresh install now starts with an empty
@@ -1455,7 +1455,7 @@ class Repository(private val db: AppDatabase) {
     }
 
     /**
-     * Opt-in "Copy FenceFlow's starting list" action for the Catalog screen.
+     * Opt-in "Copy FenceFlowApp's starting list" action for the Catalog screen.
      * Inserts the same ninety-one items [ensureSeedDataPresent] used to seed
      * automatically, still labelled with the same unverified starting-price
      * `sourceDoc` -- choosing to copy them does not make them this company's
@@ -1465,7 +1465,7 @@ class Repository(private val db: AppDatabase) {
     suspend fun copyFenceFlowStartingCatalog() = guardWrite("copyFenceFlowStartingCatalog") { materialDao.insertAll(SeedData.materialItems()) }
 
     /**
-     * Opt-in "Copy FenceFlow's starting tiers" action for the Settings
+     * Opt-in "Copy FenceFlowApp's starting tiers" action for the Settings
      * screen. See [copyFenceFlowStartingCatalog] -- same reasoning, for the
      * five pricing tiers instead of the catalog.
      */

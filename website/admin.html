@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>FenceFlow Admin</title>
+<title>FenceFlowApp Admin</title>
 <!-- Nothing here should end up in a search index -- it is one person's console
      over every paying customer's account. -->
 <meta name="robots" content="noindex, nofollow">
@@ -283,7 +283,7 @@
 <body>
 
 <header>
-  <a class="logo" href="index.html" title="Back to the FenceFlow home page">Fence<span>Flow</span><small>Admin</small></a>
+  <a class="logo" href="index.html" title="Back to the FenceFlowApp home page">Fence<span>Flow</span><small>Admin</small></a>
   <div class="search-wrap" id="searchWrap" style="display:none">
     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
     <input id="search" type="search" data-t="searchPh" placeholder="Search companies — name, email, plan, status">
@@ -355,12 +355,12 @@
          so many words, where the code comes from, what the entry is called,
          and that nothing is sent. -->
     <p style="color:var(--text);font-size:14px;margin:0 0 6px" data-t="mfaChallengeBody">
-      Open your authenticator app and enter the 6-digit code for FenceFlow (it may be
+      Open your authenticator app and enter the 6-digit code for FenceFlowApp (it may be
       labelled "localhost" if you set it up before September 22, 2026).
     </p>
     <p class="gate-note" id="mfaLabelHint" style="display:none"></p>
     <p class="gate-note" data-t="mfaNoEmailNote">
-      The code only ever comes from that app. FenceFlow does not email or text it, so there is
+      The code only ever comes from that app. FenceFlowApp does not email or text it, so there is
       nothing to wait for. A new code shows every 30 seconds; type the one on screen now.
     </p>
     <p class="gate-note" id="mfaWho" style="display:none"></p>
@@ -381,7 +381,7 @@
       <summary data-t="mfaLostHead">Lost the phone, or changed phones?</summary>
       <p data-t="mfaLostBody">
         There is no way past the code from this page — that is what it is for. The recovery
-        steps are in MFA_DECISION.md in the FenceFlow repository, under "If you lose the
+        steps are in MFA_DECISION.md in the FenceFlowApp repository, under "If you lose the
         phone": the old authenticator is removed from the Supabase dashboard, then you sign in
         and set up a new one. If you cannot do that, write to support@fenceflowapp.com.
       </p>
@@ -459,7 +459,7 @@
     <section id="view-email" style="display:none">
       <div class="panel">
         <h2 style="margin-top:0" data-t="emHead">Email clients</h2>
-        <p class="sub" data-t="emSub">Writes to the companies that use FenceFlow, from FenceFlow. Each one gets its own email — nobody sees who else it went to.</p>
+        <p class="sub" data-t="emSub">Writes to the companies that use FenceFlowApp, from FenceFlowApp. Each one gets its own email — nobody sees who else it went to.</p>
         <div class="msg" id="emMsg"></div>
 
         <div class="scroll" style="max-height:260px">
@@ -681,7 +681,7 @@
         <div class="msg" id="sessionsMsg"></div>
       </div>
 
-      <!-- Read-only: FenceFlow's own auth_events table (P1-5,
+      <!-- Read-only: FenceFlowApp's own auth_events table (P1-5,
            supabase_p4_auth_events.sql + supabase_p4_auth_events_fix.sql), not
            the hosted GoTrue logs. RLS on that table limits SELECT to platform
            admins, so this only ever renders for the account that is already
@@ -813,7 +813,7 @@
        and the only person who can change it is its owner. It sits above the
        editable fields because it is what tells this company apart from another
        one -- the company email below is a typed setting, two companies can hold
-       the same one, and this admin's own company holds a FenceFlow address in
+       the same one, and this admin's own company holds a FenceFlowApp address in
        it. Hidden entirely when the list carried no owner email, so nothing here
        ever guesses at one. -->
   <div id="e_ownerRow" style="display:none;font-size:13px;margin:0 0 10px"></div>
@@ -839,7 +839,7 @@
       <span id="e_priceNote" style="display:none;font-size:11px;color:var(--muted)" data-t="setByStripeNote">Set by Stripe — change it there, not here.</span>
     </div>
     <div><label data-t="editContactLabel">Company email (customers see it)</label><input id="e_contact" type="email" data-t="editContactPh" placeholder="shown on this company's quotes">
-      <span style="font-size:11px;color:var(--muted)" data-t="editContactNote">Printed on the company's quotes for its customers; also the reply-to on the crew invitations, follow-up emails and FenceFlow mail it sends (until the company connects its own inbox), and where a FenceFlow invitation goes when no other address is on file. The company's own address, not one person's. Never a login.</span>
+      <span style="font-size:11px;color:var(--muted)" data-t="editContactNote">Printed on the company's quotes for its customers; also the reply-to on the crew invitations, follow-up emails and FenceFlowApp mail it sends (until the company connects its own inbox), and where a FenceFlowApp invitation goes when no other address is on file. The company's own address, not one person's. Never a login.</span>
     </div>
     <div><label data-t="editBillingLabel">Billing email</label><input id="e_email" type="email" data-t="editBillingPh" placeholder="where receipts go"></div>
     <div><label data-t="editGraceLabel">Grace period ends</label><input id="e_grace" type="date"></div>
@@ -998,8 +998,8 @@ const TL = {
     gateLinkExpired:'That link has expired or was already used — request a new one.',
     gateSigningIn:'Signing in…', gateTypeEmailFirst:'Type your email above first, then press this.',
     gateSending:'Sending…', gateCheckEmail:'Check your email for a link to set a new password.',
-    notAdminNotice:'This page is for the owner of FenceFlow, not for a fencing company. Your own jobs and customers are on the %s — signing in here changed nothing there.',
-    notAdminLinkText:'FenceFlow dashboard',
+    notAdminNotice:'This page is for the owner of FenceFlowApp, not for a fencing company. Your own jobs and customers are on the %s — signing in here changed nothing there.',
+    notAdminLinkText:'FenceFlowApp dashboard',
     signInSeparate:'The staff console has its own sign-in. Being signed in to the office does not open it, and signing out here does not sign you out of the office.',
     rememberMeLabel:'Keep me signed in on this computer',
     rememberMeHint:'Leave it off on a shared computer: you then stay signed in only in this tab, until you close it. Either way, your authenticator code is asked for again every 12 hours.',
@@ -1013,21 +1013,21 @@ const TL = {
     savingEllipsis:'Saving…',
 
     mfaChallengeHead:'Enter your 2-step code',
-    mfaChallengeBody:'Open your authenticator app and enter the 6-digit code for FenceFlow (it may be labelled "localhost" if you set it up before September 22, 2026).',
-    mfaLabelLocalhost:'Yours was set up before the FenceFlow name was added, so look for the entry called "localhost" — that is the right one.',
-    mfaLabelNamed:'Yours is the entry called FenceFlow, with %s under it.',
-    mfaNoEmailNote:'The code only ever comes from that app. FenceFlow does not email or text it, so there is nothing to wait for. A new code shows every 30 seconds; type the one on screen now.',
+    mfaChallengeBody:'Open your authenticator app and enter the 6-digit code for FenceFlowApp (it may be labelled "localhost" if you set it up before September 22, 2026).',
+    mfaLabelLocalhost:'Yours was set up before the FenceFlowApp name was added, so look for the entry called "localhost" — that is the right one.',
+    mfaLabelNamed:'Yours is the entry called FenceFlowApp, with %s under it.',
+    mfaNoEmailNote:'The code only ever comes from that app. FenceFlowApp does not email or text it, so there is nothing to wait for. A new code shows every 30 seconds; type the one on screen now.',
     mfaSignedInAs:'Signed in as %s.',
     mfaLostHead:'Lost the phone, or changed phones?',
-    mfaLostBody:'There is no way past the code from this page — that is what it is for. The recovery steps are in MFA_DECISION.md in the FenceFlow repository, under "If you lose the phone": the old authenticator is removed from the Supabase dashboard, then you sign in and set up a new one. If you cannot do that, write to support@fenceflowapp.com.',
-    mfaCodeRejected:'That code was not accepted. Codes change every 30 seconds — type the one showing in the FenceFlow (or "localhost") entry right now. If it keeps failing, check that your phone\'s clock is set automatically.',
+    mfaLostBody:'There is no way past the code from this page — that is what it is for. The recovery steps are in MFA_DECISION.md in the FenceFlowApp repository, under "If you lose the phone": the old authenticator is removed from the Supabase dashboard, then you sign in and set up a new one. If you cannot do that, write to support@fenceflowapp.com.',
+    mfaCodeRejected:'That code was not accepted. Codes change every 30 seconds — type the one showing in the FenceFlowApp (or "localhost") entry right now. If it keeps failing, check that your phone\'s clock is set automatically.',
     codeLabel:'Code', mfaVerifyContinueBtn:'Verify and continue',
     sixDigitCode:'Enter the 6-digit code.', checkingEllipsis:'Checking…',
     mfaNoFactorFound:'No two-factor method found on this account.',
     mfaStaleNotice:'It has been more than 12 hours since this browser last entered a code. Enter a fresh one to carry on.',
 
     sessionsHead:'Signed-in devices',
-    sessionsBody:'Sign out ends this browser only. If a laptop or phone might still be signed in somewhere — left open, lost or borrowed — sign out everywhere: every device, including the FenceFlow app on your phone, has to sign in again.',
+    sessionsBody:'Sign out ends this browser only. If a laptop or phone might still be signed in somewhere — left open, lost or borrowed — sign out everywhere: every device, including FenceFlowApp on your phone, has to sign in again.',
     signOutEverywhereBtn:'Sign out of all devices',
     confirmSignOutEverywhereTitle:'Sign out of every device?',
     confirmSignOutEverywhereBody:'Every browser and phone signed in as %s is signed out straight away, this one included, and each has to sign in again.',
@@ -1055,7 +1055,7 @@ const TL = {
     aeMfaEnroll:'Two-factor turned on', aeMfaUnenroll:'Two-factor turned off',
     aeSignOut:'Signed out', aeMfaReauthRequired:'Asked for a fresh code',
     signedOutEverywhere:'Signed out of every device, this one included.',
-    inviteNoticeOtherBusiness:'Invitation sent to %s — but that address already has a FenceFlow account in another business, so it cannot become this company\'s owner. Use a different address for this company.',
+    inviteNoticeOtherBusiness:'Invitation sent to %s — but that address already has a FenceFlowApp account in another business, so it cannot become this company\'s owner. Use a different address for this company.',
 
     navEmail:'Email clients',
     emOneWay:'One side of a conversation: replies come back to your support address, which this console does not read. What you sent is here.',
@@ -1064,7 +1064,7 @@ const TL = {
     emNUnconfirmed:'%s not confirmed',
     emThreadWith:'To %s \u2014 %s message(s)',
     emHead:'Email clients',
-    emSub:'Writes to the companies that use FenceFlow, from FenceFlow. Each one gets its own email \u2014 nobody sees who else it went to.',
+    emSub:'Writes to the companies that use FenceFlowApp, from FenceFlowApp. Each one gets its own email \u2014 nobody sees who else it went to.',
     emColAddress:'Goes to', emColOutcome:'Outcome',
     emSubject:'Subject', emBody:'Message',
     emFooterNote:'A line is added at the end saying why they received it and how to reply.',
@@ -1164,7 +1164,7 @@ const TL = {
     rowOwnerNone:'no owner account yet',
     rowOwnerNoneTitle:'Nobody has signed in as the owner of this company yet, so there is no login email to show.',
     rowContactLabel:'Customers see:',
-    rowContactTitle:'The company\'s own address. It is printed on its quotes, and it is the reply-to on the crew invitations, follow-ups and FenceFlow mail it sends. A setting, never a login.',
+    rowContactTitle:'The company\'s own address. It is printed on its quotes, and it is the reply-to on the crew invitations, follow-ups and FenceFlowApp mail it sends. A setting, never a login.',
     rowContactNone:'not set',
     daysCount:'%s days', trialEndedOn:'trial ended %s',
     companiesEmpty:'No client companies yet.', companiesEmptyFiltered:'No company matches "%s".',
@@ -1306,7 +1306,7 @@ const TL = {
     editPriceLabel:'Price per month ($)',
     editContactLabel:'Company email (customers see it)',
     editContactPh:'shown on this company\'s quotes',
-    editContactNote:'Printed on the company\'s quotes for its customers; also the reply-to on the crew invitations, follow-up emails and FenceFlow mail it sends (until the company connects its own inbox), and where a FenceFlow invitation goes when no other address is on file. The company\'s own address, not one person\'s. Never a login.',
+    editContactNote:'Printed on the company\'s quotes for its customers; also the reply-to on the crew invitations, follow-up emails and FenceFlowApp mail it sends (until the company connects its own inbox), and where a FenceFlowApp invitation goes when no other address is on file. The company\'s own address, not one person\'s. Never a login.',
     editEmailBlankMsg:'The other changes saved, but the company email was left as it was — the box was empty, and an empty address would break this company\'s outgoing mail, its customer-facing quote, and its crew invitations. Type an address to change it.',
     editEmailInvalidMsg:'The other changes saved, but the company email was left as it was — "%s" does not look like a full email address (name@domain.tld). Fix it and save again.',
     editSaveNoRowsMsg:'Nothing was saved — the write matched no row. The most likely cause is that this admin session\'s second factor has gone stale since you opened this dialog. Sign out, sign back in with a fresh code, and try again.',
@@ -1333,8 +1333,8 @@ const TL = {
     gateLinkExpired:'Ese enlace venció o ya se usó — solicite uno nuevo.',
     gateSigningIn:'Iniciando sesión…', gateTypeEmailFirst:'Escriba su correo arriba primero y luego presione esto.',
     gateSending:'Enviando…', gateCheckEmail:'Revise su correo para ver un enlace y crear una nueva contraseña.',
-    notAdminNotice:'Esta página es para el dueño de FenceFlow, no para una empresa de cercas. Sus propios trabajos y clientes están en el %s — iniciar sesión aquí no cambió nada ahí.',
-    notAdminLinkText:'panel de FenceFlow',
+    notAdminNotice:'Esta página es para el dueño de FenceFlowApp, no para una empresa de cercas. Sus propios trabajos y clientes están en el %s — iniciar sesión aquí no cambió nada ahí.',
+    notAdminLinkText:'panel de FenceFlowApp',
     signInSeparate:'La consola del personal tiene su propio inicio de sesión. Tener la sesión iniciada en la oficina no la abre, y cerrar sesión aquí no cierra la de la oficina.',
     rememberMeLabel:'Mantener la sesión iniciada en esta computadora',
     rememberMeHint:'Déjelo desmarcado en una computadora compartida: así la sesión solo sigue abierta en esta pestaña, hasta que la cierre. En cualquier caso, el código de su aplicación de autenticación se vuelve a pedir cada 12 horas.',
@@ -1348,21 +1348,21 @@ const TL = {
     savingEllipsis:'Guardando…',
 
     mfaChallengeHead:'Ingrese su código de verificación en dos pasos',
-    mfaChallengeBody:'Abra su aplicación de autenticación e ingrese el código de 6 dígitos de FenceFlow (puede aparecer como "localhost" si lo configuró antes del 22 de septiembre de 2026).',
-    mfaLabelLocalhost:'El suyo se configuró antes de que se agregara el nombre FenceFlow, así que busque la entrada llamada "localhost": esa es la correcta.',
-    mfaLabelNamed:'El suyo es la entrada llamada FenceFlow, con %s debajo.',
-    mfaNoEmailNote:'El código solo sale de esa aplicación. FenceFlow no lo envía por correo ni por mensaje de texto, así que no hay nada que esperar. Cada 30 segundos aparece un código nuevo; escriba el que se ve ahora.',
+    mfaChallengeBody:'Abra su aplicación de autenticación e ingrese el código de 6 dígitos de FenceFlowApp (puede aparecer como "localhost" si lo configuró antes del 22 de septiembre de 2026).',
+    mfaLabelLocalhost:'El suyo se configuró antes de que se agregara el nombre FenceFlowApp, así que busque la entrada llamada "localhost": esa es la correcta.',
+    mfaLabelNamed:'El suyo es la entrada llamada FenceFlowApp, con %s debajo.',
+    mfaNoEmailNote:'El código solo sale de esa aplicación. FenceFlowApp no lo envía por correo ni por mensaje de texto, así que no hay nada que esperar. Cada 30 segundos aparece un código nuevo; escriba el que se ve ahora.',
     mfaSignedInAs:'Sesión iniciada como %s.',
     mfaLostHead:'¿Perdió el teléfono o lo cambió?',
-    mfaLostBody:'Desde esta página no hay forma de saltarse el código: para eso existe. Los pasos de recuperación están en MFA_DECISION.md, en el repositorio de FenceFlow, en "If you lose the phone": se quita el autenticador anterior desde el panel de Supabase, y luego usted inicia sesión y configura uno nuevo. Si no puede hacerlo, escriba a support@fenceflowapp.com.',
-    mfaCodeRejected:'Ese código no fue aceptado. Los códigos cambian cada 30 segundos: escriba el que se ve ahora en la entrada FenceFlow (o "localhost"). Si sigue fallando, revise que la hora de su teléfono se ajuste automáticamente.',
+    mfaLostBody:'Desde esta página no hay forma de saltarse el código: para eso existe. Los pasos de recuperación están en MFA_DECISION.md, en el repositorio de FenceFlowApp, en "If you lose the phone": se quita el autenticador anterior desde el panel de Supabase, y luego usted inicia sesión y configura uno nuevo. Si no puede hacerlo, escriba a support@fenceflowapp.com.',
+    mfaCodeRejected:'Ese código no fue aceptado. Los códigos cambian cada 30 segundos: escriba el que se ve ahora en la entrada FenceFlowApp (o "localhost"). Si sigue fallando, revise que la hora de su teléfono se ajuste automáticamente.',
     codeLabel:'Código', mfaVerifyContinueBtn:'Verificar y continuar',
     sixDigitCode:'Ingrese el código de 6 dígitos.', checkingEllipsis:'Comprobando…',
     mfaNoFactorFound:'No se encontró ningún método de verificación en dos pasos en esta cuenta.',
     mfaStaleNotice:'Han pasado más de 12 horas desde que este navegador ingresó un código. Ingrese uno nuevo para continuar.',
 
     sessionsHead:'Dispositivos con sesión iniciada',
-    sessionsBody:'Cerrar sesión solo cierra este navegador. Si una computadora o un teléfono podría seguir con la sesión iniciada en otro lugar — abierto, perdido o prestado — cierre la sesión en todas partes: cada dispositivo, incluida la aplicación FenceFlow de su teléfono, tendrá que iniciar sesión de nuevo.',
+    sessionsBody:'Cerrar sesión solo cierra este navegador. Si una computadora o un teléfono podría seguir con la sesión iniciada en otro lugar — abierto, perdido o prestado — cierre la sesión en todas partes: cada dispositivo, incluida FenceFlowApp de su teléfono, tendrá que iniciar sesión de nuevo.',
     signOutEverywhereBtn:'Cerrar sesión en todos los dispositivos',
     confirmSignOutEverywhereTitle:'¿Cerrar sesión en todos los dispositivos?',
     confirmSignOutEverywhereBody:'Todos los navegadores y teléfonos con sesión iniciada como %s se cierran de inmediato, incluido este, y cada uno tendrá que iniciar sesión de nuevo.',
@@ -1390,7 +1390,7 @@ const TL = {
     aeMfaEnroll:'Verificación en dos pasos activada', aeMfaUnenroll:'Verificación en dos pasos desactivada',
     aeSignOut:'Sesión cerrada', aeMfaReauthRequired:'Se pidió un código nuevo',
     signedOutEverywhere:'Sesión cerrada en todos los dispositivos, incluido este.',
-    inviteNoticeOtherBusiness:'Invitación enviada a %s — pero esa dirección ya tiene una cuenta de FenceFlow en otra empresa, así que no puede ser la propietaria de esta. Use otra dirección para esta empresa.',
+    inviteNoticeOtherBusiness:'Invitación enviada a %s — pero esa dirección ya tiene una cuenta de FenceFlowApp en otra empresa, así que no puede ser la propietaria de esta. Use otra dirección para esta empresa.',
 
     navEmail:'Correo a clientes',
     emOneWay:'Un solo lado de la conversaci\u00f3n: las respuestas llegan a tu direcci\u00f3n de soporte, que esta consola no lee. Aqu\u00ed est\u00e1 lo que enviaste.',
@@ -1399,7 +1399,7 @@ const TL = {
     emNUnconfirmed:'%s sin confirmar',
     emThreadWith:'Para %s \u2014 %s mensaje(s)',
     emHead:'Correo a clientes',
-    emSub:'Escribe a las empresas que usan FenceFlow, de parte de FenceFlow. Cada una recibe su propio correo \u2014 nadie ve a qui\u00e9n m\u00e1s se envi\u00f3.',
+    emSub:'Escribe a las empresas que usan FenceFlowApp, de parte de FenceFlowApp. Cada una recibe su propio correo \u2014 nadie ve a qui\u00e9n m\u00e1s se envi\u00f3.',
     emColAddress:'Se env\u00eda a', emColOutcome:'Resultado',
     emSubject:'Asunto', emBody:'Mensaje',
     emFooterNote:'Al final se a\u00f1ade una l\u00ednea que explica por qu\u00e9 lo recibieron y c\u00f3mo responder.',
@@ -1499,7 +1499,7 @@ const TL = {
     rowOwnerNone:'todavía sin cuenta de propietario',
     rowOwnerNoneTitle:'Nadie ha iniciado sesión como propietario de esta empresa todavía, así que no hay correo de inicio de sesión que mostrar.',
     rowContactLabel:'Los clientes ven:',
-    rowContactTitle:'La dirección propia de la empresa. Se imprime en sus presupuestos, y es la dirección de respuesta de las invitaciones a la cuadrilla, los seguimientos y el correo de FenceFlow que envía. Un ajuste, nunca un inicio de sesión.',
+    rowContactTitle:'La dirección propia de la empresa. Se imprime en sus presupuestos, y es la dirección de respuesta de las invitaciones a la cuadrilla, los seguimientos y el correo de FenceFlowApp que envía. Un ajuste, nunca un inicio de sesión.',
     rowContactNone:'sin configurar',
     daysCount:'%s días', trialEndedOn:'la prueba terminó %s',
     companiesEmpty:'Todavía no hay empresas clientes.', companiesEmptyFiltered:'Ninguna empresa coincide con "%s".',
@@ -1641,7 +1641,7 @@ const TL = {
     editPriceLabel:'Precio por mes ($)',
     editContactLabel:'Correo de la empresa (los clientes lo ven)',
     editContactPh:'aparece en los presupuestos de esta empresa',
-    editContactNote:'Se imprime en los presupuestos de la empresa para sus clientes; también es la dirección de respuesta de las invitaciones a la cuadrilla, los correos de seguimiento y el correo de FenceFlow que envía (hasta que la empresa conecte su propio buzón), y a donde va una invitación de FenceFlow cuando no hay otra dirección registrada. La dirección propia de la empresa, no la de una persona. Nunca es un inicio de sesión.',
+    editContactNote:'Se imprime en los presupuestos de la empresa para sus clientes; también es la dirección de respuesta de las invitaciones a la cuadrilla, los correos de seguimiento y el correo de FenceFlowApp que envía (hasta que la empresa conecte su propio buzón), y a donde va una invitación de FenceFlowApp cuando no hay otra dirección registrada. La dirección propia de la empresa, no la de una persona. Nunca es un inicio de sesión.',
     editEmailBlankMsg:'Los demás cambios se guardaron, pero el correo de la empresa se dejó como estaba — el campo estaba vacío, y una dirección vacía interrumpiría el correo saliente de esta empresa, la cotización que ve el cliente y las invitaciones a la cuadrilla. Escriba una dirección para cambiarla.',
     editEmailInvalidMsg:'Los demás cambios se guardaron, pero el correo de la empresa se dejó como estaba — "%s" no parece una dirección de correo completa (nombre@dominio.tld). Corríjala y guarde de nuevo.',
     editSaveNoRowsMsg:'No se guardó nada — la escritura no coincidió con ninguna fila. La causa más probable es que el segundo factor de esta sesión de administrador haya caducado desde que abrió este cuadro de diálogo. Cierre sesión, vuelva a iniciarla con un código nuevo e inténtelo de nuevo.',
@@ -1665,7 +1665,7 @@ const TL = {
     emNUnconfirmed:'%s non confirm\u00e9s',
     emThreadWith:'\u00c0 %s \u2014 %s message(s)',
     emHead:'Courriel aux clients',
-    emSub:'\u00c9crit aux entreprises qui utilisent FenceFlow, de la part de FenceFlow. Chacune re\u00e7oit son propre courriel \u2014 personne ne voit \u00e0 qui d\u2019autre il a \u00e9t\u00e9 envoy\u00e9.',
+    emSub:'\u00c9crit aux entreprises qui utilisent FenceFlowApp, de la part de FenceFlowApp. Chacune re\u00e7oit son propre courriel \u2014 personne ne voit \u00e0 qui d\u2019autre il a \u00e9t\u00e9 envoy\u00e9.',
     emColAddress:'Envoy\u00e9 \u00e0', emColOutcome:'R\u00e9sultat',
     emSubject:'Objet', emBody:'Message',
     emFooterNote:'Une ligne est ajout\u00e9e \u00e0 la fin expliquant pourquoi ils l\u2019ont re\u00e7u et comment r\u00e9pondre.',
@@ -1701,8 +1701,8 @@ const TL = {
     gateLinkExpired:'Ce lien a expiré ou a déjà été utilisé — demandez-en un nouveau.',
     gateSigningIn:'Connexion…', gateTypeEmailFirst:'Écrivez d\'abord votre courriel ci-dessus, puis appuyez ici.',
     gateSending:'Envoi…', gateCheckEmail:'Consultez votre courriel pour un lien qui permet de définir un nouveau mot de passe.',
-    notAdminNotice:'Cette page est pour le propriétaire de FenceFlow, pas pour une entreprise de clôtures. Vos propres chantiers et clients se trouvent sur le %s — vous connecter ici n\'y a rien changé.',
-    notAdminLinkText:'tableau de bord FenceFlow',
+    notAdminNotice:'Cette page est pour le propriétaire de FenceFlowApp, pas pour une entreprise de clôtures. Vos propres chantiers et clients se trouvent sur le %s — vous connecter ici n\'y a rien changé.',
+    notAdminLinkText:'tableau de bord FenceFlowApp',
     signInSeparate:'La console du personnel a sa propre connexion. Être connecté au bureau ne l\'ouvre pas, et se déconnecter ici ne vous déconnecte pas du bureau.',
     rememberMeLabel:'Rester connecté sur cet ordinateur',
     rememberMeHint:'Laissez décoché sur un ordinateur partagé : vous ne restez alors connecté que dans cet onglet, jusqu\'à sa fermeture. Dans tous les cas, le code de votre application d\'authentification est redemandé toutes les 12 heures.',
@@ -1716,21 +1716,21 @@ const TL = {
     savingEllipsis:'Enregistrement…',
 
     mfaChallengeHead:'Entrez votre code de vérification',
-    mfaChallengeBody:'Ouvrez votre application d\'authentification et entrez le code à 6 chiffres de FenceFlow (il peut s\'afficher sous le nom « localhost » si vous l\'avez configuré avant le 22 septembre 2026).',
-    mfaLabelLocalhost:'Le vôtre a été configuré avant l\'ajout du nom FenceFlow : cherchez l\'entrée appelée « localhost », c\'est la bonne.',
-    mfaLabelNamed:'Le vôtre est l\'entrée appelée FenceFlow, avec %s en dessous.',
-    mfaNoEmailNote:'Le code ne vient que de cette application. FenceFlow ne l\'envoie ni par courriel ni par texto : il n\'y a rien à attendre. Un nouveau code s\'affiche toutes les 30 secondes ; tapez celui qui est à l\'écran maintenant.',
+    mfaChallengeBody:'Ouvrez votre application d\'authentification et entrez le code à 6 chiffres de FenceFlowApp (il peut s\'afficher sous le nom « localhost » si vous l\'avez configuré avant le 22 septembre 2026).',
+    mfaLabelLocalhost:'Le vôtre a été configuré avant l\'ajout du nom FenceFlowApp : cherchez l\'entrée appelée « localhost », c\'est la bonne.',
+    mfaLabelNamed:'Le vôtre est l\'entrée appelée FenceFlowApp, avec %s en dessous.',
+    mfaNoEmailNote:'Le code ne vient que de cette application. FenceFlowApp ne l\'envoie ni par courriel ni par texto : il n\'y a rien à attendre. Un nouveau code s\'affiche toutes les 30 secondes ; tapez celui qui est à l\'écran maintenant.',
     mfaSignedInAs:'Connecté en tant que %s.',
     mfaLostHead:'Téléphone perdu ou changé ?',
-    mfaLostBody:'Il n\'y a aucun moyen de contourner le code depuis cette page : c\'est son rôle. La marche à suivre se trouve dans MFA_DECISION.md, dans le dépôt FenceFlow, sous « If you lose the phone » : l\'ancien authentificateur est retiré depuis le tableau de bord Supabase, puis vous vous connectez et en configurez un nouveau. Si vous ne pouvez pas le faire, écrivez à support@fenceflowapp.com.',
-    mfaCodeRejected:'Ce code n\'a pas été accepté. Les codes changent toutes les 30 secondes : tapez celui qui s\'affiche maintenant dans l\'entrée FenceFlow (ou « localhost »). Si cela échoue encore, vérifiez que l\'heure de votre téléphone est réglée automatiquement.',
+    mfaLostBody:'Il n\'y a aucun moyen de contourner le code depuis cette page : c\'est son rôle. La marche à suivre se trouve dans MFA_DECISION.md, dans le dépôt FenceFlowApp, sous « If you lose the phone » : l\'ancien authentificateur est retiré depuis le tableau de bord Supabase, puis vous vous connectez et en configurez un nouveau. Si vous ne pouvez pas le faire, écrivez à support@fenceflowapp.com.',
+    mfaCodeRejected:'Ce code n\'a pas été accepté. Les codes changent toutes les 30 secondes : tapez celui qui s\'affiche maintenant dans l\'entrée FenceFlowApp (ou « localhost »). Si cela échoue encore, vérifiez que l\'heure de votre téléphone est réglée automatiquement.',
     codeLabel:'Code', mfaVerifyContinueBtn:'Vérifier et continuer',
     sixDigitCode:'Entrez le code à 6 chiffres.', checkingEllipsis:'Vérification…',
     mfaNoFactorFound:'Aucune méthode de vérification en deux étapes trouvée pour ce compte.',
     mfaStaleNotice:'Plus de 12 heures se sont écoulées depuis le dernier code saisi dans ce navigateur. Entrez-en un nouveau pour continuer.',
 
     sessionsHead:'Appareils connectés',
-    sessionsBody:'Se déconnecter ne ferme que ce navigateur. Si un ordinateur ou un téléphone pourrait encore être connecté ailleurs — resté ouvert, perdu ou prêté — déconnectez-vous partout : chaque appareil, y compris l\'appli FenceFlow sur votre téléphone, devra se reconnecter.',
+    sessionsBody:'Se déconnecter ne ferme que ce navigateur. Si un ordinateur ou un téléphone pourrait encore être connecté ailleurs — resté ouvert, perdu ou prêté — déconnectez-vous partout : chaque appareil, y compris l\'FenceFlowApp sur votre téléphone, devra se reconnecter.',
     signOutEverywhereBtn:'Se déconnecter de tous les appareils',
     confirmSignOutEverywhereTitle:'Se déconnecter de tous les appareils ?',
     confirmSignOutEverywhereBody:'Chaque navigateur et téléphone connecté en tant que %s est déconnecté immédiatement, celui-ci compris, et chacun devra se reconnecter.',
@@ -1758,7 +1758,7 @@ const TL = {
     aeMfaEnroll:'Vérification en deux étapes activée', aeMfaUnenroll:'Vérification en deux étapes désactivée',
     aeSignOut:'Déconnecté', aeMfaReauthRequired:'Nouveau code demandé',
     signedOutEverywhere:'Déconnecté de tous les appareils, celui-ci compris.',
-    inviteNoticeOtherBusiness:'Invitation envoyée à %s — mais cette adresse a déjà un compte FenceFlow dans une autre entreprise, elle ne peut donc pas devenir propriétaire de celle-ci. Utilisez une autre adresse pour cette entreprise.',
+    inviteNoticeOtherBusiness:'Invitation envoyée à %s — mais cette adresse a déjà un compte FenceFlowApp dans une autre entreprise, elle ne peut donc pas devenir propriétaire de celle-ci. Utilisez une autre adresse pour cette entreprise.',
 
     navOverview:'Aperçu', navCompanies:'Entreprises', navCrashes:'Plantages',
     navAudit:'Journal',
@@ -1834,7 +1834,7 @@ const TL = {
     rowOwnerNone:'aucun compte propriétaire',
     rowOwnerNoneTitle:'Personne ne s\'est encore connecté comme propriétaire de cette entreprise, il n\'y a donc aucun identifiant à afficher.',
     rowContactLabel:'Les clients voient :',
-    rowContactTitle:'L\'adresse propre à l\'entreprise. Elle est imprimée sur ses devis, et c\'est l\'adresse de réponse des invitations à l\'équipe, des suivis et du courrier FenceFlow qu\'elle envoie. Un réglage, jamais un identifiant.',
+    rowContactTitle:'L\'adresse propre à l\'entreprise. Elle est imprimée sur ses devis, et c\'est l\'adresse de réponse des invitations à l\'équipe, des suivis et du courrier FenceFlowApp qu\'elle envoie. Un réglage, jamais un identifiant.',
     rowContactNone:'non renseignée',
     daysCount:'%s jours', trialEndedOn:'essai terminé le %s',
     companiesEmpty:'Aucune entreprise cliente pour l\'instant.', companiesEmptyFiltered:'Aucune entreprise ne correspond à « %s ».',
@@ -1976,7 +1976,7 @@ const TL = {
     editPriceLabel:'Prix par mois ($)',
     editContactLabel:'Courriel de l\'entreprise (visible par les clients)',
     editContactPh:'affiché sur les devis de cette entreprise',
-    editContactNote:'Imprimé sur les devis de l\'entreprise pour ses clients ; c\'est aussi l\'adresse de réponse des invitations à l\'équipe, des courriels de suivi et du courrier FenceFlow qu\'elle envoie (jusqu\'à ce que l\'entreprise connecte sa propre boîte de réception), et c\'est là qu\'arrive une invitation FenceFlow lorsqu\'aucune autre adresse n\'est au dossier. L\'adresse propre à l\'entreprise, pas celle d\'une seule personne. Jamais un identifiant.',
+    editContactNote:'Imprimé sur les devis de l\'entreprise pour ses clients ; c\'est aussi l\'adresse de réponse des invitations à l\'équipe, des courriels de suivi et du courrier FenceFlowApp qu\'elle envoie (jusqu\'à ce que l\'entreprise connecte sa propre boîte de réception), et c\'est là qu\'arrive une invitation FenceFlowApp lorsqu\'aucune autre adresse n\'est au dossier. L\'adresse propre à l\'entreprise, pas celle d\'une seule personne. Jamais un identifiant.',
     editEmailBlankMsg:'Les autres modifications ont été enregistrées, mais l’adresse courriel de l’entreprise n’a pas été modifiée — le champ était vide, et une adresse vide empêcherait l’envoi de courriels de cette entreprise, la soumission vue par le client et les invitations à l’équipe. Saisissez une adresse pour la changer.',
     editEmailInvalidMsg:'Les autres modifications ont été enregistrées, mais l’adresse courriel de l’entreprise n’a pas été modifiée — « %s » ne ressemble pas à une adresse courriel complète (nom@domaine.tld). Corrigez-la et enregistrez de nouveau.',
     editSaveNoRowsMsg:'Rien n\'a été enregistré — l\'écriture n\'a touché aucune ligne. La cause la plus probable est que le second facteur de cette session d\'administrateur a expiré depuis l\'ouverture de cette boîte de dialogue. Déconnectez-vous, reconnectez-vous avec un code récent, puis réessayez.',
@@ -2142,7 +2142,7 @@ db.auth.onAuthStateChange((event) => {
 });
 
 /* ---------------------------------------------------- auth event log ---- */
-/* FenceFlow's own audit trail (supabase_p4_auth_events.sql, P1-5) -- the
+/* FenceFlowApp's own audit trail (supabase_p4_auth_events.sql, P1-5) -- the
    hosted GoTrue log stays empty regardless, and this is what the "Recent
    sign-ins" panel below reads back. Logging is best-effort on purpose: a
    network blip or an old database missing this migration must never block
@@ -2431,7 +2431,7 @@ async function boot() {
    The issuer baked into an authenticator entry is not stored anywhere the
    page can read, but the factor's friendly name tells the two eras apart:
    startMfaEnroll() has named every factor since it started passing
-   issuer 'FenceFlow', and nothing before it did -- those entries took the
+   issuer 'FenceFlowApp', and nothing before it did -- those entries took the
    project's Site URL host instead, which is how the owner's came to read
    "localhost". Best effort: without it the panel still carries the general
    sentence, which covers both. */
@@ -2907,7 +2907,7 @@ function switchView(name) {
    Why the page needs it: a company's NAME and its companies.email are both
    settings its owner types, and nothing makes either of them unique. Companies
    on this list do share a companies.email, and this admin's own company carries
-   a FenceFlow address in that column rather than the address he signs in with --
+   a FenceFlowApp address in that column rather than the address he signs in with --
    so his own row did not look like his. On 2026-09-23 it was suspended from
    this list by the person inside it, which took their own office offline
    (twenty-one *_not_suspended policies refuse every row), and afterwards they
@@ -3331,7 +3331,7 @@ function renderKpis() {
   // used, which is the number that moves first when a customer leaves.
   //
   // Blank, not zero, when no row carries the columns: a bold 0 would read as
-  // "nobody is using FenceFlow" on a console whose database simply has not
+  // "nobody is using FenceFlowApp" on a console whose database simply has not
   // been patched yet.
   const health = clients.map(healthOf);
   const healthKnown = health.some(h => h.state !== 'absent');
@@ -3419,7 +3419,7 @@ function onboardingTrack(c) {
     <span style="font-size:11.5px;color:${done ? 'var(--teal)' : 'var(--muted)'}">${esc(caption)}</span>`;
 }
 
-/* Is this company actually using FenceFlow?
+/* Is this company actually using FenceFlowApp?
 
    The list could not say. people and jobs are totals EVER, and a total never
    goes down: a company that stopped in August read exactly like one that used
@@ -4963,12 +4963,12 @@ function chase(id) {
     ? ` Access continues until ${day(c.grace_ends_at)}.`
     : '';
   const body =
-    `Hi,\n\nYour FenceFlow payment didn't go through, so the subscription for ` +
+    `Hi,\n\nYour FenceFlowApp payment didn't go through, so the subscription for ` +
     `${c.name} is showing as past due.${grace}\n\n` +
     `You can update your card from the Billing tab in your dashboard. ` +
     `If something's wrong on our end, just reply and we'll sort it.\n\nThanks`;
   location.href = `mailto:${encodeURIComponent(to)}` +
-    `?subject=${encodeURIComponent('FenceFlow payment issue — ' + (c.name || ''))}` +
+    `?subject=${encodeURIComponent('FenceFlowApp payment issue — ' + (c.name || ''))}` +
     `&body=${encodeURIComponent(body)}`;
 }
 
@@ -5051,8 +5051,8 @@ async function startMfaEnroll() {
   const { data: { session: enrollSession } } = await db.auth.getSession();
   const { data, error } = await db.auth.mfa.enroll({
     factorType: 'totp',
-    issuer: 'FenceFlow',
-    friendlyName: enrollSession?.user?.email || 'FenceFlow staff',
+    issuer: 'FenceFlowApp',
+    friendlyName: enrollSession?.user?.email || 'FenceFlowApp staff',
   });
   if (error) { $('mfaEnrollMsg').textContent = error.message; return; }
   pendingFactorId = data.id;

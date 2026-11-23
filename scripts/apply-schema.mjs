@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Rebuilds the FenceFlow schema on a NON-PRODUCTION Supabase project by
+ * Rebuilds the FenceFlowApp schema on a NON-PRODUCTION Supabase project by
  * replaying every .sql file in this repository, in the order they were applied
  * to production.
  *

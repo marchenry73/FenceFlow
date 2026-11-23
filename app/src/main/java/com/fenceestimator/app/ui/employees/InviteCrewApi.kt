@@ -55,7 +55,7 @@ object InviteCrewApi {
     suspend fun invite(name: String, email: String, role: String): Result = withContext(Dispatchers.IO) {
         if (!SupabaseModule.isConfigured) return@withContext Result.Failed("Cloud isn't set up on this build.")
         val token = SupabaseModule.client.auth.currentSessionOrNull()?.accessToken
-            ?: return@withContext Result.Failed("This phone isn't signed in to FenceFlow.")
+            ?: return@withContext Result.Failed("This phone isn't signed in to FenceFlowApp.")
 
         val client = HttpClient(CIO) {
             install(HttpTimeout) {

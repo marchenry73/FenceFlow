@@ -48,16 +48,16 @@ function outboundProblems(html) {
 /* ---------- subject ---------- */
 {
   const { subject } = buildWelcomeEmail(base);
-  ok('subject welcomes the business by name', subject === 'Welcome to FenceFlow, Coastal Fence & Gate');
+  ok('subject welcomes the business by name', subject === 'Welcome to FenceFlowApp, Coastal Fence & Gate');
   const evil = buildWelcomeEmail({ ...base, companyName: 'Acme\r\nBcc: victim@example.com' });
   ok('a line break in the name cannot reach the Subject header', !/[\r\n]/.test(evil.subject));
-  ok('an empty name still reads as a sentence', buildWelcomeEmail({ ...base, companyName: '  ' }).subject === 'Welcome to FenceFlow, your company');
+  ok('an empty name still reads as a sentence', buildWelcomeEmail({ ...base, companyName: '  ' }).subject === 'Welcome to FenceFlowApp, your company');
 }
 
 /* ---------- html: what it says ---------- */
 {
   const { html } = buildWelcomeEmail(base);
-  ok('headline welcomes them by business name, escaped', html.includes('Welcome to FenceFlow, Coastal Fence &amp; Gate.'));
+  ok('headline welcomes them by business name, escaped', html.includes('Welcome to FenceFlowApp, Coastal Fence &amp; Gate.'));
   ok('greets the owner by first name', html.includes('Hi Dana,'));
   ok('step 1: add your prices', html.includes('Add your prices') && html.includes('Catalog'));
   ok('step 2: invite your crew, with the real button name', html.includes('Invite your crew') && html.includes('+ Add'));
@@ -76,7 +76,7 @@ function outboundProblems(html) {
 {
   const { html } = buildWelcomeEmail(base);
   ok('table layout, marked presentational', (html.match(/role="presentation"/g) || []).length >= 4);
-  ok('light background, FenceFlow orange and ink', html.includes('#F6F7F5') && html.includes('#FF5A1F') && html.includes('#0B1220'));
+  ok('light background, FenceFlowApp orange and ink', html.includes('#F6F7F5') && html.includes('#FF5A1F') && html.includes('#0B1220'));
   ok('600px max width', html.includes('max-width:600px'));
   ok('no scripts', !/<script\b/i.test(html));
   const problems = outboundProblems(html);
@@ -107,7 +107,7 @@ function outboundProblems(html) {
 /* ---------- plain-text alternative ---------- */
 {
   const { text } = buildWelcomeEmail(base);
-  ok('text: headline', text.startsWith('Welcome to FenceFlow, Coastal Fence & Gate.'));
+  ok('text: headline', text.startsWith('Welcome to FenceFlowApp, Coastal Fence & Gate.'));
   ok('text: all three steps, numbered', /1\. Add your prices/.test(text) && /2\. Invite your crew/.test(text) && /3\. Send your first quote/.test(text));
   ok('text: the office URL', text.includes(`Open your office: ${OFFICE}`));
   ok('text: support address', text.includes(SUPPORT));

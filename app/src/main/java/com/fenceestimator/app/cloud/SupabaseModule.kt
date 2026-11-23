@@ -411,10 +411,10 @@ object SupabaseModule {
      * also better than a list of unnamed crew rows nobody can identify.
      */
     /**
-     * Claims a company FenceFlow set up, using the one-time code sent with it.
+     * Claims a company FenceFlowApp set up, using the one-time code sent with it.
      *
      * This is how a new customer becomes the owner of their own company
-     * without anybody at FenceFlow handling their password. They make their
+     * without anybody at FenceFlowApp handling their password. They make their
      * own account, then this attaches it to the company already waiting.
      */
     suspend fun claimCompanySetup(setupCode: String, ownerName: String) {

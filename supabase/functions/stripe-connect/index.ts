@@ -6,7 +6,7 @@
  *   ?action=start     signed-in contractor -> the Stripe consent screen
  *   ?action=callback  Stripe -> here, with a code to exchange
  *
- * The money never touches FenceFlow. Payment links are created ON the
+ * The money never touches FenceFlowApp. Payment links are created ON the
  * contractor's account (create-payment-link sets the Stripe-Account header),
  * so this only has to obtain the account id -- with Standard Connect the
  * platform key acts on the connected account from then on, and there is no
@@ -42,7 +42,7 @@ Deno.serve(async (req) => {
 
   if (!clientId || !secretKey || !redirectUri) {
     return json({
-      error: "Stripe Connect is not set up on this FenceFlow yet. " +
+      error: "Stripe Connect is not set up on this FenceFlowApp yet. " +
              "It needs a Connect client id and redirect URL.",
     }, 501);
   }

@@ -1,7 +1,7 @@
-// Pure builder for the email a person gets the moment they create a FenceFlow
+// Pure builder for the email a person gets the moment they create a FenceFlowApp
 // account -- before they have told us anything about their business.
 //
-// WHY THIS EXISTS. FenceFlow had exactly one email for a new company, and it
+// WHY THIS EXISTS. FenceFlowApp had exactly one email for a new company, and it
 // goes out only when the company is READY: business details finished AND a
 // trial or a plan. Someone who signed up and stopped before the details step
 // therefore heard nothing at all, ever. On 19 October 2026 a real signup did
@@ -62,8 +62,8 @@ const MUTED = "#5C6672";
 const BODY_FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
 const DISPLAY_FONT = "'Barlow Condensed','Arial Narrow',Arial,sans-serif";
 
-/** Matches welcome-email.ts: FenceFlow has no passwords, and people ask. */
-const NO_PASSWORD_HINT = "There is no password -- FenceFlow emails you a link each time.";
+/** Matches welcome-email.ts: FenceFlowApp has no passwords, and people ask. */
+const NO_PASSWORD_HINT = "There is no password -- FenceFlowApp emails you a link each time.";
 
 export function buildSignupEmail(input: SignupEmailInput): SignupEmailOutput {
   // A name is genuinely optional here: at signup the business may be unnamed,
@@ -75,12 +75,12 @@ export function buildSignupEmail(input: SignupEmailInput): SignupEmailOutput {
   const support = oneLine(input.supportEmail, 254);
 
   const subject = company
-    ? `Finish setting up ${company} on FenceFlow`
-    : "Finish setting up your FenceFlow account";
+    ? `Finish setting up ${company} on FenceFlowApp`
+    : "Finish setting up your FenceFlowApp account";
   const greeting = first ? `Hi ${first},` : "Hi there,";
   const intro = company
-    ? `Your FenceFlow account is created. One step left before ${company}'s office opens: tell us about the business.`
-    : "Your FenceFlow account is created. One step left before your office opens: tell us about your business.";
+    ? `Your FenceFlowApp account is created. One step left before ${company}'s office opens: tell us about the business.`
+    : "Your FenceFlowApp account is created. One step left before your office opens: tell us about your business.";
   const preheader = "One step left before your office opens: your business details.";
   const why = "It takes about a minute -- your business name, phone and licence number. "
     + "That is what goes on your quotes and contracts, so it is worth getting right.";
@@ -149,8 +149,8 @@ export function buildSignupEmail(input: SignupEmailInput): SignupEmailOutput {
         </tr>
         <tr>
           <td align="center" style="padding:22px 24px 0 24px;font-family:${BODY_FONT};font-size:12px;line-height:1.6;color:${MUTED};">
-            You are getting this because a FenceFlow account was just created with this address.<br>
-            It is a one-time message &mdash; FenceFlow will not send it again.<br>
+            You are getting this because a FenceFlowApp account was just created with this address.<br>
+            It is a one-time message &mdash; FenceFlowApp will not send it again.<br>
             If the button does not work, paste this into your browser: <span style="word-break:break-all;">${e(setup)}</span>
           </td>
         </tr>
@@ -163,7 +163,7 @@ export function buildSignupEmail(input: SignupEmailInput): SignupEmailOutput {
 </html>`;
 
   const text = [
-    company ? `Finish setting up ${company} on FenceFlow.` : "Finish setting up your FenceFlow account.",
+    company ? `Finish setting up ${company} on FenceFlowApp.` : "Finish setting up your FenceFlowApp account.",
     "",
     greeting,
     "",
@@ -177,8 +177,8 @@ export function buildSignupEmail(input: SignupEmailInput): SignupEmailOutput {
     "",
     `Stuck, or not sure what to put? Reply to this email or write to ${support}.`,
     "",
-    "You are getting this because a FenceFlow account was just created with this address.",
-    "It is a one-time message -- FenceFlow will not send it again.",
+    "You are getting this because a FenceFlowApp account was just created with this address.",
+    "It is a one-time message -- FenceFlowApp will not send it again.",
   ].join("\n");
 
   return { subject, html, text };

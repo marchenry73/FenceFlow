@@ -1,4 +1,4 @@
-// Connects a company's own mailbox to FenceFlow, checks it, changes its app
+// Connects a company's own mailbox to FenceFlowApp, checks it, changes its app
 // password, disconnects it, and tells the office what company email can do
 // right now. It never sends or reads mail: mail-sync, mail-message and
 // mail-send do that, with what this function stored.
@@ -393,7 +393,7 @@ async function writeAccount(caller: MailCaller, id: string, patch: Row, guard: W
  *  password to check: an IMAP account that is not disconnected. */
 async function loadImapAccount(caller: MailCaller, accountId: unknown): Promise<Row> {
   const row = await loadAccountAsCaller(caller, accountId);
-  if (row.kind !== "imap") throw new MailError("bad_request", "FenceFlow mail has no mailbox or app password of its own.");
+  if (row.kind !== "imap") throw new MailError("bad_request", "FenceFlowApp mail has no mailbox or app password of its own.");
   if (row.status === "disconnected") throw new MailError("not_found", "That mailbox is disconnected. Connect it again.");
   return row;
 }
@@ -486,18 +486,18 @@ async function status(caller: MailCaller): Promise<Response> {
   const accounts = (rows as Row[]).filter((r) => r.kind === "imap");
   let fenceflowId = (rows as Row[]).find((r) => r.kind === "fenceflow")?.id ?? null;
 
-  // FenceFlow mail can send only with a Resend key and a MAIL_FROM that
+  // FenceFlowApp mail can send only with a Resend key and a MAIL_FROM that
   // holds a real address; mail-send refuses on exactly the same test.
   let from: { name: string; address: string } | null = null;
   if (env("MAIL_API_KEY")) {
     try {
-      from = fenceflowFrom(caller.companyName, env("MAIL_FROM"), env("MAIL_FROM_NAME") || "FenceFlow");
+      from = fenceflowFrom(caller.companyName, env("MAIL_FROM"), env("MAIL_FROM_NAME") || "FenceFlowApp");
     } catch {
       from = null;
     }
   }
 
-  // Replies come back into FenceFlow only once receiving is configured AND
+  // Replies come back into FenceFlowApp only once receiving is configured AND
   // a signed webhook has proven it (resend-inbound sets inbound_verified_at).
   const inboundDomain = env("MAIL_INBOUND_DOMAIN").toLowerCase();
   let inboundReady = false;
@@ -509,7 +509,7 @@ async function status(caller: MailCaller): Promise<Response> {
   }
 
   // The routing token is needed only for the preview of an inbound Reply-To,
-  // and only then is the company's FenceFlow-mail row created (race-safe, by
+  // and only then is the company's FenceFlowApp-mail row created (race-safe, by
   // the RPC). It is read with the service role: the office never sees it
   // except inside that preview.
   let inboundToken: string | null = null;
@@ -545,7 +545,7 @@ async function status(caller: MailCaller): Promise<Response> {
       inbound_ready: inboundReady,
       reply_mode: from ? reply.mode : null,
       reply_to_preview: from ? reply.replyTo : null,
-      // FenceFlow mail with nowhere honest for a reply to go is refused by
+      // FenceFlowApp mail with nowhere honest for a reply to go is refused by
       // mail-send; the office says "Add your business email first".
       needs_company_email: from !== null && reply.mode === "unavailable",
     },
@@ -734,7 +734,7 @@ async function disconnect(caller: MailCaller, body: Row): Promise<Response> {
   requireOwner(caller);
   const row = await loadAccountAsCaller(caller, body.account_id);
   if (row.kind !== "imap") {
-    throw new MailError("bad_request", "FenceFlow mail is not a connected mailbox, so there is nothing to disconnect.");
+    throw new MailError("bad_request", "FenceFlowApp mail is not a connected mailbox, so there is nothing to disconnect.");
   }
   // The password goes first. If forgetting it fails, the mailbox is not
   // reported as disconnected while its password is still in Vault.

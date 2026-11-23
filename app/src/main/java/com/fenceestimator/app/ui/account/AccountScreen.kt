@@ -858,12 +858,12 @@ private fun CompanySetupSection(viewModel: AccountViewModel) {
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
 
-            // The path for a company FenceFlow set up in advance.
+            // The path for a company FenceFlowApp set up in advance.
             //
             // First, because it is the one a new customer will be using: they
             // were sent a code and told to sign up. Their company is already
             // waiting; this attaches their new account to it as the owner,
-            // without anybody at FenceFlow ever handling their password.
+            // without anybody at FenceFlowApp ever handling their password.
             Text(
                 stringResource(R.string.acct_sent_setup_code),
                 style = MaterialTheme.typography.titleSmall
@@ -899,7 +899,7 @@ private fun CompanySetupSection(viewModel: AccountViewModel) {
                 value = ownerName, onValueChange = { ownerName = it },
                 label = { Text(stringResource(R.string.acct_your_name)) }, modifier = Modifier.fillMaxWidth()
             )
-            // Setup code above is the recommended path -- it is the one FenceFlow
+            // Setup code above is the recommended path -- it is the one FenceFlowApp
             // actually sends people to sign up with. This and Join below are
             // both alternatives to it, so only setup code gets the filled
             // button; two equally-weighted filled buttons for mutually

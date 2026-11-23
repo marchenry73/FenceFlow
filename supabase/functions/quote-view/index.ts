@@ -293,7 +293,7 @@ async function readPaymentMethods(
  *
  * "I still need the link, but I need to be able to send it with the quote."
  *
- * jobs.payment_link_url is either a link FenceFlow made through Stripe
+ * jobs.payment_link_url is either a link FenceFlowApp made through Stripe
  * (JobDetailScreen's Request payment) or one he typed himself -- Square,
  * PayPal, Venmo, whatever he already uses. Until now the only way it reached
  * a customer was two buttons on the phone that opened a text or an email, so
@@ -418,7 +418,7 @@ async function readPlan(
  *                          THAT account, which stripe-webhook never hears, so
  *                          the homeowner pays, the money arrives, and nothing is
  *                          ever recorded against the job. An EMPTY account is
- *                          FenceFlow's own platform account, which mints.
+ *                          FenceFlowApp's own platform account, which mints.
  *
  * SO THE STRIPE ARM IS THE OPPOSITE OF "CONNECTED". A company holding its own
  * Stripe account id is the one that CANNOT take a card payment here; a company
@@ -903,7 +903,7 @@ async function alarmOffice(
       toks,
       mayHaveGone ? "Contract email: could not confirm" : "Contract email NOT sent",
       mayHaveGone
-        ? `${who} approved the quote. FenceFlow could not confirm the contract email went out: the email service did not answer. Check Sent in company email before sending it again.`
+        ? `${who} approved the quote. FenceFlowApp could not confirm the contract email went out: the email service did not answer. Check Sent in company email before sending it again.`
         : `${who} approved the quote, but the contract email was not sent: the email service could not be reached. Send it yourself, or ask them to download a copy from their quote link.`,
     );
   } catch (_e) { /* the approval stands, and the failure is already on the record */ }
@@ -1355,7 +1355,7 @@ Deno.serve(async (req) => {
         await alarmOffice(admin, job, false, {
           title: "A customer could not approve",
           body: `${job.customer_name || "A customer"} tried to approve, but this job has no ` +
-            `price on it yet -- only its material list. FenceFlow refused rather than record ` +
+            `price on it yet -- only its material list. FenceFlowApp refused rather than record ` +
             `materials and tax as the agreed price. Price the job, then ask them again.`,
         });
         return json({
@@ -1383,7 +1383,7 @@ Deno.serve(async (req) => {
           title: "A customer could not approve",
           body: `${job.customer_name || "A customer"} tried to approve, but the quote now shows ` +
             `$${shortfall.recording.toFixed(2)} against $${shortfall.agreed.toFixed(2)} already agreed. ` +
-            `FenceFlow refused it rather than record the lower price. ` +
+            `FenceFlowApp refused it rather than record the lower price. ` +
             (figures.pricedLines === 0
               ? "This job holds no priced lines -- its material list is missing."
               : "Re-price the job, or capture a new signature at the new price."),

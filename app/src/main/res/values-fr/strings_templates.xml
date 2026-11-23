@@ -12,5 +12,5 @@
     <string name="jd_template_untitled">Modèle sans titre</string>
     <string name="jd_template_group_your_default">Votre modèle par défaut</string>
     <string name="jd_template_group_yours">Vos modèles</string>
-    <string name="jd_template_group_shipped">Modèles FenceFlow</string>
+    <string name="jd_template_group_shipped">Modèles FenceFlowApp</string>
 </resources>

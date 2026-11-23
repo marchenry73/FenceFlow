@@ -374,7 +374,7 @@ fun JobsListScreen(
                     // is letting a long name step down in size rather than
                     // being cut off mid-word.
                     val shownName =
-                        if (profile.businessName.isBlank()) "FenceFlow" else profile.businessName
+                        if (profile.businessName.isBlank()) "FenceFlowApp" else profile.businessName
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         if (logoBitmap != null) {
                             // White behind it: a logo drawn for paper is dark
@@ -698,7 +698,7 @@ fun JobsListScreen(
                 // the eye lands every morning and does not leave until someone
                 // with the catalog permission answers it.
                 // A quote with no business name on it goes out headed
-                // "FenceFlow", because that is the PDF's fallback -- so the
+                // "FenceFlowApp", because that is the PDF's fallback -- so the
                 // first thing a new contractor sends a homeowner is branded
                 // with the software instead of their own company. Asked for
                 // here, where they already are, rather than left to be

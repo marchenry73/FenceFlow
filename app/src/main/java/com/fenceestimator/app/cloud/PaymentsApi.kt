@@ -41,7 +41,7 @@ private data class PaymentLinkResponse(
  * ever receives back is a public checkout URL to hand to the customer.
  *
  * Note this is a payment for physical work, which Google Play explicitly
- * allows to be processed outside Play Billing. The FenceFlow subscription is a
+ * allows to be processed outside Play Billing. The FenceFlowApp subscription is a
  * different matter and stays on the website.
  */
 object PaymentsApi {
@@ -74,7 +74,7 @@ object PaymentsApi {
         // two different causes that used to produce near-identical messages.
         val token = SupabaseModule.client.auth.currentSessionOrNull()?.accessToken
             ?: return@withContext Result.Failed(
-                "This phone isn't signed in to FenceFlow. Open Account and sign in, then try again."
+                "This phone isn't signed in to FenceFlowApp. Open Account and sign in, then try again."
             )
         if (amountDollars < 0.50) {
             return@withContext Result.Failed("Amount has to be at least $0.50.")

@@ -1,6 +1,6 @@
-// Sends a new FenceFlow account its signup email -- once, ever.
+// Sends a new FenceFlowApp account its signup email -- once, ever.
 //
-// WHY IT EXISTS. FenceFlow used to send exactly one email to a new company,
+// WHY IT EXISTS. FenceFlowApp used to send exactly one email to a new company,
 // and only when that company was READY: details finished AND a trial or plan.
 // Someone who created an account and stopped before the details step heard
 // nothing at all. On 19 October 2026 a real signup did exactly that and the
@@ -40,7 +40,7 @@
 // the two for them.
 //
 // Mail goes through the same provider and secrets as send-welcome-email
-// (MAIL_API_KEY, MAIL_FROM, MAIL_API_URL, MAIL_FROM_NAME), from FenceFlow
+// (MAIL_API_KEY, MAIL_FROM, MAIL_API_URL, MAIL_FROM_NAME), from FenceFlowApp
 // itself, with replies going to support. No address is written to the logs.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 import { buildSignupEmail } from "../_shared/signup-email.ts";
@@ -53,7 +53,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 // encode(gen_random_bytes(32), 'hex') in the migration: 64 hex characters.
 const SECRET_RE = /^[0-9a-f]{64}$/;
 
-/** "FenceFlow <x@y>" -- the bare address when MAIL_FROM already has a name. */
+/** "FenceFlowApp <x@y>" -- the bare address when MAIL_FROM already has a name. */
 function senderWithName(name: string, address: string): string {
   const clean = name.replace(/[\r\n<>"]/g, "").trim().slice(0, 70);
   if (!clean || address.includes("<")) return address;
@@ -93,7 +93,7 @@ Deno.serve(async (req) => {
     const mailKey = Deno.env.get("MAIL_API_KEY");
     const mailFrom = Deno.env.get("MAIL_FROM");
     const mailUrl = Deno.env.get("MAIL_API_URL") ?? "https://api.resend.com/emails";
-    const fromName = Deno.env.get("MAIL_FROM_NAME") ?? "FenceFlow";
+    const fromName = Deno.env.get("MAIL_FROM_NAME") ?? "FenceFlowApp";
     const site = (Deno.env.get("SITE_URL") ?? "https://fenceflowapp.com").replace(/\/+$/, "");
     const support = Deno.env.get("SUPPORT_EMAIL") ?? "support@fenceflowapp.com";
     if (!mailKey || !mailFrom) {
@@ -130,7 +130,7 @@ Deno.serve(async (req) => {
 
     // The owner who signed up, at the address their login uses. Never the
     // company's typed contact email: that is a field the owner can set to
-    // anything, and this is FenceFlow's own domain sending.
+    // anything, and this is FenceFlowApp's own domain sending.
     const { data: owner, error: ownerErr } = await admin
       .from("profiles")
       .select("id, full_name")

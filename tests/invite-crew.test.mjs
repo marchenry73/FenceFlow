@@ -25,7 +25,7 @@ const base = {
 /* ---------- subject ---------- */
 {
   const { subject } = buildInviteCrewEmail(base);
-  ok('subject names the company', subject === 'Acme Fencing added you to their crew on FenceFlow');
+  ok('subject names the company', subject === 'Acme Fencing added you to their crew on FenceFlowApp');
 }
 
 /* ---------- required content, both bodies ---------- */

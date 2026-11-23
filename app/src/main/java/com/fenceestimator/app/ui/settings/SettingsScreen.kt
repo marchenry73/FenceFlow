@@ -109,7 +109,7 @@ fun SettingsScreen(
     onOpenAccount: () -> Unit,
     onOpenHelp: () -> Unit,
     onOpenFeedback: () -> Unit,
-    /** The platform console. Only ever reached by a FenceFlow platform admin. */
+    /** The platform console. Only ever reached by a FenceFlowApp platform admin. */
     onOpenAdmin: () -> Unit
 ) {
     val app = currentApp()
@@ -284,7 +284,7 @@ fun SettingsScreen(
                     DraftTextField(stableKey = "biz_license", initialValue = local.licenseNumber, label = stringResource(R.string.set_license_number), modifier = Modifier.fillMaxWidth(), enabled = editable) { local = local.copy(licenseNumber = it) }
                     // THE COMPANY'S LOGO, on the PDF quote and contract this
                     // phone prints, on the quote page the customer opens, and
-                    // at the top of the emails FenceFlow sends them.
+                    // at the top of the emails FenceFlowApp sends them.
                     //
                     // Not a DraftTextField and not saved by Save Settings: it is
                     // a file, it goes up the moment it is picked, and a picker
@@ -565,7 +565,7 @@ fun SettingsScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     // No tiers yet -- a new company starts blank here too,
-                    // rather than quoting off FenceFlow's own labor rate
+                    // rather than quoting off FenceFlowApp's own labor rate
                     // without anyone having seen it.
                     // Same treatment as every other guest control on this app:
                     // values readable, action controls absent. Save, delete and

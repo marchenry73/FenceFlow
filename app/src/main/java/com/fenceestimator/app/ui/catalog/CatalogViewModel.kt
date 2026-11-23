@@ -63,7 +63,7 @@ class CatalogViewModel(private val repository: Repository) : ViewModel() {
     val isCopyingStartingList: StateFlow<Boolean> = _isCopyingStartingList
 
     /**
-     * The opt-in replacement for the old automatic seed: copies FenceFlow's
+     * The opt-in replacement for the old automatic seed: copies FenceFlowApp's
      * ninety-one starting items into this company's catalog, still labelled
      * as unverified starting prices. Only ever additive -- it never touches
      * a row already here.

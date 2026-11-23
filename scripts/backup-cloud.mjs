@@ -125,7 +125,7 @@ for (const table of TABLES) {
 writeFileSync(
   join(folder, "MANIFEST.txt"),
   [
-    `FenceFlow cloud backup`,
+    `FenceFlowApp cloud backup`,
     `Taken:   ${new Date().toISOString()}`,
     `Project: ${PROJECT_REF}`,
     `Rows:    ${totalRows}`,

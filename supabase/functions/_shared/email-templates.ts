@@ -1,5 +1,5 @@
 /**
- * The emails FenceFlow writes for a contractor to send to a customer.
+ * The emails FenceFlowApp writes for a contractor to send to a customer.
  *
  * Pure. No Deno, no network, no clock, no database: facts in, words out, so
  * tests/a72-quote-email.test.mjs runs it under plain Node and can read every

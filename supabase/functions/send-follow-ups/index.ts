@@ -7,9 +7,9 @@
 // via Resend, from the COMPANY's own name, same sender pattern as
 // invite-crew (`senderWithName`), reply-to the COMPANY's own address --
 // resolved by _shared/mail/customer-reply.ts, not read straight out of
-// companies.email: its FenceFlow routing address when receiving is proven,
+// companies.email: its FenceFlowApp routing address when receiving is proven,
 // else companies.email, else this company is skipped for the run (see
-// "no reply address" below). A nudge whose answer reaches FenceFlow's own
+// "no reply address" below). A nudge whose answer reaches FenceFlowApp's own
 // mailbox instead of the company is not a nudge worth sending.
 //
 // RUNBOOK -- how this gets invoked. There is no pg_cron in this project
@@ -34,7 +34,7 @@
 //     emailing one would be emailing a fictional customer or, worse, a real
 //     inbox somebody reused for a fixture).
 //   - never a suspended/expired company (company_allowed RPC) -- a company
-//     that has stopped paying does not get FenceFlow spending its Resend
+//     that has stopped paying does not get FenceFlowApp spending its Resend
 //     quota on their behalf.
 //   - never an opted-out job (jobs.opted_out_at).
 //   - the log row is claimed (`insert ... on conflict do nothing`) BEFORE
@@ -407,16 +407,16 @@ Deno.serve(async (req) => {
       // WHERE A CUSTOMER'S REPLY TO THIS NUDGE GOES, settled once per company
       // per run and before anything is claimed or sent.
       //
-      // These letters go out from FenceFlow's own verified address with the
+      // These letters go out from FenceFlowApp's own verified address with the
       // company's name on them, so this header is the whole of whether her
       // answer reaches the company. customerReplyTo() settles it the same way
-      // the quote email and FenceFlow mail do -- the company's own FenceFlow
+      // the quote email and FenceFlowApp mail do -- the company's own FenceFlowApp
       // routing address when receiving is proven, else companies.email -- and
       // never throws: a failed read degrades to the company's own email.
       //
       // NEITHER means there is nowhere honest for a reply to land. Sending
       // anyway is what this function used to do, and it put her answer in
-      // FenceFlow's own MAIL_FROM mailbox with no header at all. mail-send and
+      // FenceFlowApp's own MAIL_FROM mailbox with no header at all. mail-send and
       // quote-approval-email refuse in exactly this case ("Add your business
       // email in Settings first"); so does this, with the reason in the run's
       // own results rather than in a log nobody reads. Skipped BEFORE the

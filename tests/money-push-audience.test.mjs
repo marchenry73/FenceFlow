@@ -518,7 +518,14 @@ const EVENTS = {
       amount_money: { amount: 420000, currency: 'USD' }, disputed_payment: { payment_id: SQUARE_PAYMENT },
       created_at: '2026-09-20T12:00:00Z' } } } },
 };
-const SQUARE_DISPUTE_WORDS = { title: 'A customer has disputed a payment', body: '$4200.00 — NOT AS DESCRIBED. Open the job in FenceFlow.' };
+const SQUARE_DISPUTE_WORDS = { title: 'A customer has disputed a payment', body: '$4200.00 — NOT AS DESCRIBED. Open the job in FenceFlowApp.' };
+/* The same words as they read at commit BEFORE, which predates the
+   23 Nov 2026 rename and therefore says FenceFlow. Derived rather than
+   written out again: a second literal is a second thing to remember at the
+   next rename, and the point of the check below is that everything EXCEPT
+   the product's name was already identical. */
+const asItShipped = (w) => ({ title: w.title.split('FenceFlowApp').join('FenceFlow'),
+                              body: w.body.split('FenceFlowApp').join('FenceFlow') });
 
 console.warn = () => {};
 try {
@@ -536,7 +543,7 @@ try {
     const p = addressProblems(tokensSent(r), MONEY);
     ok('stripe chargeback: only SEE_MONEY phones', r.status === 200 && p.length === 0, `${r.status} ${r.text} | ${p.join(' | ')}`);
     ok('... with the same words as before',
-      r.sent[0]?.title === 'A customer has disputed a payment' && r.sent[0]?.body === '$4200.00 — fraudulent. Open the job in FenceFlow.',
+      r.sent[0]?.title === 'A customer has disputed a payment' && r.sent[0]?.body === '$4200.00 — fraudulent. Open the job in FenceFlowApp.',
       JSON.stringify(r.sent[0]));
   }
   {
@@ -544,7 +551,7 @@ try {
     const p = addressProblems(tokensSent(r), MONEY);
     ok('stripe card declined: only SEE_MONEY phones', r.status === 200 && p.length === 0, `${r.status} ${r.text} | ${p.join(' | ')}`);
     ok('... with the same words as before', r.sent[0]?.title === "A customer's card was declined"
-      && r.sent[0]?.body === '$4200.00 did not go through. Open the job in FenceFlow to try again.', JSON.stringify(r.sent[0]));
+      && r.sent[0]?.body === '$4200.00 did not go through. Open the job in FenceFlowApp to try again.', JSON.stringify(r.sent[0]));
   }
   {
     const r = await stripe(SRC('stripe-webhook'), EVENTS.dispute, { failing: ['profiles'] });
@@ -558,7 +565,7 @@ try {
     const p = addressProblems(tokensSent(r), MONEY);
     ok('square card declined: only SEE_MONEY phones', r.status === 200 && p.length === 0, `${r.status} ${r.text} | ${p.join(' | ')}`);
     ok('... with the same words as before', r.sent[0]?.title === "A customer's card was declined"
-      && r.sent[0]?.body === '$4200.00 did not go through. Open the job in FenceFlow to try again.', JSON.stringify(r.sent[0]));
+      && r.sent[0]?.body === '$4200.00 did not go through. Open the job in FenceFlowApp to try again.', JSON.stringify(r.sent[0]));
   }
   {
     const r = await square(SRC('square-webhook'), EVENTS.squareDispute);
@@ -639,7 +646,8 @@ try {
       // And the words asserted above are the ones that shipped, not ones
       // copied from the new file.
       ok('... in the same words the chargeback test asserts',
-        d.sent[0]?.title === SQUARE_DISPUTE_WORDS.title && d.sent[0]?.body === SQUARE_DISPUTE_WORDS.body, JSON.stringify(d.sent[0]));
+        d.sent[0]?.title === asItShipped(SQUARE_DISPUTE_WORDS).title
+        && d.sent[0]?.body === asItShipped(SQUARE_DISPUTE_WORDS).body, JSON.stringify(d.sent[0]));
     } else console.log(`  (skipped the square-webhook plant: commit ${BEFORE} is not in this clone)`);
   }
   {

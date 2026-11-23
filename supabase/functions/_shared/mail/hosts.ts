@@ -1,9 +1,9 @@
 /**
- * Which mail servers FenceFlow will open a connection to.
+ * Which mail servers FenceFlowApp will open a connection to.
  *
  * mail-connect takes a host name from the office. Without this file that is
  * a server-side request forgery: an owner (or anyone holding an owner's
- * session) could point FenceFlow's edge runtime at 169.254.169.254, at
+ * session) could point FenceFlowApp's edge runtime at 169.254.169.254, at
  * something on Supabase's internal network, or at any machine on the
  * internet, and read the answer back through the error text. So:
  *

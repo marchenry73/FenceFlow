@@ -1,4 +1,4 @@
-// Sends a new fencing company FenceFlow's welcome email -- once, ever.
+// Sends a new fencing company FenceFlowApp's welcome email -- once, ever.
 //
 // WHO CALLS IT: one thing only, the companies_queue_welcome_email trigger in
 // supabase_r6_welcome_email.sql, through pg_net. It fires the moment a
@@ -37,7 +37,7 @@
 // trigger's judgement is re-checked here, never trusted).
 //
 // Mail goes through the same provider and secrets as invite-company
-// (MAIL_API_KEY, MAIL_FROM, MAIL_API_URL, MAIL_FROM_NAME), from FenceFlow
+// (MAIL_API_KEY, MAIL_FROM, MAIL_API_URL, MAIL_FROM_NAME), from FenceFlowApp
 // itself, with replies going to support. No address is written to the logs.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
 import { buildWelcomeEmail } from "../_shared/welcome-email.ts";
@@ -51,7 +51,7 @@ const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/
 // Anything else is refused before the database is asked about it.
 const SECRET_RE = /^[0-9a-f]{64}$/;
 
-/** "FenceFlow <x@y>" -- the same sanitising as invite-crew's senderWithName:
+/** "FenceFlowApp <x@y>" -- the same sanitising as invite-crew's senderWithName:
  *  the bare address when MAIL_FROM already carries a display name. */
 function senderWithName(name: string, address: string): string {
   const clean = name.replace(/[\r\n<>"]/g, "").trim().slice(0, 70);
@@ -107,7 +107,7 @@ Deno.serve(async (req) => {
     const mailKey = Deno.env.get("MAIL_API_KEY");
     const mailFrom = Deno.env.get("MAIL_FROM");
     const mailUrl = Deno.env.get("MAIL_API_URL") ?? "https://api.resend.com/emails";
-    const fromName = Deno.env.get("MAIL_FROM_NAME") ?? "FenceFlow";
+    const fromName = Deno.env.get("MAIL_FROM_NAME") ?? "FenceFlowApp";
     const site = (Deno.env.get("SITE_URL") ?? "https://fenceflowapp.com").replace(/\/+$/, "");
     const support = Deno.env.get("SUPPORT_EMAIL") ?? "support@fenceflowapp.com";
     if (!mailKey || !mailFrom) {
@@ -143,7 +143,7 @@ Deno.serve(async (req) => {
 
     // The owner who signed up -- the first OWNER on the company -- at the
     // address their login uses. Never the company's typed contact email: that
-    // is a field the owner can set to anything, and this is FenceFlow's own
+    // is a field the owner can set to anything, and this is FenceFlowApp's own
     // domain sending.
     const { data: owner, error: ownerErr } = await admin
       .from("profiles")

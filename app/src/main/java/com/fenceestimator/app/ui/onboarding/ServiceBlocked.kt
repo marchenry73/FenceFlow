@@ -68,7 +68,7 @@ fun ServiceBlockedScreen(
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     // A company that has never subscribed is not a company that has been cut
-    // off, and telling somebody who just created their business that FenceFlow
+    // off, and telling somebody who just created their business that FenceFlowApp
     // "is paused" is a dead end: no explanation they can act on, and only
     // Check again and Sign out to choose between. That was the first thing a
     // new customer saw after signing up on the phone.
@@ -268,7 +268,7 @@ fun ServiceBlockedScreen(
  * to another phone.
  *
  * It used to be the paused screen with the reason swapped in: the title came
- * from the subscription status alone, so an active company read "FenceFlow is
+ * from the subscription status alone, so an active company read "FenceFlowApp is
  * paused", told crew "this is one for the office" and offered Open billing --
  * while the manager app worked perfectly, because the only thing that had
  * happened was the crew login being signed in on a third handset. None of
@@ -340,7 +340,7 @@ private fun SignedInElsewhere(
     // What the tap actually did, for the same reason Check again says so: a
     // button that changes nothing on screen reads as a broken button. A
     // refusal that named a device key gets its own wording below instead of
-    // this generic one -- reusing "couldn't reach FenceFlow" for a refusal
+    // this generic one -- reusing "couldn't reach FenceFlowApp" for a refusal
     // the server explained would send someone off checking their signal for
     // a problem that was never about their signal.
     if (reclaiming) {

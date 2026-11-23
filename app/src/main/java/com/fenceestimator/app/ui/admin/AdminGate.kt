@@ -4,7 +4,7 @@ package com.fenceestimator.app.ui.admin
  * WHETHER THE ADMIN CONSOLE OPENS ON THIS PHONE, AND IF NOT, WHY.
  *
  * The platform console (website/admin.html) controls every fence company on
- * FenceFlow: who exists, what they pay, who is invited, what release they get.
+ * FenceFlowApp: who exists, what they pay, who is invited, what release they get.
  * This decides whether the same powers appear in the app.
  *
  * THE SERVER IS THE REAL GATE, NOT THIS. Every admin power is a SECURITY

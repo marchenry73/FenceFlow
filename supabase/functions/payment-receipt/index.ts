@@ -199,18 +199,18 @@ Deno.serve(async (req) => {
 
   // ----- where her reply goes ---------------------------------------------
   //
-  // The From is FenceFlow's verified address with the company's name on it, so
+  // The From is FenceFlowApp's verified address with the company's name on it, so
   // this header is the whole of whether an answer to this receipt reaches the
   // company. customerReplyTo() settles it the same way the quote email and
-  // FenceFlow mail do: the company's own FenceFlow routing address when
+  // FenceFlowApp mail do: the company's own FenceFlowApp routing address when
   // receiving is proven, else companies.email, else nothing. It never throws.
   //
   // THIS USED TO BE `reply_to: companyEmail` -- raw, unvalidated, and silently
   // absent when the column was blank, which sends her answer to MAIL_FROM:
-  // FenceFlow's own mailbox, with another company's customer in it.
+  // FenceFlowApp's own mailbox, with another company's customer in it.
   //
   // AND IT STILL SENDS when there is nowhere to reply to, unlike the quote
-  // email and FenceFlow mail, which refuse. The money has already moved; a
+  // email and FenceFlowApp mail, which refuse. The money has already moved; a
   // receipt is the record of it and withholding it is worse than one she has
   // to answer by phone (the company's number is in the letter). Logged, loudly,
   // because it means that company has no address of its own on file.

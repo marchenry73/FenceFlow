@@ -20,7 +20,7 @@ object Routes {
 
     /**
      * The platform console. Hidden from every account that is not a
-     * FenceFlow platform admin, and refused by the database to any session
+     * FenceFlowApp platform admin, and refused by the database to any session
      * that has not done the authenticator -- see AdminGate.
      */
     const val ADMIN = "admin"

@@ -1,5 +1,5 @@
 /**
- * How one message answers another, and where a reply to FenceFlow mail goes.
+ * How one message answers another, and where a reply to FenceFlowApp mail goes.
  *
  * Two jobs, both pure:
  *
@@ -8,11 +8,11 @@
  *    then the rest of its References in order). replyThreading() turns that
  *    back into the In-Reply-To and References a reply to it must carry, in
  *    the order other mail programs expect, capped at REFERENCES_OUT_MAX.
- *  - Routing FenceFlow mail replies. Mail sent through Resend carries a
+ *  - Routing FenceFlowApp mail replies. Mail sent through Resend carries a
  *    Reply-To of <inbound_token>.<reply_token>@<MAIL_INBOUND_DOMAIN> once
  *    receiving is proven to work; resend-inbound reads it back with
  *    inboundRoutes(). Until then the Reply-To is the company's own email, and
- *    with neither there is no honest place for a reply to go, so FenceFlow
+ *    with neither there is no honest place for a reply to go, so FenceFlowApp
  *    mail is unavailable (fenceflowReplyTo).
  *
  * Tokens are only ever matched in full, lower-case hex, at the exact inbound
@@ -47,7 +47,7 @@ export function extractIds(value: unknown): string[] {
 const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /**
- * The Message-ID for a message FenceFlow sends: "<uuid>@<sender's domain>",
+ * The Message-ID for a message FenceFlowApp sends: "<uuid>@<sender's domain>",
  * without brackets. The uuid is the caller's (crypto.randomUUID()), so the
  * id can be written to the claim row before anything is sent.
  */
@@ -88,7 +88,7 @@ export function replyThreading(parent: ReplyParent | null | undefined): { inRepl
 }
 
 // ---------------------------------------------------------------------------
-// FenceFlow mail reply routing.
+// FenceFlowApp mail reply routing.
 // ---------------------------------------------------------------------------
 
 /** mail_accounts.inbound_token, as the SQL check constrains it. */
@@ -125,7 +125,7 @@ export interface InboundRoute {
 }
 
 /**
- * Every FenceFlow routing address among an inbound message's recipients
+ * Every FenceFlowApp routing address among an inbound message's recipients
  * ("Name <a@b>" or bare), at exactly `domain`. De-duplicated; order kept.
  * The address is lower-cased first (a sender's mail program may change the
  * case of what it replies to, and the tokens are stored lower-case). Anything
@@ -169,9 +169,9 @@ export interface FenceflowReplyInput {
 }
 
 /**
- * Where a customer's reply to FenceFlow mail lands. Inbound only when
+ * Where a customer's reply to FenceFlowApp mail lands. Inbound only when
  * receiving is proven; otherwise the company's own email; otherwise nowhere
- * honest -- a reply with no Reply-To would reach MAIL_FROM, FenceFlow's own
+ * honest -- a reply with no Reply-To would reach MAIL_FROM, FenceFlowApp's own
  * mailbox, carrying another company's customer -- so mail-send refuses and
  * the office says "Add your business email in Settings first".
  */

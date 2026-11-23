@@ -641,7 +641,7 @@ async function notifyDispute(admin: any, companyId: string, amount: number,
     "A customer has disputed a payment";
   const body = "$" + amount.toFixed(2) +
     (reason ? " — " + reason.replace(/_/g, " ") : "") +
-    ". Open the job in FenceFlow.";
+    ". Open the job in FenceFlowApp.";
 
   const raw = Deno.env.get("FIREBASE_SERVICE_ACCOUNT");
   if (!raw) return;
@@ -676,7 +676,7 @@ async function notifyDispute(admin: any, companyId: string, amount: number,
  */
 async function notifyPaymentFailed(admin: any, companyId: string, amount: number) {
   const headline = "A customer's card was declined";
-  const body = "$" + amount.toFixed(2) + " did not go through. Open the job in FenceFlow to try again.";
+  const body = "$" + amount.toFixed(2) + " did not go through. Open the job in FenceFlowApp to try again.";
 
   const raw = Deno.env.get("FIREBASE_SERVICE_ACCOUNT");
   if (!raw) return;
@@ -1223,7 +1223,7 @@ Deno.serve(async (req) => {
           .eq("external_id", intent)
           .limit(1);
         const request = rows?.[0];
-        // A refund on a charge that did not come from a FenceFlow link, or
+        // A refund on a charge that did not come from a FenceFlowApp link, or
         // one taken before the intent was being kept: nothing to place it
         // against, and nothing to retry.
         if (!request?.job_sync_id) break;
@@ -1266,7 +1266,7 @@ Deno.serve(async (req) => {
           .eq("external_id", intent)
           .limit(1);
         const request = rows?.[0];
-        // A dispute against a charge that did not come from a FenceFlow link.
+        // A dispute against a charge that did not come from a FenceFlowApp link.
         // Nothing to attach it to, and inventing a job to hang it on would be
         // worse than the gap.
         if (!request?.job_sync_id) break;

@@ -15,7 +15,7 @@ import java.io.File
  * SettingsSessionManager when Auth is installed with no override, and that
  * keeps the session in multiplatform-settings -- SharedPreferences, plain XML
  * in the app's data directory. MEASURED 7 Nov 2026 against
- * auth-kt-release.aar 3.0.2. So every FenceFlow handset has been holding its
+ * auth-kt-release.aar 3.0.2. So every FenceFlowApp handset has been holding its
  * contractor's REFRESH TOKEN in clear text. That token is worth a password
  * until it is revoked: a backup, a rooted phone or a handset that changes
  * hands gives somebody else that account.

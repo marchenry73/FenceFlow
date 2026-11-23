@@ -57,11 +57,11 @@ export const MESSAGES: Record<MailErrorCode, string> = {
   mail_forbidden: "Your account does not have access to company email.",
   owner_only: "Only the owner can change the company mailbox.",
   bad_request: "That request was not understood.",
-  too_large: "That is too large to send through FenceFlow.",
+  too_large: "That is too large to send through FenceFlowApp.",
   rate_limited: "Too many attempts. Wait a while and try again.",
   not_found: "That email or mailbox was not found.",
   not_configured: "Company email is not set up on the server yet.",
-  server_error: "Something went wrong on FenceFlow's side. Try again in a moment.",
+  server_error: "Something went wrong on FenceFlowApp's side. Try again in a moment.",
   auth_failed: "The mail server did not accept that address and app password.",
   imap_disabled_or_plan:
     "The mailbox refused IMAP. Switch on IMAP access in your mail settings, and check that your plan includes it.",
@@ -73,14 +73,14 @@ export const MESSAGES: Record<MailErrorCode, string> = {
   dns_failed: "That server name was not found. Check the spelling.",
   connect_failed: "Could not reach the mail server.",
   smtp_587_only:
-    "Could not connect to the outgoing server on port 465 with SSL. Servers that only accept port 587 cannot send from FenceFlow.",
+    "Could not connect to the outgoing server on port 465 with SSL. Servers that only accept port 587 cannot send from FenceFlowApp.",
   host_not_allowed: "That server address is not allowed.",
   microsoft_oauth_only:
     "Outlook and Microsoft 365 only allow Microsoft's own sign-in, so they cannot be connected with an app password.",
   server_busy: "The mail server is busy or has paused sign-ins. Try again later.",
-  protocol_error: "The mail server answered in a way FenceFlow did not understand.",
+  protocol_error: "The mail server answered in a way FenceFlowApp did not understand.",
   folder_missing: "That mail folder no longer exists in the mailbox.",
-  session_limit: "The mail server sent more than FenceFlow can take in one go.",
+  session_limit: "The mail server sent more than FenceFlowApp can take in one go.",
 };
 
 const HTTP_STATUS: Record<MailErrorCode, number> = {
@@ -324,7 +324,7 @@ export function accountStatusFor(code: MailErrorCode): "auth_failed" | "error" {
 }
 
 /** Anything thrown, as a MailError. Unknown exceptions become server_error
- *  with no detail: FenceFlow's own internals are not the office's business. */
+ *  with no detail: FenceFlowApp's own internals are not the office's business. */
 export function toMailError(e: unknown): MailError {
   return e instanceof MailError ? e : new MailError("server_error");
 }

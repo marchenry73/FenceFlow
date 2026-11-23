@@ -14,7 +14,7 @@ import java.util.UUID
  *
  * A scheduled email is a row in mail_drafts with a time on it. mail-send's
  * scheduled sweep finds the ones that are due and sends each through the
- * ordinary FenceFlow path, so a quote that goes out at eight in the morning is
+ * ordinary FenceFlowApp path, so a quote that goes out at eight in the morning is
  * the same letter, with the same guarantees, as one sent by thumb at eleven at
  * night -- which is the hour this feature exists to avoid sending at.
  *
@@ -99,7 +99,7 @@ object ScheduledMailApi {
             ?: return Result.Failed("This phone isn't signed in to a company yet.")
         val uid = SupabaseModule.client.auth.currentSessionOrNull()?.user?.id
             ?: return Result.Failed(
-                "This phone isn't signed in to FenceFlow. Open Account and sign in, then try again."
+                "This phone isn't signed in to FenceFlowApp. Open Account and sign in, then try again."
             )
         if (toAddress.isBlank()) return Result.Failed("There is no email address on this job to send to.")
         // A minute of slack, for the same reason the office keeps one: a time

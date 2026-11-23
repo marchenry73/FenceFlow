@@ -204,7 +204,7 @@ object LogoCrop {
      * Whether this pixel is the white background rather than part of the logo.
      *
      * WHY IT IS WORTH HAVING AT ALL. A logo saved as a JPG has no transparency,
-     * so it carries its own white rectangle everywhere it goes -- and FenceFlow
+     * so it carries its own white rectangle everywhere it goes -- and FenceFlowApp
      * puts it on the quote page, on the PDF header and at the top of the emails
      * it sends. On anything but a white background that rectangle is a white
      * box with a logo floating in it, which is the single thing that makes a

@@ -12,5 +12,5 @@
     <string name="jd_template_untitled">Untitled template</string>
     <string name="jd_template_group_your_default">Your default</string>
     <string name="jd_template_group_yours">Your templates</string>
-    <string name="jd_template_group_shipped">FenceFlow templates</string>
+    <string name="jd_template_group_shipped">FenceFlowApp templates</string>
 </resources>

@@ -25,7 +25,7 @@ import kotlinx.serialization.json.put
  * ONE GUEST DEMO PER DEVICE -- the phone's half.
  *
  * The countdown used to be a constant in this app's own DataStore, so deleting
- * FenceFlow and reinstalling it started a fresh demo, for ever. The server now
+ * FenceFlowApp and reinstalling it started a fresh demo, for ever. The server now
  * keeps one row per device (supabase_r73_guest_device_trial.sql) and this asks
  * it whether this handset may have one, and for how long.
  *

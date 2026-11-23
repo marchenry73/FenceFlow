@@ -134,7 +134,7 @@ class SettingsViewModel(
     }
 
     /**
-     * Opt-in "Copy FenceFlow's starting tiers" action. The five tiers carry a
+     * Opt-in "Copy FenceFlowApp's starting tiers" action. The five tiers carry a
      * real-looking labor rate and markup, not a placeholder like a catalog
      * price -- so, like the catalog, they only land here when the owner
      * explicitly asks for them.

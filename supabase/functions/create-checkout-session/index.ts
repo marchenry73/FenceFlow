@@ -1,4 +1,4 @@
-// Starts a FenceFlow subscription. Website only, on purpose.
+// Starts a FenceFlowApp subscription. Website only, on purpose.
 //
 // This one IS a digital service, so selling it inside the Android app would
 // pull in Google Play billing and its 15-30% cut. Keeping checkout on the
@@ -124,9 +124,9 @@ Deno.serve(async (req) => {
     // says what a price is worth.
     const price = await stripe("GET", `/prices/${priceId}?expand[]=product`);
     const plan: string = price?.metadata?.plan ??
-      String(price?.product?.name ?? "").replace(/^FenceFlow\s+/i, "").trim();
+      String(price?.product?.name ?? "").replace(/^FenceFlowApp\s+/i, "").trim();
     if (!plan) {
-      return json({ error: "That price is not set up as a FenceFlow plan." }, 400);
+      return json({ error: "That price is not set up as a FenceFlowApp plan." }, 400);
     }
     if (price?.recurring?.interval !== "month") {
       return json({ error: "That price is not a monthly subscription." }, 400);
@@ -157,7 +157,7 @@ Deno.serve(async (req) => {
       .eq("id", profile.company_id).single();
 
     // Staff-only switch (admin portal): this company's monthly price includes
-    // the Stripe fee. Same plan product, a price raised so FenceFlow nets the
+    // the Stripe fee. Same plan product, a price raised so FenceFlowApp nets the
     // list price after 2.9% + 30c. Plan metadata rides along so the webhook
     // and the check above read it the same way.
     //

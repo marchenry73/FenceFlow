@@ -2,7 +2,7 @@
 //
 // This is payment for a physical service, so it is allowed to live inside the
 // Android app -- Google Play billing rules do not apply and Google takes no
-// cut. Only the FenceFlow subscription itself has to stay on the website.
+// cut. Only the FenceFlowApp subscription itself has to stay on the website.
 //
 // Secrets: STRIPE_SECRET_KEY, SUPABASE_URL, SUPABASE_SERVICE_ROLE_KEY
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.0";
@@ -761,7 +761,7 @@ async function makeLink(
        subscription_plan "" -- and "" PASSES the Solo paywall a few lines
        below, because a blank plan is how a hand-granted company from before
        plans is spelled. It would also name the customer's Stripe product
-       "Fence work -- FenceFlow" rather than the contractor's business. */
+       "Fence work -- FenceFlowApp" rather than the contractor's business. */
     if (companyError) {
       console.error("create-payment-link company read", companyError.message);
       return json(publicDoor ? { code: "company_unreadable" } : {
@@ -779,7 +779,7 @@ async function makeLink(
     const keepCardForBalance = company?.auto_charge_balance === true && kind === "deposit";
 
     // No card fee on a customer's payment link. companies.pass_card_fee is
-    // FenceFlow's own setting for the company's subscription price (see
+    // FenceFlowApp's own setting for the company's subscription price (see
     // create-checkout-session), not a surcharge a contractor passes on. The
     // fee_cents plumbing stays at zero so older rows and refunds still work.
     const stripeFee = 0;
@@ -793,7 +793,7 @@ async function makeLink(
     // A company that is switched off may not raise money through us. This
     // function runs as the service role, so RLS is not watching it -- without
     // this check a suspended or lapsed company kept billing its customers
-    // through FenceFlow while its own account was shut.
+    // through FenceFlowApp while its own account was shut.
     /* FAILS CLOSED, and this is the third copy of the same mistake --
        lead-intake and send-follow-ups both had it. The error was dropped and
        the test was `=== false`. company_allowed is a bare scalar subquery, so
@@ -814,7 +814,7 @@ async function makeLink(
          should not learn their contractor's account is in arrears. */
       return json(publicDoor ? { code: "company_not_active" } : {
         code: "company_not_active",
-        error: "This FenceFlow account is not active. Check the Billing tab.",
+        error: "This FenceFlowApp account is not active. Check the Billing tab.",
       }, 403);
     }
 
@@ -1226,7 +1226,7 @@ async function makeLink(
           // $3,680 link while our own records said $5,000 was pending.
           idempotency_key: idemKey,
           quick_pay: {
-            name: `${description} -- ${company?.name ?? "FenceFlow"}`,
+            name: `${description} -- ${company?.name ?? "FenceFlowApp"}`,
             price_money: { amount, currency: "USD" },
             location_id: locationId,
           },
@@ -1314,7 +1314,7 @@ async function makeLink(
       return json({
         error: "Card payments through your own Stripe account are not switched on yet. " +
                "Payments would reach your bank but would not be recorded against the job, " +
-               "so the balance would stay wrong. Contact FenceFlow and we will set it up.",
+               "so the balance would stay wrong. Contact FenceFlowApp and we will set it up.",
       }, 501);
     }
 
@@ -1437,7 +1437,7 @@ async function makeLink(
           return json({
             code: "charge_unrecorded",
             error: "The card was charged but the payment could not be recorded against the job. " +
-                   "Do not charge again -- contact FenceFlow with this job so it can be put right.",
+                   "Do not charge again -- contact FenceFlowApp with this job so it can be put right.",
           }, 500);
         }
         console.log("create-payment-link: the webhook recorded this charge first",
@@ -1459,7 +1459,7 @@ async function makeLink(
     // /products call first: three sequential Stripe round trips on top of a
     // cold start was slow enough to look like the button did nothing.
     const price = await stripe("/prices", {
-      "product_data[name]": `${description} -- ${company?.name ?? "FenceFlow"}`,
+      "product_data[name]": `${description} -- ${company?.name ?? "FenceFlowApp"}`,
       unit_amount: String(amount),
       currency: "usd",
     }, account);

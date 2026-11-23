@@ -38,7 +38,7 @@ import { MAX_RECIPIENTS_SMTP, SECRET_MAX_CHARS } from "./limits.ts";
 import { normalizeAddress } from "./mime-build.ts";
 import type { MailTransport } from "./tls-transport.ts";
 
-/** What FenceFlow calls itself in EHLO. Submission servers authenticate the
+/** What FenceFlowApp calls itself in EHLO. Submission servers authenticate the
  *  user, not the client name, so one fixed name serves every tenant. */
 export const EHLO_NAME = "fenceflowapp.com";
 /** Lines in one reply. A long EHLO list is about 20. */
@@ -255,7 +255,7 @@ export class SmtpClient {
     const mechs = this.authMechanisms;
     if (mechs.includes("PLAIN")) return this.authPlain(blob);
     if (mechs.includes("LOGIN")) return this.#authLogin(username, password);
-    throw new MailError("protocol_error", "The outgoing server offers no sign-in method FenceFlow supports.");
+    throw new MailError("protocol_error", "The outgoing server offers no sign-in method FenceFlowApp supports.");
   }
 
   /** AUTH PLAIN. Exposed for tests; authenticate() is what the sequences call. */

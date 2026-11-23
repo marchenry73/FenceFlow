@@ -7,7 +7,7 @@
  * the environment or logs anything itself. What it deliberately cannot do:
  *
  *  - delete, expunge or move mail. uidStore() refuses \Deleted, and there is
- *    no EXPUNGE, MOVE, COPY or DELETE method at all. FenceFlow v1 reads a
+ *    no EXPUNGE, MOVE, COPY or DELETE method at all. FenceFlowApp v1 reads a
  *    tenant's mailbox and adds to Sent; it never removes anything.
  *  - send a raw command. Every argument is built here from typed values, so
  *    nothing from a request or a stored row can smuggle a CRLF into the
@@ -71,7 +71,7 @@ interface CommandOptions {
 
 const HIDDEN = "[credentials hidden]";
 const TRANSCRIPT_MAX_LINES = 400;
-/** The only flags FenceFlow ever sets or clears. */
+/** The only flags FenceFlowApp ever sets or clears. */
 const STORABLE_FLAGS = new Map([
   ["\\seen", "\\Seen"],
   ["\\answered", "\\Answered"],
@@ -271,7 +271,7 @@ export class ImapClient {
     let res: CommandResult;
     if (this.#caps.has("LOGINDISABLED")) {
       if (!this.#caps.has("AUTH=PLAIN")) {
-        throw new MailError("protocol_error", "The server offers no sign-in method FenceFlow supports.");
+        throw new MailError("protocol_error", "The server offers no sign-in method FenceFlowApp supports.");
       }
       if (this.#caps.has("SASL-IR")) {
         res = await this.#command(["AUTHENTICATE", "PLAIN", plainBlob], { sensitive: true });
@@ -310,12 +310,12 @@ export class ImapClient {
     return parseSelect(res.untagged, res.tagged);
   }
 
-  /** Read-only: nothing FenceFlow does after this can change the folder. */
+  /** Read-only: nothing FenceFlowApp does after this can change the folder. */
   examine(path: string): Promise<SelectInfo> {
     return this.#open("EXAMINE", path);
   }
 
-  /** Read-write, for the one change FenceFlow makes: setting flags. */
+  /** Read-write, for the one change FenceFlowApp makes: setting flags. */
   select(path: string): Promise<SelectInfo> {
     return this.#open("SELECT", path);
   }
@@ -403,7 +403,7 @@ export class ImapClient {
     if (op !== "+" && op !== "-") throw new MailError("bad_request", "Invalid flag change.");
     const clean = flags.map((f) => STORABLE_FLAGS.get(String(f).toLowerCase()));
     if (clean.length === 0 || clean.some((f) => f === undefined)) {
-      throw new MailError("bad_request", "FenceFlow only marks mail read, answered or flagged. It never deletes or moves it.");
+      throw new MailError("bad_request", "FenceFlowApp only marks mail read, answered or flagged. It never deletes or moves it.");
     }
     const res = await this.#command(["UID", "STORE", compressUidSet(uids), `${op}FLAGS.SILENT`, `(${clean.join(" ")})`]);
     this.#expectOk(res);
@@ -452,7 +452,7 @@ export interface ImapCredentials {
 export async function openSession(client: ImapClient, creds: ImapCredentials): Promise<void> {
   const hello = await client.greeting();
   // PREAUTH would "succeed" without ever checking the password, and then
-  // FenceFlow would store a password nobody verified.
+  // FenceFlowApp would store a password nobody verified.
   if (hello.preauth) throw new MailError("protocol_error", "The server did not ask for a password.");
   if (client.capabilities.size === 0) await client.capability();
   await client.login(creds.username, creds.password);
@@ -702,7 +702,7 @@ export async function setFlag(
 ): Promise<"ok" | "uidvalidity_changed"> {
   // Refused before the SELECT, so a bad flag costs no round trip at all.
   if (!STORABLE_FLAGS.has(String(input.flag).toLowerCase())) {
-    throw new MailError("bad_request", "FenceFlow only marks mail read, answered or flagged. It never deletes or moves it.");
+    throw new MailError("bad_request", "FenceFlowApp only marks mail read, answered or flagged. It never deletes or moves it.");
   }
   const sel = await client.select(input.path);
   if (sel.uidValidity !== input.uidValidity) return "uidvalidity_changed";

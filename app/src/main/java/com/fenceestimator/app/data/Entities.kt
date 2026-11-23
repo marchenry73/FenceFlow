@@ -837,7 +837,7 @@ data class FenceRun(
  * columns onto a run at creation, and the run keeps them from then on, so
  * editing a template later never moves a quote somebody has already signed.
  *
- * [companyId] null means this row is one of the ten FenceFlow ships --
+ * [companyId] null means this row is one of the ten FenceFlowApp ships --
  * readable by every company, editable by none (the office RPCs that write
  * these enforce that; nothing on the phone ever writes to this table at all,
  * it only pulls). The spec columns carry the exact names and types of the
@@ -852,7 +852,7 @@ data class BuildTemplate(
      *  from it, and every place a run refers back to a template already
      *  does so by this string (see [FenceRun.buildTemplateSyncId]). */
     @PrimaryKey val syncId: String,
-    /** Null = shipped by FenceFlow, visible to every company, editable by none. */
+    /** Null = shipped by FenceFlowApp, visible to every company, editable by none. */
     val companyId: String? = null,
     val name: String = "",
     val description: String = "",

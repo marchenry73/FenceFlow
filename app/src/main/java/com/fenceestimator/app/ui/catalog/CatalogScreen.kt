@@ -219,7 +219,7 @@ fun CatalogScreen(onBack: () -> Unit) {
                         )
                     }
                     // A brand-new company's catalog starts empty rather than
-                    // pre-filled with FenceFlow's guesses. Say that plainly,
+                    // pre-filled with FenceFlowApp's guesses. Say that plainly,
                     // with a way forward either direction: type items in one
                     // at a time, or copy the same starting list in explicitly
                     // -- still flagged unverified either way.

@@ -4,7 +4,7 @@
 <meta charset="utf-8">
   <meta name="robots" content="noindex, nofollow, noarchive">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Welcome to FenceFlow</title>
+<title>Welcome to FenceFlowApp</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=IBM+Plex+Mono:wght@400;500&family=IBM+Plex+Sans:wght@400;500;600&display=swap">
@@ -111,7 +111,7 @@
 <body>
 
 <header style="justify-content:space-between;display:flex;align-items:center;padding-right:22px">
-  <a class="logo" href="index.html" title="Back to the FenceFlow home page">Fence<span>Flow</span></a>
+  <a class="logo" href="index.html" title="Back to the FenceFlowApp home page">Fence<span>Flow</span></a>
   <span id="langPick" style="font-size:13px;color:#96A2B4"></span>
 </header>
 
@@ -120,7 +120,7 @@
 
   <div id="needLink" class="card" style="display:none">
     <p style="margin:0 0 10px"><a class="btn" id="goDashboard" href="dashboard.html"
-       style="display:none" data-t="goSetUp">Go to FenceFlow and set your business up</a></p>
+       style="display:none" data-t="goSetUp">Go to FenceFlowApp and set your business up</a></p>
     <h1 id="needTitle" data-t="needTitleDefault">Open this from your invitation email</h1>
     <p class="sub" id="needWhy" data-t="needWhyDefault">
       The link in that email signs you in so nothing here has to be typed twice.
@@ -180,16 +180,16 @@
       <h2 data-t="agreementHead">Service agreement</h2>
       <p class="sub" data-t="agreementSub">Short, and worth reading. Typing your name signs it.</p>
       <div class="terms">
-        <h3 data-t="term1H">1. What FenceFlow is</h3>
-        <p data-t="term1P">FenceFlow is software for estimating and running fencing work. It is a tool you use; the fencing work, the quotes you send and the contracts you sign with your own customers remain entirely yours.</p>
+        <h3 data-t="term1H">1. What FenceFlowApp is</h3>
+        <p data-t="term1P">FenceFlowApp is software for estimating and running fencing work. It is a tool you use; the fencing work, the quotes you send and the contracts you sign with your own customers remain entirely yours.</p>
         <h3 data-t="term2H">2. Your data is yours</h3>
         <p data-t="term2P">Your jobs, customers, prices and photos belong to you. You can export them at any time, and nothing is deleted because a subscription lapses — if access ends, your records are still there and come back when it resumes.</p>
         <h3 data-t="term3H">3. Payment</h3>
         <p data-t="term3P">Plans are billed monthly in advance and can be changed or cancelled at any time. Cancelling stops the next charge; it does not refund the current month.</p>
         <h3 data-t="term4H">4. Money you take from your customers</h3>
-        <p data-t="term4P">Card payments are handled by Stripe and go from your customer to Stripe to your bank. FenceFlow never holds your money and is not a party to those transactions.</p>
+        <p data-t="term4P">Card payments are handled by Stripe and go from your customer to Stripe to your bank. FenceFlowApp never holds your money and is not a party to those transactions.</p>
         <h3 data-t="term5H">5. What we don't promise</h3>
-        <p data-t="term5P">FenceFlow works out quantities and prices from what you tell it. Checking a quote before it goes to a customer is your responsibility, and the figures it produces are not a substitute for your own judgement.</p>
+        <p data-t="term5P">FenceFlowApp works out quantities and prices from what you tell it. Checking a quote before it goes to a customer is your responsibility, and the figures it produces are not a substitute for your own judgement.</p>
         <h3 data-t="term6H">6. Ending it</h3>
         <p data-t="term6P">You can stop at any time. We may end an account for non-payment or misuse, and will always say which, in writing, before doing so.</p>
       </div>
@@ -213,7 +213,7 @@
       <h2 data-t="doneHead">You're all set</h2>
       <div class="done-note" id="doneNote"></div>
       <p class="sub" style="margin-top:14px" data-t="doneInstall">
-        Install the FenceFlow app on your phone and sign in with this same email.
+        Install FenceFlowApp on your phone and sign in with this same email.
         Everything you set up here is already waiting.
       </p>
       <a class="btn" href="dashboard.html" data-t="openDashboard">Open my dashboard</a>
@@ -243,7 +243,7 @@ const AGREEMENT_VERSION = '2026-08-v1';
 const L = {
   en: {
     oneMoment: 'One moment…', checkingInvite: 'Checking your invitation.',
-    goSetUp: 'Go to FenceFlow and set your business up',
+    goSetUp: 'Go to FenceFlowApp and set your business up',
     needTitleDefault: 'Open this from your invitation email',
     needWhyDefault: 'The link in that email signs you in so nothing here has to be typed twice.',
     sendFreshLink: 'Send a fresh link to', emailNewLink: 'Email me a new link',
@@ -261,23 +261,23 @@ const L = {
     logoTooBig: 'That image is over 2 MB, so it was not saved. You can add a smaller one later in Settings.',
     logoLater: 'Your details are saved. The logo did not go up — you can add it in Settings.',
     agreementHead: 'Service agreement', agreementSub: 'Short, and worth reading. Typing your name signs it.',
-    term1H: '1. What FenceFlow is',
-    term1P: 'FenceFlow is software for estimating and running fencing work. It is a tool you use; the fencing work, the quotes you send and the contracts you sign with your own customers remain entirely yours.',
+    term1H: '1. What FenceFlowApp is',
+    term1P: 'FenceFlowApp is software for estimating and running fencing work. It is a tool you use; the fencing work, the quotes you send and the contracts you sign with your own customers remain entirely yours.',
     term2H: '2. Your data is yours',
     term2P: 'Your jobs, customers, prices and photos belong to you. You can export them at any time, and nothing is deleted because a subscription lapses — if access ends, your records are still there and come back when it resumes.',
     term3H: '3. Payment',
     term3P: 'Plans are billed monthly in advance and can be changed or cancelled at any time. Cancelling stops the next charge; it does not refund the current month.',
     term4H: '4. Money you take from your customers',
-    term4P: 'Card payments are handled by Stripe and go from your customer to Stripe to your bank. FenceFlow never holds your money and is not a party to those transactions.',
+    term4P: 'Card payments are handled by Stripe and go from your customer to Stripe to your bank. FenceFlowApp never holds your money and is not a party to those transactions.',
     term5H: '5. What we don’t promise',
-    term5P: 'FenceFlow works out quantities and prices from what you tell it. Checking a quote before it goes to a customer is your responsibility, and the figures it produces are not a substitute for your own judgement.',
+    term5P: 'FenceFlowApp works out quantities and prices from what you tell it. Checking a quote before it goes to a customer is your responsibility, and the figures it produces are not a substitute for your own judgement.',
     term6H: '6. Ending it',
     term6P: 'You can stop at any time. We may end an account for non-payment or misuse, and will always say which, in writing, before doing so.',
     labelSignName: 'Type your full name to sign', signAgreement: 'Sign agreement',
     planHead: 'Choose your plan',
     planSub: '14 days free. We take card details now so nothing stops on day 15 — the first charge is 14 days from today, and cancelling before then costs nothing.',
     doneHead: 'You’re all set',
-    doneInstall: 'Install the FenceFlow app on your phone and sign in with this same email. Everything you set up here is already waiting.',
+    doneInstall: 'Install FenceFlowApp on your phone and sign in with this same email. Everything you set up here is already waiting.',
     openDashboard: 'Open my dashboard',
     featSolo1: '1 login — just you', featSolo2: 'Unlimited jobs & estimates', featSolo3: 'Drawing takeoff & materials',
     featSolo4: 'Invoices & branded PDF quotes', featSolo5: 'Works offline',
@@ -305,7 +305,7 @@ const L = {
   },
   es: {
     oneMoment: 'Un momento…', checkingInvite: 'Comprobando su invitación.',
-    goSetUp: 'Ir a FenceFlow y configurar su empresa',
+    goSetUp: 'Ir a FenceFlowApp y configurar su empresa',
     needTitleDefault: 'Abra esto desde su correo de invitación',
     needWhyDefault: 'El enlace de ese correo le inicia sesión para que no tenga que escribir nada dos veces.',
     sendFreshLink: 'Enviar un enlace nuevo a', emailNewLink: 'Enviarme un enlace nuevo',
@@ -323,23 +323,23 @@ const L = {
     logoTooBig: 'Esa imagen supera los 2 MB, así que no se guardó. Puede agregar una más pequeña después en Ajustes.',
     logoLater: 'Sus datos se guardaron. El logotipo no se subió — puede agregarlo en Ajustes.',
     agreementHead: 'Contrato de servicio', agreementSub: 'Breve, y vale la pena leerlo. Escribir su nombre lo firma.',
-    term1H: '1. Qué es FenceFlow',
-    term1P: 'FenceFlow es software para cotizar y llevar el trabajo de cercas. Es una herramienta que usted usa; el trabajo de cercas, los presupuestos que envía y los contratos que firma con sus propios clientes siguen siendo enteramente suyos.',
+    term1H: '1. Qué es FenceFlowApp',
+    term1P: 'FenceFlowApp es software para cotizar y llevar el trabajo de cercas. Es una herramienta que usted usa; el trabajo de cercas, los presupuestos que envía y los contratos que firma con sus propios clientes siguen siendo enteramente suyos.',
     term2H: '2. Sus datos son suyos',
     term2P: 'Sus trabajos, clientes, precios y fotos le pertenecen. Puede exportarlos en cualquier momento, y nada se borra porque una suscripción venza — si el acceso se detiene, sus registros siguen ahí y vuelven cuando se reanuda.',
     term3H: '3. Pago',
     term3P: 'Los planes se facturan mensualmente por adelantado y se pueden cambiar o cancelar en cualquier momento. Cancelar detiene el próximo cobro; no reembolsa el mes en curso.',
     term4H: '4. El dinero que cobra a sus clientes',
-    term4P: 'Los pagos con tarjeta los gestiona Stripe y van de su cliente a Stripe y de ahí a su banco. FenceFlow nunca retiene su dinero ni es parte de esas transacciones.',
+    term4P: 'Los pagos con tarjeta los gestiona Stripe y van de su cliente a Stripe y de ahí a su banco. FenceFlowApp nunca retiene su dinero ni es parte de esas transacciones.',
     term5H: '5. Lo que no prometemos',
-    term5P: 'FenceFlow calcula cantidades y precios a partir de lo que usted le indica. Revisar un presupuesto antes de enviarlo a un cliente es su responsabilidad, y las cifras que produce no sustituyen su propio criterio.',
+    term5P: 'FenceFlowApp calcula cantidades y precios a partir de lo que usted le indica. Revisar un presupuesto antes de enviarlo a un cliente es su responsabilidad, y las cifras que produce no sustituyen su propio criterio.',
     term6H: '6. Cómo termina',
     term6P: 'Puede darse de baja en cualquier momento. Podemos cerrar una cuenta por falta de pago o mal uso, y siempre diremos cuál, por escrito, antes de hacerlo.',
     labelSignName: 'Escriba su nombre completo para firmar', signAgreement: 'Firmar contrato',
     planHead: 'Elija su plan',
     planSub: '14 días gratis. Pedimos los datos de la tarjeta ahora para que nada se detenga el día 15 — el primer cobro es a los 14 días desde hoy, y cancelar antes no cuesta nada.',
     doneHead: 'Todo listo',
-    doneInstall: 'Instale la app de FenceFlow en su teléfono e inicie sesión con este mismo correo. Todo lo que configuró aquí ya le está esperando.',
+    doneInstall: 'Instale FenceFlowApp en su teléfono e inicie sesión con este mismo correo. Todo lo que configuró aquí ya le está esperando.',
     openDashboard: 'Abrir mi panel',
     featSolo1: '1 inicio de sesión — solo usted', featSolo2: 'Trabajos y presupuestos ilimitados', featSolo3: 'Conteo de materiales por dibujo',
     featSolo4: 'Facturas y presupuestos en PDF con su marca', featSolo5: 'Funciona sin conexión',
@@ -367,7 +367,7 @@ const L = {
   },
   fr: {
     oneMoment: 'Un instant…', checkingInvite: 'Vérification de votre invitation.',
-    goSetUp: 'Aller sur FenceFlow et configurer votre entreprise',
+    goSetUp: 'Aller sur FenceFlowApp et configurer votre entreprise',
     needTitleDefault: 'Ouvrez ceci depuis votre e-mail d’invitation',
     needWhyDefault: 'Le lien de cet e-mail vous connecte pour que rien n’ait à être ressaisi.',
     sendFreshLink: 'Envoyer un nouveau lien à', emailNewLink: 'M’envoyer un nouveau lien',
@@ -385,23 +385,23 @@ const L = {
     logoTooBig: 'Cette image dépasse 2 Mo, elle n’a donc pas été enregistrée. Vous pourrez en ajouter une plus petite plus tard dans les Paramètres.',
     logoLater: 'Vos informations sont enregistrées. Le logo n’est pas passé — vous pouvez l’ajouter dans les Paramètres.',
     agreementHead: 'Contrat de service', agreementSub: 'Court, et qui mérite d’être lu. Saisir votre nom le signe.',
-    term1H: '1. Ce qu’est FenceFlow',
-    term1P: 'FenceFlow est un logiciel pour chiffrer et gérer le travail de clôture. C’est un outil que vous utilisez ; le travail de clôture, les devis que vous envoyez et les contrats que vous signez avec vos propres clients restent entièrement les vôtres.',
+    term1H: '1. Ce qu’est FenceFlowApp',
+    term1P: 'FenceFlowApp est un logiciel pour chiffrer et gérer le travail de clôture. C’est un outil que vous utilisez ; le travail de clôture, les devis que vous envoyez et les contrats que vous signez avec vos propres clients restent entièrement les vôtres.',
     term2H: '2. Vos données vous appartiennent',
     term2P: 'Vos chantiers, clients, prix et photos vous appartiennent. Vous pouvez les exporter à tout moment, et rien n’est supprimé parce qu’un abonnement expire — si l’accès s’arrête, vos données restent là et reviennent à la reprise.',
     term3H: '3. Paiement',
     term3P: 'Les forfaits sont facturés mensuellement à l’avance et peuvent être modifiés ou annulés à tout moment. Annuler arrête le prochain prélèvement ; cela ne rembourse pas le mois en cours.',
     term4H: '4. L’argent que vous prenez à vos clients',
-    term4P: 'Les paiements par carte sont gérés par Stripe et vont de votre client à Stripe puis à votre banque. FenceFlow ne détient jamais votre argent et n’est partie à aucune de ces transactions.',
+    term4P: 'Les paiements par carte sont gérés par Stripe et vont de votre client à Stripe puis à votre banque. FenceFlowApp ne détient jamais votre argent et n’est partie à aucune de ces transactions.',
     term5H: '5. Ce que nous ne promettons pas',
-    term5P: 'FenceFlow calcule les quantités et les prix à partir de ce que vous lui indiquez. Vérifier un devis avant de l’envoyer à un client reste votre responsabilité, et les chiffres produits ne remplacent pas votre propre jugement.',
+    term5P: 'FenceFlowApp calcule les quantités et les prix à partir de ce que vous lui indiquez. Vérifier un devis avant de l’envoyer à un client reste votre responsabilité, et les chiffres produits ne remplacent pas votre propre jugement.',
     term6H: '6. Comment y mettre fin',
     term6P: 'Vous pouvez arrêter à tout moment. Nous pouvons clore un compte pour non-paiement ou usage abusif, et nous préciserons toujours lequel, par écrit, avant de le faire.',
     labelSignName: 'Saisissez votre nom complet pour signer', signAgreement: 'Signer le contrat',
     planHead: 'Choisissez votre forfait',
     planSub: '14 jours gratuits. Nous prenons les coordonnées de la carte maintenant pour que rien ne s’arrête au jour 15 — le premier prélèvement a lieu 14 jours après aujourd’hui, et annuler avant ne coûte rien.',
     doneHead: 'C’est prêt',
-    doneInstall: 'Installez l’appli FenceFlow sur votre téléphone et connectez-vous avec ce même e-mail. Tout ce que vous avez configuré ici vous attend déjà.',
+    doneInstall: 'Installez FenceFlowApp sur votre téléphone et connectez-vous avec ce même e-mail. Tout ce que vous avez configuré ici vous attend déjà.',
     openDashboard: 'Ouvrir mon tableau de bord',
     featSolo1: '1 identifiant — juste vous', featSolo2: 'Chantiers et devis illimités', featSolo3: 'Métré et matériaux par dessin',
     featSolo4: 'Factures et devis PDF à votre nom', featSolo5: 'Fonctionne hors ligne',

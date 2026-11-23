@@ -1,7 +1,7 @@
 /**
  * Square telling us a customer paid one of our contractors.
  *
- * The money never passes through FenceFlow. It goes from the homeowner to the
+ * The money never passes through FenceFlowApp. It goes from the homeowner to the
  * contractor's own Square account; this endpoint exists only so the job stops
  * showing a balance the customer has already settled.
  *
@@ -148,7 +148,7 @@ async function notifyDispute(admin: any, companyId: string, amount: number,
     "A customer has disputed a payment";
   const body = "$" + amount.toFixed(2) +
     (reason ? " — " + reason.replace(/_/g, " ") : "") +
-    ". Open the job in FenceFlow.";
+    ". Open the job in FenceFlowApp.";
 
   const raw = Deno.env.get("FIREBASE_SERVICE_ACCOUNT");
   if (!raw) return;
@@ -182,7 +182,7 @@ async function notifyDispute(admin: any, companyId: string, amount: number,
  */
 async function notifyPaymentFailed(admin: any, companyId: string, amount: number) {
   const headline = "A customer's card was declined";
-  const body = "$" + amount.toFixed(2) + " did not go through. Open the job in FenceFlow to try again.";
+  const body = "$" + amount.toFixed(2) + " did not go through. Open the job in FenceFlowApp to try again.";
 
   const raw = Deno.env.get("FIREBASE_SERVICE_ACCOUNT");
   if (!raw) return;
@@ -246,7 +246,7 @@ Deno.serve(async (req) => {
     // A refund issued from the contractor's Square dashboard or POS. Only a
     // COMPLETED one is money that has actually left; PENDING can still be
     // rejected. Placed by the same order id the payment was placed by: a
-    // refund on a card taken at the counter has no FenceFlow row and is not
+    // refund on a card taken at the counter has no FenceFlowApp row and is not
     // ours to record.
     if (type === "refund.created" || type === "refund.updated") {
       const refund = event?.data?.object?.refund;
@@ -273,7 +273,7 @@ Deno.serve(async (req) => {
         .order("created_at", { ascending: true })
         .limit(1);
       const request = requests?.[0];
-      if (!request?.job_sync_id) return new Response("not a FenceFlow payment request");
+      if (!request?.job_sync_id) return new Response("not a FenceFlowApp payment request");
 
       const outcome = await recordRefund(admin, {
         companyId: request.company_id ?? conn.company_id,
@@ -338,10 +338,10 @@ Deno.serve(async (req) => {
         .order("created_at", { ascending: true })
         .limit(1);
       const request = requests?.[0];
-      // A dispute against a charge that did not come from a FenceFlow link.
+      // A dispute against a charge that did not come from a FenceFlowApp link.
       // Nothing to attach it to, and inventing a job to hang it on would be
       // worse than the gap.
-      if (!request?.job_sync_id) return new Response("not a FenceFlow payment request");
+      if (!request?.job_sync_id) return new Response("not a FenceFlowApp payment request");
 
       const amount = minorToMajor(Number(dispute?.amount_money?.amount ?? 0), String(dispute?.amount_money?.currency ?? "USD"));
       const state = String(dispute?.state ?? "");
@@ -461,7 +461,7 @@ Deno.serve(async (req) => {
         .order("created_at", { ascending: true })
         .limit(1);
       const request = requests?.[0];
-      if (!request) return new Response("not a FenceFlow payment request");
+      if (!request) return new Response("not a FenceFlowApp payment request");
 
       // Never overwrite a request that already cleared -- a delayed or
       // out-of-order failure notification must not relabel a paid request.
@@ -522,10 +522,10 @@ Deno.serve(async (req) => {
     const request = requests?.[0];
 
     if (!request?.job_sync_id) {
-      // A payment on their Square account that did not come from a FenceFlow
+      // A payment on their Square account that did not come from a FenceFlowApp
       // link -- a card taken at the counter, say. Not ours to record, and
       // answering 200 stops Square retrying it for ever.
-      return new Response("not a FenceFlow payment request");
+      return new Response("not a FenceFlowApp payment request");
     }
     const jobSyncId = request.job_sync_id;
     // The company this money belongs to, settled once and used for every
@@ -537,7 +537,7 @@ Deno.serve(async (req) => {
     // job.
     //
     // SCOPED, like every other write in this file. An id that arrived from
-    // Square is not a FenceFlow tenant boundary: today a partial unique index
+    // Square is not a FenceFlowApp tenant boundary: today a partial unique index
     // (job_payments_processor_external_uidx, on (processor, external_id) where
     // external_id is non-empty) means at most one row can carry this order id,
     // so this is defence in depth rather than a live leak -- but the boundary

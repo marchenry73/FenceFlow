@@ -6,7 +6,7 @@
 // RUNBOOK -- what the owner has to do before this can send anything:
 //
 //   1. Buy or confirm the domain: fenceflowapp.com is already registered at
-//      IONOS. Resend needs to prove FenceFlow controls it before it will
+//      IONOS. Resend needs to prove FenceFlowApp controls it before it will
 //      relay mail from an @fenceflowapp.com address, or it lands in spam
 //      exactly like invite-company/index.ts warns about.
 //   2. In the Resend dashboard: Domains -> Add Domain -> fenceflowapp.com.
@@ -21,8 +21,8 @@
 //      that gets committed:
 //        MAIL_API_KEY       a Resend API key (Resend -> API Keys)
 //        MAIL_FROM          an address on the verified domain, e.g.
-//                           "FenceFlow <crew@fenceflowapp.com>"
-//        MAIL_FROM_NAME     optional, defaults to "FenceFlow" if unset
+//                           "FenceFlowApp <crew@fenceflowapp.com>"
+//        MAIL_FROM_NAME     optional, defaults to "FenceFlowApp" if unset
 //      Until both MAIL_API_KEY and MAIL_FROM exist, this function refuses to
 //      guess and tells the caller to hand the code over by hand instead --
 //      see the 503 branch below. Nothing here ever falls back to Supabase's
@@ -122,7 +122,7 @@ Deno.serve(async (req) => {
       .from("profiles").select("company_id, role, full_name").eq("id", uid).maybeSingle();
     if (profileError) {
       console.error("invite-crew: load profile", profileError.message);
-      return json({ error: "Could not check your FenceFlow account." }, 500);
+      return json({ error: "Could not check your FenceFlowApp account." }, 500);
     }
     if (!profile?.company_id) return json({ error: "No company" }, 403);
 
@@ -134,10 +134,10 @@ Deno.serve(async (req) => {
       .rpc("company_allowed", { cid: profile.company_id });
     if (allowedError) {
       console.error("invite-crew: company_allowed", allowedError.message);
-      return json({ error: "Could not check your FenceFlow account." }, 500);
+      return json({ error: "Could not check your FenceFlowApp account." }, 500);
     }
     if (allowed === false) {
-      return json({ error: "This FenceFlow account is not active. Check the Billing tab." }, 403);
+      return json({ error: "This FenceFlowApp account is not active. Check the Billing tab." }, 403);
     }
 
     const companyId = String(profile.company_id);
@@ -179,7 +179,7 @@ Deno.serve(async (req) => {
 
     const mailKey = Deno.env.get("MAIL_API_KEY");
     // MAIL_FROM is expected to carry its own display name already, e.g.
-    // "FenceFlow <crew@fenceflowapp.com>" -- see the runbook note up top. Only
+    // "FenceFlowApp <crew@fenceflowapp.com>" -- see the runbook note up top. Only
     // the BARE ADDRESS out of it is used here: the display name on this letter
     // is the business's own (senderFrom below), which is the whole reason the
     // letter is sent under the brand the reader expects. MAIL_FROM_NAME is the
@@ -257,9 +257,9 @@ Deno.serve(async (req) => {
         // The name is composed with the bare address, so this now HAPPENS. The
         // old senderWithName() returned MAIL_FROM untouched whenever it already
         // carried a display name -- which the runbook at the top of this file
-        // says it always does, "FenceFlow <crew@fenceflowapp.com>" -- so the
+        // says it always does, "FenceFlowApp <crew@fenceflowapp.com>" -- so the
         // anti-spam measure the comment above describes never once occurred:
-        // every invitation went out as "FenceFlow", never as the business. Same
+        // every invitation went out as "FenceFlowApp", never as the business. Same
         // rule and the same two helpers as fenceflowFrom() in
         // ../_shared/mail/mime-build.ts, whose own doc names this exact trap.
         from: senderFrom(company?.name ?? "", mailAddress),
@@ -292,10 +292,10 @@ Deno.serve(async (req) => {
  *  name from silencing the business's. cleanDisplayName strips line breaks,
  *  angle brackets, quotes, backslashes, every control character and the
  *  invisible ones, and caps at 70 -- so no company name can forge a header or
- *  escape the quoted string. MAIL_FROM_NAME, then "FenceFlow", so the line
+ *  escape the quoted string. MAIL_FROM_NAME, then "FenceFlowApp", so the line
  *  always carries a name rather than falling back to a bare address. */
 function senderFrom(name: string, address: string): string {
   const clean = cleanDisplayName(name) ||
-    cleanDisplayName(Deno.env.get("MAIL_FROM_NAME")) || "FenceFlow";
+    cleanDisplayName(Deno.env.get("MAIL_FROM_NAME")) || "FenceFlowApp";
   return `"${clean}" <${address}>`;
 }

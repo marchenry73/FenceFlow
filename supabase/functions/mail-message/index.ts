@@ -22,7 +22,7 @@
  *                  is_seen, server_gone, mark_error? }
  *   too_large    { size }  -- over OPEN_MESSAGE_MAX_BYTES; never downloaded.
  *                The office says to open it in the mailbox itself.
- *   gone         deleted or moved in the mailbox, and FenceFlow has no copy.
+ *   gone         deleted or moved in the mailbox, and FenceFlowApp has no copy.
  *   changed      the mailbox renumbered its messages (UIDVALIDITY), or the
  *                message at that number is not this one any more. The next
  *                sync puts it right; open it again after that.
@@ -42,7 +42,7 @@
  * "attachment", so the office shows a chip for every attachment and no part
  * is ever neither shown nor downloadable.
  * `mark_error` is set when the message should have been marked read in the
- * mailbox and could not be: the body still comes back, and FenceFlow's own
+ * mailbox and could not be: the body still comes back, and FenceFlowApp's own
  * copy is NOT marked read, because the next sync would copy the mailbox's
  * "unread" back over it anyway.
  *
@@ -62,7 +62,7 @@
  * Later opens are served from the row with no mailbox session, except to set
  * \Seen on a message that is still unread.
  *
- * NOTHING HERE CAN DELETE OR MOVE MAIL. The only change FenceFlow makes to a
+ * NOTHING HERE CAN DELETE OR MOVE MAIL. The only change FenceFlowApp makes to a
  * mailbox is \Seen on or off, and imap-client.ts has no command for anything
  * else (uidStore refuses \Deleted; there is no EXPUNGE, MOVE or COPY).
  *
@@ -82,7 +82,7 @@
  * attempts count, so a loop of marks or opens keeps itself refused instead of
  * becoming the stream of sign-ins that gets a mailbox locked (and a lock
  * reads as a refused password, which takes the mailbox down until the owner
- * types a new one). A message FenceFlow already holds still opens when the
+ * types a new one). A message FenceFlowApp already holds still opens when the
  * budget is spent; only the read mark in the mailbox and the fetching of
  * pending attachments wait.
  *
@@ -460,7 +460,7 @@ type ImapPlan =
 
 /**
  * Whether this message can be fetched from a mailbox, and where. Rows with
- * no UID (FenceFlow mail, a send not yet seen in Sent) have no mailbox copy
+ * no UID (FenceFlowApp mail, a send not yet seen in Sent) have no mailbox copy
  * to fetch. The folder comes from mail_folder_state -- where sync found the
  * message -- and a folder whose UIDVALIDITY has moved on means this row's
  * UID names nothing any more, which is answered without a sign-in.
@@ -505,7 +505,7 @@ async function spendSession(caller: MailCaller): Promise<void> {
   const refused = () =>
     new MailError(
       "rate_limited",
-      `FenceFlow signs in to your mailbox at most ${MESSAGE_SESSIONS_PER_MINUTE} times a minute and ${MESSAGE_SESSIONS_PER_HOUR} an hour, so the mailbox is not locked. Wait a minute and try again.`,
+      `FenceFlowApp signs in to your mailbox at most ${MESSAGE_SESSIONS_PER_MINUTE} times a minute and ${MESSAGE_SESSIONS_PER_HOUR} an hour, so the mailbox is not locked. Wait a minute and try again.`,
     );
   const { data: minute, error } = await caller.admin.rpc("note_mail_event", {
     p_company: caller.companyId,
@@ -684,7 +684,7 @@ async function inlineFromStorage(caller: MailCaller, parts: ReadonlyArray<Stored
 }
 
 // ---------------------------------------------------------------------------
-// Resend (FenceFlow mail replies).
+// Resend (FenceFlowApp mail replies).
 // ---------------------------------------------------------------------------
 
 /** A body, refused once it passes `max` bytes, without buffering first. */
@@ -692,7 +692,7 @@ async function readCapped(res: Response, max: number): Promise<Uint8Array> {
   const declared = Number(res.headers.get("content-length") ?? "");
   if (Number.isFinite(declared) && declared > max) {
     await res.body?.cancel().catch(() => {});
-    throw new MailError("session_limit", "The download is larger than FenceFlow takes.");
+    throw new MailError("session_limit", "The download is larger than FenceFlowApp takes.");
   }
   if (!res.body) return new Uint8Array(0);
   const reader = res.body.getReader();
@@ -704,7 +704,7 @@ async function readCapped(res: Response, max: number): Promise<Uint8Array> {
     total += value.length;
     if (total > max) {
       await reader.cancel().catch(() => {});
-      throw new MailError("session_limit", "The download is larger than FenceFlow takes.");
+      throw new MailError("session_limit", "The download is larger than FenceFlowApp takes.");
     }
     chunks.push(value);
   }
@@ -718,7 +718,7 @@ async function readCapped(res: Response, max: number): Promise<Uint8Array> {
 }
 
 /**
- * The only links FenceFlow will download a Resend attachment from: https,
+ * The only links FenceFlowApp will download a Resend attachment from: https,
  * resend.com or a subdomain of it, default port, no credentials in the URL.
  * The link comes from Resend's authenticated API, but it is still a URL the
  * function did not choose, and a function that fetches whatever URL it is
@@ -1033,7 +1033,7 @@ async function fetchFromImap(
   };
 }
 
-/** A received FenceFlow-mail reply whose text was never cached: fetched
+/** A received FenceFlowApp-mail reply whose text was never cached: fetched
  *  again from Resend, with its attachments listed and stored. */
 async function fetchFromResend(
   caller: MailCaller,
@@ -1139,9 +1139,9 @@ async function openAction(caller: MailCaller, body: Record<string, unknown>, dep
     return { state: "unavailable", message_id: row.id, reason: "no_copy" };
   }
 
-  // Cached, and no mailbox to talk to: FenceFlow mail, a disconnected
-  // mailbox, a message gone from the server. FenceFlow's copy is the only
-  // one, so the read mark is FenceFlow's alone.
+  // Cached, and no mailbox to talk to: FenceFlowApp mail, a disconnected
+  // mailbox, a message gone from the server. FenceFlowApp's copy is the only
+  // one, so the read mark is FenceFlowApp's alone.
   let current = parts;
   if (pending && row.source === "resend_inbound") {
     try {
@@ -1167,7 +1167,7 @@ async function markAction(caller: MailCaller, body: Record<string, unknown>, dep
 
   const plan = await planImap(caller, row);
   if (plan.ok) {
-    // In the mailbox first: a mark made only in FenceFlow would be undone by
+    // In the mailbox first: a mark made only in FenceFlowApp would be undone by
     // the next sync, which copies the mailbox's flags.
     const r = await withSession(caller, plan.account, deps, MARK_SESSION_MS, (client) =>
       setFlag(client, { path: plan.path, uidValidity: plan.uidValidity, uid: plan.uid, flag: "\\Seen", on: seen }));
@@ -1189,7 +1189,7 @@ async function attachmentAction(caller: MailCaller, body: Record<string, unknown
   let part = parts.find((p) => p.idx === idx);
   if (!part) throw new MailError("not_found", "That attachment was not found. Open the message first.");
   if (part.state === "too_large") {
-    throw new MailError("too_large", "This attachment is over 10 MB, so FenceFlow does not keep a copy. Open it in your mailbox.");
+    throw new MailError("too_large", "This attachment is over 10 MB, so FenceFlowApp does not keep a copy. Open it in your mailbox.");
   }
 
   if (part.state !== "stored") {
@@ -1212,7 +1212,7 @@ async function attachmentAction(caller: MailCaller, body: Record<string, unknown
     }
     part = parts.find((p) => p.idx === idx);
     if (part?.state === "too_large") {
-      throw new MailError("too_large", "This attachment is over 10 MB, so FenceFlow does not keep a copy. Open it in your mailbox.");
+      throw new MailError("too_large", "This attachment is over 10 MB, so FenceFlowApp does not keep a copy. Open it in your mailbox.");
     }
     if (!part || part.state !== "stored") throw new MailError("not_found", "This attachment is not available yet. Try again in a minute.");
   }

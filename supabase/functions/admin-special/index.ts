@@ -195,7 +195,7 @@ Deno.serve(async (req) => {
     // later.
     duration: months === 1 ? "once" : "repeating",
     ...(months === 1 ? {} : { duration_in_months: String(months) }),
-    name: `FenceFlow special: $${specialPrice.toFixed(2)} for ${months} month${months === 1 ? "" : "s"}`,
+    name: `FenceFlowApp special: $${specialPrice.toFixed(2)} for ${months} month${months === 1 ? "" : "s"}`,
     "metadata[company_id]": companyId,
   });
   if (!coupon.ok) {

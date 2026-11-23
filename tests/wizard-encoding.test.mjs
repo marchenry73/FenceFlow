@@ -153,7 +153,7 @@ eq('undefined and null spec fields are omitted, not written as null '
 eq('a missing spec object still returns the extra fields',
   M.buildRunOverrides(null, { label:'x' }), { label:'x' });
 
-/* ---------- wizTemplateGroups: Recent / Company default / Your templates / FenceFlow ---------- */
+/* ---------- wizTemplateGroups: Recent / Company default / Your templates / FenceFlowApp ---------- */
 
 {
   const templates = [
@@ -166,14 +166,14 @@ eq('a missing spec object still returns the extra fields',
   ];
   const groups = M.wizTemplateGroups(templates);
   const byLabel = Object.fromEntries(groups);
-  eq('groups appear in Recent, Company default, Your templates, FenceFlow order',
-    groups.map(([label])=>label), ['Recent','Company default','Your templates','FenceFlow templates']);
+  eq('groups appear in Recent, Company default, Your templates, FenceFlowApp order',
+    groups.map(([label])=>label), ['Recent','Company default','Your templates','FenceFlowApp templates']);
   eq('Recent is capped at 3, most recently used first',
     byLabel['Recent'].map(t=>t.sync_id), ['c','d','f']);
   eq('Company default holds every is_default row', byLabel['Company default'].map(t=>t.sync_id), ['b']);
   eq('Your templates excludes both the default and the shipped rows',
     byLabel['Your templates'].map(t=>t.sync_id).sort(), ['c','d','e','f']);
-  eq('FenceFlow templates is exactly the shipped rows', byLabel['FenceFlow templates'].map(t=>t.sync_id), ['a']);
+  eq('FenceFlowApp templates is exactly the shipped rows', byLabel['FenceFlowApp templates'].map(t=>t.sync_id), ['a']);
 }
 eq('an empty template list produces no groups at all (not four empty ones)',
   M.wizTemplateGroups([]), []);

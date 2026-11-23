@@ -25,7 +25,7 @@ import com.fenceestimator.app.ui.components.label
  * It was private to RunEditScreen; the drawing screen now needs the same
  * control, and this project already paid for the alternative -- the company
  * name lives in `companies.*` AND in the settings blob, and nothing reads both
- * (docs: "FenceFlow two company stores"). Two pickers for one fact is the same
+ * (docs: "FenceFlowApp two company stores"). Two pickers for one fact is the same
  * mistake with a shorter fuse: the day one of them stops applying
  * [RunTypeChange.apply] is the day a side's height silently stops following
  * its type on one screen and not the other.
