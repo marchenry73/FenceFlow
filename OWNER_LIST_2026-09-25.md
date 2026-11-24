@@ -177,7 +177,32 @@ live with a positive control: NOTHING else in the repo root has been applied. Ei
       it away. `askScopeWith` now hands the throwable over and AutoSync files
       it once per run (`tests/a186`, four cases in `SyncScopeTest`). Shipped
       in 1.920. **Next time your second phone signs in to an empty list, the
-      reason lands on the admin page** — that closes it. Original wording:
+      reason lands on the admin page** — that closes it.
+
+      **CHAIN VERIFIED 24-11, end to end, by reading each link rather than
+      assuming it.** `AutoSync` → `CrashReporter.report("money-scope", why)`
+      → pending file → upload → `app_errors` → `admin_error_summary` (read
+      out of the LIVE database, not a file: it has no `fatal` filter and
+      groups on message + where_at) → the admin page, which uses `fatal`
+      only to add a red pill, so a non-fatal row is listed like any other.
+      Look for **where_at = money-scope**.
+
+      **Two things to know when it happens, or the one occurrence is wasted:**
+
+      1. **It arrives one launch late, by design.** `report()` only appends
+         to a file on disk; the upload runs at the next launch, and only once
+         `signedIn && companyId != null`. So after the empty list appears,
+         **close and reopen the app once.** Do not clear data or reinstall:
+         that deletes the pending file and the reason with it.
+      2. **It cannot be lost by a failed upload.** The insert policy on
+         `app_errors` is `auth.role() = 'authenticated'`, and B2 cause one
+         is precisely a token that has not attached — so the insert may be
+         refused as anon. That is survivable: the pending file is deleted
+         ONLY after a successful insert, so the report is kept and goes up on
+         the first launch that does authenticate. It is attempted once per
+         process, so each retry needs a fresh launch.
+
+      Original wording:
 - [ ] ~~B2. Signing in on another phone does not sync immediately~~ and keeps
       saying it has not reached the cloud. Real bug, reported twice. Reproduce
       before changing anything — see the "empty answer reads as good news"
