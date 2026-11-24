@@ -23,7 +23,18 @@ on:
     branches: [main, dev]
   workflow_dispatch:
 
+# actions: read is what deploy-pages needs to FIND the artifact the upload
+# step just made. It reads
+#   GET /repos/:owner/:repo/actions/runs/:id/artifacts
+# which is the Actions API, and an explicit permissions block sets everything
+# it does not name to none -- so the job token could write the artifact and
+# then not see it. That is the whole of the 23 Nov 2026 outage: "Found 0
+# artifact(s)" against an artifact the same endpoint returns happily to a
+# token that may read Actions. It had never been declared and had never been
+# needed; it started being enforced between a deploy that worked at 22:28 and
+# the next one at 23:15, with nothing in this repository changing in between.
 permissions:
+  actions: read
   contents: read
   pages: write
   id-token: write
@@ -206,7 +217,10 @@ jobs:
 
       - uses: actions/configure-pages@v5
 
-      # v5, not v3, and deploy-pages v5 below, not v4. On 23 Nov 2026 this
+      # v5 rather than v3, and deploy-pages v5 below rather than v4, because
+      # those are the supported majors -- but note that the bump did NOT fix
+      # anything: v5 failed identically. The fix is actions: read above. On
+      # 23 Nov 2026 this
       # workflow deployed fine at 22:28 and then failed every run from 23:15
       # on, with deploy-pages saying "Found 0 artifact(s)" immediately after
       # the upload step reported success.
